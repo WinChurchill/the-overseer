@@ -45,6 +45,13 @@ public partial class App : Application
                 return;
             }
 
+            if (arguments.VoiceSmoke)
+            {
+                // Finite voice smoke: synthetic tones plus an owned loopback endpoint.
+                Shutdown(await Task.Run(() => VoiceSmokeRunner.Run(arguments)));
+                return;
+            }
+
             if (arguments.HudFixture)
             {
                 HudFixtureRunner.StartFixture(arguments, Dispatcher);

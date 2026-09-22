@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using TheOverseer.App.Desktop;
 using TheOverseer.Core.Configuration;
+using TheOverseer.Core.Voice;
 using TheOverseer.UI;
 using TheOverseer.UI.ViewModels;
 
@@ -57,6 +58,9 @@ internal static class HudFixtureRunner
         var scenarios = SyntheticHudScenarios.Create();
         var settings = HudSettings.Default with { Opacity = 1.0, AlwaysOnTop = true };
         var viewModel = new HudViewModel(settings);
+        var activity = SyntheticHudScenarios.CreateActivitySeries();
+        var voiceStatus = new VoiceStatus(false, "pack", "ok", 0, 2, 0, 0, 0, false, "Spoken 2.");
+        viewModel.ApplyActivity(activity, voiceStatus, 330, 30);
         HudThemeManager.Apply(Application.Current, HudTheme.Dark);
         var window = new HudWindow
         {
@@ -77,6 +81,9 @@ internal static class HudFixtureRunner
                 viewModel.ApplySnapshot(scenarios[0]);
                 foreach (var expanded in new[] { false, true })
                 {
+                    // One view shows the muted glyph, the other the enabled one.
+                    viewModel.IsMuted = theme == HudTheme.Light && expanded;
+                    viewModel.ApplyActivity(activity, viewModel.IsMuted ? VoiceStatus.Initial : voiceStatus, 330, 30);
                     viewModel.IsExpanded = expanded;
                     Resize(window, expanded);
                     window.UpdateLayout();

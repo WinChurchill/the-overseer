@@ -11,6 +11,7 @@ using TheOverseer.App.Diagnostics;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
+using TheOverseer.Core.Voice;
 using TheOverseer.UI;
 using TheOverseer.UI.ViewModels;
 
@@ -90,7 +91,8 @@ public sealed record HudControllerDependencies(
     TimeProvider TimeProvider,
     bool StartHidden,
     bool TrayEnabled,
-    IHudPersistence? Persistence = null);
+    IHudPersistence? Persistence = null,
+    NotificationCoordinator? Notifications = null);
 
 /// <summary>
 /// Composition and lifetime owner for normal HUD mode: one monitor, one window,
@@ -99,6 +101,8 @@ public sealed record HudControllerDependencies(
 public sealed class HudApplicationController : IAsyncDisposable
 {
     private static readonly HudSize ExpandedSize = new(360, 392);
+    private const double ActivityChartWidth = 330;
+    private const double ActivityChartHeight = 30;
 
     private readonly HudControllerDependencies _dependencies;
     private readonly SnapshotPump _pump;
@@ -149,6 +153,17 @@ public sealed class HudApplicationController : IAsyncDisposable
         };
         _saveTimer.Tick += OnSaveTick;
         ViewModel.IsExpanded = _state.IsExpanded;
+        _suppressSettings = true;
+        try
+        {
+            // The shared mute state starts from the persisted voice settings.
+            ViewModel.IsMuted = dependencies.Notifications?.IsMuted ?? dependencies.Config.Voice.Muted;
+        }
+        finally
+        {
+            _suppressSettings = false;
+        }
+
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ViewModel.SettingsChanged += (_, _) =>
         {
@@ -180,8 +195,10 @@ public sealed class HudApplicationController : IAsyncDisposable
         SyncStartupState();
         SubscribeSystemEvents();
         _ageTimer.Start();
+        _dependencies.Notifications?.Start();
         SubscribeMonitor();
         RefreshTrayState();
+        RefreshActivity(_dependencies.TimeProvider.GetUtcNow());
         return Task.CompletedTask;
     }
 
@@ -378,7 +395,17 @@ public sealed class HudApplicationController : IAsyncDisposable
             TaskScheduler.Default);
     }
 
-    private void OnSnapshot(MonitoringSnapshot snapshot) => _pump.OnSnapshot(snapshot);
+    /// <summary>
+    /// Producer callback. Plan 3 observation happens here, BEFORE the lossy UI
+    /// pump, so every attention episode and clearance is seen even when the UI
+    /// coalesces many snapshots into one render. Everything in this path is
+    /// in-memory and bounded: no I/O, no HTTP, no audio and no Dispatcher work.
+    /// </summary>
+    private void OnSnapshot(MonitoringSnapshot snapshot)
+    {
+        _dependencies.Notifications?.OnSnapshot(snapshot);
+        _pump.OnSnapshot(snapshot);
+    }
 
     private void ApplySnapshot(MonitoringSnapshot snapshot)
     {
@@ -386,6 +413,8 @@ public sealed class HudApplicationController : IAsyncDisposable
         {
             return;
         }
+
+        RefreshActivity(snapshot.GeneratedAt);
 
         ViewModel.ApplySnapshot(snapshot);
         _lastTasks.Clear();
@@ -404,6 +433,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         _pump.Stop();
         _lastTasks.Clear();
         ViewModel.NotifyMonitorFailure(code);
+        _dependencies.Notifications?.OnMonitorFailure(code);
         Log(MonitorLogLevel.Error, "hud-monitor-" + code);
         RefreshTrayState();
     }
@@ -421,6 +451,13 @@ public sealed class HudApplicationController : IAsyncDisposable
                 ScheduleStateSave();
             }
 
+            return;
+        }
+
+        if (e.PropertyName is nameof(HudViewModel.IsMuted) && !_shuttingDown)
+        {
+            _dependencies.Notifications?.SetMuted(ViewModel.IsMuted);
+            RefreshTrayState();
             return;
         }
 
@@ -490,6 +527,16 @@ public sealed class HudApplicationController : IAsyncDisposable
         RefreshTrayState();
     }
 
+    /// <summary>Shared mute used by the header, the tray and the header menu.</summary>
+    public void ToggleMute()
+    {
+        ViewModel.IsMuted = !ViewModel.IsMuted;
+        ViewModel.NotifyStatus(ViewModel.IsMuted
+            ? "Voice muted. Current and queued notifications were stopped."
+            : "Voice unmuted. Only new events will be announced.");
+        RefreshTrayState();
+    }
+
     public void ToggleTheme()
     {
         ViewModel.Theme = ViewModel.Theme == HudTheme.Light ? HudTheme.Dark : HudTheme.Light;
@@ -546,6 +593,7 @@ public sealed class HudApplicationController : IAsyncDisposable
             ToggleTopmost,
             SetOpacity,
             ToggleStartWithWindows,
+            ToggleMute,
             ResetPosition,
             () => ExitRequested?.Invoke(this, EventArgs.Empty));
         var (service, availability) = TrayService.TryCreate(callbacks);
@@ -586,6 +634,7 @@ public sealed class HudApplicationController : IAsyncDisposable
             var value = opacity;
             Add("Opacity " + (int)Math.Round(value * 100) + "%", () => SetOpacity(value));
         }
+        Add("Mute / unmute voice", ToggleMute);
         Add("Toggle start with Windows", ToggleStartWithWindows);
         Add("Reset position", ResetPosition);
         Add("Exit", () => ExitRequested?.Invoke(this, EventArgs.Empty));
@@ -602,17 +651,44 @@ public sealed class HudApplicationController : IAsyncDisposable
         var status = ViewModel.MonitoringUnavailable
             ? "monitor unavailable"
             : ViewModel.SummaryText;
-        _tray.UpdateState(_window.IsVisible, ViewModel.Theme, ViewModel.AlwaysOnTop, ViewModel.StartWithWindows, status);
+        if (!ViewModel.IsMuted)
+        {
+            status += " · voice on";
+        }
+
+        _tray.UpdateState(_window.IsVisible, ViewModel.Theme, ViewModel.AlwaysOnTop, ViewModel.StartWithWindows, ViewModel.IsMuted, status);
     }
 
     // ---- timers, persistence ----------------------------------------------------
 
     private void OnAgeTick(object? sender, EventArgs e)
     {
-        if (!_shuttingDown)
+        if (_shuttingDown)
         {
-            ViewModel.UpdateAges(_dependencies.TimeProvider.GetUtcNow());
+            return;
         }
+
+        var now = _dependencies.TimeProvider.GetUtcNow();
+        ViewModel.UpdateAges(now);
+        RefreshActivity(now);
+    }
+
+    /// <summary>
+    /// Timer-driven Plan 3 projection: flush completion aggregation and pending
+    /// cooldowns, then project history/voice onto the UI. Cheap, coalesced and
+    /// on the UI thread only.
+    /// </summary>
+    public void RefreshActivity(DateTimeOffset now)
+    {
+        var notifications = _dependencies.Notifications;
+        if (notifications is null || _monitorFailed)
+        {
+            return;
+        }
+
+        notifications.Pump();
+        var series = notifications.History(now);
+        ViewModel.ApplyActivity(series, notifications.Status, ActivityChartWidth, ActivityChartHeight);
     }
 
     private void OnSaveTick(object? sender, EventArgs e)
@@ -637,6 +713,12 @@ public sealed class HudApplicationController : IAsyncDisposable
         _stateDirty = false;
         _state = CaptureState();
         var state = _state;
+        // Capture immutable UI state plus the live voice settings at save time;
+        // the older dependency snapshot must never overwrite them.
+        var voice = (_dependencies.Notifications?.Settings ?? _dependencies.Config.Voice).Normalized() with
+        {
+            Muted = ViewModel.IsMuted,
+        };
         var config = _dependencies.Config with
         {
             Hud = new HudSettings
@@ -646,6 +728,7 @@ public sealed class HudApplicationController : IAsyncDisposable
                 Opacity = ViewModel.Opacity,
                 StartWithWindows = ViewModel.StartWithWindows,
             },
+            Voice = voice,
         };
         var writer = _dependencies.Persistence ?? new FileHudPersistence();
         var result = await Task.Run(() => writer.Save(_dependencies.Paths, state, config));
@@ -766,6 +849,12 @@ public sealed class HudApplicationController : IAsyncDisposable
             await _saveTask.WaitAsync(TimeSpan.FromSeconds(3));
         });
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        if (_dependencies.Notifications is { } notifications)
+        {
+            // Voice stops before anything else waits: no late audio after Exit.
+            await TryStepAsync("hud-shutdown-voice", () => notifications.DisposeAsync().AsTask());
+        }
+
         try
         {
             await _dependencies.Monitor.DisposeAsync().AsTask().WaitAsync(timeout.Token).ConfigureAwait(true);

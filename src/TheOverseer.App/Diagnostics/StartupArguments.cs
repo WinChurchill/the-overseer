@@ -19,6 +19,12 @@ public sealed class StartupArguments
     /// <summary>Explicit, reversible live check of the owned startup entry.</summary>
     public bool HudStartupCheck { get; private init; }
 
+    /// <summary>Finite Plan 3 voice smoke (silent unless --audible is given).</summary>
+    public bool VoiceSmoke { get; private init; }
+
+    /// <summary>Play through the real sound device during the voice smoke.</summary>
+    public bool Audible { get; private init; }
+
     public bool StartInTray { get; private init; }
 
     public bool NoTray { get; private init; }
@@ -33,7 +39,7 @@ public sealed class StartupArguments
 
     public string? OutputDirectory { get; private init; }
 
-    public bool IsFixtureInvocation => HudFixture || HudSmoke || HudStartupCheck;
+    public bool IsFixtureInvocation => HudFixture || HudSmoke || HudStartupCheck || VoiceSmoke;
 
     public static bool TryParse(IReadOnlyList<string> args, out StartupArguments result, out string error)
     {
@@ -42,6 +48,8 @@ public sealed class StartupArguments
         var fixture = false;
         var smoke = false;
         var startupCheck = false;
+        var voiceSmoke = false;
+        var audible = false;
         var startInTray = false;
         var noTray = false;
         var redact = false;
@@ -62,6 +70,12 @@ public sealed class StartupArguments
                     break;
                 case "--hud-startup-check":
                     startupCheck = true;
+                    break;
+                case "--voice-smoke":
+                    voiceSmoke = true;
+                    break;
+                case "--audible":
+                    audible = true;
                     break;
                 case "--start-in-tray":
                     startInTray = true;
@@ -125,6 +139,8 @@ public sealed class StartupArguments
             HudFixture = fixture,
             HudSmoke = smoke,
             HudStartupCheck = startupCheck,
+            VoiceSmoke = voiceSmoke,
+            Audible = audible,
             StartInTray = startInTray,
             NoTray = noTray,
             RedactLabels = redact,
@@ -140,7 +156,8 @@ public sealed class StartupArguments
        TheOverseer.App --monitor-debug [--duration SECONDS] [--codex-home PATH] [--data-directory PATH] [--redact-labels]
        TheOverseer.App --hud-smoke [--duration SECONDS] [--data-directory PATH] [--no-tray]
        TheOverseer.App --hud-fixture --output-directory DIR [--data-directory PATH]
-       TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)";
+       TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)
+       TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]";
 }
 
 public static class DataDirectoryResolver

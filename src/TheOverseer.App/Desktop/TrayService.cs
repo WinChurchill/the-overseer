@@ -24,11 +24,12 @@ internal sealed class TrayService : IDisposable
     private readonly ToolStripMenuItem _topmostItem;
     private readonly ToolStripMenuItem _opacityItem;
     private readonly ToolStripMenuItem _startupItem;
+    private readonly ToolStripMenuItem _muteItem;
     private readonly ToolStripMenuItem _statusItem;
     private bool _disposed;
 
     private TrayService(NotifyIcon icon, ContextMenuStrip menu, ToolStripMenuItem visibility, ToolStripMenuItem theme,
-        ToolStripMenuItem topmost, ToolStripMenuItem opacity, ToolStripMenuItem startup, ToolStripMenuItem status)
+        ToolStripMenuItem topmost, ToolStripMenuItem opacity, ToolStripMenuItem startup, ToolStripMenuItem mute, ToolStripMenuItem status)
     {
         _icon = icon;
         _menu = menu;
@@ -37,6 +38,7 @@ internal sealed class TrayService : IDisposable
         _topmostItem = topmost;
         _opacityItem = opacity;
         _startupItem = startup;
+        _muteItem = mute;
         _statusItem = status;
     }
 
@@ -64,6 +66,8 @@ internal sealed class TrayService : IDisposable
 
             var startup = new ToolStripMenuItem("Start with Windows") { CheckOnClick = false };
             startup.Click += (_, _) => callbacks.ToggleStartWithWindows();
+            var mute = new ToolStripMenuItem("Mute voice") { CheckOnClick = false };
+            mute.Click += (_, _) => callbacks.ToggleMute();
             var reset = new ToolStripMenuItem("Reset position");
             reset.Click += (_, _) => callbacks.ResetPosition();
             var exit = new ToolStripMenuItem("Exit");
@@ -75,6 +79,7 @@ internal sealed class TrayService : IDisposable
             menu.Items.Add(theme);
             menu.Items.Add(topmost);
             menu.Items.Add(opacity);
+            menu.Items.Add(mute);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(startup);
             menu.Items.Add(reset);
@@ -91,7 +96,7 @@ internal sealed class TrayService : IDisposable
             };
             icon.DoubleClick += (_, _) => callbacks.ToggleVisibility();
 
-            return (new TrayService(icon, menu, visibility, theme, topmost, opacity, startup, status), TrayAvailability.Available);
+            return (new TrayService(icon, menu, visibility, theme, topmost, opacity, startup, mute, status), TrayAvailability.Available);
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
         {
@@ -101,7 +106,7 @@ internal sealed class TrayService : IDisposable
         }
     }
 
-    public void UpdateState(bool windowVisible, HudTheme theme, bool alwaysOnTop, bool startWithWindows, string statusLine)
+    public void UpdateState(bool windowVisible, HudTheme theme, bool alwaysOnTop, bool startWithWindows, bool muted, string statusLine)
     {
         if (_disposed)
         {
@@ -112,6 +117,7 @@ internal sealed class TrayService : IDisposable
         _themeItem.Text = theme == HudTheme.Light ? "Dark mode" : "Light mode";
         _topmostItem.Checked = alwaysOnTop;
         _startupItem.Checked = startWithWindows;
+        _muteItem.Checked = muted;
         _statusItem.Text = statusLine.Length <= 120 ? statusLine : statusLine[..120];
         _icon.Text = "OVERSEER — " + (statusLine.Length <= 100 ? statusLine : statusLine[..100]);
     }
@@ -148,5 +154,6 @@ public sealed record TrayCallbacks(
     Action ToggleTopmost,
     Action<double> SetOpacity,
     Action ToggleStartWithWindows,
+    Action ToggleMute,
     Action ResetPosition,
     Action Exit);

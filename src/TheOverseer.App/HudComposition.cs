@@ -1,11 +1,15 @@
 using System.IO;
+using System.Net.Http;
 using System.Windows.Threading;
 using TheOverseer.App.Desktop;
 using TheOverseer.App.Diagnostics;
 using TheOverseer.App.Monitoring;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
+using TheOverseer.Core.History;
 using TheOverseer.Core.Monitoring;
+using TheOverseer.Core.Voice;
+using TheOverseer.App.Voice;
 using TheOverseer.UI;
 
 namespace TheOverseer.App;
@@ -61,6 +65,8 @@ internal static class HudComposition
         var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
         var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));
 
+        var notifications = CreateNotifications(dataDirectory, configResult.Config.Voice, log);
+
         var dependencies = new HudControllerDependencies(
             new CodexMonitorSource(monitor),
             new WpfUiDispatcher(dispatcher),
@@ -75,8 +81,50 @@ internal static class HudComposition
             () => new HudWindow(),
             TimeProvider.System,
             arguments.StartInTray,
-            !arguments.NoTray);
+            !arguments.NoTray,
+            Persistence: null,
+            Notifications: notifications);
 
         return (dependencies, configResult, stateResult);
+    }
+
+    /// <summary>
+    /// Builds the history/voice graph. The pack provider is local-only; the TTS
+    /// provider exists only when the user selected it, and it is never contacted
+    /// without a configured endpoint.
+    /// </summary>
+    private static NotificationCoordinator CreateNotifications(string dataDirectory, VoiceSettings settings, IMonitorLog log)
+    {
+        var normalized = (settings ?? VoiceSettings.Default).Normalized();
+        var packProvider = new VoicePackProvider(dataDirectory, () => normalized);
+        IVoiceProvider provider = normalized.ResolvedProvider == VoiceProviderKind.Tts
+            ? new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), () => normalized), packProvider, allowFallback: true)
+            : packProvider;
+
+        var player = new WavPlaybackService();
+        var manager = new VoiceManager(
+            provider,
+            player,
+            VoiceManagerOptions.Default,
+            TimeProvider.System,
+            revalidate: null,
+            muted: normalized.Muted);
+        _ = log;
+        return new NotificationCoordinator(new ActivityHistory(), new VoiceEventPolicy(), manager, TimeProvider.System, normalized);
+    }
+
+    /// <summary>One reusable client: no redirects, no cookies, bounded by provider timeouts.</summary>
+    private static HttpClient CreateTtsClient()
+    {
+        var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+        };
+        var client = new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+        return client;
     }
 }
