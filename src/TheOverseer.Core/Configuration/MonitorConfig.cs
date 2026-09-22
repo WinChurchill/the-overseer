@@ -24,6 +24,13 @@ public sealed record MonitorConfig
 
     [JsonPropertyName("runtimeActivitySource")]
     public bool RuntimeActivitySourceEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Additive HUD preferences. Optional: an existing monitor-only config keeps
+    /// loading and UI updates preserve every monitor field.
+    /// </summary>
+    [JsonPropertyName("hud")]
+    public HudSettings Hud { get; init; } = new();
 }
 
 public sealed record MonitorLimits

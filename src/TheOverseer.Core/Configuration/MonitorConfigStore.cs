@@ -88,6 +88,7 @@ public static class MonitorConfigStore
             .ToArray(),
         Limits = config.Limits ?? new MonitorLimits(),
         Logging = config.Logging ?? new LoggingSettings(),
+        Hud = (config.Hud ?? new HudSettings()).Normalized(),
     };
 
     /// <summary>Applies configuration limits onto monitor options; bounds always win.</summary>
