@@ -7,7 +7,7 @@ Plan 1 (Foundation and Monitoring) is merged into `main`: a bounded, read-only
 local monitor that turns Codex rollout records into normalized task state,
 current-action labels, attention transitions and explicit monitoring health.
 
-Plan 2 (Complete Usable HUD) is implemented on `impl/p2-hud`: normal startup now
+Plan 2 (Complete Usable HUD) is reviewed and merged into `main`: normal startup now
 runs one small persistent WPF HUD backed by that live monitor, with honest
 collapsed counts, a bounded expanded task list, shared Light/Dark website
 themes, drag placement with recovery, a tray menu, opt-in current-user startup
@@ -225,7 +225,8 @@ were not imported.
 
 ## Next action
 
-Astra Review 2 passed with nonblocking notes. Review fixes, validation evidence
-and unverified hardware scenarios are recorded in `docs/IMPLEMENTATION_STATE.md`.
-The reviewed `impl/p2-hud` branch remains unmerged. Next, integrate the reviewed
-branch and prepare Astra planning for Plan 3 / Goal 3 (activity history and voice).
+Astra Review 2 passed with nonblocking notes and the reviewed branch was
+fast-forwarded into `main`. Plan 3 / Goal 3 is ready for DeepSeek on
+`impl/p3-history-voice`: read `AGENTS.md`, `.agent/HANDOFF.md` and
+`docs/IMPLEMENTATION_STATE.md`, then execute the whole history and voice plan.
+No Plan 3 product code has been started during planning.

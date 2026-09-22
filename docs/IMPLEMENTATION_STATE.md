@@ -1,20 +1,30 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: P2 — Complete Usable HUD
-Goal: G2 — Usable persistent website-derived desktop HUD
-Branch: impl/p2-hud
+Plan: P3 — Activity and Voice
+Goal: G3 — Activity trace and useful non-annoying voice notifications
+Branch: impl/p3-history-voice
 
 ## Plan Status
-- Astra handoff: ready
-- DeepSeek implementation: complete
-- Build: passed (0 warnings, 0 errors)
-- Tests: passed (220 passed, 0 failed, 0 skipped; all 139 P1 cases retained)
-- Smoke: passed within available hardware; limitations below
-- Astra review: PASS WITH NONBLOCKING NOTES (Review 2, 2026-09-22 UTC)
+- Astra handoff: ready (.agent/HANDOFF.md, whole Plan 3)
+- DeepSeek implementation: pending
+- Build: pending for P3; reviewed baseline passes with 0 warnings/errors
+- Tests: pending for P3; fresh baseline 220 passed, 0 failed/skipped
+- Smoke: pending for P3
+- Astra review: pending (Review 3); Review 2 passed with nonblocking notes
 
-## Completed
-Base: reviewed P1 commit `7c665609c36d8d86c2ff6d09b5aacf596c3937ed` (local main).
+## Planning State
+- Reviewed P2 commit a5d851bcceb58ad904d1357b4e9a9a006ea57d1a was fast-forwarded
+  into main; impl/p3-history-voice was created from that clean base.
+- Fresh baseline build/tests rerun during planning: 0 warnings/errors, 220 passed.
+- The P3 handoff defines the whole history/voice goal, exact code map, ordered work,
+  anti-spam/cancellation rules, bounded providers, tests and direct execution prompt.
+- No P3 product implementation has begun. No endpoint or spoken assets supplied;
+  fake/loopback TTS and synthetic WAV fixtures are planned, not live speech evidence.
+
+## Reviewed Foundation (P1/P2)
+Review 2 base: reviewed P1 commit `7c665609c36d8d86c2ff6d09b5aacf596c3937ed`
+(main before P2 integration).
 Planning ledger: `e8ee951`. Implementation commits: `9759e85` (Core settings and
 placement), `d436f14` (UI), `75f9620` (App), `276e24b` (tests), `9269536` (docs).
 Review fixes are in the subsequent `fix: address Astra Review 2 findings` commit.
@@ -108,6 +118,6 @@ available under `artifacts/p2-*`. No new restore was necessary.
 - None remaining from Review 2.
 
 ## Next Action
-Integrate the reviewed `impl/p2-hud` branch into main, then Astra prepares one
-whole-plan handoff for Plan 3 / Goal 3 on `impl/p3-history-voice` using repo rules.
-Do not begin P3 implementation as part of this review.
+DeepSeek reads AGENTS.md, .agent/HANDOFF.md and this ledger, then executes the
+whole Plan 3 / Goal 3 on impl/p3-history-voice. Build/test/smoke, update this ledger,
+and leave the branch clean and unmerged for Astra Review 3.
