@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+  <!-- OVERSEER website-derived dark palette. Key set must match WebsiteLight.xaml. -->
+  <SolidColorBrush x:Key="BackgroundBaseBrush" Color="#0C1410" />
+  <SolidColorBrush x:Key="PanelSurfaceBrush" Color="#111A15" />
+  <SolidColorBrush x:Key="ForegroundBrush" Color="#E7E9DF" />
+  <SolidColorBrush x:Key="MutedBrush" Color="#A2AA9F" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#344038" />
+  <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#DEB85D" />
+  <SolidColorBrush x:Key="AccentSecondaryBrush" Color="#798477" />
+  <SolidColorBrush x:Key="DecorLineBrush" Color="#1E2A24" />
+  <SolidColorBrush x:Key="RowSeparatorBrush" Color="#24302A" />
+  <SolidColorBrush x:Key="HealthyBrush" Color="#8FBF9A" />
+  <SolidColorBrush x:Key="DegradedBrush" Color="#DEB85D" />
+  <SolidColorBrush x:Key="UnavailableBrush" Color="#D98A78" />
+  <SolidColorBrush x:Key="StaleBrush" Color="#8A9287" />
+  <SolidColorBrush x:Key="PanelOverlayBrush" Color="#14000000" />
+
+  <FontFamily x:Key="PrimaryFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
+  <FontFamily x:Key="MetadataFontFamily">Cascadia Mono, Consolas</FontFamily>
+
+  <sys:Double x:Key="FontSizeCount">26</sys:Double>
+  <sys:Double x:Key="FontSizeDisplay">15</sys:Double>
+  <sys:Double x:Key="FontSizeBody">12</sys:Double>
+  <sys:Double x:Key="FontSizeMeta">9.5</sys:Double>
+
+  <Thickness x:Key="ShellBorderThickness">1</Thickness>
+  <Thickness x:Key="HairlineThickness">1</Thickness>
+  <CornerRadius x:Key="ShellCornerRadius">0</CornerRadius>
+
+</ResourceDictionary>
