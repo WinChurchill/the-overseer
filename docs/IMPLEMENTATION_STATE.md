@@ -1,19 +1,25 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: P1 — Foundation and Monitoring
-Goal: G1 — Trustworthy normalized live monitor
-Branch: impl/p1-monitoring
+Plan: P2 — Complete Usable HUD
+Goal: G2 — Usable persistent website-derived desktop HUD
+Branch: impl/p2-hud
 
 ## Plan Status
 - Astra handoff: ready
-- DeepSeek implementation: complete
-- Build: passed (0 warnings, 0 errors)
-- Tests: passed (139 passed, 0 failed, 0 skipped)
-- Smoke: passed (final 60-second live review run, exit 0)
-- Astra review: PASS WITH NONBLOCKING NOTES
+- DeepSeek implementation: pending
+- Build: pending for P2; reviewed P1 baseline rebuilt successfully
+- Tests: pending for P2; baseline reverified (139 passed, 0 failed, 0 skipped)
+- Smoke: pending for P2
+- Astra review: pending for P2; P1 passed with nonblocking notes
 
 ## Completed
+P2 planning: `.agent/HANDOFF.md` prepared for the complete Goal 2.
+Local main was fast-forwarded to reviewed P1 commit
+`7c665609c36d8d86c2ff6d09b5aacf596c3937ed`; `impl/p2-hud` starts there.
+No P2 application code has been implemented. No remote was pushed.
+
+The following implementation/review/validation evidence is the P1 baseline.
 Bootstrap baseline: main at `1fc5f75fc74f412be645702cfb4afc046c1b11c5`.
 Implementation reviewed: `e6b6f8d` through `4c04cdf`, the complete Plan 1 diff
 against main. Astra applied review fixes directly under the user's explicit
@@ -63,7 +69,7 @@ MAJOR findings corrected:
 cases remain, with corrected fixtures for tool calls, nonblocking attention,
 and runtime hint containment. Review fixes were re-read after validation.
 
-## Validation
+## P1 Baseline Validation
 Workspace-local .NET SDK 10.0.401 and existing package cache:
 - `dotnet build --no-restore --disable-build-servers`: exit 0, no warnings/errors.
 - `dotnet test --no-build --no-restore`: exit 0, 139 passed.
@@ -102,8 +108,8 @@ Attention-live was not exercised. Redacted output is ignored at
   not a privacy redactor. Parser-to-log privacy tests remain passing.
 
 ## Blocking Issues
-- None. No scope/architecture escalation required. Main was not merged or changed.
+- None. P1 was locally integrated after its review passed. P2 is not merged.
 
 ## Next Action
-- Integrate the reviewed Plan 1 branch, then prepare Astra planning for
-  Plan 2 / Goal 2 under the existing four-plan workflow.\n
+- DeepSeek reads `AGENTS.md`, `.agent/HANDOFF.md`, and this ledger, then executes
+  the entire Plan 2 / Goal 2 on `impl/p2-hud` and leaves it ready for Astra Review 2.
