@@ -31,6 +31,13 @@ public sealed record MonitorConfig
     /// </summary>
     [JsonPropertyName("hud")]
     public HudSettings Hud { get; init; } = new();
+
+    /// <summary>
+    /// Additive voice preferences. Optional: an existing config keeps loading and
+    /// voice stays muted with the local pack provider until the user opts in.
+    /// </summary>
+    [JsonPropertyName("voice")]
+    public VoiceSettings Voice { get; init; } = new();
 }
 
 public sealed record MonitorLimits
