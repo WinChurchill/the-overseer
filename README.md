@@ -3,12 +3,16 @@
 **OVERSEER** is a private Windows desktop companion for Codex sessions.
 Repository: `the-overseer`. Solution: `TheOverseer.sln`.
 
-Plan 1 (Foundation and Monitoring) is implemented on `impl/p1-monitoring`: a
-bounded, read-only local monitor that turns Codex rollout records into
-normalized task state, current-action labels, attention transitions and explicit
-monitoring health. The HUD, activity history, voice and release plans are not
-implemented yet; normal application startup still shows the bootstrap scaffold
-window.
+Plan 1 (Foundation and Monitoring) is merged into `main`: a bounded, read-only
+local monitor that turns Codex rollout records into normalized task state,
+current-action labels, attention transitions and explicit monitoring health.
+
+Plan 2 (Complete Usable HUD) is implemented on `impl/p2-hud`: normal startup now
+runs one small persistent WPF HUD backed by that live monitor, with honest
+collapsed counts, a bounded expanded task list, shared Light/Dark website
+themes, drag placement with recovery, a tray menu, opt-in current-user startup
+and safe task navigation. Activity history, the sparkline, voice and release
+packaging remain Plans 3 and 4.
 
 ## Naming and frozen sources
 
@@ -27,12 +31,16 @@ Detailed visual refinement is deferred in `docs/UI_SPEC_v0.2.md`.
 ## Projects
 
 - `TheOverseer.App`: Windows x64 WPF application entry point; references Core and UI.
-  Hosts the finite `--monitor-debug` console harness and the optional read-only
-  Windows state-store activity source.
+  Owns platform services (tray, placement, startup registry, shell navigation),
+  the HUD lifetime controller and the diagnostics fixtures; also hosts the finite
+  `--monitor-debug` console harness and the optional read-only Windows
+  state-store activity source.
 - `TheOverseer.Core`: plain .NET library with `Models/`, `Monitoring/`,
   `Configuration/` and `Diagnostics/` (plus empty `History/`, `Voice/` boundaries);
   no WPF dependency.
-- `TheOverseer.UI`: WPF presentation library; references Core; minimal window only.
+- `TheOverseer.UI`: WPF presentation library; references Core. Contains the single
+  `HudWindow`, the `HudViewModel` projection and the WebsiteLight/WebsiteDark
+  resource dictionaries.
 - `TheOverseer.Tests`: xUnit tests; references Core. Tests cover the bounded
   readers, discovery, identity, titles, parser, reducer, classifier, attention,
   health, monitor composition, configuration, logging and privacy rules.
@@ -60,6 +68,63 @@ $env:PATH = "$env:DOTNET_ROOT;$env:PATH"
 $env:DOTNET_CLI_HOME = [IO.Path]::GetFullPath('../.tools/cli-home')
 $env:NUGET_PACKAGES = [IO.Path]::GetFullPath('../.tools/nuget-packages')
 ```
+
+## Running the HUD
+
+```powershell
+dotnet run --project src/TheOverseer.App                      # HUD with the real monitor
+dotnet run --project src/TheOverseer.App -- --start-in-tray   # start hidden, tray only
+```
+
+Controls:
+
+| Action | Result |
+| --- | --- |
+| Drag the header row | Moves the HUD; the position is saved (debounced). |
+| Click the summary or the chevron | Expands or collapses the task list. |
+| `Escape` | Collapses the list. |
+| Click a task row | Requests the validated `codex://threads/<id>` route for a resolved Desktop task. |
+| Right-click a task row | Copies the task id (explicit action only). |
+| `Enter`/`Space` on a focused row | Same as clicking it. |
+| Tray icon | Show/Hide, Light/Dark, Always on top, opacity presets, Start with Windows, Reset position, monitoring status, Exit. |
+
+The HUD never activates itself: it is shown with `ShowActivated=false` and the
+window is positioned without activation, so monitoring updates, theme changes and
+completion events never steal focus. A second normal launch exits quietly and
+leaves the running instance's monitor and tray untouched.
+
+### Settings and state
+
+`config.json` gains an additive `hud` section; every existing monitor field is
+preserved when the HUD saves:
+
+```json
+"hud": {
+  "theme": "dark",
+  "alwaysOnTop": true,
+  "opacity": 0.96,
+  "startWithWindows": false
+}
+```
+
+Opacity is clamped to 0.65–1.0 and only `light`/`dark` themes are accepted.
+`state.json` stores placement as display independent pixels relative to the saved
+monitor's working area plus the DPI scale in effect, so a DPI change keeps the
+same physical spot and a removed monitor is clamped back onto a reachable one.
+Corrupt or oversized files fall back to defaults without deleting the original.
+Writes are serialized through a same-directory temporary file.
+
+Start with Windows is an opt-in current-user entry (`HKCU\...\Run\OVERSEER`) with a
+quoted real executable path and `--start-in-tray`. It is never enabled
+automatically, needs no elevation, and disabling removes only that value.
+
+### Task navigation
+
+Only a resolved Desktop task with a UUID-shaped conversation id produces a route.
+CLI, VS Code, provisional-identity and non-default-profile tasks keep an honest
+"open it manually" fallback, and the id can be copied instead. If the `codex:
+` protocol has no registered handler — the case on the machine used for Plan 2 —
+the HUD reports that instead of claiming the task opened.
 
 ## Monitor debug harness
 
@@ -89,6 +154,22 @@ actual `N working · N needs you` summary, one row per task
 (`#number label / STATE / action / surface / evidence`), the spec-shaped
 per-task blocks, the record/byte counters observed in that run, and the honest
 limitations of the installed Codex version.
+
+## HUD diagnostics fixtures
+
+These explicit, isolated, finite modes never register startup, never read real
+rollout files and never replace production input:
+
+```powershell
+# Render synthetic previews (light/dark x collapsed/expanded + empty/unavailable)
+dotnet run --project src/TheOverseer.App -- --hud-fixture --output-directory artifacts/p2-ui
+
+# Full production composition against a synthetic monitor, then a clean exit
+dotnet run --project src/TheOverseer.App -- --hud-smoke --duration 15 --data-directory artifacts/p2-hud-fixture
+
+# Reversible live check of OVERSEER's own Run entry (restores the original state)
+dotnet run --project src/TheOverseer.App -- --hud-startup-check
+```
 
 ## Configuration and logs
 
