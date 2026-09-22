@@ -1,0 +1,130 @@
+namespace TheOverseer.Core.Models;
+
+/// <summary>
+/// Monitoring health is independent of task state. It exists so that a broken
+/// monitor can never be displayed as "zero tasks".
+/// </summary>
+public enum MonitoringHealthLevel
+{
+    Healthy,
+    Degraded,
+    Unavailable,
+}
+
+/// <summary>Safe, stable reason codes for degraded/unavailable monitoring.</summary>
+public static class HealthReasons
+{
+    public const string None = "none";
+    public const string RootMissing = "root-missing";
+    public const string RootInaccessible = "root-inaccessible";
+    public const string RootEmpty = "root-empty";
+    public const string DiscoveryCapped = "discovery-capped";
+    public const string DiscoveryBacklog = "discovery-backlog";
+    public const string TrackedFileLimit = "tracked-file-limit";
+    public const string FileLocked = "file-locked";
+    public const string FileMissing = "file-missing";
+    public const string FileTruncated = "file-truncated";
+    public const string FileReplaced = "file-replaced";
+    public const string FileMalformed = "file-malformed";
+    public const string RecordOversize = "record-oversize";
+    public const string HydrationBudget = "hydration-budget-exhausted";
+    public const string ReadFailure = "read-failure";
+    public const string WatcherFailed = "watcher-failed";
+    public const string WatcherOverflow = "watcher-overflow";
+    public const string StaleTasks = "stale-tasks";
+    public const string ProvisionalTasks = "provisional-tasks";
+    public const string IncompleteCoverage = "coverage-incomplete";
+    public const string TitleSourceUnavailable = "title-source-unavailable";
+    public const string ActivitySourceUnavailable = "activity-source-unavailable";
+    public const string ConfigRecovered = "config-recovered";
+    public const string LogDegraded = "log-degraded";
+    public const string CycleFailure = "cycle-failure";
+    public const string Cancelled = "cancelled";
+}
+
+public sealed record MonitoringHealth(
+    MonitoringHealthLevel Level,
+    IReadOnlyList<string> Reasons,
+    bool CoverageComplete,
+    DateTimeOffset? LastSuccessfulReadAt,
+    DateTimeOffset ObservedAt)
+{
+    public static MonitoringHealth Unavailable(IReadOnlyList<string> reasons, DateTimeOffset now) =>
+        new(MonitoringHealthLevel.Unavailable, reasons, false, null, now);
+
+    public static MonitoringHealth Healthy(DateTimeOffset now, DateTimeOffset? lastReadAt) =>
+        new(MonitoringHealthLevel.Healthy, Array.Empty<string>(), true, lastReadAt ?? now, now);
+
+    public bool IsHealthy => Level == MonitoringHealthLevel.Healthy;
+
+    public bool CountsAreAuthoritative => Level != MonitoringHealthLevel.Unavailable && CoverageComplete;
+
+    public string ReasonsDisplay => Reasons.Count == 0 ? HealthReasons.None : string.Join(',', Reasons);
+}
+
+public enum CapabilitySupport
+{
+    /// <summary>Implemented and structurally verified against observed data or tests.</summary>
+    Supported,
+
+    /// <summary>The installed Codex version does not persist this signal at all.</summary>
+    Unsupported,
+
+    /// <summary>The optional source exists in principle but was not readable in this run.</summary>
+    Unavailable,
+
+    /// <summary>Implemented and contract-tested, but never observed in a live run.</summary>
+    NotExercised,
+
+    /// <summary>Observed in real recorded data during this run.</summary>
+    LiveObserved,
+}
+
+public sealed record CapabilityStatus(CapabilitySupport Support, string Code, string Note);
+
+/// <summary>
+/// Explicit capability disclosure. Anything the installed Codex version cannot
+/// expose is reported here instead of being guessed.
+/// </summary>
+public sealed record MonitorCapabilities(
+    CapabilityStatus LifecycleEvents,
+    CapabilityStatus StructuredActivity,
+    CapabilityStatus PermissionRequests,
+    CapabilityStatus InputRequests,
+    CapabilityStatus TaskFailureEvidence,
+    CapabilityStatus RuntimeActivitySource,
+    CapabilityStatus SessionTitles,
+    CapabilityStatus AttentionLiveVerification)
+{
+    public static MonitorCapabilities Initial { get; } = new(
+        new CapabilityStatus(CapabilitySupport.NotExercised, "rollout-lifecycle", "task_started/task_complete/turn_aborted from rollout records"),
+        new CapabilityStatus(CapabilitySupport.NotExercised, "structured-activity", "item_completed and tool call records"),
+        new CapabilityStatus(CapabilitySupport.Unsupported, "permission-requests", "approval events are transient in Codex, not rollout-persisted"),
+        new CapabilityStatus(CapabilitySupport.Unsupported, "input-requests", "request_user_input events are transient in Codex, not rollout-persisted"),
+        new CapabilityStatus(CapabilitySupport.Unsupported, "task-failure", "no explicit task-level failure record observed"),
+        new CapabilityStatus(CapabilitySupport.Unavailable, "runtime-activity-source", "optional read-only state store enrichment not read yet"),
+        new CapabilityStatus(CapabilitySupport.Unavailable, "session-titles", "official session index not read yet"),
+        new CapabilityStatus(CapabilitySupport.NotExercised, "attention-live", "no live attention event observed; contracts tested synthetically"));
+}
+
+/// <summary>Counters describing what the run actually observed. Never fabricated.</summary>
+public sealed record LiveObservationStats(
+    int SessionMetaRecords,
+    int TaskStartedRecords,
+    int TaskCompletedRecords,
+    int TurnAbortedRecords,
+    int ItemCompletedRecords,
+    int ToolCallRecords,
+    int PermissionRequestRecords,
+    int InputRequestRecords,
+    int MalformedRecords,
+    int OversizeRecords,
+    int FilesHydrated,
+    int FilesTracked,
+    long BytesRead)
+{
+    public static LiveObservationStats Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    public bool AnyLifecycleObserved =>
+        TaskStartedRecords > 0 || TaskCompletedRecords > 0 || TurnAbortedRecords > 0;
+}
