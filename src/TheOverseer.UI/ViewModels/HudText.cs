@@ -10,6 +10,13 @@ public static class HudText
 {
     public const string UnknownMark = "?";
 
+    public static string State(AgentTaskState state) => state switch
+    {
+        AgentTaskState.NeedsInput => "NEEDS_INPUT",
+        AgentTaskState.NeedsApproval => "NEEDS_APPROVAL",
+        _ => state.ToString().ToUpperInvariant(),
+    };
+
     /// <summary>Big number for one count value: "3", "3+", or "?".</summary>
     public static string CountValue(CountValue value) =>
         !value.IsKnown ? UnknownMark : value.IsComplete ? value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + "+";

@@ -53,6 +53,15 @@ public partial class HudWindow : Window
         }
     }
 
+    private void OnCopyTaskIdClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { DataContext: TaskRowViewModel row })
+        {
+            ViewModel?.CopyTaskIdCommand.Execute(row);
+            e.Handled = true;
+        }
+    }
+
     private void OnDragRegionMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Left)

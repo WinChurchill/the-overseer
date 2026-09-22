@@ -65,6 +65,9 @@ public sealed class HudDispatchTests
 
         pump.OnSnapshot(Snapshot(1));
         pump.Stop();
+        pump.OnSnapshot(Snapshot(2));
+        dispatcher.DrainAll();
+        pump.OnSnapshot(Snapshot(3));
         dispatcher.DrainAll();
 
         Assert.Equal(0, applied);
@@ -90,7 +93,7 @@ public sealed class HudDispatchTests
             Assert.True(controller.ViewModel.Tasks.Count > 0);
             Assert.True(controller.ViewModel.HasAppliedSnapshot);
             Assert.True(monitor.Started);
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
             Cleanup();
         });
     }
@@ -105,15 +108,13 @@ public sealed class HudDispatchTests
             var controller = CreateController(dispatcher, monitor, new FakePlacementService());
 
             controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
-            for (var index = 0; index < 100 && !controller.ViewModel.MonitoringUnavailable; index++)
-            {
-                Thread.Sleep(20);
-            }
+            dispatcher.DrainAll();
 
             Assert.True(controller.ViewModel.MonitoringUnavailable, "a failed monitor start must surface as unavailable");
             Assert.Equal("?", controller.ViewModel.WorkingCountText);
             Assert.Contains("unknown", controller.ViewModel.SummaryText, StringComparison.OrdinalIgnoreCase);
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            Assert.Contains("monitor-faulted", controller.ViewModel.MonitoringDetail);
+            StaTestHost.Complete(controller.ShutdownAsync());
             Cleanup();
         });
     }
@@ -133,7 +134,7 @@ public sealed class HudDispatchTests
             dispatcher.DrainAll();
             controller.ViewModel.IsExpanded = true;
 
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
 
             Assert.True(monitor.Disposed);
             Assert.True(controller.IsShuttingDown);
@@ -146,7 +147,7 @@ public sealed class HudDispatchTests
     }
 
     [Fact]
-    public void HidingKeepsTheMonitorRunningAndDoesNotDisposeIt()
+    public void MissingTrayKeepsTheWindowReachableAndTheMonitorRunning()
     {
         StaTestHost.Invoke(() =>
         {
@@ -158,7 +159,8 @@ public sealed class HudDispatchTests
             Assert.True(controller.Window!.IsVisible);
 
             controller.ToggleVisibility();
-            Assert.False(controller.Window!.IsVisible);
+            Assert.True(controller.Window!.IsVisible);
+            Assert.NotNull(controller.Window.ContextMenu);
             Assert.False(monitor.Disposed);
 
             monitor.Push(SyntheticHudScenarios.Mixed());
@@ -167,7 +169,7 @@ public sealed class HudDispatchTests
 
             controller.ToggleVisibility();
             Assert.True(controller.Window!.IsVisible);
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
             Cleanup();
         });
     }
@@ -184,7 +186,7 @@ public sealed class HudDispatchTests
             controller.ViewModel.Theme = HudTheme.Light;
             controller.ViewModel.Opacity = 0.8;
             controller.ViewModel.AlwaysOnTop = false;
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
 
             var config = MonitorConfigStore.Load(ConfigPath).Config;
             Assert.Equal("light", config.Hud.ThemeName);
@@ -216,7 +218,7 @@ public sealed class HudDispatchTests
             Assert.Equal(360, controller.Window!.Width);
             Assert.True(controller.Window.Height > collapsedDip, "expanded geometry must be taller");
             Assert.NotNull(placement.LastPlacement);
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
             Cleanup();
         });
     }
@@ -240,7 +242,7 @@ public sealed class HudDispatchTests
             controller.ToggleStartWithWindows();
             Assert.False(startup.LastRequest);
             Assert.False(controller.ViewModel.StartWithWindows);
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
             Cleanup();
         });
     }
@@ -267,9 +269,117 @@ public sealed class HudDispatchTests
 
             controller.ViewModel.CopyTaskIdCommand.Execute(row);
             Assert.Equal(row.Key.ConversationId, clipboard.Text);
-            controller.ShutdownAsync().GetAwaiter().GetResult();
+            StaTestHost.Complete(controller.ShutdownAsync());
             Cleanup();
         });
+    }
+
+    [Fact]
+    public void HiddenStartupWithoutTrayShowsAControllableWindow()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var controller = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService(), startHidden: true);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.True(controller.Window!.IsVisible);
+            Assert.Contains(controller.Window.ContextMenu.Items.Cast<System.Windows.Controls.MenuItem>(), item => Equals(item.Header, "Exit"));
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void CompletedMonitorCannotLeaveHealthyRowsOrAcceptLateSnapshots()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var monitor = new FakeMonitorSource();
+            var controller = CreateController(dispatcher, monitor, new FakePlacementService());
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            monitor.Push(SyntheticHudScenarios.Mixed());
+            dispatcher.DrainAll();
+            Assert.NotEmpty(controller.ViewModel.Tasks);
+            monitor.Lifetime.SetResult();
+            monitor.Push(SyntheticHudScenarios.HealthyEmpty());
+            dispatcher.DrainAll();
+            Assert.True(controller.ViewModel.MonitoringUnavailable);
+            Assert.Contains("UNAVAILABLE", controller.ViewModel.HealthLine);
+            Assert.Contains("monitor-stopped", controller.ViewModel.MonitoringDetail);
+            Assert.Empty(controller.ViewModel.Tasks);
+            Assert.Equal("?", controller.ViewModel.WorkingCountText);
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void SlowPersistenceKeepsDispatcherResponsiveCoalescesAndFlushesLatestSettings()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            using var writer = new BlockingPersistence();
+            var controller = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService(), persistence: writer);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            controller.SetOpacity(0.8);
+            StaTestHost.Complete(writer.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.False(writer.UsedUiThread);
+            for (var i = 0; i < 100; i++) controller.SetOpacity(i % 2 == 0 ? 0.75 : 0.85);
+            StaTestHost.Complete(Task.Delay(500));
+            Assert.Equal(1, writer.Calls);
+            writer.Release.Set();
+            var shutdown = controller.ShutdownAsync();
+            Assert.Same(shutdown, controller.ShutdownAsync());
+            StaTestHost.Complete(shutdown);
+            Assert.Equal(2, writer.Calls);
+            Assert.Equal(0.85, writer.LastConfig!.Hud.Opacity);
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void StalledSaveDoesNotPreventMonitorAndWindowShutdown()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            using var writer = new BlockingPersistence();
+            var monitor = new FakeMonitorSource();
+            var controller = CreateController(new QueuedUiDispatcher(), monitor, new FakePlacementService(), persistence: writer);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var shutdown = controller.ShutdownAsync();
+            StaTestHost.Complete(shutdown.WaitAsync(TimeSpan.FromSeconds(4)));
+            Assert.True(monitor.Disposed);
+            Assert.Null(controller.Window);
+            Assert.Equal(1, writer.Calls);
+            writer.Release.Set();
+            StaTestHost.Complete(writer.Finished.Task.WaitAsync(TimeSpan.FromSeconds(1)));
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    private sealed class BlockingPersistence : IHudPersistence, IDisposable
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Finished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ManualResetEventSlim Release { get; } = new(false);
+        public bool UsedUiThread { get; private set; }
+        public int Calls;
+        public MonitorConfig? LastConfig { get; private set; }
+
+        public HudSaveResult Save(HudControllerPaths paths, HudWindowState state, MonitorConfig config)
+        {
+            UsedUiThread |= StaTestHost.Dispatcher.CheckAccess();
+            Interlocked.Increment(ref Calls);
+            Entered.TrySetResult();
+            if (!Release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("writer was not released");
+            LastConfig = config;
+            Finished.TrySetResult();
+            return new(true, true);
+        }
+
+        public void Dispose() => Release.Dispose();
     }
 
     private static string _directory = string.Empty;
@@ -299,7 +409,9 @@ public sealed class HudDispatchTests
         IWindowPlacementService placement,
         FakeStartupRegistration? startup = null,
         ITaskNavigator? navigator = null,
-        IClipboardWriter? clipboard = null)
+        IClipboardWriter? clipboard = null,
+        bool startHidden = false,
+        IHudPersistence? persistence = null)
     {
         _directory = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_directory);
@@ -324,8 +436,9 @@ public sealed class HudDispatchTests
             new HudControllerPaths(_directory, ConfigPath, StatePath),
             () => new HudWindow(),
             TimeProvider.System,
-            StartHidden: false,
-            TrayEnabled: false);
+            StartHidden: startHidden,
+            TrayEnabled: false,
+            Persistence: persistence);
         return new HudApplicationController(dependencies);
     }
 

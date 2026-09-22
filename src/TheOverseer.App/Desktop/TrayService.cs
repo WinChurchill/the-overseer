@@ -42,9 +42,11 @@ internal sealed class TrayService : IDisposable
 
     public static (TrayService? Service, TrayAvailability Availability) TryCreate(TrayCallbacks callbacks)
     {
+        ContextMenuStrip? menu = null;
+        NotifyIcon? icon = null;
         try
         {
-            var menu = new ContextMenuStrip();
+            menu = new ContextMenuStrip();
             var visibility = new ToolStripMenuItem("Hide HUD");
             visibility.Click += (_, _) => callbacks.ToggleVisibility();
             var theme = new ToolStripMenuItem("Light mode");
@@ -80,7 +82,7 @@ internal sealed class TrayService : IDisposable
             menu.Items.Add(status);
             menu.Items.Add(exit);
 
-            var icon = new NotifyIcon
+            icon = new NotifyIcon
             {
                 Icon = SystemIcons.Application,
                 Text = "OVERSEER",
@@ -93,6 +95,8 @@ internal sealed class TrayService : IDisposable
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
         {
+            icon?.Dispose();
+            menu?.Dispose();
             return (null, TrayAvailability.Unavailable);
         }
     }

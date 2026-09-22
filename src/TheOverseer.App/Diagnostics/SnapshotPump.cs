@@ -33,6 +33,7 @@ public sealed class SnapshotPump
     private readonly object _gate = new();
     private MonitoringSnapshot? _pending;
     private int _posted;
+    private bool _stopped;
     private long _received;
     private long _applied;
 
@@ -52,6 +53,7 @@ public sealed class SnapshotPump
         Interlocked.Increment(ref _received);
         lock (_gate)
         {
+            if (_stopped) return;
             _pending = snapshot;
             if (Interlocked.Exchange(ref _posted, 1) == 1)
             {
@@ -70,6 +72,7 @@ public sealed class SnapshotPump
             MonitoringSnapshot? snapshot;
             lock (_gate)
             {
+                if (_stopped) return;
                 snapshot = _pending;
                 _pending = null;
                 Interlocked.Exchange(ref _posted, 0);
@@ -103,6 +106,7 @@ public sealed class SnapshotPump
     {
         lock (_gate)
         {
+            _stopped = true;
             _pending = null;
             Interlocked.Exchange(ref _posted, 1);
         }

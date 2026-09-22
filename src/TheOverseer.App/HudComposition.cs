@@ -16,9 +16,16 @@ namespace TheOverseer.App;
 /// </summary>
 internal static class HudComposition
 {
-    public static (HudApplicationController Controller, ConfigLoadResult Config, HudStateLoadResult State) Create(
+    public static async Task<(HudApplicationController Controller, ConfigLoadResult Config, HudStateLoadResult State)> CreateAsync(
         StartupArguments arguments,
         Dispatcher dispatcher)
+    {
+        var prepared = await Task.Run(() => Prepare(arguments, dispatcher));
+        return (new HudApplicationController(prepared.Dependencies), prepared.Config, prepared.State);
+    }
+
+    private static (HudControllerDependencies Dependencies, ConfigLoadResult Config, HudStateLoadResult State) Prepare(
+        StartupArguments arguments, Dispatcher dispatcher)
     {
         var dataDirectory = DataDirectoryResolver.Resolve(arguments.DataDirectory);
         Directory.CreateDirectory(dataDirectory);
@@ -70,6 +77,6 @@ internal static class HudComposition
             arguments.StartInTray,
             !arguments.NoTray);
 
-        return (new HudApplicationController(dependencies), configResult, stateResult);
+        return (dependencies, configResult, stateResult);
     }
 }

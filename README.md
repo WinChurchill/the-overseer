@@ -41,7 +41,7 @@ Detailed visual refinement is deferred in `docs/UI_SPEC_v0.2.md`.
 - `TheOverseer.UI`: WPF presentation library; references Core. Contains the single
   `HudWindow`, the `HudViewModel` projection and the WebsiteLight/WebsiteDark
   resource dictionaries.
-- `TheOverseer.Tests`: xUnit tests; references Core. Tests cover the bounded
+- `TheOverseer.Tests`: xUnit tests; references Core, UI and App. Tests cover the bounded
   readers, discovery, identity, titles, parser, reducer, classifier, attention,
   health, monitor composition, configuration, logging and privacy rules.
 
@@ -81,11 +81,12 @@ Controls:
 | Action | Result |
 | --- | --- |
 | Drag the header row | Moves the HUD; the position is saved (debounced). |
-| Click the summary or the chevron | Expands or collapses the task list. |
+| Click the chevron | Expands or collapses the task list. |
 | `Escape` | Collapses the list. |
 | Click a task row | Requests the validated `codex://threads/<id>` route for a resolved Desktop task. |
-| Right-click a task row | Copies the task id (explicit action only). |
+| Right-click a task row, then Copy task id | Copies only the selected task id. |
 | `Enter`/`Space` on a focused row | Same as clicking it. |
+| Right-click the HUD header | Display settings, expansion, startup, reset position and Exit; available even without a tray. |
 | Tray icon | Show/Hide, Light/Dark, Always on top, opacity presets, Start with Windows, Reset position, monitoring status, Exit. |
 
 The HUD never activates itself: it is shown with `ShowActivated=false` and the
@@ -112,7 +113,7 @@ Opacity is clamped to 0.65–1.0 and only `light`/`dark` themes are accepted.
 monitor's working area plus the DPI scale in effect, so a DPI change keeps the
 same physical spot and a removed monitor is clamped back onto a reachable one.
 Corrupt or oversized files fall back to defaults without deleting the original.
-Writes are serialized through a same-directory temporary file.
+Writes are debounced and serialized off the UI thread through a same-directory temporary file. Exit waits a bounded time for persistence; a stalled disk can leave the most recent changes unsaved.
 
 Start with Windows is an opt-in current-user entry (`HKCU\...\Run\OVERSEER`) with a
 quoted real executable path and `--start-in-tray`. It is never enabled
@@ -122,8 +123,7 @@ automatically, needs no elevation, and disabling removes only that value.
 
 Only a resolved Desktop task with a UUID-shaped conversation id produces a route.
 CLI, VS Code, provisional-identity and non-default-profile tasks keep an honest
-"open it manually" fallback, and the id can be copied instead. If the `codex:
-` protocol has no registered handler — the case on the machine used for Plan 2 —
+"open it manually" fallback, and the id can be copied instead. If the `codex:` protocol has no registered handler — the case on the machine used for Plan 2 —
 the HUD reports that instead of claiming the task opened.
 
 ## Monitor debug harness
@@ -225,7 +225,7 @@ were not imported.
 
 ## Next action
 
-Astra Review 1 passed with nonblocking notes. Applied fixes, validation evidence
-and observability limits are recorded in `docs/IMPLEMENTATION_STATE.md`.
-After integrating the reviewed Plan 1 branch, prepare Astra planning for
-Plan 2 / Goal 2. HUD, history/voice and release work remain in Plans 2–4.
+Astra Review 2 passed with nonblocking notes. Review fixes, validation evidence
+and unverified hardware scenarios are recorded in `docs/IMPLEMENTATION_STATE.md`.
+The reviewed `impl/p2-hud` branch remains unmerged. Next, integrate the reviewed
+branch and prepare Astra planning for Plan 3 / Goal 3 (activity history and voice).

@@ -169,7 +169,8 @@
           </StackPanel>
         </Grid>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center"
+        <Viewbox Grid.Row="1" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                     x:Name="SummaryRegion"
                     automation:AutomationProperties.Name="{Binding SummaryText}">
           <TextBlock Text="{Binding WorkingCountText}" VerticalAlignment="Center"
@@ -203,6 +204,7 @@
                      FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
                      Foreground="{DynamicResource MutedBrush}" />
         </StackPanel>
+        </Viewbox>
 
         <TextBlock Grid.Row="2" Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis"
                    FontFamily="{DynamicResource MetadataFontFamily}"
@@ -225,7 +227,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
-          <TextBlock Grid.Row="0" Text="{Binding HealthLine}" TextTrimming="CharacterEllipsis"
+          <TextBlock Grid.Row="0" Text="{Binding HealthLine}" ToolTip="{Binding HealthLine}" TextTrimming="CharacterEllipsis"
                      FontFamily="{DynamicResource MetadataFontFamily}" FontWeight="SemiBold"
                      FontSize="{DynamicResource FontSizeMeta}"
                      Foreground="{DynamicResource ForegroundBrush}" />
@@ -248,6 +250,11 @@
                           CommandParameter="{Binding}"
                           automation:AutomationProperties.Name="{Binding DetailText}"
                           ToolTip="{Binding DetailText}">
+                    <Button.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="Copy task id" Click="OnCopyTaskIdClick" />
+                      </ContextMenu>
+                    </Button.ContextMenu>
                     <Grid>
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />

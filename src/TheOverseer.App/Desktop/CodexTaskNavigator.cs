@@ -30,6 +30,13 @@ public sealed class ShellTaskLaunchBoundary : ITaskLaunchBoundary
     {
         try
         {
+            using var handler = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey("codex");
+            if (handler?.GetValue("URL Protocol") is null)
+            {
+                errorCode = "no-handler";
+                return false;
+            }
+
             var process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
             {
                 UseShellExecute = true,
@@ -56,6 +63,11 @@ public sealed class ShellTaskLaunchBoundary : ITaskLaunchBoundary
         catch (IOException)
         {
             errorCode = "io";
+            return false;
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            errorCode = "handler-unavailable";
             return false;
         }
     }

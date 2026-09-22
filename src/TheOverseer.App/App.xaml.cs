@@ -9,8 +9,9 @@ public partial class App : Application
 {
     private SingleInstanceGuard? _instanceGuard;
     private HudApplicationController? _controller;
+    private bool _exiting;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -64,10 +65,33 @@ public partial class App : Application
             return;
         }
 
-        var (controller, _, _) = HudComposition.Create(arguments, Dispatcher);
-        _controller = controller;
-        controller.ExitRequested += (_, _) => _ = ExitAsync();
-        _ = controller.StartAsync(CancellationToken.None);
+        try
+        {
+            var (controller, _, _) = await HudComposition.CreateAsync(arguments, Dispatcher);
+            _controller = controller;
+            controller.ExitRequested += (_, _) => _ = ExitAsync();
+            await controller.StartAsync(CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            MessageBox.Show("OVERSEER could not start. Check access to its data directory.", "OVERSEER", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (_controller is not null) await _controller.DisposeAsync();
+            Shutdown(1);
+        }
+    }
+
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        // Let Windows end the session; pump only while bounded cleanup completes.
+        _exiting = true;
+        if (_controller is not null)
+        {
+            var cleanup = _controller.DisposeAsync().AsTask();
+            var frame = new DispatcherFrame();
+            _ = cleanup.ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => frame.Continue = false)), TaskScheduler.Default);
+            Dispatcher.PushFrame(frame);
+        }
+        base.OnSessionEnding(e);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -79,6 +103,8 @@ public partial class App : Application
 
     private async Task ExitAsync()
     {
+        if (_exiting) return;
+        _exiting = true;
         if (_controller is null)
         {
             Shutdown(0);
@@ -86,9 +112,9 @@ public partial class App : Application
         }
 
         var controller = _controller;
-        _controller = null;
         await controller.ShutdownAsync().ConfigureAwait(true);
         await controller.DisposeAsync().ConfigureAwait(true);
+        _controller = null;
         Shutdown(0);
     }
 }

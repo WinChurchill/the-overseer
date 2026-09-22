@@ -53,7 +53,7 @@ public sealed class HudWindowTests
                 Assert.NotEqual(before, after);
                 Assert.Equal("OVERSEER", window.Title);
                 Assert.False(window.ShowActivated, "the HUD must not activate itself");
-                Assert.True(window.Topmost || !window.Topmost);
+                Assert.Equal(viewModel.AlwaysOnTop, window.Topmost);
             }
             finally
             {
@@ -90,6 +90,46 @@ public sealed class HudWindowTests
                 window.Close();
             }
         });
+    }
+
+    [Fact]
+    public void TaskContextMenuCopiesOnlyTheSelectedIdentifierOnExplicitClick()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            TaskRowViewModel? copied = null;
+            var vm = new HudViewModel(HudSettings.Default, copyTaskId: row => copied = row);
+            vm.ApplySnapshot(SyntheticHudScenarios.Mixed());
+            vm.IsExpanded = true;
+            var window = new HudWindow { DataContext = vm, Width = 360, Height = 392 };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var list = (System.Windows.Controls.ItemsControl)window.FindName("TaskList");
+                var container = list.ItemContainerGenerator.ContainerFromIndex(0);
+                var button = FindButton(container)!;
+                var menu = button.ContextMenu;
+                menu.PlacementTarget = button;
+                menu.IsOpen = true;
+                Assert.Null(copied);
+                ((System.Windows.Controls.MenuItem)menu.Items[0]).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+                Assert.Same(vm.Tasks[0], copied);
+                menu.IsOpen = false;
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    private static System.Windows.Controls.Button? FindButton(DependencyObject node)
+    {
+        if (node is System.Windows.Controls.Button button) return button;
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); i++)
+        {
+            var found = FindButton(System.Windows.Media.VisualTreeHelper.GetChild(node, i));
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     [Fact]

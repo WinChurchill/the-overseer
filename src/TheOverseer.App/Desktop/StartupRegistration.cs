@@ -145,7 +145,7 @@ public sealed class StartupRegistration
             }
 
             _registry.Delete(ValueName);
-            return new StartupRegistrationResult(StartupRegistrationState.Disabled, "removed");
+            return Read();
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or System.Security.SecurityException)
         {

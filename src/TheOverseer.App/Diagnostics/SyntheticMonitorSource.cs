@@ -29,7 +29,7 @@ public sealed class SyntheticMonitorSource : IMonitorSource
     public Task StartAsync(CancellationToken cancellationToken)
     {
         Push(0);
-        return Task.CompletedTask;
+        return Task.Delay(Timeout.Infinite, cancellationToken);
     }
 
     /// <summary>Advances to the next scenario; used by the fixture runner.</summary>

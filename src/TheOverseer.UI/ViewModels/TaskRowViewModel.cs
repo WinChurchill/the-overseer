@@ -18,7 +18,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         Key = task.Key;
         Number = task.Number;
         Label = HudText.Label(task);
-        StateText = task.State.ToString().ToUpperInvariant();
+        StateText = HudText.State(task.State);
         ActionText = task.Action.Label;
         MarksText = HudText.Marks(task);
         TaskState = task.State;
@@ -95,7 +95,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     public void Update(AgentTask task)
     {
         Label = HudText.Label(task);
-        StateText = task.State.ToString().ToUpperInvariant();
+        StateText = HudText.State(task.State);
         ActionText = task.Action.Label;
         MarksText = HudText.Marks(task);
         TaskState = task.State;

@@ -329,6 +329,11 @@ public sealed class HudViewModel : INotifyPropertyChanged
     {
         MonitoringTitle = "MONITORING UNAVAILABLE";
         MonitoringDetail = "monitor stopped · " + code;
+        HealthLine = MonitoringTitle + " · " + MonitoringDetail;
+        Tasks.Clear();
+        _lastActivity.Clear();
+        HasTasks = false;
+        TaskCountLine = "task state unknown";
         MonitoringUnavailable = true;
         IsPartial = true;
         CountsNeedAttention = false;
@@ -341,6 +346,7 @@ public sealed class HudViewModel : INotifyPropertyChanged
         StatusMessage = "Monitor stopped (" + code + ") — task state is unknown.";
         Raise(nameof(CollapsedStatusLine));
         Raise(nameof(MetaStripLine));
+        Raise(nameof(FooterHint));
     }
 
     /// <summary>Applies one snapshot. Must be called on the UI thread.</summary>

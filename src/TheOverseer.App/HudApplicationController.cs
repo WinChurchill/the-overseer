@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.Threading.Channels;
 using Microsoft.Win32;
 using TheOverseer.App.Desktop;
 using TheOverseer.App.Diagnostics;
@@ -88,7 +89,8 @@ public sealed record HudControllerDependencies(
     Func<HudWindow> WindowFactory,
     TimeProvider TimeProvider,
     bool StartHidden,
-    bool TrayEnabled);
+    bool TrayEnabled,
+    IHudPersistence? Persistence = null);
 
 /// <summary>
 /// Composition and lifetime owner for normal HUD mode: one monitor, one window,
@@ -100,11 +102,17 @@ public sealed class HudApplicationController : IAsyncDisposable
 
     private readonly HudControllerDependencies _dependencies;
     private readonly SnapshotPump _pump;
-    private readonly SemaphoreSlim _saveGate = new(1, 1);
+    private Task _saveTask = Task.CompletedTask;
+    private Task? _shutdownTask;
+    private bool _disposed;
+    private bool _monitorFailed;
     private readonly DispatcherTimer _ageTimer;
     private readonly DispatcherTimer _saveTimer;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<AgentTask> _lastTasks = new();
+    private readonly Channel<(MonitorLogLevel Level, string Code)> _logQueue = Channel.CreateBounded<(MonitorLogLevel, string)>(
+        new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
+    private readonly Task _logTask;
 
     private HudWindow? _window;
     private TrayService? _tray;
@@ -122,6 +130,11 @@ public sealed class HudApplicationController : IAsyncDisposable
     public HudApplicationController(HudControllerDependencies dependencies)
     {
         _dependencies = dependencies;
+        _logTask = Task.Run(async () =>
+        {
+            await foreach (var entry in _logQueue.Reader.ReadAllAsync())
+                dependencies.Log.Write(entry.Level, entry.Code);
+        });
         _state = (dependencies.WindowState ?? HudWindowState.Default).Normalized();
         ViewModel = new HudViewModel(dependencies.Config.Hud, OnActivateTask, OnCopyTaskId);
         _pump = new SnapshotPump(dependencies.Dispatcher, ApplySnapshot);
@@ -178,8 +191,23 @@ public sealed class HudApplicationController : IAsyncDisposable
     {
         _window = _dependencies.WindowFactory();
         _window.DataContext = ViewModel;
-        _window.PlacementChangedByUser += (_, _) => ScheduleStateSave();
+        _window.PlacementChangedByUser += (_, _) =>
+        {
+            _dpiScale = _dependencies.Placement.GetDpiScale(_handle, null);
+            _state = CaptureState();
+            ApplyGeometry(show: false);
+            ScheduleStateSave();
+        };
+        _window.DpiChanged += (_, _) => _window.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_shuttingDown || _applyingGeometry) return;
+            _dpiScale = _dependencies.Placement.GetDpiScale(_handle, null);
+            _state = CaptureState();
+            ApplyGeometry(show: false);
+            ScheduleStateSave();
+        }));
         _window.Closing += OnWindowClosing;
+        CreateWindowMenu();
 
         var helper = new WindowInteropHelper(_window);
         _handle = helper.EnsureHandle();
@@ -296,22 +324,23 @@ public sealed class HudApplicationController : IAsyncDisposable
 
         if (_window.IsVisible)
         {
+            if (!TrayAvailable)
+            {
+                ViewModel.NotifyStatus("Tray unavailable — HUD stays visible. Right-click the header for controls.");
+                return;
+            }
+
+            _state = CaptureState();
             _window.Hide();
         }
         else
         {
             _window.Show();
-            _dependencies.Placement.Apply(
-                _handle,
-                HudPlacementPolicy.Resolve(_state, _dependencies.Placement.CaptureLayout(), CurrentSize(), _dpiScale),
-                ViewModel.AlwaysOnTop,
-                showWithoutActivation: false);
+            ApplyGeometry(show: false);
         }
 
         RefreshTrayState();
     }
-
-    private HudSize CurrentSize() => ViewModel.IsExpanded ? ExpandedSize : HudSize.Collapsed;
 
     public void ResetPosition()
     {
@@ -340,11 +369,9 @@ public sealed class HudApplicationController : IAsyncDisposable
         _ = monitorTask.ContinueWith(
             task =>
             {
-                if (task.IsFaulted || task.IsCanceled)
-                {
-                    var code = task.IsCanceled ? "monitor-cancelled" : "monitor-faulted";
-                    _dependencies.Dispatcher.Post(() => OnMonitorFailed(code));
-                }
+                _ = task.Exception; // Observe faults without logging potentially private exception text.
+                var code = task.IsCanceled ? "monitor-cancelled" : task.IsFaulted ? "monitor-faulted" : "monitor-stopped";
+                _dependencies.Dispatcher.Post(() => OnMonitorFailed(code));
             },
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
@@ -355,7 +382,7 @@ public sealed class HudApplicationController : IAsyncDisposable
 
     private void ApplySnapshot(MonitoringSnapshot snapshot)
     {
-        if (_shuttingDown)
+        if (_shuttingDown || _monitorFailed)
         {
             return;
         }
@@ -373,8 +400,11 @@ public sealed class HudApplicationController : IAsyncDisposable
             return;
         }
 
+        _monitorFailed = true;
+        _pump.Stop();
+        _lastTasks.Clear();
         ViewModel.NotifyMonitorFailure(code);
-        _dependencies.Log.Write(MonitorLogLevel.Error, "hud-monitor-" + code);
+        Log(MonitorLogLevel.Error, "hud-monitor-" + code);
         RefreshTrayState();
     }
 
@@ -382,6 +412,7 @@ public sealed class HudApplicationController : IAsyncDisposable
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(HudViewModel.Theme) && !_shuttingDown) ApplyTheme();
         if (e.PropertyName is nameof(HudViewModel.IsExpanded))
         {
             if (!_shuttingDown)
@@ -462,7 +493,6 @@ public sealed class HudApplicationController : IAsyncDisposable
     public void ToggleTheme()
     {
         ViewModel.Theme = ViewModel.Theme == HudTheme.Light ? HudTheme.Dark : HudTheme.Light;
-        ApplyTheme();
         RefreshTrayState();
     }
 
@@ -490,7 +520,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         var result = _dependencies.Navigator.Navigate(task, task.ProfileId);
         _navigationCode = result.Outcome.ToString();
         ViewModel.NotifyStatus(result.UserMessage);
-        _dependencies.Log.Write(MonitorLogLevel.Info, "hud-navigate-" + result.Outcome.ToString().ToLowerInvariant());
+        Log(MonitorLogLevel.Info, "hud-navigate-" + result.Outcome.ToString().ToLowerInvariant());
     }
 
     private void OnCopyTaskId(TaskRowViewModel row)
@@ -506,6 +536,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         if (!_dependencies.TrayEnabled)
         {
             TrayAvailable = false;
+            EnsureReachableWithoutTray();
             return;
         }
 
@@ -523,9 +554,42 @@ public sealed class HudApplicationController : IAsyncDisposable
         if (!TrayAvailable)
         {
             _trayFailures++;
-            _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-tray-unavailable");
+            Log(MonitorLogLevel.Warning, "hud-tray-unavailable");
             ViewModel.NotifyStatus("Tray icon unavailable — use the HUD window to control it.");
+            EnsureReachableWithoutTray();
         }
+    }
+
+    private void EnsureReachableWithoutTray()
+    {
+        if (_window is null) return;
+        _window.Show();
+        ApplyGeometry(show: false);
+        ViewModel.NotifyStatus("Tray unavailable — right-click the header for controls.");
+    }
+
+    private void CreateWindowMenu()
+    {
+        var menu = new System.Windows.Controls.ContextMenu();
+        void Add(string label, Action action)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = label };
+            item.Click += (_, _) => action();
+            menu.Items.Add(item);
+        }
+
+        Add("Expand / collapse", () => ViewModel.IsExpanded = !ViewModel.IsExpanded);
+        Add("Light / dark", ToggleTheme);
+        Add("Toggle always on top", ToggleTopmost);
+        foreach (var opacity in new[] { 0.75, 0.85, 0.96, 1.0 })
+        {
+            var value = opacity;
+            Add("Opacity " + (int)Math.Round(value * 100) + "%", () => SetOpacity(value));
+        }
+        Add("Toggle start with Windows", ToggleStartWithWindows);
+        Add("Reset position", ResetPosition);
+        Add("Exit", () => ExitRequested?.Invoke(this, EventArgs.Empty));
+        _window!.ContextMenu = menu;
     }
 
     private void RefreshTrayState()
@@ -556,7 +620,8 @@ public sealed class HudApplicationController : IAsyncDisposable
         _saveTimer.Stop();
         if (_stateDirty)
         {
-            _ = SaveStateAsync();
+            if (_saveTask.IsCompleted) _saveTask = SaveAsync();
+            else _saveTimer.Start();
         }
     }
 
@@ -567,21 +632,27 @@ public sealed class HudApplicationController : IAsyncDisposable
         _saveTimer.Start();
     }
 
-    private async Task SaveStateAsync()
+    private async Task SaveAsync()
     {
-        await _saveGate.WaitAsync().ConfigureAwait(true);
-        try
+        _stateDirty = false;
+        _state = CaptureState();
+        var state = _state;
+        var config = _dependencies.Config with
         {
-            _stateDirty = false;
-            _state = CaptureState();
-            if (!HudStateStore.TrySave(_dependencies.Paths.StatePath, _state))
+            Hud = new HudSettings
             {
-                _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-state-save-failed");
-            }
-        }
-        finally
+                Theme = ViewModel.ThemeName,
+                AlwaysOnTop = ViewModel.AlwaysOnTop,
+                Opacity = ViewModel.Opacity,
+                StartWithWindows = ViewModel.StartWithWindows,
+            },
+        };
+        var writer = _dependencies.Persistence ?? new FileHudPersistence();
+        var result = await Task.Run(() => writer.Save(_dependencies.Paths, state, config));
+        if (!result.StateSaved || !result.SettingsSaved)
         {
-            _saveGate.Release();
+            Log(MonitorLogLevel.Warning, "hud-save-failed");
+            ViewModel.NotifyStatus("Settings or position could not be saved.");
         }
     }
 
@@ -595,39 +666,6 @@ public sealed class HudApplicationController : IAsyncDisposable
         return _dependencies.Placement.CaptureState(_handle, ViewModel.IsExpanded, _dpiScale, _dependencies.TimeProvider.GetUtcNow());
     }
 
-    private async Task SaveSettingsAsync()
-    {
-        if (_suppressSettings)
-        {
-            return;
-        }
-
-        await _saveGate.WaitAsync().ConfigureAwait(true);
-        try
-        {
-            var config = _dependencies.Config with
-            {
-                Hud = new HudSettings
-                {
-                    Theme = ViewModel.ThemeName,
-                    AlwaysOnTop = ViewModel.AlwaysOnTop,
-                    Opacity = ViewModel.Opacity,
-                    StartWithWindows = ViewModel.StartWithWindows,
-                },
-            };
-            MonitorConfigStore.Save(_dependencies.Paths.ConfigPath, config);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-config-save-failed");
-            ViewModel.NotifyStatus("Settings could not be saved.");
-        }
-        finally
-        {
-            _saveGate.Release();
-        }
-    }
-
     private void OnViewModelSettingsChanged()
     {
         if (_suppressSettings || _shuttingDown)
@@ -635,7 +673,7 @@ public sealed class HudApplicationController : IAsyncDisposable
             return;
         }
 
-        _ = SaveSettingsAsync();
+        ScheduleStateSave();
     }
 
     // ---- system events ----------------------------------------------------------
@@ -649,7 +687,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         }
         catch (InvalidOperationException)
         {
-            _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-system-events-unavailable");
+            Log(MonitorLogLevel.Warning, "hud-system-events-unavailable");
         }
     }
 
@@ -700,7 +738,9 @@ public sealed class HudApplicationController : IAsyncDisposable
 
     // ---- shutdown ---------------------------------------------------------------
 
-    public async Task ShutdownAsync()
+    public Task ShutdownAsync() => _shutdownTask ??= ShutdownCoreAsync();
+
+    private async Task ShutdownCoreAsync()
     {
         if (_shuttingDown)
         {
@@ -716,10 +756,15 @@ public sealed class HudApplicationController : IAsyncDisposable
         _pump.Stop();
         UnsubscribeSystemEvents();
 
-        await TryStepAsync("hud-shutdown-state", SaveStateAsync).ConfigureAwait(true);
-        await TryStepAsync("hud-shutdown-settings", SaveSettingsAsync).ConfigureAwait(true);
-
         _lifetime.Cancel();
+        // A slow disk must not strand Exit. There is at most one in-flight write;
+        // if it times out, do not start another writer against the same files.
+        await TryStepAsync("hud-shutdown-save", async () =>
+        {
+            await _saveTask.WaitAsync(TimeSpan.FromSeconds(3));
+            _saveTask = SaveAsync();
+            await _saveTask.WaitAsync(TimeSpan.FromSeconds(3));
+        });
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
@@ -727,15 +772,15 @@ public sealed class HudApplicationController : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-monitor-dispose-timeout");
+            Log(MonitorLogLevel.Warning, "hud-monitor-dispose-timeout");
         }
         catch (TimeoutException)
         {
-            _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-monitor-dispose-timeout");
+            Log(MonitorLogLevel.Warning, "hud-monitor-dispose-timeout");
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or ObjectDisposedException)
         {
-            _dependencies.Log.Write(MonitorLogLevel.Error, "hud-shutdown-monitor");
+            Log(MonitorLogLevel.Error, "hud-shutdown-monitor");
         }
 
         try
@@ -745,7 +790,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         }
         catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException or System.ComponentModel.Win32Exception)
         {
-            _dependencies.Log.Write(MonitorLogLevel.Error, "hud-shutdown-tray");
+            Log(MonitorLogLevel.Error, "hud-shutdown-tray");
         }
 
         if (_window is not null)
@@ -759,18 +804,24 @@ public sealed class HudApplicationController : IAsyncDisposable
             }
             catch (ObjectDisposedException)
             {
-                _dependencies.Log.Write(MonitorLogLevel.Warning, "hud-shutdown-window-disposed");
+                Log(MonitorLogLevel.Warning, "hud-shutdown-window-disposed");
             }
             catch (InvalidOperationException)
             {
                 // The window is already closing (for example the close request
                 // that started this shutdown), which is not an error.
-                _dependencies.Log.Write(MonitorLogLevel.Info, "hud-shutdown-window-already-closing");
+                Log(MonitorLogLevel.Info, "hud-shutdown-window-already-closing");
             }
         }
 
-        _dependencies.Log.Write(MonitorLogLevel.Info, "hud-shutdown-complete");
+        Log(MonitorLogLevel.Info, "hud-shutdown-complete");
+        _logQueue.Writer.TryComplete();
+        try { await _logTask.WaitAsync(TimeSpan.FromSeconds(1)); }
+        catch (TimeoutException) { /* A stalled log disk must not block Exit. */ }
+        (_dependencies.Log as IDisposable)?.Dispose();
     }
+
+    private void Log(MonitorLogLevel level, string code) => _logQueue.Writer.TryWrite((level, code));
 
     private async Task TryStepAsync(string code, Func<Task> step)
     {
@@ -778,18 +829,19 @@ public sealed class HudApplicationController : IAsyncDisposable
         {
             await step().ConfigureAwait(true);
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or ObjectDisposedException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or ObjectDisposedException or UnauthorizedAccessException or TimeoutException)
         {
-            _dependencies.Log.Write(MonitorLogLevel.Error, code);
+            Log(MonitorLogLevel.Error, code);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await ShutdownAsync().ConfigureAwait(false);
+        await ShutdownAsync().ConfigureAwait(true);
+        if (_disposed) return;
+        _disposed = true;
         _ageTimer.Tick -= OnAgeTick;
         _saveTimer.Tick -= OnSaveTick;
-        _saveGate.Dispose();
         _lifetime.Dispose();
     }
 

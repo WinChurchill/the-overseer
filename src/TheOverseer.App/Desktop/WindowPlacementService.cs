@@ -31,7 +31,7 @@ internal sealed class WindowsWindowPlacementService : IWindowPlacementService
         var screens = new List<HudScreen>();
         try
         {
-            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens.OrderByDescending(screen => screen.Primary))
             {
                 var bounds = screen.WorkingArea;
                 screens.Add(new HudScreen(

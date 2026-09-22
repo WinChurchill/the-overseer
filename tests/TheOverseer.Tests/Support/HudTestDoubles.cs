@@ -23,6 +23,7 @@ public sealed class FakeMonitorSource : IMonitorSource
     public bool FailStart { get; init; }
 
     public int StartCount { get; private set; }
+    public TaskCompletionSource Lifetime { get; } = new();
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -33,7 +34,7 @@ public sealed class FakeMonitorSource : IMonitorSource
             throw new InvalidOperationException("synthetic start failure");
         }
 
-        return Task.CompletedTask;
+        return Lifetime.Task;
     }
 
     public void RequestReconcile() => ReconcileRequested = true;
@@ -48,6 +49,7 @@ public sealed class FakeMonitorSource : IMonitorSource
     public ValueTask DisposeAsync()
     {
         Disposed = true;
+        Lifetime.TrySetResult();
         return ValueTask.CompletedTask;
     }
 }

@@ -18,6 +18,14 @@ public static class StaTestHost
 
     public static void Invoke(Action action) => Dispatcher.Invoke(action);
 
+    public static void Complete(Task task)
+    {
+        var frame = new DispatcherFrame();
+        _ = task.ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => frame.Continue = false)), TaskScheduler.Default);
+        Dispatcher.PushFrame(frame);
+        task.GetAwaiter().GetResult();
+    }
+
     /// <summary>Runs a callback on the UI thread with the dispatcher pumped at idle.</summary>
     public static T InvokeAndPump<T>(Func<T> action)
     {

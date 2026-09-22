@@ -156,50 +156,38 @@ internal static class HudFixtureRunner
     /// </summary>
     public static int RunStartupCheck()
     {
-        var registry = new WindowsStartupRegistry();
-        var registration = new StartupRegistration(registry, Environment.ProcessPath ?? string.Empty);
-        var runKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(WindowsStartupRegistry.RunKeyPath, writable: false);
-        var original = runKey?.GetValue(StartupRegistration.ValueName) as string;
-        runKey?.Dispose();
-
-        Console.WriteLine("OVERSEER startup entry check (reversible, owned value only)");
-        Console.WriteLine("executable: " + (Environment.ProcessPath ?? "<none>"));
-        Console.WriteLine("usable path: " + StartupRegistration.IsUsableExecutablePath(Environment.ProcessPath));
-        Console.WriteLine("original entry: " + (original is null ? "<absent>" : "\"" + original + "\""));
-        Console.WriteLine("expected command: " + StartupRegistration.BuildCommand(Environment.ProcessPath ?? string.Empty));
-        Console.WriteLine("initial read: " + registration.Read().State + " (" + registration.Read().ReasonCode + ")");
-
-        var enable = registration.Set(true);
-        Console.WriteLine("after enable: " + enable.State + " (" + enable.ReasonCode + ")");
-        var readBack = registration.Read();
-        Console.WriteLine("read back: " + readBack.State + " (" + readBack.ReasonCode + ")");
-
-        var disable = registration.Set(false);
-        Console.WriteLine("after disable: " + disable.State + " (" + disable.ReasonCode + ")");
-        Console.WriteLine("read back: " + registration.Read().State);
-
-        // Restore exactly what was there before this check.
-        var restore = new StartupRegistration(new WindowsStartupRegistry(), Environment.ProcessPath ?? string.Empty);
-        if (original is null)
+        using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(WindowsStartupRegistry.RunKeyPath, writable: true);
+        if (key is null) return 1;
+        var name = StartupRegistration.ValueName;
+        var existed = key.GetValueNames().Contains(name, StringComparer.OrdinalIgnoreCase);
+        var original = key.GetValue(name, null, Microsoft.Win32.RegistryValueOptions.DoNotExpandEnvironmentNames);
+        var kind = existed ? key.GetValueKind(name) : Microsoft.Win32.RegistryValueKind.String;
+        var registration = new StartupRegistration(new WindowsStartupRegistry(), Environment.ProcessPath ?? string.Empty);
+        var success = false;
+        try
         {
-            _ = restore.Set(false);
-            Console.WriteLine("restored: entry removed (was absent)");
+            var enabled = registration.Set(true);
+            var verified = registration.Read();
+            var disabled = registration.Set(false);
+            success = enabled.State == StartupRegistrationState.Enabled &&
+                      verified.State == StartupRegistrationState.Enabled &&
+                      disabled.State == StartupRegistrationState.Disabled;
+            Console.WriteLine($"startup check: enable={enabled.State} verify={verified.State} disable={disabled.State}");
         }
-        else
+        finally
         {
-            var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(WindowsStartupRegistry.RunKeyPath, writable: true);
-            key?.SetValue(StartupRegistration.ValueName, original, Microsoft.Win32.RegistryValueKind.String);
-            key?.Dispose();
-            Console.WriteLine("restored: original value written back");
+            // Preserve the original type and unexpanded value, even if checking fails.
+            if (existed) key.SetValue(name, original!, kind);
+            else key.DeleteValue(name, throwOnMissingValue: false);
         }
 
-        var final = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(WindowsStartupRegistry.RunKeyPath, writable: false);
-        var finalValue = final?.GetValue(StartupRegistration.ValueName) as string;
-        final?.Dispose();
-        var matches = string.Equals(finalValue ?? string.Empty, original ?? string.Empty, StringComparison.Ordinal);
-        Console.WriteLine("final state matches original: " + matches);
-        Console.WriteLine("exit: " + (matches ? "0" : "1"));
-        return matches ? 0 : 1;
+        var final = key.GetValue(name, null, Microsoft.Win32.RegistryValueOptions.DoNotExpandEnvironmentNames);
+        var matches = existed
+            ? key.GetValueKind(name) == kind && (original is Array left && final is Array right
+                ? left.Cast<object>().SequenceEqual(right.Cast<object>()) : Equals(original, final))
+            : !key.GetValueNames().Contains(name, StringComparer.OrdinalIgnoreCase);
+        Console.WriteLine("startup original restored: " + matches);
+        return success && matches ? 0 : 1;
     }
 
     /// <summary>Starts the finite integration smoke; completion shuts the app down.</summary>
