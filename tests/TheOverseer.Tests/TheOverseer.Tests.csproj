@@ -1,10 +1,24 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Windows/WPF target so UI and App adapters can be tested with an
+         explicit STA thread. Same project: no fifth project, no new package. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>TheOverseer.Tests</RootNamespace>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- The WindowsDesktop implicit-using set omits System.IO; keep the
+         ordinary SDK behaviour for tests and App code. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -14,6 +28,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <ProjectReference Include="..\..\src\TheOverseer.Core\TheOverseer.Core.csproj" />
+    <ProjectReference Include="..\..\src\TheOverseer.UI\TheOverseer.UI.csproj" />
+    <ProjectReference Include="..\..\src\TheOverseer.App\TheOverseer.App.csproj" />
   </ItemGroup>
 
   <ItemGroup>
