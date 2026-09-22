@@ -53,11 +53,11 @@ public sealed class IncrementalJsonlReader
     /// Moves the read position without invalidating continuity; used after a
     /// bounded tail hydration so appends during hydration are still consumed.
     /// </summary>
-    public void SeekTo(long offset)
+    public void SeekTo(long offset, bool discardPartialRecord = false)
     {
         Offset = Math.Max(0, offset);
         _pending.Clear();
-        _discardingOversizeRecord = false;
+        _discardingOversizeRecord = discardPartialRecord;
         HasUnreadData = false;
     }
 
@@ -71,10 +71,10 @@ public sealed class IncrementalJsonlReader
         Generation++;
     }
 
-    public JsonlReadResult ReadAppended(string path, int maximumBytes)
+    public JsonlReadResult ReadAppended(string path, int maximumBytes, long? endOffset = null, int maximumRecords = 8192)
     {
         LastReadBytes = 0;
-        var budget = Math.Max(4096, maximumBytes);
+        var budget = Math.Max(0, maximumBytes);
         var lines = new List<string>();
         var truncated = false;
         var oversize = false;
@@ -95,6 +95,9 @@ public sealed class IncrementalJsonlReader
             truncated = true;
         }
 
+        var end = Math.Min(length, endOffset ?? length);
+        budget = (int)Math.Min(budget, Math.Max(0, end - Offset));
+
         if (length == Offset)
         {
             HasUnreadData = false;
@@ -108,7 +111,7 @@ public sealed class IncrementalJsonlReader
         try
         {
             int read;
-            while (remaining > 0 &&
+            while (remaining > 0 && lines.Count < Math.Max(1, maximumRecords) &&
                    (read = stream.Read(buffer, 0, Math.Min(buffer.Length, remaining))) > 0)
             {
                 remaining -= read;
@@ -140,6 +143,12 @@ public sealed class IncrementalJsonlReader
                     _pending.Clear();
                     _discardingOversizeRecord = false;
                     start = index + 1;
+                    if (lines.Count >= Math.Max(1, maximumRecords))
+                    {
+                        stream.Position -= read - start;
+                        read = start;
+                        break;
+                    }
                 }
 
                 if (start < read && !_discardingOversizeRecord && !AppendPending(buffer.AsSpan(start, read - start)))
@@ -150,7 +159,7 @@ public sealed class IncrementalJsonlReader
             }
 
             Offset = stream.Position;
-            LastReadBytes = checked((int)Math.Min(int.MaxValue, Offset - readStart));
+            LastReadBytes = budget - remaining;
             HasUnreadData = Offset < stream.Length;
         }
         finally
@@ -161,7 +170,7 @@ public sealed class IncrementalJsonlReader
         // A budget boundary can land after a complete JSON object but before its
         // newline. Emit it only at actual EOF so the newline is not consumed as
         // an empty second record.
-        if (!HasUnreadData && !_discardingOversizeRecord && _pending.Count > 0)
+        if (Offset >= stream.Length && !_discardingOversizeRecord && _pending.Count > 0)
         {
             var candidate = Encoding.UTF8.GetString(CollectionsMarshal.AsSpan(_pending));
             var trimmed = candidate.TrimEnd();
@@ -172,7 +181,8 @@ public sealed class IncrementalJsonlReader
             }
         }
 
-        return new JsonlReadResult(lines, LastReadBytes, truncated, oversize, remaining <= 0 && HasUnreadData, HasUnreadData);
+        return new JsonlReadResult(lines, LastReadBytes, truncated, oversize,
+            (remaining <= 0 || lines.Count >= maximumRecords) && HasUnreadData, HasUnreadData);
     }
 
     private string TakePendingLine()

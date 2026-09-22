@@ -20,6 +20,7 @@ public sealed class SessionChangeTracker : IDisposable
     private readonly ConcurrentDictionary<string, byte> _hints;
     private readonly Channel<bool> _signal;
     private readonly int _maxHints;
+    private readonly object _hintGate = new();
     private int _overflowed;
     private int _structural;
 
@@ -74,7 +75,7 @@ public sealed class SessionChangeTracker : IDisposable
         }
     }
 
-    public bool Available => _watcher is not null;
+    public bool Available => _watcher is not null && FailureCode is null;
 
     public string? FailureCode { get; private set; }
 
@@ -123,9 +124,12 @@ public sealed class SessionChangeTracker : IDisposable
             return HasPendingHints;
         }
 
-        var wait = _signal.Reader.WaitToReadAsync(cancellationToken).AsTask();
-        var delay = Task.Delay(timeout, timeProvider, cancellationToken);
+        using var race = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var wait = _signal.Reader.WaitToReadAsync(race.Token).AsTask();
+        var delay = Task.Delay(timeout, timeProvider, race.Token);
         var completed = await Task.WhenAny(wait, delay).ConfigureAwait(false);
+        await race.CancelAsync().ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         if (completed == wait)
         {
             _ = wait.ContinueWith(
@@ -184,6 +188,7 @@ public sealed class SessionChangeTracker : IDisposable
 
     private void OnError(object sender, ErrorEventArgs args)
     {
+        FailureCode = "watch-error";
         Interlocked.Exchange(ref _overflowed, 1);
         Interlocked.Exchange(ref _structural, 1);
         Signal();
@@ -196,13 +201,15 @@ public sealed class SessionChangeTracker : IDisposable
             return;
         }
 
-        if (_hints.Count >= _maxHints)
+        lock (_hintGate)
         {
-            Interlocked.Exchange(ref _overflowed, 1);
-            return;
+            if (_hints.Count >= _maxHints)
+            {
+                Interlocked.Exchange(ref _overflowed, 1);
+                return;
+            }
+            _hints.TryAdd(path, 0);
         }
-
-        _hints.TryAdd(path, 0);
     }
 
     private void Signal() => _signal.Writer.TryWrite(true);

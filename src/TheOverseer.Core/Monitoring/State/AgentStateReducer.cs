@@ -123,8 +123,10 @@ public sealed class AgentStateReducer
         var fromAttention = task.AttentionCode;
         var transitionKind = ApplyMutation(task, in codexEvent);
 
-        var observedAt = codexEvent.EventTime ?? codexEvent.ObservedAt;
-        if (observedAt > task.LastActivityAt)
+        var observedAt = codexEvent.EventTime ?? (codexEvent.IsHydration ? DateTimeOffset.MinValue : codexEvent.ObservedAt);
+        if (codexEvent.Kind is not (RawCodexEventKind.SessionIdentity or RawCodexEventKind.TurnContext or
+            RawCodexEventKind.TokenUsage or RawCodexEventKind.HistoryCompacted) &&
+            observedAt <= codexEvent.ObservedAt && observedAt > task.LastActivityAt)
         {
             task.LastActivityAt = observedAt;
         }
@@ -217,8 +219,22 @@ public sealed class AgentStateReducer
         _tracked.Remove(key);
     }
 
+    public void ResetEvidence(TaskKey key)
+    {
+        if (!_tasks.TryGetValue(key, out var old)) return;
+        _tasks[key] = new MutableTask
+        {
+            Key = key, Number = old.Number, ProfileId = old.ProfileId, ConversationId = old.ConversationId,
+            Label = old.Label, Surface = old.Surface, IdentityResolved = old.IdentityResolved,
+            FirstSeenAt = old.FirstSeenAt, StateSince = _timeProvider.GetUtcNow(),
+            State = AgentTaskState.Idle, TurnLimit = _options.MaxTurnHistoryPerTask,
+            RequestLimit = _options.MaxCorrelatedRequestsPerTask, SeenMarkerLimit = _options.MaxSeenRecordMarkers,
+        };
+    }
+
     private bool ComputeStale(MutableTask task, DateTimeOffset now)
     {
+        if (!_tracked.Contains(task.Key)) return true;
         if (task.State is not (AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval))
         {
             return false;
@@ -246,7 +262,7 @@ public sealed class AgentStateReducer
             ProfileId = key.ProfileId,
             ConversationId = key.ConversationId,
             FirstSeenAt = now,
-            LastActivityAt = now,
+            LastActivityAt = DateTimeOffset.MinValue,
             StateSince = now,
             State = AgentTaskState.Idle,
             Evidence = EvidenceKind.None,
@@ -300,6 +316,12 @@ public sealed class AgentStateReducer
 
         if (codexEvent.TurnId.Length == 0)
         {
+            if (task.Turns.TryGetValue(task.TurnId, out var terminal) && terminal.Terminal &&
+                codexEvent.Kind is not (RawCodexEventKind.SessionIdentity or RawCodexEventKind.TokenUsage or RawCodexEventKind.HistoryCompacted))
+            {
+                rejectCode = "uncorrelated-terminal-evidence";
+                return false;
+            }
             return true;
         }
 
@@ -387,6 +409,13 @@ public sealed class AgentStateReducer
 
         if (isNewCurrentTurn)
         {
+            ClearRequests(task, string.Empty);
+            task.ActiveTools.Clear();
+            task.ToolOrder.Clear();
+            task.LastActivity = null;
+            task.AttentionCode = null;
+            task.CancellationObserved = false;
+            task.FailureCode = null;
             task.TurnId = turnId;
             task.TurnStartedAt = record.LastActivityAt;
             task.TurnLastActivityAt = record.LastActivityAt;
@@ -434,9 +463,9 @@ public sealed class AgentStateReducer
                 task.CompletedAt = null;
                 task.CancellationObserved = false;
                 task.FailureCode = null;
-                ClearRequests(task, codexEvent.TurnId);
                 MarkTurn(task, codexEvent.TurnId, terminal: false, outcome: null, codexEvent.EventTime ?? codexEvent.ObservedAt);
                 SetState(task, AgentTaskState.Working, EvidenceKind.Explicit, "task-started");
+                RecomputeAttentionState(task);
                 return TaskTransitionKind.StateChanged;
 
             case RawCodexEventKind.TaskCompleted:
@@ -494,13 +523,11 @@ public sealed class AgentStateReducer
                 AddRequest(task, codexEvent, isPermission: false, isBlocking: blocking);
                 if (blocking)
                 {
-                    task.AttentionCode = "input-requested";
-                    SetState(task, AgentTaskState.NeedsInput, EvidenceKind.Explicit, "input-requested");
+                    RecomputeAttentionState(task);
                     return TaskTransitionKind.StateChanged;
                 }
 
-                task.NonBlockingInputPending = true;
-                task.AttentionCode = "input-requested-nonblocking";
+                RecomputeAttentionState(task);
                 return TaskTransitionKind.NonBlockingInputRaised;
 
             case RawCodexEventKind.InputResolved:
@@ -510,15 +537,8 @@ public sealed class AgentStateReducer
                     return TaskTransitionKind.None;
                 }
 
-                if (wasNonBlocking)
-                {
-                    task.NonBlockingInputPending = false;
-                    task.AttentionCode = null;
-                    return TaskTransitionKind.NonBlockingInputResolved;
-                }
-
                 RecomputeAttentionState(task);
-                return TaskTransitionKind.AttentionCleared;
+                return wasNonBlocking ? TaskTransitionKind.NonBlockingInputResolved : TaskTransitionKind.AttentionCleared;
 
             case RawCodexEventKind.ToolCallStarted:
                 AddTool(task, codexEvent);
@@ -547,7 +567,7 @@ public sealed class AgentStateReducer
             return TaskTransitionKind.None;
         }
 
-        if (task.State is AgentTaskState.Idle or AgentTaskState.Done)
+        if (task.State is AgentTaskState.Idle or AgentTaskState.Done or AgentTaskState.Error)
         {
             // Structured work in the current turn. It is not an explicit
             // lifecycle start, so the evidence kind stays Structured.
@@ -620,10 +640,9 @@ public sealed class AgentStateReducer
             TurnId = codexEvent.TurnId,
             Since = codexEvent.EventTime ?? codexEvent.ObservedAt,
         };
-        task.RequestOrder.Enqueue(requestId);
         while (task.Requests.Count > task.RequestLimit)
         {
-            var oldest = task.RequestOrder.Dequeue();
+            var oldest = task.Requests.Values.MinBy(static request => request.Since)!.RequestId;
             if (task.Requests.Remove(oldest) && task.Requests.Count == 0)
             {
                 task.NonBlockingInputPending = false;
@@ -675,6 +694,7 @@ public sealed class AgentStateReducer
 
     private void RecomputeAttentionState(MutableTask task)
     {
+        task.NonBlockingInputPending = task.Requests.Values.Any(static request => !request.IsPermission && !request.IsBlocking);
         var permission = task.Requests.Values.FirstOrDefault(static request => request.IsPermission);
         if (permission is not null)
         {
@@ -840,7 +860,6 @@ public sealed class AgentStateReducer
         public bool HasActivityInCurrentTurn;
         public int ActivityOrder;
         public readonly Dictionary<string, RequestRecord> Requests = new(StringComparer.Ordinal);
-        public readonly Queue<string> RequestOrder = new();
         public readonly Dictionary<string, TurnRecord> Turns = new(StringComparer.Ordinal);
         public readonly Queue<string> TurnSequence = new();
         public readonly Dictionary<string, ToolRecord> ActiveTools = new(StringComparer.Ordinal);

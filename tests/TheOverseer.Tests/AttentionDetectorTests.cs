@@ -88,7 +88,7 @@ public sealed class AttentionDetectorTests
     {
         var detector = new AttentionDetector(MonitorOptions.Default);
         detector.MarkHydrationComplete();
-        var task = Task("conversation-1", AgentTaskState.Working);
+        var task = Task("conversation-1", AgentTaskState.Working) with { NeedsHuman = true, AttentionCode = "input-requested-nonblocking" };
         var raised = detector.Detect(new[] { task }, new[] { Transition(AgentTaskState.Working, AgentTaskState.Working, kind: TaskTransitionKind.NonBlockingInputRaised) }, Now);
         Assert.Single(raised);
         Assert.Equal(AttentionEventKind.InputRequired, raised[0].Kind);

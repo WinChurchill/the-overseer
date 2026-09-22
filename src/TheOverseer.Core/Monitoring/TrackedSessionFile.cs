@@ -25,12 +25,22 @@ internal sealed class TrackedSessionFile
     public bool IdentityResolved { get; set; }
 
     public bool IdentityProvisional { get; set; }
+    public bool IdentityCheckPending { get; set; }
 
     public IncrementalJsonlReader Reader { get; } = new();
 
     public bool Hydrated { get; set; }
 
     public bool HydrationLimited { get; set; }
+    public bool EvidenceGap { get; set; }
+
+    public long HydrationEnd { get; set; } = -1;
+    public int HydrationRecords { get; set; }
+
+    public int SignatureBytes { get; set; }
+    public int BytesReservedThisPass { get; set; }
+
+    public string CurrentTurnId { get; set; } = string.Empty;
 
     public long Length { get; set; }
 

@@ -29,256 +29,126 @@ public sealed record DiscoverySlice(
 /// continuation state so a large history is never scanned in one pass and
 /// never restarts from the newest directory on every cycle.
 /// </summary>
-public sealed class BoundedSessionEnumerator
+public sealed class BoundedSessionEnumerator : IDisposable
 {
     private readonly string _sessionsRoot;
     private readonly string _profileId;
-    private readonly int _directoriesPerSlice;
-    private readonly int _entriesPerSlice;
-    private readonly int _pendingCap;
-    private readonly int _candidatesPerSlice;
-    private readonly PriorityQueue<string, string> _pending;
-    private readonly HashSet<string> _visited = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int> _fileResume = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int> _directoryResume = new(StringComparer.OrdinalIgnoreCase);
-    private bool _sweepCompleted;
+    private readonly MonitorOptions _options;
+    private readonly PriorityQueue<DirectoryCursor, string> _pending = new(
+        Comparer<string>.Create(static (left, right) => string.CompareOrdinal(right, left)));
+    private bool _inaccessible;
+    private int _visited;
 
     public BoundedSessionEnumerator(SessionProfile profile, MonitorOptions options)
     {
         _sessionsRoot = profile.SessionsRoot;
         _profileId = profile.Id;
-        _directoriesPerSlice = options.DiscoveryDirectoriesPerSlice;
-        _entriesPerSlice = options.DiscoveryEntriesPerSlice;
-        _pendingCap = options.DiscoveryPendingDirectories;
-        _candidatesPerSlice = options.DiscoveryCandidatesPerSlice;
-        _pending = new PriorityQueue<string, string>(
-            Comparer<string>.Create(static (left, right) => string.CompareOrdinal(right, left)));
+        _options = options;
         Restart();
     }
 
-    public bool SweepCompleted => _sweepCompleted;
-
+    public bool SweepCompleted => _pending.Count == 0;
     public int PendingDirectories => _pending.Count;
+    public int VisitedDirectories => _visited;
 
-    public int VisitedDirectories => _visited.Count;
-
-    /// <summary>Restarts the sweep; used by reconciliation and by restart recovery.</summary>
     public void Restart()
     {
-        _pending.Clear();
-        _visited.Clear();
-        _fileResume.Clear();
-        _directoryResume.Clear();
-        _sweepCompleted = false;
-        if (Directory.Exists(_sessionsRoot))
-        {
-            _pending.Enqueue(_sessionsRoot, _sessionsRoot);
-        }
-        else
-        {
-            _sweepCompleted = true;
-        }
+        Dispose();
+        _inaccessible = false;
+        _visited = 0;
+        if (Directory.Exists(_sessionsRoot) && !IsReparsePoint(_sessionsRoot))
+            _pending.Enqueue(new DirectoryCursor(_sessionsRoot), _sessionsRoot);
+        else if (Directory.Exists(_sessionsRoot))
+            _inaccessible = true;
     }
 
     public DiscoverySlice NextSlice()
     {
-        if (_sweepCompleted)
-        {
-            return DiscoverySlice.Empty with { RootMissing = !Directory.Exists(_sessionsRoot) };
-        }
-
-        if (!Directory.Exists(_sessionsRoot))
-        {
-            _sweepCompleted = true;
-            return DiscoverySlice.Empty with { RootMissing = true };
-        }
-
         var candidates = new List<SessionFileCandidate>();
-        var directoriesVisited = 0;
-        var entriesScanned = 0;
-        var rootInaccessible = false;
-        var budgetExhausted = false;
-
-        while (directoriesVisited < _directoriesPerSlice && entriesScanned < _entriesPerSlice)
+        var directories = 0;
+        var entries = 0;
+        while (_pending.Count > 0 && directories < _options.DiscoveryDirectoriesPerSlice &&
+               entries < _options.DiscoveryEntriesPerSlice && candidates.Count < _options.DiscoveryCandidatesPerSlice)
         {
-            if (!_pending.TryDequeue(out var directory, out _))
-            {
-                break;
-            }
-
-            if (_visited.Contains(directory))
-            {
-                continue;
-            }
-
-            directoriesVisited++;
-
-            // Child directories first: they are cheap to reach and keep the
-            // newest date directories discoverable early.
-            var directoryOffset = _directoryResume.GetValueOrDefault(directory);
-            var directoriesCompleted = true;
-            var seenDirectories = 0;
+            var cursor = _pending.Dequeue();
+            directories++;
+            var finished = false;
             try
             {
-                foreach (var child in Directory.EnumerateDirectories(directory))
+                if (cursor.Directories is null && !cursor.ChildrenComplete)
                 {
-                    seenDirectories++;
-                    if (seenDirectories <= directoryOffset)
-                    {
-                        continue;
-                    }
-
-                    if (entriesScanned >= _entriesPerSlice)
-                    {
-                        directoriesCompleted = false;
-                        break;
-                    }
-
-                    entriesScanned++;
-                    var name = Path.GetFileName(child);
-                    if (name.Length == 0 || name[0] == '.')
-                    {
-                        continue;
-                    }
-
-                    if (IsReparsePoint(child))
-                    {
-                        continue;
-                    }
-
-                    if (_pending.Count >= _pendingCap)
-                    {
-                        budgetExhausted = true;
-                        directoriesCompleted = false;
-                        break;
-                    }
-
-                    _pending.Enqueue(child, child);
+                    cursor.Directories = Directory.EnumerateDirectories(cursor.Path).GetEnumerator();
+                    _visited++;
                 }
-            }
-            catch (UnauthorizedAccessException)
-            {
-                rootInaccessible = true;
-            }
-            catch (IOException)
-            {
-                rootInaccessible = true;
-            }
-
-            if (!directoriesCompleted)
-            {
-                _directoryResume[directory] = seenDirectories - 1;
-                _pending.Enqueue(directory, directory);
-                budgetExhausted = true;
-                break;
-            }
-
-            _directoryResume.Remove(directory);
-
-            var fileOffset = _fileResume.GetValueOrDefault(directory);
-            var filesCompleted = true;
-            var seenFiles = 0;
-            try
-            {
-                foreach (var file in Directory.EnumerateFiles(directory, "*.jsonl", SearchOption.TopDirectoryOnly))
+                while (!cursor.ChildrenComplete && entries < _options.DiscoveryEntriesPerSlice &&
+                       _pending.Count < Math.Max(1, _options.DiscoveryPendingDirectories - 1))
                 {
-                    seenFiles++;
-                    if (seenFiles <= fileOffset)
+                    if (!cursor.Directories!.MoveNext())
                     {
-                        continue;
-                    }
-
-                    if (entriesScanned >= _entriesPerSlice || candidates.Count >= _candidatesPerSlice)
-                    {
-                        filesCompleted = false;
+                        cursor.Directories.Dispose();
+                        cursor.Directories = null;
+                        cursor.ChildrenComplete = true;
                         break;
                     }
-
-                    entriesScanned++;
-                    var candidate = TryCreateCandidate(file, "enumerated");
-                    if (candidate is not null)
+                    entries++;
+                    var child = cursor.Directories.Current;
+                    if (!Path.GetFileName(child).StartsWith('.') && !IsReparsePoint(child))
+                        _pending.Enqueue(new DirectoryCursor(child), child);
+                }
+                if (cursor.ChildrenComplete)
+                {
+                    cursor.Files ??= Directory.EnumerateFiles(cursor.Path).GetEnumerator();
+                    while (entries < _options.DiscoveryEntriesPerSlice && candidates.Count < _options.DiscoveryCandidatesPerSlice)
                     {
-                        candidates.Add(candidate);
+                        if (!cursor.Files.MoveNext())
+                        {
+                            finished = true;
+                            break;
+                        }
+                        entries++;
+                        var path = cursor.Files.Current;
+                        if (!path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) || IsReparsePoint(path)) continue;
+                        var candidate = SessionFileProbe.TryStat(path, _profileId, "enumerated");
+                        if (candidate is not null) candidates.Add(candidate);
                     }
                 }
             }
-            catch (UnauthorizedAccessException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                rootInaccessible = true;
+                _inaccessible = true;
+                finished = true;
             }
-            catch (IOException)
-            {
-                rootInaccessible = true;
-            }
-
-            if (!filesCompleted)
-            {
-                // The rest of this directory is resumed by a later slice instead
-                // of being skipped until a full rescan.
-                _fileResume[directory] = seenFiles - 1;
-                _pending.Enqueue(directory, directory);
-                budgetExhausted = true;
-                break;
-            }
-
-            _fileResume.Remove(directory);
-            _visited.Add(directory);
+            if (finished) cursor.Dispose();
+            else _pending.Enqueue(cursor, cursor.Path);
         }
-
-        if (_pending.Count == 0)
-        {
-            _sweepCompleted = true;
-        }
-
-        return new DiscoverySlice(
-            candidates,
-            _sweepCompleted,
-            budgetExhausted || _pending.Count > 0,
-            false,
-            rootInaccessible,
-            directoriesVisited,
-            entriesScanned);
+        return new DiscoverySlice(candidates, SweepCompleted, !SweepCompleted,
+            !Directory.Exists(_sessionsRoot), _inaccessible, directories, entries);
     }
 
-    private SessionFileCandidate? TryCreateCandidate(string path, string hintCode)
+    public void Dispose()
     {
-        try
-        {
-            var info = new FileInfo(path);
-            if (!info.Exists)
-            {
-                return null;
-            }
-
-            return new SessionFileCandidate(info.FullName, _profileId, info.Length, info.LastWriteTimeUtc, hintCode);
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
-        }
+        while (_pending.TryDequeue(out var cursor, out _)) cursor.Dispose();
     }
 
-    public static bool IsReparsePoint(string directory)
+    public static bool IsReparsePoint(string path)
     {
-        try
+        try { return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return true; }
+    }
+
+    private sealed class DirectoryCursor(string path) : IDisposable
+    {
+        public string Path { get; } = path;
+        public IEnumerator<string>? Directories;
+        public IEnumerator<string>? Files;
+        public bool ChildrenComplete;
+        public void Dispose()
         {
-            return (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0;
-        }
-        catch (IOException)
-        {
-            return true;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return true;
+            Directories?.Dispose();
+            Files?.Dispose();
         }
     }
 }
-
 public static class SessionFileProbe
 {
     /// <summary>

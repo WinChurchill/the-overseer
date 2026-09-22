@@ -22,7 +22,8 @@ public readonly record struct ParseContext(
     int SourceGeneration,
     bool IsHydration,
     DateTimeOffset ObservedAt,
-    int MaxRecordChars);
+    int MaxRecordChars,
+    DateTimeOffset? RecordTime = null);
 
 public readonly record struct ParseResult(RawCodexEvent? Event, ParseOutcome Outcome);
 
@@ -80,7 +81,13 @@ public static class CodexEventParser
                 return new ParseResult(null, ParseOutcome.Ignored);
             }
 
-            return recordType switch
+            var datedContext = context with { RecordTime = ReadTimestamp(root, "timestamp") };
+            return Dispatch(recordType, payload, datedContext);
+        }
+    }
+
+    private static ParseResult Dispatch(string recordType, JsonElement payload, in ParseContext context) =>
+        recordType switch
             {
                 "session_meta" => ParseSessionMeta(payload, in context),
                 "turn_context" => ParseTurnContext(payload, in context),
@@ -90,8 +97,6 @@ public static class CodexEventParser
                 "compacted" => Build(RawCodexEventKind.HistoryCompacted, in context, payload),
                 _ => new ParseResult(null, ParseOutcome.UnknownSchema),
             };
-        }
-    }
 
     private static ParseResult ParseSessionMeta(JsonElement payload, in ParseContext context) =>
         Build(RawCodexEventKind.SessionIdentity, in context, payload);
@@ -104,10 +109,11 @@ public static class CodexEventParser
         var kindText = GetString(payload, "type", 64);
         return kindText switch
         {
-            "task_started" => Build(RawCodexEventKind.TaskStarted, in context, payload),
-            "task_complete" => Build(RawCodexEventKind.TaskCompleted, in context, payload),
+            "task_started" or "turn_started" => Build(RawCodexEventKind.TaskStarted, in context, payload),
+            "task_complete" or "turn_complete" => Build(RawCodexEventKind.TaskCompleted, in context, payload),
             "turn_aborted" => Build(RawCodexEventKind.TurnAborted, in context, payload),
-            "error" or "stream_error" or "task_failed" => Build(RawCodexEventKind.TaskFailed, in context, payload),
+            "task_failed" => Build(RawCodexEventKind.TaskFailed, in context, payload),
+            "error" or "stream_error" => new ParseResult(null, ParseOutcome.Ignored),
             "item_completed" => ParseItemCompleted(payload, in context),
             "token_count" => Build(RawCodexEventKind.TokenUsage, in context, payload),
             "thread_settings_applied" => new ParseResult(null, ParseOutcome.Ignored),
@@ -162,7 +168,7 @@ public static class CodexEventParser
             "reasoning" => Build(RawCodexEventKind.ItemActivity, in context, payload,
                 ToolCallCategory.Reasoning, AgentActionKind.Thinking, "reasoning"),
             "message" => Build(RawCodexEventKind.ItemActivity, in context, payload,
-                ToolCallCategory.Message, AgentActionKind.Thinking, "message"),
+                ToolCallCategory.Message, GetString(payload, "role", 32) == "assistant" ? AgentActionKind.Thinking : null, "message"),
             "compaction" => Build(RawCodexEventKind.HistoryCompacted, in context, payload),
             _ => new ParseResult(null, ParseOutcome.UnknownSchema),
         };
@@ -171,21 +177,19 @@ public static class CodexEventParser
     private static ParseResult BuildToolCall(JsonElement payload, in ParseContext context)
     {
         var name = NormalizeToolName(GetString(payload, "name", 64));
-        var status = GetString(payload, "status", 32);
-        var completed = status.Equals("completed", StringComparison.OrdinalIgnoreCase) ||
-                        status.Equals("failed", StringComparison.OrdinalIgnoreCase);
 
         // An opaque wrapper's payload is never evaluated or searched. Known
         // wrapper names map to the generic command label; anything else stays
         // unclassified so the classifier can fall back to turn state.
-        var isCommandWrapper = name is "exec" or "shell" or "localshell" or "containerexec";
+        var isCommandWrapper = name is "exec" or "shell" or "localshell" or "containerexec" or "execcommand" or "functionsexec" or "functionsexeccommand";
+        var isPatch = name is "applypatch" or "functionsapplypatch";
         return Build(
-            completed ? RawCodexEventKind.ToolCallCompleted : RawCodexEventKind.ToolCallStarted,
+            RawCodexEventKind.ToolCallStarted,
             in context,
             payload,
             ToolCallCategory.OpaqueWrapper,
-            isCommandWrapper ? AgentActionKind.RunningCommand : null,
-            "tool-" + (name.Length == 0 ? "unknown" : name));
+            isCommandWrapper ? AgentActionKind.RunningCommand : isPatch ? AgentActionKind.EditingFiles : null,
+            isCommandWrapper ? "command-call" : isPatch ? "file-change" : "opaque-tool");
     }
 
     private static ParseResult BuildToolCompletion(JsonElement payload, in ParseContext context) =>
@@ -287,6 +291,11 @@ public static class CodexEventParser
         bool? isBlocking = null)
     {
         var turnId = GetString(payload, "turn_id", MaximumIdentifierChars);
+        if (turnId.Length == 0 && payload.TryGetProperty("internal_chat_message_metadata_passthrough", out var metadata) &&
+            metadata.ValueKind == JsonValueKind.Object)
+        {
+            turnId = GetString(metadata, "turn_id", MaximumIdentifierChars);
+        }
         var callId = GetString(payload, "call_id", MaximumIdentifierChars);
         var requestId = kind is RawCodexEventKind.PermissionRequested or RawCodexEventKind.InputRequested
             ? FirstNonEmpty(GetString(payload, "request_id", MaximumIdentifierChars), callId, GetString(payload, "id", MaximumIdentifierChars))
@@ -296,7 +305,7 @@ public static class CodexEventParser
                         ReadTimestamp(payload, "completed_at") ??
                         ReadTimestamp(payload, "started_at") ??
                         ReadTimestamp(payload, "completed_at_ms") ??
-                        ReadTimestamp(payload, "started_at_ms");
+                        ReadTimestamp(payload, "started_at_ms") ?? context.RecordTime;
 
         var outcome = kind switch
         {

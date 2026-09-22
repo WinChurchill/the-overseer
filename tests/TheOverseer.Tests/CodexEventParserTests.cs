@@ -46,7 +46,7 @@ public sealed class CodexEventParserTests
     public void ToolCallsAndOutputsCarryCorrelationIdentityOnly()
     {
         var call = Parse(Records.CustomToolCall("turn-1", "call-1"));
-        Assert.Equal(RawCodexEventKind.ToolCallCompleted, call.Kind);
+        Assert.Equal(RawCodexEventKind.ToolCallStarted, call.Kind);
         Assert.Equal("call-1", call.CallId);
         Assert.Equal(ToolCallCategory.OpaqueWrapper, call.Tool);
         Assert.Equal(AgentActionKind.RunningCommand, call.Action);

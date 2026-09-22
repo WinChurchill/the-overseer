@@ -41,6 +41,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     private RuntimeActivityAvailability _runtimeAvailability = RuntimeActivityAvailability.NotConfigured;
     private bool _anyLiveAttention;
     private int _disposed;
+    private int _reconcileRequested;
 
     public CodexMonitor(
         MonitorOptions options,
@@ -103,6 +104,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         _cycleGate.Wait();
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
             return Publish(RunCycle(_timeProvider.GetUtcNow()));
         }
         finally
@@ -117,6 +119,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         await _cycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
             var snapshot = await Task.Run(() => RunCycle(_timeProvider.GetUtcNow()), cancellationToken).ConfigureAwait(false);
             return Publish(snapshot);
         }
@@ -129,12 +132,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     /// <summary>Requests a full rediscovery sweep, for example after a wake event.</summary>
     public void RequestReconcile()
     {
-        foreach (var state in _profileStates)
-        {
-            state.Enumerator.Restart();
-        }
-
-        _lastReconcileAt = DateTimeOffset.MinValue;
+        Interlocked.Exchange(ref _reconcileRequested, 1);
     }
 
     /// <summary>
@@ -166,13 +164,17 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             }
         }
 
-        foreach (var state in _profileStates)
+        await _cycleGate.WaitAsync().ConfigureAwait(false);
+        try
         {
-            state.Tracker.Dispose();
+            foreach (var state in _profileStates)
+            {
+                state.Tracker.Dispose();
+                state.Enumerator.Dispose();
+            }
+            _loopCancellation?.Dispose();
         }
-
-        _loopCancellation?.Dispose();
-        _cycleGate.Dispose();
+        finally { _cycleGate.Release(); }
     }
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
@@ -190,6 +192,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 {
                     break;
                 }
+                catch (ObjectDisposedException) when (_disposed != 0) { break; }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
                     // A whole-cycle failure must never look like a healthy zero.
@@ -259,17 +262,20 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     private MonitoringSnapshot RunCycle(DateTimeOffset now)
     {
         var reasons = new SortedSet<string>(StringComparer.Ordinal);
+        if (_log.IsDegraded) reasons.Add(HealthReasons.LogDegraded);
         var coverageComplete = true;
         var transitions = new List<TaskTransition>();
         var malformedThisCycle = false;
         var candidates = new Dictionary<string, SessionFileCandidate>(PathComparer);
         var anyRootAccessible = false;
+        var globalBudget = _options.GlobalBytesPerPass;
+        foreach (var file in _tracked.Values) file.BytesReservedThisPass = 0;
 
-        if (now - _lastReconcileAt >= _options.ReconcileInterval)
+        if (Interlocked.Exchange(ref _reconcileRequested, 0) != 0 || now - _lastReconcileAt >= _options.ReconcileInterval)
         {
             foreach (var state in _profileStates)
             {
-                state.Enumerator.Restart();
+                if (state.Enumerator.SweepCompleted) state.Enumerator.Restart();
                 state.Tracker.RequestReconcile();
             }
 
@@ -279,12 +285,10 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
 
         foreach (var state in _profileStates)
         {
-            CollectCandidates(state, candidates, reasons, ref coverageComplete, ref anyRootAccessible, now);
+            CollectCandidates(state, candidates, reasons, ref coverageComplete, ref anyRootAccessible, ref globalBudget, now);
         }
 
-        AdmitCandidates(candidates.Values, reasons, ref coverageComplete, now);
-
-        var globalBudget = _options.GlobalBytesPerPass;
+        AdmitCandidates(candidates.Values, reasons, ref coverageComplete, ref globalBudget, now);
         var hydrationDoneThisCycle = false;
         foreach (var file in _tracked.Values
                      .OrderBy(static item => item.LastProcessedAt)
@@ -298,7 +302,8 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 continue;
             }
 
-            if (globalBudget <= 0 && hydrationDoneThisCycle)
+            if (file.HydrationLimited) { reasons.Add(HealthReasons.HydrationBudget); coverageComplete = false; }
+            if (globalBudget <= 0)
             {
                 reasons.Add(HealthReasons.HydrationBudget);
                 coverageComplete = false;
@@ -316,7 +321,8 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         var trackedKeys = new HashSet<TaskKey>();
         foreach (var file in _tracked.Values)
         {
-            trackedKeys.Add(file.Key);
+            if (file.EvidenceGap) { reasons.Add(HealthReasons.IncompleteCoverage); coverageComplete = false; }
+            if (file.FailureCode is null && file.IdentityResolved && file.Hydrated && !file.HydrationLimited && !file.EvidenceGap) trackedKeys.Add(file.Key);
         }
 
         _reducer.SetTrackedKeys(trackedKeys);
@@ -365,7 +371,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             now);
 
         var counts = BuildCounts(tasks, level, coverageComplete);
-        var attentionEvents = _attention.Detect(tasks, transitions, now);
+        var attentionEvents = _attention.Detect(tasks, transitions, now, level == MonitoringHealthLevel.Healthy && coverageComplete);
         if (attentionEvents.Count > 0)
         {
             _anyLiveAttention = true;
@@ -402,6 +408,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         SortedSet<string> reasons,
         ref bool coverageComplete,
         ref bool anyRootAccessible,
+        ref int globalBudget,
         DateTimeOffset now)
     {
         var profile = state.Profile;
@@ -420,12 +427,9 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             return;
         }
 
-        anyRootAccessible = true;
-
         if (!state.Tracker.Available)
         {
             reasons.Add(HealthReasons.WatcherFailed);
-            state.Tracker.RequestReconcile();
         }
 
         if (state.Tracker.ConsumeOverflow())
@@ -435,7 +439,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
 
         if (state.Tracker.ConsumeStructuralChange())
         {
-            state.Enumerator.Restart();
+            if (state.Enumerator.SweepCompleted) state.Enumerator.Restart();
         }
 
         var hints = state.Tracker.DrainHints();
@@ -462,6 +466,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         }
 
         var slice = state.Enumerator.NextSlice();
+        anyRootAccessible |= !slice.RootInaccessible || slice.Candidates.Count > 0;
         if (slice.RootInaccessible)
         {
             reasons.Add(HealthReasons.RootInaccessible);
@@ -488,7 +493,9 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             }
         }
 
-        if (state.Titles.Refresh(profile.SessionIndexPath, priorityIds))
+        var titleAllowance = Math.Min(_options.TitleReadBytesPerPass, Math.Max(0, globalBudget / 16 - 4096));
+        if (titleAllowance > 0) globalBudget -= titleAllowance + 4096;
+        if (titleAllowance > 0 && state.Titles.Refresh(profile.SessionIndexPath, priorityIds, titleAllowance))
         {
             foreach (var file in _tracked.Values)
             {
@@ -521,7 +528,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         {
             foreach (var hint in runtime.Hints)
             {
-                if (string.IsNullOrWhiteSpace(hint.RolloutPath) || !IsUnderRoot(profile, hint.RolloutPath))
+                if (string.IsNullOrWhiteSpace(hint.RolloutPath) || !hint.RolloutPath.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) || !IsUnderRoot(profile, hint.RolloutPath))
                 {
                     continue;
                 }
@@ -539,6 +546,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         IEnumerable<SessionFileCandidate> candidates,
         SortedSet<string> reasons,
         ref bool coverageComplete,
+        ref int globalBudget,
         DateTimeOffset now)
     {
         foreach (var candidate in candidates.OrderByDescending(static item => item.LastWriteUtc))
@@ -567,7 +575,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                     continue;
                 }
 
-                _tracked.Remove(evictable.Path);
+                // Admission below verifies identity before removing an existing row.
                 reasons.Add(HealthReasons.TrackedFileLimit);
                 coverageComplete = false;
             }
@@ -579,7 +587,15 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 continue;
             }
 
-            var identity = SessionIdentityReader.Read(candidate.FullName, _options.MaxIdentityHeaderBytes);
+            var identityAllowance = Math.Min(_options.MaxIdentityHeaderBytes, _options.PerFileBytesPerPass);
+            if (globalBudget < identityAllowance + _options.GlobalBytesPerPass / 2)
+            {
+                reasons.Add(HealthReasons.DiscoveryBacklog);
+                coverageComplete = false;
+                continue;
+            }
+            globalBudget -= identityAllowance;
+            var identity = SessionIdentityReader.Read(candidate.FullName, identityAllowance);
             if (identity.Found && identity.IsExplicitInternal)
             {
                 if (_internalPaths.Count < 512)
@@ -619,9 +635,18 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 LastWriteUtc = candidate.LastWriteUtc,
                 AdmittedAt = now,
                 LastProcessedAt = DateTimeOffset.MinValue,
+                BytesReservedThisPass = identityAllowance,
             };
-            file.Signature = ComputeSignature(candidate.FullName);
+            file.SignatureBytes = (int)Math.Min(Math.Min(4096, candidate.Length), _options.PerFileBytesPerPass - identityAllowance);
+            globalBudget -= file.SignatureBytes;
+            file.BytesReservedThisPass += file.SignatureBytes;
+            file.Signature = ComputeSignature(candidate.FullName, file.SignatureBytes);
             file.LastSignatureCheckAt = now;
+            if (_tracked.Count >= _options.MaxTrackedFiles)
+            {
+                var oldest = _tracked.Values.MinBy(static item => item.LastWriteUtc)!;
+                _tracked.Remove(oldest.Path);
+            }
             _tracked[candidate.FullName] = file;
 
             var task = _reducer.RegisterConversation(
@@ -653,6 +678,27 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         file.LastProcessedAt = now;
         try
         {
+            var profile = FindState(file.ProfileId)!.Profile;
+            if (!IsUnderRoot(profile, file.Path))
+            {
+                HandleFailure(file, HealthReasons.ReadFailure, reasons, ref coverageComplete, now);
+                return;
+            }
+            if (file.IdentityCheckPending)
+            {
+                var budget = Math.Min(_options.MaxIdentityHeaderBytes, _options.PerFileBytesPerPass);
+                if (globalBudget < budget) { coverageComplete = false; reasons.Add(HealthReasons.HydrationBudget); return; }
+                globalBudget -= budget;
+                file.BytesReservedThisPass += budget;
+                var identity = SessionIdentityReader.Read(file.Path, budget);
+                file.IdentityCheckPending = false;
+                if (!identity.Found)
+                {
+                    file.IdentityResolved = false;
+                    file.IdentityProvisional = true;
+                }
+                else if (!UpdateIdentity(file, identity, now)) return;
+            }
             if (!file.Hydrated)
             {
                 HydrateFile(file, ref globalBudget, transitions, reasons, ref coverageComplete, ref malformedThisCycle, ref hydrationDoneThisCycle, now);
@@ -697,72 +743,70 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             return;
         }
 
-        var length = info.Length;
-        var wanted = Math.Min(length, _options.HydrationMaxScanBytes);
-
-        // Fair sharing: while other files still need hydration this cycle, use
-        // at most half of what is left so one large rollout cannot starve the
-        // rest of the backlog.
-        var waiting = _tracked.Values.Count(static item => !item.Hydrated) > 1;
-        var share = waiting ? Math.Max(_options.HydrationInitialWindowBytes, globalBudget / 2) : Math.Max(_options.HydrationInitialWindowBytes, globalBudget);
-        var window = Math.Min(wanted, share);
-        var limited = window < wanted;
-        var tail = length <= 0
-            ? new TailReadResult(Array.Empty<string>(), 0, false, false, 0)
-            : TailWindowReader.ReadTailLines(file.Path, Math.Max(1, window), _options.MaxHydrationRecords, _options.MaxPendingRecordBytes);
-
-        globalBudget -= tail.BytesRead;
-        _bytesRead += tail.BytesRead;
-        file.BytesRead += tail.BytesRead;
-        hydrationDoneThisCycle = true;
-
-        if (tail.OversizeDiscarded)
+        if (file.HydrationEnd < 0)
         {
+            file.HydrationEnd = info.Length;
+            var window = Math.Min(_options.HydrationInitialWindowBytes, _options.HydrationMaxScanBytes);
+            var start = Math.Max(0, info.Length - window);
+            file.Reader.SeekTo(start, discardPartialRecord: start > 0);
+            file.HydrationLimited = start > 0;
+        }
+        var allowance = Math.Min(_options.PerFileBytesPerPass - file.BytesReservedThisPass, Math.Max(0, globalBudget));
+        if (allowance == 0)
+        {
+            reasons.Add(HealthReasons.HydrationBudget);
+            coverageComplete = false;
+            return;
+        }
+        var read = file.Reader.ReadAppended(file.Path, allowance, file.HydrationEnd, _options.MaxHydrationRecords);
+        globalBudget -= read.BytesRead;
+        _bytesRead += read.BytesRead;
+        file.BytesRead += read.BytesRead;
+        hydrationDoneThisCycle = true;
+        if (read.Truncated)
+        {
+            ResetForRehydrate(file);
+            reasons.Add(HealthReasons.FileTruncated);
+            coverageComplete = false;
+            return;
+        }
+        if (read.OversizeDiscarded)
+        {
+            file.EvidenceGap = true;
             reasons.Add(HealthReasons.RecordOversize);
             _counters.Oversize++;
+            file.HydrationLimited = true;
         }
-
         var sawLifecycle = false;
-        var order = 0;
-        foreach (var line in tail.Lines)
+        foreach (var line in read.Lines)
         {
-            order++;
-            var context = new ParseContext(
-                file.ProfileId,
-                file.ConversationId,
-                file.FileId,
-                order,
-                order,
-                file.Reader.Generation,
-                true,
-                now,
-                _options.MaxRecordChars);
-            var result = CodexEventParser.ParseLine(line, in context);
-            ApplyParseResult(file, result, transitions, ref sawLifecycle, ref malformedThisCycle);
+            if (file.HydrationRecords >= _options.MaxHydrationRecords)
+            {
+                file.EvidenceGap = true;
+                file.HydrationLimited = true;
+                continue;
+            }
+            file.HydrationRecords++;
+            var order = ++file.SourceOrder;
+            var context = new ParseContext(file.ProfileId, file.ConversationId, file.FileId,
+                order, order, file.Reader.Generation, true, now, _options.MaxRecordChars);
+            ApplyLine(file, line, context, transitions,
+                ref sawLifecycle, ref malformedThisCycle);
         }
-
-        file.SourceOrder += order;
-        file.Reader.SeekTo(length);
-        file.Hydrated = true;
-        file.HydrationLimited = limited && !sawLifecycle;
-        file.Length = length;
+        file.Hydrated = file.Reader.Offset >= file.HydrationEnd;
+        file.Length = info.Length;
         file.LastWriteUtc = info.LastWriteTimeUtc;
         file.ReadBlocked = false;
         file.ConsecutiveFailures = 0;
         file.FailureCode = null;
-        _counters.FilesHydrated++;
         _lastSuccessfulReadAt = now;
-
-        if (file.HydrationLimited)
+        if (file.Hydrated) _counters.FilesHydrated++;
+        if (!file.Hydrated || file.HydrationLimited)
         {
-            // Deeper history exists but was not read; the current state may be
-            // unanchored, so coverage is reported as incomplete instead of
-            // guessing a state.
             reasons.Add(HealthReasons.HydrationBudget);
             coverageComplete = false;
         }
     }
-
     private void ReadAppended(
         TrackedSessionFile file,
         ref int globalBudget,
@@ -790,8 +834,11 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
 
         if (now - file.LastSignatureCheckAt >= _options.ReconcileInterval)
         {
+            if (globalBudget < 4096) { coverageComplete = false; reasons.Add(HealthReasons.HydrationBudget); return; }
+            globalBudget -= 4096;
+            file.BytesReservedThisPass += 4096;
             file.LastSignatureCheckAt = now;
-            var signature = ComputeSignature(file.Path);
+            var signature = ComputeSignature(file.Path, file.SignatureBytes);
             if (file.Signature != 0 && signature != 0 && signature != file.Signature)
             {
                 reasons.Add(HealthReasons.FileReplaced);
@@ -803,8 +850,8 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             file.Signature = signature;
         }
 
-        var allowance = Math.Min(_options.PerFileBytesPerPass, Math.Max(0, globalBudget));
-        if (allowance < 4096)
+        var allowance = Math.Min(_options.PerFileBytesPerPass - file.BytesReservedThisPass, Math.Max(0, globalBudget));
+        if (allowance <= 0)
         {
             reasons.Add(HealthReasons.HydrationBudget);
             coverageComplete = false;
@@ -820,11 +867,13 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         {
             reasons.Add(HealthReasons.FileTruncated);
             coverageComplete = false;
+            ResetForRehydrate(file);
             return;
         }
 
         if (read.OversizeDiscarded)
         {
+            file.EvidenceGap = true;
             reasons.Add(HealthReasons.RecordOversize);
             _counters.Oversize++;
         }
@@ -844,8 +893,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 false,
                 now,
                 _options.MaxRecordChars);
-            var result = CodexEventParser.ParseLine(line, in context);
-            ApplyParseResult(file, result, transitions, ref sawLifecycle, ref malformedThisCycle);
+            ApplyLine(file, line, context, transitions, ref sawLifecycle, ref malformedThisCycle);
         }
 
         file.SourceOrder = order;
@@ -855,20 +903,45 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         file.FailureCode = null;
         file.ReadBlocked = false;
         _lastSuccessfulReadAt = now;
-        // A rollout append is recency evidence only, and only when it is not
-        // ahead of the monitor clock: a future timestamp is unusable evidence
-        // and never refreshes freshness.
-        var writtenAt = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
-        if (writtenAt <= now)
-        {
-            _reducer.NoteSourceActivity(file.Key, writtenAt);
-        }
-
         if (read.BudgetExhausted)
         {
             reasons.Add(HealthReasons.HydrationBudget);
             coverageComplete = false;
         }
+    }
+
+    private void ApplyLine(TrackedSessionFile file, string line, ParseContext context,
+        List<TaskTransition> transitions, ref bool sawLifecycle, ref bool malformedThisCycle)
+    {
+        if (!_tracked.ContainsKey(file.Path)) return;
+        var result = CodexEventParser.ParseLine(line, context);
+        if (result.Event?.Kind == RawCodexEventKind.SessionIdentity)
+        {
+            var identity = SessionIdentityReader.ParseLine(line);
+            if (!identity.Found) return;
+            if (!UpdateIdentity(file, identity, context.ObservedAt)) return;
+            result = result with { Event = result.Event with { ConversationId = file.ConversationId } };
+        }
+        ApplyParseResult(file, result, transitions, ref sawLifecycle, ref malformedThisCycle);
+    }
+
+    private bool UpdateIdentity(TrackedSessionFile file, SessionIdentity identity, DateTimeOffset now)
+    {
+        var previousKey = file.Key;
+        if (identity.IsExplicitInternal)
+        {
+            _tracked.Remove(file.Path);
+            if (_internalPaths.Count < 512) _internalPaths.Add(file.Path);
+            if (!_tracked.Values.Any(item => item.Key == previousKey)) _reducer.Forget(previousKey);
+            return false;
+        }
+        file.ConversationId = identity.ConversationId;
+        file.IdentityResolved = true;
+        file.IdentityProvisional = false;
+        file.Surface = identity.Surface;
+        if (previousKey != file.Key && !_tracked.Values.Any(item => item.Key == previousKey)) _reducer.Forget(previousKey);
+        _reducer.RegisterConversation(file.ProfileId, file.ConversationId, file.Surface, identity.WorkspaceLeaf, true, now);
+        return true;
     }
 
     private void ApplyParseResult(
@@ -881,6 +954,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         switch (result.Outcome)
         {
             case ParseOutcome.Malformed:
+                file.EvidenceGap = true;
                 _counters.Malformed++;
                 malformedThisCycle = true;
                 if (_malformedPaths.Count < 256)
@@ -890,9 +964,11 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
 
                 return;
             case ParseOutcome.Oversize:
+                file.EvidenceGap = true;
                 _counters.Oversize++;
                 return;
             case ParseOutcome.UnknownSchema:
+                file.EvidenceGap = true;
                 _counters.UnknownSchema++;
                 return;
             case ParseOutcome.Ignored:
@@ -903,6 +979,13 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         {
             return;
         }
+
+        if (codexEvent.Kind is RawCodexEventKind.TaskStarted or RawCodexEventKind.TurnContext && codexEvent.TurnId.Length > 0)
+            file.CurrentTurnId = codexEvent.TurnId;
+        else if (codexEvent.TurnId.Length == 0 && codexEvent.Kind != RawCodexEventKind.SessionIdentity)
+            codexEvent = codexEvent with { TurnId = file.CurrentTurnId };
+        // Identity is verified by the header reader; a context id alone is not proof.
+        if (codexEvent.Kind == RawCodexEventKind.SessionIdentity && !file.IdentityResolved) return;
 
         switch (codexEvent.Kind)
         {
@@ -941,17 +1024,37 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         }
 
         var outcome = _reducer.Apply(in codexEvent);
+        if (outcome.Applied && codexEvent.TurnId.Length > 0 && codexEvent.EventTime is not null &&
+            codexEvent.Kind is RawCodexEventKind.ItemActivity or RawCodexEventKind.ToolCallStarted &&
+            codexEvent.Action is not null && codexEvent.Tool != ToolCallCategory.Message)
+            file.HydrationLimited = false;
+        if (outcome.Applied && codexEvent.Kind is RawCodexEventKind.TaskStarted or RawCodexEventKind.TaskCompleted or RawCodexEventKind.TurnAborted or RawCodexEventKind.TaskFailed)
+        {
+            file.HydrationLimited = false;
+            file.EvidenceGap = false;
+        }
         if (outcome.Transition is { } transition)
         {
             transitions.Add(transition);
         }
     }
 
-    private static void ResetForRehydrate(TrackedSessionFile file)
+    private void ResetForRehydrate(TrackedSessionFile file)
+    {
+        _reducer.ResetEvidence(file.Key);
+        foreach (var sibling in _tracked.Values.Where(item => item.Key == file.Key)) ResetFile(sibling);
+    }
+
+    private static void ResetFile(TrackedSessionFile file)
     {
         file.Reader.Reset();
         file.Hydrated = false;
+        file.HydrationEnd = -1;
+        file.HydrationRecords = 0;
+        file.IdentityCheckPending = true;
+        file.CurrentTurnId = string.Empty;
         file.HydrationLimited = false;
+        file.EvidenceGap = false;
         file.SourceOrder = 0;
         file.Signature = 0;
     }
@@ -1017,8 +1120,8 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             ? new CapabilityStatus(CapabilitySupport.LiveObserved, "input-requests", "structured input request observed live")
             : new CapabilityStatus(CapabilitySupport.Unsupported, "input-requests", "Codex keeps request_user_input transient; no durable record exists to observe");
 
-        var failure = observation.TaskStartedRecords >= 0 && observation.TurnAbortedRecords > 0
-            ? new CapabilityStatus(CapabilitySupport.LiveObserved, "task-failure", "abort records observed; explicit failure evidence still requires a failure-coded record")
+        var failure = _counters.TaskFailed > 0
+            ? new CapabilityStatus(CapabilitySupport.LiveObserved, "task-failure", "explicit terminal failure records observed")
             : new CapabilityStatus(CapabilitySupport.Unsupported, "task-failure", "no explicit task-level failure record observed in this Codex version");
 
         var runtime = _runtimeAvailability switch
@@ -1063,14 +1166,19 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     {
         try
         {
-            var root = Path.GetFullPath(profile.RootPath);
+            var root = Path.GetFullPath(profile.SessionsRoot);
             var full = Path.GetFullPath(path);
             if (!root.EndsWith(Path.DirectorySeparatorChar))
             {
                 root += Path.DirectorySeparatorChar;
             }
 
-            return full.StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            if (!full.StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) return false;
+            for (var entry = full; entry.Length >= root.TrimEnd(Path.DirectorySeparatorChar).Length; entry = Path.GetDirectoryName(entry) ?? string.Empty)
+            {
+                if (BoundedSessionEnumerator.IsReparsePoint(entry)) return false;
+            }
+            return true;
         }
         catch (ArgumentException)
         {
@@ -1086,7 +1194,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         }
     }
 
-    private static ulong ComputeSignature(string path)
+    private static ulong ComputeSignature(string path, int maximumBytes)
     {
         try
         {
@@ -1098,7 +1206,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 4096,
                 FileOptions.SequentialScan);
             Span<byte> buffer = stackalloc byte[4096];
-            var read = stream.Read(buffer);
+            var read = stream.Read(buffer[..Math.Clamp(maximumBytes, 0, buffer.Length)]);
             const ulong offset = 14695981039346656037;
             const ulong prime = 1099511628211;
             var hash = offset;

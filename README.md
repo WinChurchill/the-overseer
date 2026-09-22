@@ -33,7 +33,7 @@ Detailed visual refinement is deferred in `docs/UI_SPEC_v0.2.md`.
   `Configuration/` and `Diagnostics/` (plus empty `History/`, `Voice/` boundaries);
   no WPF dependency.
 - `TheOverseer.UI`: WPF presentation library; references Core; minimal window only.
-- `TheOverseer.Tests`: xUnit tests; references Core. 117 tests cover the bounded
+- `TheOverseer.Tests`: xUnit tests; references Core. Tests cover the bounded
   readers, discovery, identity, titles, parser, reducer, classifier, attention,
   health, monitor composition, configuration, logging and privacy rules.
 
@@ -144,6 +144,7 @@ were not imported.
 
 ## Next action
 
-Astra Review 1 reviews `impl/p1-monitoring` against `main` using
-`docs/IMPLEMENTATION_STATE.md` for the commit list, evidence and limitations.
-HUD, history/voice and release work remain in Plans 2–4.
+Astra Review 1 passed with nonblocking notes. Applied fixes, validation evidence
+and observability limits are recorded in `docs/IMPLEMENTATION_STATE.md`.
+After integrating the reviewed Plan 1 branch, prepare Astra planning for
+Plan 2 / Goal 2. HUD, history/voice and release work remain in Plans 2–4.

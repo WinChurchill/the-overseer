@@ -4,8 +4,8 @@ namespace TheOverseer.Core.Diagnostics;
 
 /// <summary>
 /// Bounded rolling metadata log. Only stable codes, counters and numbers are
-/// written; every value is sanitized and truncated so a title, path, prompt,
-/// command line or credential cannot reach the file even by caller mistake.
+/// written by callers; control characters are sanitized and fields are bounded.
+/// Sanitization is not redaction: callers must never supply sensitive text.
 /// Failure to log never throws into the monitor.
 /// </summary>
 public sealed class LocalLog : IMonitorLog, IDisposable
@@ -92,7 +92,7 @@ public sealed class LocalLog : IMonitorLog, IDisposable
         {
             lock (_gate)
             {
-                Roll();
+                Roll(bytes + Encoding.UTF8.GetPreamble().Length);
                 File.AppendAllText(_path, line, Encoding.UTF8);
                 _ = bytes;
             }
@@ -109,25 +109,17 @@ public sealed class LocalLog : IMonitorLog, IDisposable
 
     public void Dispose() => _disposed = true;
 
-    private void Roll()
+    private void Roll(int additionalBytes)
     {
         var info = new FileInfo(_path);
-        if (!info.Exists || info.Length < _maxBytes)
+        if (!info.Exists || info.Length + additionalBytes <= _maxBytes)
         {
             return;
         }
 
         var backup = _path + ".1";
-        try
-        {
-            File.Move(_path, backup, overwrite: true);
-        }
-        catch (IOException)
-        {
-            // Falling through keeps the monitor running; the log stays large
-            // rather than breaking monitoring.
-            IsDegraded = true;
-        }
+        // A failed rotation reaches Write's catch and skips the append.
+        File.Move(_path, backup, overwrite: true);
     }
 
     private static string Sanitize(string? value, int maximumLength)

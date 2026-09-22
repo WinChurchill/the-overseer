@@ -38,7 +38,8 @@ public sealed class AttentionDetector
     public IReadOnlyList<AttentionEvent> Detect(
         IReadOnlyList<AgentTask> tasks,
         IReadOnlyList<TaskTransition> transitions,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool coverageComplete = true)
     {
         var events = new List<AttentionEvent>();
         var byKey = new Dictionary<TaskKey, AgentTask>();
@@ -63,7 +64,8 @@ public sealed class AttentionDetector
                 continue;
             }
 
-            if (!byKey.TryGetValue(transition.Key, out var task) || task.IsStale)
+            if (!byKey.TryGetValue(transition.Key, out var task) || task.IsStale || task.IsProvisional ||
+                task.State != transition.To || task.TurnId != transition.TurnId)
             {
                 continue;
             }
@@ -107,7 +109,8 @@ public sealed class AttentionDetector
                 continue;
             }
 
-            if (!byKey.TryGetValue(transition.Key, out var task) || task.IsStale)
+            if (!byKey.TryGetValue(transition.Key, out var task) || task.IsStale || task.IsProvisional ||
+                !task.NeedsHuman || task.TurnId != transition.TurnId)
             {
                 continue;
             }
@@ -133,7 +136,9 @@ public sealed class AttentionDetector
 
         TrimLastStates(tasks);
 
-        if (HydrationComplete &&
+        if (HydrationComplete && coverageComplete &&
+            !tasks.Any(static task => task.IsStale || task.IsProvisional ||
+                task.State is AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval) &&
             previouslyRunning.Count > 0 &&
             events.Exists(static item => item.Kind == AttentionEventKind.TaskCompleted))
         {
@@ -190,11 +195,6 @@ public sealed class AttentionDetector
 
     private void TrimLastStates(IReadOnlyList<AgentTask> tasks)
     {
-        if (_lastStates.Count <= _maxHistory * 4)
-        {
-            return;
-        }
-
         var alive = new HashSet<TaskKey>();
         foreach (var task in tasks)
         {

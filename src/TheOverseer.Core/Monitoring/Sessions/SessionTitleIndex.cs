@@ -49,7 +49,7 @@ public sealed partial class SessionTitleIndex
 
     public bool HasBacklog => _reader.HasUnreadData;
 
-    public bool Refresh(string path, IReadOnlySet<string>? priorityIds = null)
+    public bool Refresh(string path, IReadOnlySet<string>? priorityIds = null, int? maximumBytes = null)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -82,7 +82,7 @@ public sealed partial class SessionTitleIndex
             }
 
             var changed = reset;
-            var result = _reader.ReadAppended(path, _bytesPerPass);
+            var result = _reader.ReadAppended(path, Math.Min(_bytesPerPass, maximumBytes ?? _bytesPerPass));
             foreach (var line in result.Lines)
             {
                 if (!TryApply(line))

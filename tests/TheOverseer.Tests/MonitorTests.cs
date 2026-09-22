@@ -280,7 +280,7 @@ public sealed class MonitorTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(outsideRoot)!);
         File.WriteAllLines(outsideRoot, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });
 
-        var sideRoot = Path.Combine(_home.Root, "elsewhere");
+        var sideRoot = Path.Combine(_home.SessionsRoot, ".hint-only");
         Directory.CreateDirectory(sideRoot);
         var hintedPath = Path.Combine(sideRoot, "rollout-2026-01-02T03-04-05-" + id + ".jsonl");
         File.WriteAllLines(hintedPath, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });

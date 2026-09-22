@@ -26,7 +26,16 @@ public static class MonitorConfigStore
 
         try
         {
-            var text = File.ReadAllText(path);
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length > 64 * 1024)
+                return new ConfigLoadResult(MonitorConfig.Default, ConfigLoadStatus.Failed, "config-too-large");
+            using var reader = new StreamReader(stream);
+            var buffer = new char[64 * 1024 + 1];
+            var count = reader.ReadBlock(buffer, 0, buffer.Length);
+            if (count == buffer.Length)
+                return new ConfigLoadResult(MonitorConfig.Default, ConfigLoadStatus.Failed, "config-too-large");
+            var text = new string(buffer, 0, count);
+            reader.Dispose();
             if (string.IsNullOrWhiteSpace(text))
             {
                 return new ConfigLoadResult(MonitorConfig.Default, ConfigLoadStatus.Missing, "config-empty");
