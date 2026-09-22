@@ -7,12 +7,17 @@ Plan 1 (Foundation and Monitoring) is merged into `main`: a bounded, read-only
 local monitor that turns Codex rollout records into normalized task state,
 current-action labels, attention transitions and explicit monitoring health.
 
-Plan 2 (Complete Usable HUD) is reviewed and merged into `main`: normal startup now
+Plan 2 (Complete Usable HUD) is reviewed and merged into `main`: normal startup
 runs one small persistent WPF HUD backed by that live monitor, with honest
 collapsed counts, a bounded expanded task list, shared Light/Dark website
 themes, drag placement with recovery, a tray menu, opt-in current-user startup
-and safe task navigation. Activity history, the sparkline, voice and release
-packaging remain Plans 3 and 4.
+and safe task navigation.
+
+Plan 3 (Activity and Voice) is implemented on `impl/p3-history-voice`: a bounded
+60-minute working-count sparkline, and meaningful attention notifications that
+speak once per condition through a validated local WAV pack or one configured
+generic TTS endpoint, with completion aggregation, cooldown, instant persistent
+mute and local fallback. Release packaging remains Plan 4.
 
 ## Naming and frozen sources
 
@@ -32,12 +37,14 @@ Detailed visual refinement is deferred in `docs/UI_SPEC_v0.2.md`.
 
 - `TheOverseer.App`: Windows x64 WPF application entry point; references Core and UI.
   Owns platform services (tray, placement, startup registry, shell navigation),
-  the HUD lifetime controller and the diagnostics fixtures; also hosts the finite
+  the HUD lifetime controller, the voice I/O adapters (pack reader, generic TTS
+  client, WAV playback) and the diagnostics fixtures; also hosts the finite
   `--monitor-debug` console harness and the optional read-only Windows
   state-store activity source.
 - `TheOverseer.Core`: plain .NET library with `Models/`, `Monitoring/`,
-  `Configuration/` and `Diagnostics/` (plus empty `History/`, `Voice/` boundaries);
-  no WPF dependency.
+  `Configuration/`, `Diagnostics/`, `History/` (rolling activity trace) and
+  `Voice/` (policy, manager, pack validation, notification text); no WPF or
+  WinForms dependency and no network or audio code.
 - `TheOverseer.UI`: WPF presentation library; references Core. Contains the single
   `HudWindow`, the `HudViewModel` projection and the WebsiteLight/WebsiteDark
   resource dictionaries.
@@ -169,6 +176,80 @@ dotnet run --project src/TheOverseer.App -- --hud-smoke --duration 15 --data-dir
 
 # Reversible live check of OVERSEER's own Run entry (restores the original state)
 dotnet run --project src/TheOverseer.App -- --hud-startup-check
+
+# Finite voice smoke: synthetic tones plus an owned loopback TTS endpoint
+dotnet run --project src/TheOverseer.App -- --voice-smoke --data-directory artifacts/p3-voice
+dotnet run --project src/TheOverseer.App -- --voice-smoke --audible --data-directory artifacts/p3-voice
+```
+
+The voice smoke is silent by default and proves the pack, policy, aggregation,
+mute and TTS contracts with generated PCM tones and a loopback HTTP server it
+owns; `--audible` additionally sends the clips to the real sound device and
+reports that observation separately from API success. No remote account,
+credential or spoken sample is required or used.
+
+## Activity history and voice
+
+### Rolling history and sparkline
+
+The HUD keeps an in-memory rolling trace of the last 60 minutes: one bucket per
+second (maximum 3,601), each holding the working and needs-human `CountValue`
+from the newest snapshot in that second. Nothing is persisted and no labels or
+conversation data are stored. Unknown samples and gaps longer than 10 seconds
+break the line, partial counts keep a distinct dashed style, and the x-axis is a
+fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. The expanded
+HUD shows the single working-count chart plus a bounded summary such as
+`551 samples · peak 5 · gaps · partial`; the same samples feed the tooltip.
+
+### Voice notifications
+
+Voice starts **muted**; nothing is ever spoken until the user unmutes from the
+header button, the header context menu or the tray menu.
+
+Notifications come only from normalized attention transitions, and each active
+condition speaks once:
+
+| Condition | Speaks while | Re-arms when |
+| --- | --- | --- |
+| Approval needed | the task is `NEEDS_APPROVAL` | approval is resolved and the condition reappears, or a new turn starts |
+| Input needed | `NEEDS_INPUT`, or an explicit non-blocking needs-human request | the request resolves and the condition reappears, or a new turn starts |
+| Task error | the task is `ERROR` in that turn | a new turn or a fresh error episode |
+| Task finished | `DONE` (aggregated for 2 seconds) | a new completion episode |
+
+A pending approval announces itself once even though it is also a human need; the
+input latch stays held (without a second cue) while approval owns the state.
+Defaults: 10-second per-task/per-kind cooldown, 1-second minimum spacing between
+utterances, 32-entry queue with permission/input/error ahead of completions,
+30-second candidate lifetime, 2-second completion aggregation where a valid
+all-complete notice replaces the individual completions. Muting stops current
+audio and clears queued work immediately, fences late provider results, and never
+replays a backlog on unmute.
+
+### Packs and TTS
+
+`<data-directory>/voicepacks/<packId>/manifest.json` follows the frozen §10
+shape (id/name/language/version 1 plus the five event keys). Manifests are capped
+at 64 KiB, 16 clips per event, 4 MiB and 15 seconds per clip, and every clip must
+be a validated RIFF/WAVE PCM file inside the pack root — absolute, traversal,
+UNC, alternate-stream and reparse-point paths are rejected. Variants are chosen
+round-robin per event.
+
+TTS is opt-in and only ever used when both the provider is set to `tts` and an
+endpoint is configured (https anywhere, or http on loopback). The request body is
+exactly `{"text":…,"event":…,"task":…}` with a short `Task N` alias — never a
+title, id, path, prompt, question, answer or command — and the response must be
+`audio/wav`, streamed with a 4 MiB hard cap, a linked timeout (1–15 s, default 5)
+and no redirects. A failed TTS attempt may fall back once to the matching local
+pack clip; with neither provider available the HUD stays silent and says so.
+
+```json
+"voice": {
+  "muted": true,
+  "provider": "pack",
+  "packId": "example",
+  "endpoint": null,
+  "timeoutSeconds": 5
+}
 ```
 
 ## Configuration and logs

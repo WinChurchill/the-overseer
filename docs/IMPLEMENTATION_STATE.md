@@ -7,117 +7,138 @@ Branch: impl/p3-history-voice
 
 ## Plan Status
 - Astra handoff: ready (.agent/HANDOFF.md, whole Plan 3)
-- DeepSeek implementation: pending
-- Build: pending for P3; reviewed baseline passes with 0 warnings/errors
-- Tests: pending for P3; fresh baseline 220 passed, 0 failed/skipped
-- Smoke: pending for P3
-- Astra review: pending (Review 3); Review 2 passed with nonblocking notes
+- DeepSeek implementation: complete on this branch (see Completed)
+- Build: passed (0 warnings, 0 errors)
+- Tests: passed (349 passed, 0 failed, 0 skipped: 220 reviewed P1/P2 cases + 129 new)
+- Smoke: passed (voice smoke silent + audible, monitor regression, HUD smoke, live HUD 65 s)
+- Astra review: pending (Review 3)
 
-## Planning State
-- Reviewed P2 commit a5d851bcceb58ad904d1357b4e9a9a006ea57d1a was fast-forwarded
-  into main; impl/p3-history-voice was created from that clean base.
-- Fresh baseline build/tests rerun during planning: 0 warnings/errors, 220 passed.
-- The P3 handoff defines the whole history/voice goal, exact code map, ordered work,
-  anti-spam/cancellation rules, bounded providers, tests and direct execution prompt.
-- No P3 product implementation has begun. No endpoint or spoken assets supplied;
-  fake/loopback TTS and synthetic WAV fixtures are planned, not live speech evidence.
+## Completed
 
-## Reviewed Foundation (P1/P2)
-Review 2 base: reviewed P1 commit `7c665609c36d8d86c2ff6d09b5aacf596c3937ed`
-(main before P2 integration).
-Planning ledger: `e8ee951`. Implementation commits: `9759e85` (Core settings and
-placement), `d436f14` (UI), `75f9620` (App), `276e24b` (tests), `9269536` (docs).
-Review fixes are in the subsequent `fix: address Astra Review 2 findings` commit.
+Base is reviewed P2 commit `a5d851bcceb58ad904d1357b4e9a9a006ea57d1a` (= local main);
+planning head was `9093ebe`. Bootstrap and P1/P2 were not rebuilt or redesigned, and
+the frozen documents, reference PNGs, four projects and dependency set are unchanged.
 
-P2 adds the persistent WPF HUD, one shared Light/Dark window, normalized task rows,
-health and capability disclosure, bounded placement/state, tray and header menus,
-opt-in HKCU startup, safe Desktop task navigation, and isolated diagnostics.
-Collapsed geometry is 280×72 DIP; expanded is up to 360×392 DIP with a bounded
-scrolling task list. Core remains free of WPF/WinForms. No runtime package, project,
-P3/P4 feature, frozen-document change or reference-image change was introduced.
+| Commit | Scope |
+| --- | --- |
+| `feat(core)` | `ActivityHistory` + `ActivityChartGeometry`, `VoiceSettings`, voice contracts, `VoiceEventPolicy`, `VoiceManager`, pack/WAV validation, notification formatter, `NotificationCoordinator` |
+| `feat(app)` | pre-pump observation wiring, shared mute, pack provider, generic TTS provider, WAV playback, composition/shutdown/settings capture, voice smoke with an owned loopback endpoint |
+| `feat(ui)` | `ActivitySparkline`, activity/voice projection, header mute control and the expanded chart/status strip |
+| `test` | history, policy, pack/WAV, TTS, manager, coordinator, settings, sparkline and pre-pump delivery coverage |
+| docs | README and this ledger |
 
-## Astra Review 2
-Reviewed the full P2 branch against main, the frozen specification (§9/16),
-AGENTS.md, the P2 handoff, source/tests, and runtime evidence. User authorization
-allowed immediate fixes on this branch. No architecture escalation was needed.
+### Implemented behaviour
 
-Fixed findings:
-- MAJOR — settings and placement saves blocked the Dispatcher; settings changes
-  could queue writes. Startup file loading now runs in a worker; one debounced
-  background writer captures immutable UI settings, coalesces pending changes,
-  flushes at exit and reports failures. Controller logging uses a bounded 32-entry
-  background queue; disk/log waits at exit are bounded.
-- MAJOR — hidden startup plus unavailable/disabled tray stranded the HUD.
-  Fallback now shows the window, refuses unrecoverable hiding, and provides a
-  header context menu including settings and Exit. Partial tray creation cleans
-  up allocated resources.
-- MAJOR — monitor termination could leave healthy details/rows or accept late
-  snapshots. All terminal outcomes now become unavailable with unknown counts;
-  stale rows are removed, task launches stop, exceptions are observed without
-  logging private text, and SnapshotPump.Stop is terminal. Synthetic/fake sources
-  now obey the lifetime-task contract. The old fault test asserted initial state
-  without dispatching the fault; it now proves actual failure delivery.
-- MAJOR — concurrent exits could bypass cleanup. Exit is guarded, shutdown callers
-  share completion, disposal is idempotent, and session ending invokes cleanup
-  without cancelling Windows logout. Logs/tray/window/monitor are released.
-- MAJOR — task-id copy was documented but had no UI wiring. Explicit row context
-  menu action now works; a WPF test opens that menu and invokes the real handler.
-  Missing protocol registration is checked before requesting shell navigation.
-- MAJOR — drag state was only captured after debounce, permitting snap-back on
-  quick expansion; DPI changes had no recovery event. Drag now captures position
-  immediately, DPI changes schedule recovery, show reapplies bounded geometry,
-  and fallback screen enumeration puts the actual primary monitor first.
-- MINOR — startup smoke could report success after failed enable/disable and did
-  not restore in finally or preserve registry value type. It now verifies all
-  transitions and restores the original unexpanded value and type in finally.
-  Disabling startup also reads back actual state.
-- MINOR — corrected canonical NEEDS_INPUT/NEEDS_APPROVAL text, added full health
-  tooltip, constrained large summaries to fit, and corrected stale README claims.
+- **Pre-pump observation.** `HudApplicationController.OnSnapshot` feeds a short
+  serialized `NotificationCoordinator` before `SnapshotPump` coalesces anything,
+  so attention raises, clearances and re-raises are never lost to UI coalescing.
+  The producer path only records history, evaluates the policy and enqueues
+  immutable candidates: no file, network, audio, waiting or Dispatcher work.
+- **History.** One-second buckets, 60-minute window, 3,601-bucket cap, newest
+  observation wins inside a bucket, strictly older samples ignored, nothing
+  persisted. Gaps >10 s and unknown samples break the line; partial counts keep a
+  distinct dashed style; the fixed 60-minute axis uses at most 240 columns so
+  100k input samples stay bounded. The expanded HUD shows one working-count chart
+  with a zero baseline and a quantifier line, and its tooltip discloses unknown,
+  partial and gap coverage.
+- **Voice policy.** Only `AttentionEvent` initiates notification. Dedupe is by
+  kind + task key + turn + observation time + code (bounded 4,096 entries,
+  60-minute expiry), aggregate episodes carry their own identity, and events older
+  than 30 s or in the future are rejected. Latches speak once per episode, re-arm
+  only after fresh observed clearance or a new turn, and treat missing, stale or
+  provisional tasks as "no clearance evidence". A pending approval produces
+  exactly one cue while a held input latch stays alive without a second cue.
+  Cooldown is 10 s per task+kind with ineligible-but-relevant cues deferred up to
+  30 s and never retried forever.
+- **Completion aggregation.** 2-second window, task+turn dedupe, one grouped cue,
+  and a valid all-complete notice replaces the group. Revalidation rejects new
+  work, error, cancellation, disappearance, unknown/partial working counts and
+  stale evidence, while a fresh per-task completion stays valid under unrelated
+  partial coverage.
+- **Playback and mute.** One serial consumer, bounded 32-entry priority queue
+  (permission → input → error → completion), 1-second start spacing, 30-second TTL,
+  and instant mute that clears the queue, cancels in-flight provider/playback work,
+  stops the player immediately and fences late results by generation. Unmute and
+  restart never replay a backlog. Provider, player, clock and policy are injectable
+  contracts; Core stays free of WPF, WinForms, network and audio types.
+- **Packs.** Manifest and clip validation (64 KiB manifest, 5 known events, 16
+  clips, 4 MiB/15 s per clip, RIFF/WAVE PCM checks, round-robin variants) with
+  containment, reparse-point, traversal, UNC and ADS rejection. Missing or invalid
+  packs report a code and stay silent instead of crashing.
+- **TTS.** Exactly `{"text","event","task"}` with a `Task N` alias, https or
+  loopback http only, no redirects, `ResponseHeadersRead` streaming with a 4 MiB
+  hard cap regardless of `Content-Length`, a linked 1–15 s timeout and one local
+  fallback. No endpoint means no request at all.
+- **Lifecycle.** Monitor failure stops voice, clears history and leaves unknown UI.
+  Shutdown stops voice before the bounded monitor disposal, persists voice settings
+  through the existing single background writer (all monitor/HUD fields preserved),
+  and repeated exits join the same cleanup.
 
-## Validation
-Commands used with the workspace .NET 10 SDK and cached packages:
-- `dotnet build --no-restore --disable-build-servers`: pass, 0 warnings/errors.
-- `dotnet test --no-build --no-restore`: 220 passed, 0 failed/skipped.
-- New regressions cover terminal monitor delivery/late snapshots, hidden-start
-  fallback, real copy-menu wiring, Dispatcher responsiveness and coalescing under
-  a blocked writer, shared shutdown completion, and shutdown with a stalled disk.
-- `--hud-fixture`: six synthetic views rendered; light/dark collapsed/expanded
-  plus healthy-empty/unavailable inspected under ignored `artifacts/review2-ui`.
-- `--hud-smoke --duration 14`: exit 0, tray available, theme/opacity persisted,
-  clean shutdown; 125% scale maps 280×72 DIP to 350×90 physical pixels.
-- Real normal HUD: 60 seconds, visible, second launch exit 0 while first remained
-  running; repeated WM_CLOSE requests exit 0 with shutdown-complete log.
-- Hidden-start and hidden-start + `--no-tray`: respectively hidden and visible,
-  both exit 0. Follow-up 15-second normal + 4-second hidden/fallback checks recorded
-  zero OVERSEER foreground samples and zero foreground changes.
-- `--monitor-debug --duration 60 --redact-labels`: exit 0, readable lifecycle and
-  structured activity, explicit unsupported approval/input observability.
-- `--hud-startup-check`: Enabled → verified Enabled → Disabled; original restored.
-- `git diff --check`: pass. main remains unchanged; no merge, tag or push.
+### Verification evidence
 
-Evidence is local and ignored under `artifacts/review2-*`; no real rollout data or
-screenshots of private task titles were committed. Previous P2 evidence remains
-available under `artifacts/p2-*`. No new restore was necessary.
+```text
+dotnet build / dotnet test      -> 0 warnings 0 errors; 349 passed / 0 failed / 0 skipped
+--voice-smoke (silent)          -> exit 0: pack cue once, duplicate replay silent, verified
+                                   re-arm once, completion group = one cue, mute stops
+                                   playback, muted/unmute silence, TTS success + 500 +
+                                   timeout + wrong MIME + corrupt audio each fall back once
+                                   (5 loopback requests, payload fields event/task/text only)
+--voice-smoke --audible         -> exit 0: 9 clips sent to the real sound device,
+                                   device-unavailable=False; reported as "not verified by ear"
+--monitor-debug --duration 60   -> exit 0 (P1 behaviour unchanged, partial counts honest)
+--hud-smoke --duration 15       -> exit 0: window/tray/placement/persistence and clean
+                                   shutdown retained; 280x72 DIP = 350x90 physical at 125% DPI
+live HUD (65 s, expanded)       -> real monitor data with a growing chart, muted voice,
+                                   foreground unchanged, graceful close exit 0, placement
+                                   recovery disclosed, state.json + voice config persisted
+--hud-fixture                   -> six renders inspected (light/dark x collapsed/expanded,
+                                   plus healthy-empty and unavailable) with the chart, the
+                                   partial style and a real gap visible
+```
 
-## Known Limitations / Nonblocking Notes
-- Approval/input events remain unsupported in this Codex version; synthetic
-  contracts do not establish live visibility. Zero needs-you is not proof that
-  no request exists; capability disclosure remains available in the HUD.
-- No registered `codex:` handler on this machine. Exact task focus is unverified;
-  navigation uses an honest manual/copy fallback and never executes a task.
-- Mixed-DPI secondary displays, physical monitor removal and sleep/wake were not
-  exercised. Placement policy tests and recovery handlers exist; this review's
-  real display was 125% DPI. Real Windows logout was not triggered.
-- Tray callbacks and window/context-menu handlers were tested; actual shell tray
-  icon/menu mouse interaction was not independently exercised in this review.
-- A stalled disk can lose the latest preferences when bounded shutdown expires;
-  it cannot queue unbounded writes or keep the HUD process alive indefinitely.
-- History, sparkline, mute and voice remain Plan 3; packaging remains Plan 4.
+Sandbox note (unchanged): the workspace sandbox cannot read the user-level NuGet
+config, so restore used the ignored `artifacts/nuget-offline.config` with build
+servers and node reuse disabled. No repository file depends on it.
+
+### Acceptance criteria A1–A8
+
+- A1 pass: bounded, honest latest-hour history with one working-count chart, finite
+  empty/constant rendering, visible unknown/partial/gap treatment and shared themes.
+- A2 pass: pre-pump policy preserved raise/clear/raise under a producer flood with
+  no UI drain; hydration and degraded replay stay silent; cooldown and re-arm hold.
+- A3 pass: 2-second groups produce one cue, all-complete supersedes them, and new
+  work, error, cancellation or unknown/partial coverage invalidate the aggregate.
+- A4 pass: valid packs play; invalid, missing, escaping and oversized inputs fail
+  safely; playback is serial, cancellable and off the UI thread.
+- A5 pass: the TTS contract, privacy, size, timeout, cancellation and single local
+  fallback are verified against a fake handler and a real loopback server; no
+  endpoint means no request.
+- A6 pass: mute is visible, persistent, immediate for current audio and late HTTP,
+  and unmute/restart never replay a backlog; every existing config field survives.
+- A7 pass: all 220 baseline tests still pass, queues/caches/history are bounded, and
+  no frozen document or P4 scope changed.
+- A8 pass: build/tests/smoke ran for real and four theme/mode renders were inspected;
+  limits are recorded below. Synthetic tones prove mechanics, not spoken voice.
+
+## Known Limitations
+- No spoken voice pack or TTS endpoint/credentials were supplied. All audible
+  evidence is synthetic PCM tones; the audible run was not verified by ear.
+- Approval/input attention remains unsupported on this Codex version, so live
+  once-per-condition speech for real approvals is untested; the contracts are
+  covered synthetically and the capability is still disclosed in the HUD.
+- The loopback TTS server proves the HTTP/WAV contract, not any external service
+  behaviour (accounts, authentication, provider-specific schemas).
+- Sleep/wake, secondary monitors and mixed DPI remain synthetic-only; the live run
+  used one 2048x1152 display at 125% scaling.
+- The live HUD chart showed a flat zero line because every tracked conversation was
+  already DONE; a busy chart was exercised through the synthetic fixture.
+- Tray item clicks were exercised through the controller API and the smoke fixture,
+  not by a human clicking the icon.
 
 ## Blocking Issues
-- None remaining from Review 2.
+- none
 
 ## Next Action
-DeepSeek reads AGENTS.md, .agent/HANDOFF.md and this ledger, then executes the
-whole Plan 3 / Goal 3 on impl/p3-history-voice. Build/test/smoke, update this ledger,
-and leave the branch clean and unmerged for Astra Review 3.
+- Astra Review 3 reviews `main...impl/p3-history-voice` with the evidence above.
+  Do not merge, tag or push; Plan 4 (release hardening/ZIP) starts only after that
+  review passes.
