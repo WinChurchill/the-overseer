@@ -12,7 +12,7 @@ namespace TheOverseer.UI.ViewModels;
 /// never derives task state from timing, and never computes counts itself: the
 /// monitor's CountValue/Health/Capabilities are displayed as reported.
 /// </summary>
-public sealed class HudViewModel : INotifyPropertyChanged
+public sealed partial class HudViewModel : INotifyPropertyChanged
 {
     private readonly Action<TaskRowViewModel>? _activateTask;
     private readonly Action<TaskRowViewModel>? _copyTaskId;

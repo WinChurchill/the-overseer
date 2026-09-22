@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
         xmlns:converters="clr-namespace:TheOverseer.UI.Converters"
+        xmlns:controls="clr-namespace:TheOverseer.UI.Controls"
         Title="OVERSEER"
         Width="280" Height="72"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
@@ -146,7 +147,11 @@
                      FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
                      Foreground="{DynamicResource MutedBrush}" />
           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="0,0,6,0"
+            <Button x:Name="MuteButton" Style="{StaticResource HudIconButton}"
+                    Content="{Binding MuteGlyph}" Command="{Binding ToggleMuteCommand}"
+                    automation:AutomationProperties.Name="{Binding MuteTooltip}"
+                    ToolTip="{Binding MuteTooltip}" Margin="0,0,2,0" />
+            <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="2,0,6,0"
                      ToolTip="{Binding HealthLine}">
               <Ellipse.Style>
                 <Style TargetType="Ellipse">
@@ -226,12 +231,43 @@
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
           <TextBlock Grid.Row="0" Text="{Binding HealthLine}" ToolTip="{Binding HealthLine}" TextTrimming="CharacterEllipsis"
                      FontFamily="{DynamicResource MetadataFontFamily}" FontWeight="SemiBold"
                      FontSize="{DynamicResource FontSizeMeta}"
                      Foreground="{DynamicResource ForegroundBrush}" />
-          <TextBlock Grid.Row="1" Text="{Binding MetaStripLine}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+
+          <!-- One shared 60-minute working-count line; gaps stay unobserved. -->
+          <controls:ActivitySparkline x:Name="ActivityChart" Grid.Row="1" Height="30" Margin="0,4,0,0"
+                                      MinWidth="120"
+                                      Segments="{Binding ActivitySegments}"
+                                      LineBrush="{DynamicResource AccentPrimaryBrush}"
+                                      PartialBrush="{DynamicResource AccentSecondaryBrush}"
+                                      BaselineBrush="{DynamicResource BorderBrush}"
+                                      ToolTip="{Binding ActivityTooltip}"
+                                      automation:AutomationProperties.Name="{Binding ActivityTooltip}" />
+
+          <Grid Grid.Row="2" Margin="0,3,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding ActivitySummaryLine}" TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}" />
+            <TextBlock Grid.Column="1" Text="{Binding VoiceStatusLine}" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center" MaxWidth="150"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}"
+                       ToolTip="{Binding VoiceStatusLine}" />
+          </Grid>
+
+          <TextBlock Grid.Row="3" Text="{Binding MetaStripLine}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
                      FontFamily="{DynamicResource MetadataFontFamily}"
                      FontSize="{DynamicResource FontSizeMeta}"
                      Foreground="{DynamicResource MutedBrush}"
@@ -239,7 +275,7 @@
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                      MaxHeight="244" PanningMode="VerticalOnly"
+                      MaxHeight="212" PanningMode="VerticalOnly"
                       Resources="{StaticResource HudScrollBarResources}">
           <Grid>
             <ItemsControl ItemsSource="{Binding Tasks}" x:Name="TaskList">
