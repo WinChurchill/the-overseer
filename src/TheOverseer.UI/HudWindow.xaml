@@ -211,11 +211,27 @@
         </StackPanel>
         </Viewbox>
 
-        <TextBlock Grid.Row="2" Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis"
+        <Grid Grid.Row="2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="90" />
+          </Grid.ColumnDefinitions>
+        <TextBlock Grid.Column="0" Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis"
                    FontFamily="{DynamicResource MetadataFontFamily}"
                    FontSize="{DynamicResource FontSizeMeta}"
                    Foreground="{DynamicResource MutedBrush}"
                    ToolTip="{Binding HealthLine}" />
+          <Viewbox Grid.Column="1" Height="11" Margin="6,0,0,0" Stretch="Fill"
+                   Visibility="{Binding IsExpanded, Converter={StaticResource InverseBoolToVisibility}}">
+            <controls:ActivitySparkline x:Name="CollapsedActivityChart" Width="330" Height="30"
+                                        Segments="{Binding ActivitySegments}"
+                                        LineBrush="{DynamicResource AccentPrimaryBrush}"
+                                        PartialBrush="{DynamicResource AccentSecondaryBrush}"
+                                        BaselineBrush="{DynamicResource BorderBrush}"
+                                        ToolTip="{Binding ActivityTooltip}"
+                                        automation:AutomationProperties.Name="{Binding ActivityTooltip}" />
+          </Viewbox>
+        </Grid>
       </Grid>
 
       <!-- Expanded list: same window tree, bounded to a concise scrolling list. -->
@@ -240,14 +256,15 @@
                      Foreground="{DynamicResource ForegroundBrush}" />
 
           <!-- One shared 60-minute working-count line; gaps stay unobserved. -->
-          <controls:ActivitySparkline x:Name="ActivityChart" Grid.Row="1" Height="30" Margin="0,4,0,0"
-                                      MinWidth="120"
+          <Viewbox Grid.Row="1" Height="30" Margin="0,4,0,0" Stretch="Fill">
+          <controls:ActivitySparkline x:Name="ActivityChart" Width="330" Height="30"
                                       Segments="{Binding ActivitySegments}"
                                       LineBrush="{DynamicResource AccentPrimaryBrush}"
                                       PartialBrush="{DynamicResource AccentSecondaryBrush}"
                                       BaselineBrush="{DynamicResource BorderBrush}"
                                       ToolTip="{Binding ActivityTooltip}"
                                       automation:AutomationProperties.Name="{Binding ActivityTooltip}" />
+          </Viewbox>
 
           <Grid Grid.Row="2" Margin="0,3,0,0">
             <Grid.ColumnDefinitions>

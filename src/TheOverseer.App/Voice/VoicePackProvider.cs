@@ -6,10 +6,10 @@ namespace TheOverseer.App.Voice;
 
 /// <summary>
 /// Reads one validated voice pack from &lt;data-directory&gt;/voicepacks/&lt;packId&gt;.
-/// All file work happens off the caller's thread; nothing is enumerated
-/// recursively and nothing leaves the pack root.
+/// Called by the background voice consumer; nothing is enumerated recursively
+/// and reparse points are rejected along the complete file path.
 /// </summary>
-public sealed class VoicePackProvider : IVoiceProvider
+public sealed class VoicePackProvider : IVoiceProvider, IDisposable
 {
     public const string PackFolderName = "voicepacks";
     public const string ManifestFileName = "manifest.json";
@@ -71,6 +71,12 @@ public sealed class VoicePackProvider : IVoiceProvider
                 return null;
             }
 
+            if (HasReparsePoint(manifestPath))
+            {
+                _lastCode = "pack-reparse";
+                return null;
+            }
+
             var json = await Task.Run(() => ReadBoundedText(manifestPath, VoicePackValidator.MaximumManifestBytes), cancellationToken)
                 .ConfigureAwait(false);
             if (json is null)
@@ -114,6 +120,19 @@ public sealed class VoicePackProvider : IVoiceProvider
 
     public async ValueTask<VoiceClip?> TryCreateAsync(VoiceCandidate candidate, CancellationToken cancellationToken)
     {
+        try
+        {
+            return await CreateClipAsync(candidate, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            _lastCode = "clip-unreadable";
+            return null;
+        }
+    }
+
+    private async ValueTask<VoiceClip?> CreateClipAsync(VoiceCandidate candidate, CancellationToken cancellationToken)
+    {
         var manifest = await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
         if (manifest is null)
         {
@@ -139,7 +158,7 @@ public sealed class VoicePackProvider : IVoiceProvider
             return null;
         }
 
-        if (IsReparsePoint(full))
+        if (HasReparsePoint(full))
         {
             _lastCode = "clip-reparse";
             return null;
@@ -163,11 +182,13 @@ public sealed class VoicePackProvider : IVoiceProvider
         return new VoiceClip(bytes, "pack:" + manifest.Id, "pack");
     }
 
-    private static bool IsReparsePoint(string path)
+    private static bool HasReparsePoint(string path)
     {
         try
         {
-            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return true;
+            return false;
         }
         catch (IOException)
         {
@@ -181,6 +202,7 @@ public sealed class VoicePackProvider : IVoiceProvider
 
     private static string? ReadBoundedText(string path, int maximumBytes)
     {
+        if (HasReparsePoint(path)) return null;
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (stream.Length > maximumBytes)
         {
@@ -193,6 +215,7 @@ public sealed class VoicePackProvider : IVoiceProvider
 
     private static byte[]? ReadBoundedBytes(string path, int maximumBytes)
     {
+        if (HasReparsePoint(path)) return null;
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (stream.Length > maximumBytes)
         {
@@ -214,4 +237,6 @@ public sealed class VoicePackProvider : IVoiceProvider
 
         return read == buffer.Length ? buffer : null;
     }
+
+    public void Dispose() => _loadGate.Dispose();
 }

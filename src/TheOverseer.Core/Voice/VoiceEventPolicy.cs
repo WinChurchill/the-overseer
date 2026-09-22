@@ -21,7 +21,7 @@ public sealed record VoicePolicyOptions(
         MaximumFutureSkew: TimeSpan.FromSeconds(5),
         MaximumDedupeEntries: 4096,
         DedupeExpiry: TimeSpan.FromMinutes(60),
-        MaximumLatches: 512,
+        MaximumLatches: 1536,
         MaximumPending: 16,
         MaximumTasks: 512,
         MaximumGroupMembers: 32);
@@ -46,6 +46,7 @@ public sealed class VoiceEventPolicy
     private DateTimeOffset _aggregationDeadline = DateTimeOffset.MinValue;
     private VoiceCandidate? _replacementAggregate;
     private bool _baselineEstablished;
+    private DateTimeOffset _lastSnapshot = DateTimeOffset.MinValue;
     private MonitoringHealthLevel _lastHealth = MonitoringHealthLevel.Unavailable;
     private CountValue _lastWorking = CountValue.Unknown;
     private bool _lastCoverageComplete;
@@ -97,6 +98,8 @@ public sealed class VoiceEventPolicy
     {
         lock (_gate)
         {
+            _lastSnapshot = DateTimeOffset.MinValue;
+            _lastHealth = MonitoringHealthLevel.Unavailable;
             _tasks.Clear();
             _latches.Clear();
             _dedupe.Clear();
@@ -124,6 +127,8 @@ public sealed class VoiceEventPolicy
         var now = snapshot.GeneratedAt;
         lock (_gate)
         {
+            if (now < _lastSnapshot) return Array.Empty<VoiceCandidate>();
+            _lastSnapshot = now;
             PruneDedupe(now);
             UpdateTasks(snapshot);
             _lastHealth = snapshot.Health.Level;
@@ -149,9 +154,11 @@ public sealed class VoiceEventPolicy
                     default:
                         var kind = Map(attention.Kind);
                         var candidate = FromEvent(attention, kind, now);
-                        if (MarkDedupe(candidate.Identity, now))
+                        if (MarkDedupe(candidate.Identity, now) && ValidateCondition(candidate, now) &&
+                            (!_latches.TryGetValue(LatchKey(kind, candidate.Key), out var active) ||
+                             !active.Active || active.TurnId != candidate.TurnId))
                         {
-                            SetLatch(kind, candidate.Key, candidate.TurnId, spoken: true, now);
+                            SetLatch(kind, candidate.Key, candidate.TurnId, spoken: true, candidate.ObservedAt);
                             raised.Add(candidate);
                         }
 
@@ -206,7 +213,7 @@ public sealed class VoiceEventPolicy
             for (var index = _pending.Count - 1; index >= 0; index--)
             {
                 var pending = _pending[index];
-                if (now - pending.EnqueuedAt > _options.MaximumEventAge)
+                if (!IsRelevant(pending.Candidate, now))
                 {
                     _pending.RemoveAt(index);
                     continue;
@@ -259,101 +266,62 @@ public sealed class VoiceEventPolicy
     {
         var latchKey = LatchKey(kind, key);
         _latches.TryGetValue(latchKey, out var latch);
-
-        // "held" keeps an existing latch alive without raising a new cue, which
-        // is how a pending input survives an approval taking state precedence.
+        if (task.IsStale || task.IsProvisional || _lastHealth == MonitoringHealthLevel.Unavailable) return;
         if (!(held ?? present))
         {
-            // Only fresh observed clearance re-arms; a missing, stale or
-            // provisional task is never evidence that the condition ended.
-            if (latch is { Active: true } && !task.IsStale && !task.IsProvisional)
-            {
-                latch.Active = false;
-                latch.ReArmed = true;
-            }
-
+            if (latch is not null) latch.Active = false;
             return;
         }
 
-        if (!present)
+        // State is only a baseline/clearance signal. A fresh AttentionEvent is
+        // the sole initiator, including for tasks discovered after startup.
+        if (latch is null || latch.TurnId != task.TurnId || !latch.Active)
+            SetLatch(kind, key, task.TurnId, spoken: false, now);
+    }
+
+    /// <summary>Discard work while retaining silent episode and replay guards.</summary>
+    public void DiscardPending()
+    {
+        lock (_gate)
         {
-            // Held but not raising: keep the latch alive (so a later clearance is
-            // still observed) without ever announcing a second cue for the same
-            // condition, for example input while an approval holds the state.
-            if (latch is null)
-            {
-                _latches[latchKey] = new Latch { Active = true, TurnId = task.TurnId, Spoken = false };
-                TrimLatches();
-            }
-            else if (!latch.Active)
-            {
-                latch.Active = true;
-                latch.ReArmed = false;
-                latch.TurnId = task.TurnId;
-            }
-
-            return;
+            _pending.Clear();
+            _completionBuffer.Clear();
+            _replacementAggregate = null;
+            _aggregationDeadline = DateTimeOffset.MinValue;
         }
+    }
 
-        var trusted = !task.IsStale && !task.IsProvisional;
-        if (latch is null)
+    public bool IsRelevant(VoiceCandidate candidate, DateTimeOffset now)
+    {
+        lock (_gate)
         {
-            if (!trusted || !_baselineEstablished)
-            {
-                // Baseline: a condition that already existed when we started is
-                // not announced, but it stays latched so a later clear/re-raise
-                // is a genuine new episode.
-                _latches[latchKey] = new Latch { Active = true, TurnId = task.TurnId, Spoken = false };
-                TrimLatches();
-                return;
-            }
-
-            var candidate = FromLatch(kind, key, task, now);
-            if (MarkDedupe(candidate.Identity, now))
-            {
-                SetLatch(kind, key, task.TurnId, spoken: true, now);
-                raised.Add(candidate);
-            }
-
-            return;
+            if (!IsFresh(candidate.ObservedAt, now) || now - _lastSnapshot > _options.MaximumEventAge ||
+                _lastHealth == MonitoringHealthLevel.Unavailable) return false;
+            if (candidate.Kind == VoiceEventKind.AllTasksCompleted)
+                return ValidateAggregate(candidate, now);
+            if (candidate.Kind == VoiceEventKind.TaskCompleted)
+                return candidate.IsAggregate
+                    ? candidate.Members.Count > 0 && candidate.Members.All(member => ValidateCompletion(member, now))
+                    : ValidateCompletion(candidate, now);
+            return ValidateCondition(candidate, now) &&
+                _latches.TryGetValue(LatchKey(candidate.Kind, candidate.Key), out var latch) &&
+                latch.Active && latch.TurnId == candidate.TurnId && latch.ObservedAt == candidate.ObservedAt;
         }
+    }
 
-        if (!latch.Active)
+    private bool ValidateCondition(VoiceCandidate candidate, DateTimeOffset now)
+    {
+        if (!IsFresh(candidate.ObservedAt, now) || _lastHealth == MonitoringHealthLevel.Unavailable ||
+            !_tasks.TryGetValue(candidate.Key, out var task) || task.IsStale || task.IsProvisional ||
+            task.TurnId != candidate.TurnId) return false;
+        return candidate.Kind switch
         {
-            if (!trusted)
-            {
-                return;
-            }
-
-            if (!latch.ReArmed && string.Equals(latch.TurnId, task.TurnId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            var candidate = FromLatch(kind, key, task, now);
-            if (MarkDedupe(candidate.Identity, now))
-            {
-                latch.Active = true;
-                latch.ReArmed = false;
-                latch.TurnId = task.TurnId;
-                // Emission time is stamped by ApplyCooldown/Pump so a deferred
-                // cue cannot poison its own cooldown check.
-                raised.Add(candidate);
-            }
-
-            return;
-        }
-
-        // Already latched: a new turn is a new episode even without a clearance.
-        if (!string.Equals(latch.TurnId, task.TurnId, StringComparison.Ordinal) && trusted && task.TurnId.Length > 0)
-        {
-            var candidate = FromLatch(kind, key, task, now);
-            if (MarkDedupe(candidate.Identity, now))
-            {
-                latch.TurnId = task.TurnId;
-                raised.Add(candidate);
-            }
-        }
+            VoiceEventKind.PermissionRequired => task.State == AgentTaskState.NeedsApproval,
+            VoiceEventKind.InputRequired => task.State == AgentTaskState.NeedsInput ||
+                (task.NeedsHuman && task.State != AgentTaskState.NeedsApproval),
+            VoiceEventKind.TaskError => task.State == AgentTaskState.Error,
+            _ => false,
+        };
     }
 
     private void SeedBaseline(DateTimeOffset now)
@@ -412,7 +380,11 @@ public sealed class VoiceEventPolicy
 
     private void BufferAggregate(AttentionEvent attention, DateTimeOffset now)
     {
-        var candidate = FromEvent(attention, VoiceEventKind.AllTasksCompleted, now);
+        var candidate = FromEvent(attention, VoiceEventKind.AllTasksCompleted, now) with
+        {
+            Members = _tasks.Where(pair => pair.Value.State == AgentTaskState.Done).Select(pair =>
+                new VoiceCandidate(VoiceEventKind.TaskCompleted, pair.Key, pair.Value.Number, "Task", pair.Value.TurnId, attention.ObservedAt, "complete", false, 1, "")).ToArray(),
+        };
         if (!MarkDedupe(candidate.Identity, now))
         {
             return;
@@ -437,9 +409,8 @@ public sealed class VoiceEventPolicy
             {
                 MarkSpoken(replacement, now);
                 ready.Add(replacement);
+                return;
             }
-
-            return;
         }
 
         var valid = new List<VoiceCandidate>(buffer.Length);
@@ -470,7 +441,7 @@ public sealed class VoiceEventPolicy
             Alias = valid.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " tasks",
             Code = "task_complete_group",
             EpisodeId = "group:" + valid[0].ObservedAt.ToUnixTimeMilliseconds(),
-            ObservedAt = now,
+            Members = valid.ToArray(),
             Key = default,
             Number = 0,
             TurnId = string.Empty,
@@ -492,7 +463,8 @@ public sealed class VoiceEventPolicy
             return false;
         }
 
-        return task.State == AgentTaskState.Done && !task.IsStale && !task.IsProvisional;
+        return task.State == AgentTaskState.Done && !task.IsStale && !task.IsProvisional &&
+            !task.Cancelled && !task.Failed && task.TurnId == candidate.TurnId;
     }
 
     private bool ValidateAggregate(VoiceCandidate candidate, DateTimeOffset now)
@@ -502,7 +474,8 @@ public sealed class VoiceEventPolicy
             return false;
         }
 
-        if (!_lastWorking.IsKnown || !_lastWorking.IsComplete || _lastWorking.Value != 0)
+        if (!_lastCoverageComplete || candidate.Members.Count == 0 ||
+            candidate.Members.Any(member => !ValidateCompletion(member, now)) || !_lastWorking.IsKnown || !_lastWorking.IsComplete || _lastWorking.Value != 0)
         {
             return false;
         }
@@ -516,7 +489,7 @@ public sealed class VoiceEventPolicy
                 return false;
             }
 
-            if (task.State == AgentTaskState.Error || task.Cancelled)
+            if (task.State == AgentTaskState.Error || task.Cancelled || task.Failed || task.NeedsHuman || task.IsStale || task.IsProvisional)
             {
                 return false;
             }
@@ -546,7 +519,7 @@ public sealed class VoiceEventPolicy
 
         if (_completionTurns.Count >= _options.MaximumDedupeEntries)
         {
-            _completionTurns.Clear();
+            _completionTurns.Remove(_completionTurns.First());
         }
 
         _completionTurns.Add(identity);
@@ -652,7 +625,7 @@ public sealed class VoiceEventPolicy
 
         if (_dedupe.Count >= _options.MaximumDedupeEntries)
         {
-            _dedupe.Clear();
+            _dedupe.Remove(_dedupe.MinBy(pair => pair.Value).Key);
         }
     }
 
@@ -704,23 +677,6 @@ public sealed class VoiceEventPolicy
             aggregate ? "episode:" + attention.ObservedAt.ToUnixTimeMilliseconds() : string.Empty);
     }
 
-    private static VoiceCandidate FromLatch(VoiceEventKind kind, TaskKey key, TaskObservation task, DateTimeOffset now) => new(
-        kind,
-        key,
-        task.Number,
-        DefaultAlias(task.Number),
-        task.TurnId,
-        now,
-        kind switch
-        {
-            VoiceEventKind.PermissionRequired => "permission-observed",
-            VoiceEventKind.InputRequired => "input-observed",
-            _ => "error-observed",
-        },
-        false,
-        1,
-        string.Empty);
-
     private static string DefaultAlias(int number) =>
         number > 0 ? "Task " + number.ToString(System.Globalization.CultureInfo.InvariantCulture) : "Task";
 
@@ -739,16 +695,15 @@ public sealed class VoiceEventPolicy
         }
 
         latch.Active = true;
-        latch.ReArmed = false;
         latch.TurnId = turnId;
         latch.Spoken = latch.Spoken || spoken;
-        _ = now;
+        latch.ObservedAt = now;
     }
 
     private sealed class Latch
     {
         public bool Active;
-        public bool ReArmed;
+        public DateTimeOffset ObservedAt;
         public bool Spoken;
         public string TurnId = string.Empty;
     }

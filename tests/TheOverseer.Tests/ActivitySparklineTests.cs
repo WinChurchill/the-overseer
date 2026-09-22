@@ -134,6 +134,14 @@ public sealed class ActivitySparklineTests
                 Assert.True(chart.ActualHeight > 0);
                 Assert.NotEmpty(chart.Segments!);
                 Assert.Equal("V", mute.Content);
+                Assert.False(((ActivitySparkline)window.FindName("CollapsedActivityChart")!).IsVisible);
+
+                viewModel.IsExpanded = false;
+                window.UpdateLayout();
+                var collapsedChart = (ActivitySparkline)window.FindName("CollapsedActivityChart")!;
+                Assert.True(collapsedChart.IsVisible);
+                Assert.NotEmpty(collapsedChart.Segments!);
+                Assert.False(chart.IsVisible);
 
                 viewModel.ToggleMuteCommand.Execute(null);
                 window.UpdateLayout();
@@ -143,6 +151,34 @@ public sealed class ActivitySparklineTests
             {
                 window.Close();
             }
+        });
+    }
+
+    [Fact]
+    public void ExistingChartUsesNewThemeBrushesAfterRendering()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var control = new ActivitySparkline
+            {
+                Width = 320, Height = 30,
+                Segments = ActivityChartGeometry.Build(Series(), 320, 30),
+                LineBrush = Brushes.Red,
+            };
+            byte[] Render()
+            {
+                control.Measure(new Size(320, 30));
+                control.Arrange(new Rect(0, 0, 320, 30));
+                control.UpdateLayout();
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(320, 30, 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(control);
+                var pixels = new byte[320 * 30 * 4];
+                bitmap.CopyPixels(pixels, 320 * 4, 0);
+                return pixels;
+            }
+            var before = Render();
+            control.LineBrush = Brushes.Blue;
+            Assert.False(before.SequenceEqual(Render()));
         });
     }
 }

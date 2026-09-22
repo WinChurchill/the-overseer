@@ -681,7 +681,7 @@ public sealed class HudApplicationController : IAsyncDisposable
     public void RefreshActivity(DateTimeOffset now)
     {
         var notifications = _dependencies.Notifications;
-        if (notifications is null || _monitorFailed)
+        if (notifications is null)
         {
             return;
         }
@@ -840,6 +840,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         UnsubscribeSystemEvents();
 
         _lifetime.Cancel();
+        var voiceShutdown = _dependencies.Notifications?.DisposeAsync().AsTask() ?? Task.CompletedTask;
         // A slow disk must not strand Exit. There is at most one in-flight write;
         // if it times out, do not start another writer against the same files.
         await TryStepAsync("hud-shutdown-save", async () =>
@@ -848,12 +849,8 @@ public sealed class HudApplicationController : IAsyncDisposable
             _saveTask = SaveAsync();
             await _saveTask.WaitAsync(TimeSpan.FromSeconds(3));
         });
+        await TryStepAsync("hud-shutdown-voice", () => voiceShutdown);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        if (_dependencies.Notifications is { } notifications)
-        {
-            // Voice stops before anything else waits: no late audio after Exit.
-            await TryStepAsync("hud-shutdown-voice", () => notifications.DisposeAsync().AsTask());
-        }
 
         try
         {

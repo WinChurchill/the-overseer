@@ -87,7 +87,7 @@ public sealed partial class HudViewModel
     /// Applies the history projection. Called on the UI thread from the age
     /// timer, so the sparkline geometry is rebuilt at most once per tick.
     /// </summary>
-    public void ApplyActivity(ActivitySeries series, VoiceStatus status, double chartWidth = 320, double chartHeight = 28)
+    public void ApplyActivity(ActivitySeries series, VoiceStatus status, double chartWidth = 330, double chartHeight = 30)
     {
         ActivitySegments = ActivityChartGeometry.Build(series, chartWidth, chartHeight);
         ActivityTooltip = ActivityChartGeometry.Tooltip(series, series.To);

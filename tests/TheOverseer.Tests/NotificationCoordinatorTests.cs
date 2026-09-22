@@ -44,6 +44,7 @@ public sealed class NotificationCoordinatorTests
             player,
             VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
             TimeProvider.System,
+            revalidate: candidate => policy.IsRelevant(candidate, DateTimeOffset.UtcNow),
             muted: muted);
         var settings = new VoiceSettings { Muted = muted, Provider = "pack" };
         var coordinator = new NotificationCoordinator(history, policy, manager, TimeProvider.System, settings);
@@ -63,6 +64,7 @@ public sealed class NotificationCoordinatorTests
             start,
             new[] { VoiceTestData.Task(key: key, state: AgentTaskState.NeedsApproval) },
             new[] { VoiceTestData.Event(AttentionEventKind.PermissionRequired, key: key, observedAt: start) }));
+        Assert.True(await WaitForAsync(() => player.Played.Count == 1));
         coordinator.OnSnapshot(VoiceTestData.Snapshot(start.AddSeconds(1), new[] { VoiceTestData.Task(key: key, state: AgentTaskState.Working) }));
         coordinator.OnSnapshot(VoiceTestData.Snapshot(
             start.AddSeconds(2),
@@ -110,7 +112,8 @@ public sealed class NotificationCoordinatorTests
 
         coordinator.OnMonitorFailure("monitor-faulted");
         Assert.True(coordinator.IsMuted);
-        Assert.Empty(history.Snapshot(start.AddMinutes(1)).Samples);
+        Assert.Single(history.Snapshot(start.AddMinutes(1)).Samples);
+        Assert.True(history.Snapshot(start.AddMinutes(1)).HasGap);
 
         // Later snapshots are ignored: a broken monitor never speaks.
         coordinator.OnSnapshot(VoiceTestData.Snapshot(

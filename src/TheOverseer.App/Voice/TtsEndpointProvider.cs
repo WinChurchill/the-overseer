@@ -48,7 +48,7 @@ public sealed class TtsEndpointProvider : IVoiceProvider, IDisposable
 
     public async ValueTask<VoiceClip?> TryCreateAsync(VoiceCandidate candidate, CancellationToken cancellationToken)
     {
-        var settings = _settings();
+        var settings = _settings().Normalized();
         if (settings.ResolvedProvider != VoiceProviderKind.Tts || settings.Endpoint is null)
         {
             _lastCode = "no-endpoint";

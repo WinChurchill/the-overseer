@@ -116,6 +116,7 @@ public sealed class ActivityHistory
     {
         lock (_gate)
         {
+            Trim(now);
             var from = now - Window;
             var samples = new List<ActivitySample>(Math.Min(_buckets.Count, MaximumBuckets));
             var peak = 0;
@@ -165,6 +166,7 @@ public sealed class ActivityHistory
                 samples.Add(sample);
             }
 
+            hasGap |= previous is { } latest && now - latest > GapThreshold;
             return new ActivitySeries(samples, from, now, peak, samples.Count, hasGap, hasUnknown, hasPartial);
         }
     }

@@ -66,14 +66,15 @@ public sealed class NotificationCoordinator : IAsyncDisposable
             return;
         }
 
-        IReadOnlyList<VoiceCandidate> candidates;
         lock (_gate)
         {
+            if (_failed) return;
             _history.Record(snapshot);
-            candidates = _policy.Observe(snapshot);
+            var candidates = _policy.Observe(snapshot);
+            if (_manager.IsMuted) _policy.DiscardPending();
+            _manager.Enqueue(candidates);
         }
 
-        _manager.Enqueue(candidates);
     }
 
     /// <summary>UI-thread step: flush completion aggregation and pending cooldowns.</summary>
@@ -84,26 +85,25 @@ public sealed class NotificationCoordinator : IAsyncDisposable
             return;
         }
 
-        IReadOnlyList<VoiceCandidate> candidates;
         lock (_gate)
         {
-            candidates = _policy.Pump(_timeProvider.GetUtcNow());
+            if (_failed) return;
+            if (_manager.IsMuted) _policy.DiscardPending();
+            _manager.Enqueue(_policy.Pump(_timeProvider.GetUtcNow()));
         }
 
-        _manager.Enqueue(candidates);
     }
 
     /// <summary>Terminal monitor failure: stop voice, break history continuity.</summary>
     public void OnMonitorFailure(string code)
     {
-        _failed = true;
         lock (_gate)
         {
-            _history.Clear();
+            _failed = true;
             _policy.Reset();
+            _manager.SetMuted(true);
         }
 
-        _manager.SetMuted(true);
         _ = code;
     }
 
@@ -127,32 +127,16 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         lock (_gate)
         {
             _settings = _settings with { Muted = muted };
+            _policy.DiscardPending();
+            _manager.SetMuted(_failed || muted);
         }
 
-        _manager.SetMuted(muted);
-    }
-
-    /// <summary>Applies other settings (provider/pack/endpoint) for persistence.</summary>
-    public void UpdateSettings(VoiceSettings settings)
-    {
-        lock (_gate)
-        {
-            var normalized = settings.Normalized();
-            _settings = normalized with { Muted = _manager.IsMuted };
-        }
     }
 
     /// <summary>Revalidation used at playback: a queued cue must still be relevant.</summary>
     public bool IsStillRelevant(VoiceCandidate candidate)
     {
-        if (candidate.IsAggregate)
-        {
-            return true;
-        }
-
-        // The policy already validated the episode; anything reaching this point
-        // in the same generation is still the condition the user was told about.
-        return candidate.ObservedAt != default;
+        lock (_gate) return !_failed && _policy.IsRelevant(candidate, _timeProvider.GetUtcNow());
     }
 
     public async ValueTask DisposeAsync()

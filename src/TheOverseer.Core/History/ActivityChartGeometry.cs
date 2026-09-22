@@ -23,7 +23,7 @@ public static class ActivityChartGeometry
         double height,
         int maximumColumns = DefaultMaximumColumns)
     {
-        if (series is null || series.Samples.Count == 0 || width <= 0 || height <= 0)
+        if (series is null || series.Samples.Count == 0 || !double.IsFinite(width) || !double.IsFinite(height) || width <= 0 || height <= 0)
         {
             return Array.Empty<ActivityChartSegment>();
         }
@@ -41,16 +41,28 @@ public static class ActivityChartGeometry
         var partial = new bool[columns];
         var needsHuman = new int[columns];
         var timestamps = new DateTimeOffset[columns];
+        var runs = new int[columns];
+        var unsafeColumn = new bool[columns];
+        var run = 0;
+        DateTimeOffset? previous = null;
 
         foreach (var sample in series.Samples)
         {
             var offset = (sample.Timestamp - series.From).TotalSeconds;
+            if (offset < 0 || sample.Timestamp > series.To) continue;
             var index = (int)Math.Floor(offset / columnSeconds);
             index = Math.Clamp(index, 0, columns - 1);
+            if (previous is { } last && sample.Timestamp - last > ActivityHistory.GapThreshold) run++;
+            previous = sample.Timestamp;
             if (!sample.Working.IsKnown)
             {
+                unsafeColumn[index] = true;
+                run++;
                 continue;
             }
+
+            if (known[index] && runs[index] != run) unsafeColumn[index] = true;
+            runs[index] = run;
 
             if (!known[index] || sample.Working.Value >= values[index])
             {
@@ -78,14 +90,14 @@ public static class ActivityChartGeometry
 
         for (var index = 0; index < columns; index++)
         {
-            if (!known[index])
+            if (!known[index] || unsafeColumn[index])
             {
                 Flush();
                 continue;
             }
 
             var kind = partial[index] ? ActivitySegmentKind.Partial : ActivitySegmentKind.Complete;
-            if (kind != currentKind && current.Count > 0)
+            if (current.Count > 0 && (kind != currentKind || (index > 0 && runs[index] != runs[index - 1])))
             {
                 Flush();
             }

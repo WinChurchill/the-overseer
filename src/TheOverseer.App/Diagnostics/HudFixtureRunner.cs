@@ -56,104 +56,78 @@ internal static class HudFixtureRunner
     {
         Directory.CreateDirectory(outputDirectory);
         var scenarios = SyntheticHudScenarios.Create();
-        var settings = HudSettings.Default with { Opacity = 1.0, AlwaysOnTop = true };
-        var viewModel = new HudViewModel(settings);
         var activity = SyntheticHudScenarios.CreateActivitySeries();
         var voiceStatus = new VoiceStatus(false, "pack", "ok", 0, 2, 0, 0, 0, false, "Spoken 2.");
-        viewModel.ApplyActivity(activity, voiceStatus, 330, 30);
-        HudThemeManager.Apply(Application.Current, HudTheme.Dark);
-        var window = new HudWindow
-        {
-            DataContext = viewModel,
-            ShowActivated = false,
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            Left = -4000,
-            Top = -4000,
-        };
-
-        window.Show();
         var rendered = new List<string>();
-        try
+
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
         {
-            foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+            foreach (var expanded in new[] { false, true })
             {
-                HudThemeManager.Apply(Application.Current, theme);
+                var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
                 viewModel.ApplySnapshot(scenarios[0]);
-                foreach (var expanded in new[] { false, true })
-                {
-                    // One view shows the muted glyph, the other the enabled one.
-                    viewModel.IsMuted = theme == HudTheme.Light && expanded;
-                    viewModel.ApplyActivity(activity, viewModel.IsMuted ? VoiceStatus.Initial : voiceStatus, 330, 30);
-                    viewModel.IsExpanded = expanded;
-                    Resize(window, expanded);
-                    window.UpdateLayout();
-                    var path = Path.Combine(
-                        outputDirectory,
-                        theme.ToString().ToLowerInvariant() + "-" + (expanded ? "expanded" : "collapsed") + ".png");
-                    Render(window, path);
-                    rendered.Add(path);
-                }
+                viewModel.ApplyActivity(activity, theme == HudTheme.Light && expanded ? VoiceStatus.Initial : voiceStatus);
+                viewModel.IsExpanded = expanded;
+                var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-" +
+                    (expanded ? "expanded" : "collapsed") + ".png");
+                Render(viewModel, theme, path);
+                rendered.Add(path);
             }
-
-            // Two extra diagnostic views: healthy-empty and unavailable never
-            // look like a healthy zero or a frozen healthy summary.
-            HudThemeManager.Apply(Application.Current, HudTheme.Dark);
-            viewModel.IsExpanded = true;
-            Resize(window, true);
-            viewModel.ApplySnapshot(SyntheticHudScenarios.HealthyEmpty());
-            window.UpdateLayout();
-            var empty = Path.Combine(outputDirectory, "dark-empty.png");
-            Render(window, empty);
-            rendered.Add(empty);
-
-            viewModel.ApplySnapshot(SyntheticHudScenarios.Unavailable());
-            window.UpdateLayout();
-            var unavailable = Path.Combine(outputDirectory, "dark-unavailable.png");
-            Render(window, unavailable);
-            rendered.Add(unavailable);
         }
-        finally
+
+        foreach (var (name, snapshot) in new[]
         {
-            try
-            {
-                window.Close();
-            }
-            catch (InvalidOperationException)
-            {
-            }
+            ("dark-empty.png", SyntheticHudScenarios.HealthyEmpty()),
+            ("dark-unavailable.png", SyntheticHudScenarios.Unavailable()),
+        })
+        {
+            var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+            viewModel.ApplySnapshot(snapshot);
+            viewModel.ApplyActivity(TheOverseer.Core.History.ActivitySeries.Empty(snapshot.GeneratedAt), VoiceStatus.Initial);
+            viewModel.IsExpanded = true;
+            var path = Path.Combine(outputDirectory, name);
+            Render(viewModel, HudTheme.Dark, path);
+            rendered.Add(path);
         }
 
         Console.WriteLine("hud fixture rendered " + rendered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " views:");
-        foreach (var path in rendered)
-        {
-            Console.WriteLine("  " + path);
-        }
-
+        foreach (var path in rendered) Console.WriteLine("  " + path);
         return 0;
     }
 
-    private static void Resize(Window window, bool expanded)
+    private static void Render(HudViewModel viewModel, HudTheme theme, string path)
     {
-        window.Width = expanded ? ExpandedWidth : CollapsedWidth;
-        window.Height = expanded ? ExpandedHeight : CollapsedHeight;
-    }
-
-    private static void Render(Window window, string path)
-    {
-        var width = Math.Max(1, (int)Math.Ceiling(window.ActualWidth));
-        var height = Math.Max(1, (int)Math.Ceiling(window.ActualHeight));
-        const double scale = 2.0;
-        var bitmap = new RenderTargetBitmap(
-            (int)Math.Ceiling(width * scale),
-            (int)Math.Ceiling(height * scale),
-            96 * scale,
-            96 * scale,
-            PixelFormats.Pbgra32);
-        bitmap.Render(window);
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var stream = File.Create(path);
-        encoder.Save(stream);
+        // A fresh visual tree produces an independent complete bitmap. Reusing
+        // one window across synchronous captures can omit cached child visuals.
+        HudThemeManager.Apply(Application.Current, theme);
+        var window = new HudWindow
+        {
+            DataContext = viewModel, ShowActivated = false,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = -4000, Top = -4000,
+            Width = viewModel.IsExpanded ? ExpandedWidth : CollapsedWidth,
+            Height = viewModel.IsExpanded ? ExpandedHeight : CollapsedHeight,
+        };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
+            const double scale = 2.0;
+            var bitmap = new RenderTargetBitmap(
+                (int)Math.Ceiling(window.ActualWidth * scale),
+                (int)Math.Ceiling(window.ActualHeight * scale),
+                96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var stream = File.Create(path);
+            encoder.Save(stream);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     /// <summary>

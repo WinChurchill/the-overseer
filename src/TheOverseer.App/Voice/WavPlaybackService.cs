@@ -1,84 +1,55 @@
-using System.IO;
-using System.Media;
+using System.Runtime.InteropServices;
 using TheOverseer.Core.Voice;
 
 namespace TheOverseer.App.Voice;
 
 /// <summary>
-/// Serial, cancellable WAV playback through the framework sound player. Playback
-/// runs off the UI thread, Stop() takes effect immediately from any thread, and
-/// no shell command or system beep is ever used as a fallback.
+/// One asynchronous native WAV playback. Start and Stop share a lock so a
+/// cancellation cannot run before a queued PlaySync and accidentally revive it.
+/// Memory stays pinned until native playback has stopped. No default beep.
 /// </summary>
 public sealed class WavPlaybackService : IVoicePlayer
 {
     private readonly object _gate = new();
-    private SoundPlayer? _current;
+    private int _generation;
+    private bool _playing;
     private bool _deviceFailure;
 
-    /// <summary>True when the last attempt failed because no audio device was usable.</summary>
     public bool DeviceUnavailable => _deviceFailure;
 
     public async ValueTask<bool> PlayAsync(VoiceClip clip, CancellationToken cancellationToken)
     {
-        if (clip.ByteCount == 0)
-        {
-            return false;
-        }
+        int generation;
+        lock (_gate) generation = _generation;
+        cancellationToken.ThrowIfCancellationRequested();
+        var validation = VoicePackValidator.ValidateWav(clip.Wav);
+        if (!validation.IsValid) return false;
 
-        SoundPlayer player;
+        var pinned = GCHandle.Alloc(clip.Wav, GCHandleType.Pinned);
+        using var registration = cancellationToken.Register(Stop);
+        var started = false;
         try
         {
-            player = new SoundPlayer(new MemoryStream(clip.Wav, writable: false));
-            player.Load();
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or TimeoutException or IOException or NotSupportedException)
-        {
-            _deviceFailure = true;
-            return false;
-        }
-
-        lock (_gate)
-        {
-            _current = player;
-        }
-
-        using var registration = cancellationToken.Register(static state =>
-        {
-            try
+            lock (_gate)
             {
-                ((SoundPlayer)state!).Stop();
+                if (cancellationToken.IsCancellationRequested || generation != _generation) return false;
+                // SND_ASYNC | SND_NODEFAULT | SND_MEMORY: starts before releasing
+                // the lock; Stop cannot be lost ahead of a deferred start.
+                started = PlaySound(pinned.AddrOfPinnedObject(), IntPtr.Zero, 0x0001 | 0x0002 | 0x0004);
+                _playing = started;
+                _deviceFailure = !started;
             }
-            catch (InvalidOperationException)
-            {
-            }
-        }, player);
-
-        try
-        {
-            await Task.Run(player.PlaySync, CancellationToken.None).ConfigureAwait(false);
-            return !cancellationToken.IsCancellationRequested;
-        }
-        catch (InvalidOperationException)
-        {
-            _deviceFailure = true;
-            return false;
-        }
-        catch (TimeoutException)
-        {
-            _deviceFailure = true;
-            return false;
+            if (!started) return false;
+            await Task.Delay(validation.Duration, cancellationToken).ConfigureAwait(false);
+            lock (_gate) return generation == _generation && !cancellationToken.IsCancellationRequested;
         }
         finally
         {
             lock (_gate)
             {
-                if (ReferenceEquals(_current, player))
-                {
-                    _current = null;
-                }
+                if (started && generation == _generation) Stop();
+                pinned.Free();
             }
-
-            player.Dispose();
         }
     }
 
@@ -86,13 +57,13 @@ public sealed class WavPlaybackService : IVoicePlayer
     {
         lock (_gate)
         {
-            try
-            {
-                _current?.Stop();
-            }
-            catch (InvalidOperationException)
-            {
-            }
+            _generation++;
+            if (_playing) PlaySound(IntPtr.Zero, IntPtr.Zero, 0);
+            _playing = false;
         }
     }
+
+    [DllImport("winmm.dll", EntryPoint = "PlaySoundW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PlaySound(IntPtr sound, IntPtr module, uint flags);
 }

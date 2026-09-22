@@ -22,23 +22,29 @@ public sealed class ActivitySparkline : FrameworkElement
         nameof(LineBrush),
         typeof(Brush),
         typeof(ActivitySparkline),
-        new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender, BrushesChanged));
 
     public static readonly DependencyProperty PartialBrushProperty = DependencyProperty.Register(
         nameof(PartialBrush),
         typeof(Brush),
         typeof(ActivitySparkline),
-        new FrameworkPropertyMetadata(Brushes.DimGray, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(Brushes.DimGray, FrameworkPropertyMetadataOptions.AffectsRender, BrushesChanged));
 
     public static readonly DependencyProperty BaselineBrushProperty = DependencyProperty.Register(
         nameof(BaselineBrush),
         typeof(Brush),
         typeof(ActivitySparkline),
-        new FrameworkPropertyMetadata(Brushes.LightGray, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(Brushes.LightGray, FrameworkPropertyMetadataOptions.AffectsRender, BrushesChanged));
 
     private Pen? _linePen;
     private Pen? _partialPen;
     private Pen? _baselinePen;
+
+    private static void BrushesChanged(DependencyObject target, DependencyPropertyChangedEventArgs args)
+    {
+        var chart = (ActivitySparkline)target;
+        chart._linePen = chart._partialPen = chart._baselinePen = null;
+    }
 
     public IReadOnlyList<ActivityChartSegment>? Segments
     {

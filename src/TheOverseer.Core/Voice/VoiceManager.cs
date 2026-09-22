@@ -16,14 +16,16 @@ public sealed class VoiceManager : IAsyncDisposable
     private readonly Func<VoiceCandidate, bool>? _revalidate;
     private readonly object _gate = new();
     private readonly List<QueueItem> _queue = new();
-    private readonly SemaphoreSlim _signal = new(0);
+    private readonly SemaphoreSlim _signal = new(0, 1);
     private readonly CancellationTokenSource _lifetime = new();
 
     private CancellationTokenSource? _active;
     private Task? _worker;
+    private Task? _disposeTask;
     private bool _muted;
     private bool _speaking;
     private bool _disposed;
+    private bool _lastAttemptFailed;
     private int _generation;
     private int _spoken;
     private int _dropped;
@@ -92,12 +94,12 @@ public sealed class VoiceManager : IAsyncDisposable
 
     public void Start()
     {
-        if (_worker is not null || _disposed)
+        lock (_gate)
         {
-            return;
+            if (_worker is not null || _disposed) return;
+            var token = _lifetime.Token;
+            _worker = Task.Run(() => RunAsync(token));
         }
-
-        _worker = Task.Run(() => RunAsync(_lifetime.Token));
     }
 
     /// <summary>
@@ -109,7 +111,7 @@ public sealed class VoiceManager : IAsyncDisposable
         CancellationTokenSource? active;
         lock (_gate)
         {
-            if (_muted == muted)
+            if (_disposed || _muted == muted)
             {
                 return;
             }
@@ -168,7 +170,7 @@ public sealed class VoiceManager : IAsyncDisposable
                 }
 
                 var victim = FindVictim();
-                if (victim is null)
+                if (victim is null || victim.Priority < item.Priority)
                 {
                     _dropped++;
                     continue;
@@ -192,6 +194,9 @@ public sealed class VoiceManager : IAsyncDisposable
         try
         {
             _signal.Release();
+        }
+        catch (ObjectDisposedException)
+        {
         }
         catch (SemaphoreFullException)
         {
@@ -278,7 +283,7 @@ public sealed class VoiceManager : IAsyncDisposable
         var now = _timeProvider.GetUtcNow();
         lock (_gate)
         {
-            if (_muted || item.Generation != Volatile.Read(ref _generation))
+            if (_disposed || _muted || cancellationToken.IsCancellationRequested || item.Generation != Volatile.Read(ref _generation))
             {
                 _dropped++;
                 return;
@@ -311,7 +316,7 @@ public sealed class VoiceManager : IAsyncDisposable
 
             lock (_gate)
             {
-                if (_muted || item.Generation != Volatile.Read(ref _generation))
+                if (_disposed || _muted || cancellationToken.IsCancellationRequested || item.Generation != Volatile.Read(ref _generation))
                 {
                     _dropped++;
                     return;
@@ -322,7 +327,7 @@ public sealed class VoiceManager : IAsyncDisposable
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         lock (_gate)
         {
-            if (_muted || item.Generation != Volatile.Read(ref _generation))
+            if (_disposed || _muted || cancellationToken.IsCancellationRequested || item.Generation != Volatile.Read(ref _generation))
             {
                 _dropped++;
                 return;
@@ -334,6 +339,7 @@ public sealed class VoiceManager : IAsyncDisposable
 
         try
         {
+            if (!StillRelevant(item.Candidate)) { IncrementDropped("invalidated"); return; }
             var clip = await _provider.TryCreateAsync(item.Candidate, linked.Token).ConfigureAwait(false);
             if (clip is null)
             {
@@ -343,7 +349,7 @@ public sealed class VoiceManager : IAsyncDisposable
 
             lock (_gate)
             {
-                if (_muted || item.Generation != Volatile.Read(ref _generation))
+                if (_disposed || _muted || cancellationToken.IsCancellationRequested || item.Generation != Volatile.Read(ref _generation))
                 {
                     _dropped++;
                     return;
@@ -352,16 +358,21 @@ public sealed class VoiceManager : IAsyncDisposable
                 _lastStart = _timeProvider.GetUtcNow();
             }
 
+            linked.Token.ThrowIfCancellationRequested();
+            if (!StillRelevant(item.Candidate)) { IncrementDropped("invalidated"); return; }
             var played = await _player.PlayAsync(clip, linked.Token).ConfigureAwait(false);
             lock (_gate)
             {
+                if (_disposed || _muted || linked.IsCancellationRequested || item.Generation != _generation) return;
                 if (played)
                 {
+                    _lastAttemptFailed = false;
                     _spoken++;
                     _lastCode = clip.DetailCode.Length > 0 ? clip.DetailCode : "spoken";
                 }
                 else
                 {
+                    _lastAttemptFailed = true;
                     _failed++;
                     _lastCode = "playback-failed";
                 }
@@ -374,7 +385,7 @@ public sealed class VoiceManager : IAsyncDisposable
                 _lastCode = "cancelled";
             }
         }
-        catch (Exception exception) when (exception is IOException or InvalidOperationException or TimeoutException or HttpRequestException or NotSupportedException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or InvalidOperationException or TimeoutException or HttpRequestException or NotSupportedException)
         {
             IncrementFailed("provider-error");
         }
@@ -391,6 +402,10 @@ public sealed class VoiceManager : IAsyncDisposable
         }
     }
 
+    private bool StillRelevant(VoiceCandidate candidate) =>
+        _timeProvider.GetUtcNow() - candidate.ObservedAt <= _options.CandidateTtl &&
+        (_revalidate?.Invoke(candidate) ?? true);
+
     private void IncrementDropped(string code)
     {
         lock (_gate)
@@ -404,6 +419,7 @@ public sealed class VoiceManager : IAsyncDisposable
     {
         lock (_gate)
         {
+            _lastAttemptFailed = true;
             _failed++;
             _lastCode = string.IsNullOrEmpty(code) ? "provider-unavailable" : code;
         }
@@ -416,7 +432,12 @@ public sealed class VoiceManager : IAsyncDisposable
             return "Voice is muted.";
         }
 
-        if (!_provider.Status.IsAvailable && _spoken == 0)
+        if (_lastAttemptFailed)
+        {
+            return "Voice unavailable: " + _lastCode + ".";
+        }
+
+        if (!_provider.Status.IsAvailable)
         {
             return "Voice provider unavailable: " + _provider.Status.LastCode + ".";
         }
@@ -424,14 +445,23 @@ public sealed class VoiceManager : IAsyncDisposable
         return _spoken == 0 ? "Voice ready." : "Spoken " + _spoken + ".";
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_disposed)
+        lock (_gate)
         {
-            return;
+            if (_disposeTask is null)
+            {
+                _disposed = true;
+                _generation++;
+                _queue.Clear();
+                _disposeTask = DisposeCoreAsync();
+            }
+            return new ValueTask(_disposeTask);
         }
+    }
 
-        _disposed = true;
+    private async Task DisposeCoreAsync()
+    {
         try
         {
             _lifetime.Cancel();
@@ -459,12 +489,21 @@ public sealed class VoiceManager : IAsyncDisposable
             }
             catch (TimeoutException)
             {
+                _ = _worker.ContinueWith(_ => DisposeResources(), TaskScheduler.Default);
+                return;
             }
             catch (OperationCanceledException)
             {
             }
         }
 
+        DisposeResources();
+    }
+
+    private void DisposeResources()
+    {
+        (_provider as IDisposable)?.Dispose();
+        (_player as IDisposable)?.Dispose();
         _lifetime.Dispose();
         _signal.Dispose();
     }

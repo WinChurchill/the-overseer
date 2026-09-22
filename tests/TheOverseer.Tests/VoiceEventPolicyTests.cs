@@ -202,7 +202,8 @@ public sealed class VoiceEventPolicyTests
             new[] { VoiceTestData.Event(AttentionEventKind.TaskError, key: key, turnId: "turn-1", observedAt: Start) })));
 
         var second = VoiceTestData.Task(key: key, state: AgentTaskState.Error, turnId: "turn-2");
-        var candidates = policy.Observe(VoiceTestData.Snapshot(Start.AddSeconds(30), new[] { second }));
+        var candidates = policy.Observe(VoiceTestData.Snapshot(Start.AddSeconds(30), new[] { second },
+            new[] { VoiceTestData.Event(AttentionEventKind.TaskError, key: key, turnId: "turn-2", observedAt: Start.AddSeconds(30)) }));
         Assert.Single(candidates);
         Assert.Equal("turn-2", candidates[0].TurnId);
     }

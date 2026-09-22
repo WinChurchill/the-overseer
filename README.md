@@ -197,8 +197,8 @@ second (maximum 3,601), each holding the working and needs-human `CountValue`
 from the newest snapshot in that second. Nothing is persisted and no labels or
 conversation data are stored. Unknown samples and gaps longer than 10 seconds
 break the line, partial counts keep a distinct dashed style, and the x-axis is a
-fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. The expanded
-HUD shows the single working-count chart plus a bounded summary such as
+fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. Both collapsed
+and expanded modes show the working-count sparkline; expanded mode adds a summary such as
 `551 samples · peak 5 · gaps · partial`; the same samples feed the tooltip.
 
 ### Voice notifications
@@ -233,6 +233,9 @@ at 64 KiB, 16 clips per event, 4 MiB and 15 seconds per clip, and every clip mus
 be a validated RIFF/WAVE PCM file inside the pack root — absolute, traversal,
 UNC, alternate-stream and reparse-point paths are rejected. Variants are chosen
 round-robin per event.
+
+Close OVERSEER before editing provider, pack or endpoint settings in `config.json`,
+then restart to load them. Mute changes take effect immediately through the HUD.
 
 TTS is opt-in and only ever used when both the provider is set to `tts` and an
 endpoint is configured (https anywhere, or http on loopback). The request body is
@@ -306,8 +309,8 @@ were not imported.
 
 ## Next action
 
-Astra Review 2 passed with nonblocking notes and the reviewed branch was
-fast-forwarded into `main`. Plan 3 / Goal 3 is ready for DeepSeek on
-`impl/p3-history-voice`: read `AGENTS.md`, `.agent/HANDOFF.md` and
-`docs/IMPLEMENTATION_STATE.md`, then execute the whole history and voice plan.
-No Plan 3 product code has been started during planning.
+Astra Review 3 passed with nonblocking notes after fixes on
+`impl/p3-history-voice`. Build, 375 tests, voice/TTS smoke and live HUD lifecycle
+checks passed. See `docs/IMPLEMENTATION_STATE.md` for the review evidence and
+remaining physical validation limits. The branch remains unmerged; Plan 4
+planning is the next workflow step after the reviewed P3 changes are integrated.

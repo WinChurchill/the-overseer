@@ -95,13 +95,18 @@ public static class VoicePackValidator
             return false;
         }
 
-        var segments = value.Split('/');
+        var segments = value.Replace('\\', '/').Split('/');
         foreach (var segment in segments)
         {
-            if (segment.Length == 0 || segment is "." or "..")
+            if (segment.Length == 0 || segment is "." or ".." || segment.EndsWith(' ') || segment.EndsWith('.'))
             {
                 return false;
             }
+            if (segment.Any(character => character < 32 || "<>\"|?*".Contains(character))) return false;
+            var stem = segment.Split('.')[0].ToUpperInvariant();
+            if (stem is "CON" or "PRN" or "AUX" or "NUL" ||
+                (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal) || stem.StartsWith("LPT", StringComparison.Ordinal)) &&
+                 stem[3] is >= '1' and <= '9')) return false;
         }
 
         return true;
@@ -154,7 +159,7 @@ public static class VoicePackValidator
                 return new VoicePackValidation(false, null, "manifest-id");
             }
 
-            var version = root.TryGetProperty("version", out var versionNode) && versionNode.TryGetInt32(out var parsedVersion)
+            var version = root.TryGetProperty("version", out var versionNode) && versionNode.ValueKind == JsonValueKind.Number && versionNode.TryGetInt32(out var parsedVersion)
                 ? parsedVersion
                 : 0;
             if (version != 1)
@@ -242,7 +247,7 @@ public static class VoicePackValidator
         }
 
         var declaredRiff = ReadInt32(bytes, 4);
-        if (declaredRiff < 0 || declaredRiff + 8 > bytes.Length)
+        if (declaredRiff < 0 || declaredRiff + 8L != bytes.Length)
         {
             return new WavValidation(false, "wav-length", 0, 0, 0, TimeSpan.Zero, 0);
         }
@@ -254,6 +259,7 @@ public static class VoicePackValidator
         var bitsPerSample = 0;
         var dataBytes = -1;
         var blockAlign = 0;
+        var byteRate = 0;
 
         while (offset + 8 <= bytes.Length)
         {
@@ -267,7 +273,7 @@ public static class VoicePackValidator
 
             if (chunkId == "fmt ")
             {
-                if (chunkSize < 16)
+                if (chunkSize < 16 || format != -1)
                 {
                     return new WavValidation(false, "wav-fmt-size", 0, 0, 0, TimeSpan.Zero, 0);
                 }
@@ -275,18 +281,20 @@ public static class VoicePackValidator
                 format = ReadInt16(bytes, chunkStart);
                 channels = ReadInt16(bytes, chunkStart + 2);
                 sampleRate = ReadInt32(bytes, chunkStart + 4);
+                byteRate = ReadInt32(bytes, chunkStart + 8);
                 blockAlign = ReadInt16(bytes, chunkStart + 12);
                 bitsPerSample = ReadInt16(bytes, chunkStart + 14);
             }
             else if (chunkId == "data")
             {
+                if (dataBytes != -1) return new WavValidation(false, "wav-duplicate-data", 0, 0, 0, TimeSpan.Zero, 0);
                 dataBytes = chunkSize;
             }
 
             offset = chunkStart + chunkSize + (chunkSize % 2);
         }
 
-        if (format is not (1 or 3))
+        if (format != 1 || offset != bytes.Length)
         {
             return new WavValidation(false, "wav-format", 0, 0, 0, TimeSpan.Zero, 0);
         }
@@ -296,7 +304,8 @@ public static class VoicePackValidator
             return new WavValidation(false, "wav-parameters", sampleRate, channels, bitsPerSample, TimeSpan.Zero, 0);
         }
 
-        if (dataBytes <= 0 || blockAlign <= 0)
+        if (dataBytes <= 0 || blockAlign != channels * bitsPerSample / 8 ||
+            byteRate != sampleRate * blockAlign || dataBytes % blockAlign != 0)
         {
             return new WavValidation(false, "wav-no-data", sampleRate, channels, bitsPerSample, TimeSpan.Zero, 0);
         }

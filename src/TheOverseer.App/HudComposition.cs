@@ -96,9 +96,11 @@ internal static class HudComposition
     private static NotificationCoordinator CreateNotifications(string dataDirectory, VoiceSettings settings, IMonitorLog log)
     {
         var normalized = (settings ?? VoiceSettings.Default).Normalized();
+        var policy = new VoiceEventPolicy();
+        bool Relevant(VoiceCandidate candidate) => policy.IsRelevant(candidate, TimeProvider.System.GetUtcNow());
         var packProvider = new VoicePackProvider(dataDirectory, () => normalized);
         IVoiceProvider provider = normalized.ResolvedProvider == VoiceProviderKind.Tts
-            ? new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), () => normalized), packProvider, allowFallback: true)
+            ? new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), () => normalized), packProvider, allowFallback: true, Relevant)
             : packProvider;
 
         var player = new WavPlaybackService();
@@ -107,10 +109,10 @@ internal static class HudComposition
             player,
             VoiceManagerOptions.Default,
             TimeProvider.System,
-            revalidate: null,
+            revalidate: Relevant,
             muted: normalized.Muted);
         _ = log;
-        return new NotificationCoordinator(new ActivityHistory(), new VoiceEventPolicy(), manager, TimeProvider.System, normalized);
+        return new NotificationCoordinator(new ActivityHistory(), policy, manager, TimeProvider.System, normalized);
     }
 
     /// <summary>One reusable client: no redirects, no cookies, bounded by provider timeouts.</summary>

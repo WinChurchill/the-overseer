@@ -27,6 +27,8 @@ public sealed record VoiceCandidate(
     int TaskCount,
     string EpisodeId)
 {
+    public IReadOnlyList<VoiceCandidate> Members { get; init; } = Array.Empty<VoiceCandidate>();
+
     public string Identity => IsAggregate
         ? "agg:" + Kind + ":" + EpisodeId
         : Kind + ":" + Key + ":" + TurnId + ":" + ObservedAt.ToUnixTimeMilliseconds() + ":" + Code;
@@ -126,18 +128,26 @@ public sealed class SilentVoiceProvider : IVoiceProvider
 /// Tries the primary provider once and, only when allowed, one local fallback.
 /// No retries and no implicit remote fallback.
 /// </summary>
-public sealed class FallbackVoiceProvider : IVoiceProvider
+public sealed class FallbackVoiceProvider : IVoiceProvider, IDisposable
 {
     private readonly IVoiceProvider _primary;
     private readonly IVoiceProvider? _fallback;
     private readonly bool _allowFallback;
     private string _lastCode = "idle";
+    private readonly Func<VoiceCandidate, bool>? _revalidate;
 
-    public FallbackVoiceProvider(IVoiceProvider primary, IVoiceProvider? fallback, bool allowFallback)
+    public FallbackVoiceProvider(IVoiceProvider primary, IVoiceProvider? fallback, bool allowFallback, Func<VoiceCandidate, bool>? revalidate = null)
     {
+        _revalidate = revalidate;
         _primary = primary;
         _fallback = fallback;
         _allowFallback = allowFallback;
+    }
+
+    public void Dispose()
+    {
+        (_primary as IDisposable)?.Dispose();
+        (_fallback as IDisposable)?.Dispose();
     }
 
     public string Id => _primary.Id;
@@ -161,6 +171,8 @@ public sealed class FallbackVoiceProvider : IVoiceProvider
             return null;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_revalidate is not null && !_revalidate(candidate)) return null;
         var fallbackClip = await _fallback.TryCreateAsync(candidate, cancellationToken).ConfigureAwait(false);
         if (fallbackClip is null)
         {

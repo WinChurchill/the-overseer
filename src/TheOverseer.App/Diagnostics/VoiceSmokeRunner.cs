@@ -35,9 +35,28 @@ internal static class VoiceSmokeRunner
 
         failures += RunPackSmoke(dataDirectory, arguments.Audible);
         failures += RunTtsSmoke(dataDirectory, arguments.Audible);
+        if (arguments.Audible) failures += RunNativeCancellationSmoke();
 
         Console.WriteLine(failures == 0 ? "voice smoke: PASS" : "voice smoke: FAIL (" + failures + ")");
         return failures == 0 ? 0 : 1;
+    }
+
+    private static int RunNativeCancellationSmoke()
+    {
+        var player = new WavPlaybackService();
+        using var cancellation = new CancellationTokenSource();
+        var clip = new VoiceClip(VoicePackValidator.CreateTone(440, 2), "synthetic", "cancellation");
+        var playing = player.PlayAsync(clip, cancellation.Token).AsTask();
+        Thread.Sleep(60);
+        var wasPlaying = !playing.IsCompleted;
+        var stopwatch = Stopwatch.StartNew();
+        cancellation.Cancel();
+        try { playing.GetAwaiter().GetResult(); }
+        catch (OperationCanceledException) { }
+        var passed = wasPlaying && !player.DeviceUnavailable && stopwatch.ElapsedMilliseconds < 1000;
+        Console.WriteLine((passed ? "ok   " : "FAIL ") + "native in-flight cancellation: " +
+            stopwatch.ElapsedMilliseconds + "ms; acoustic stop not verified by ear");
+        return passed ? 0 : 1;
     }
 
     private static string WriteSyntheticPack(string packDirectory)
@@ -105,15 +124,17 @@ internal static class VoiceSmokeRunner
         var failures = 0;
         var settings = new VoiceSettings { Muted = false, Provider = "pack", PackId = "example" };
         var provider = new VoicePackProvider(dataDirectory, () => settings);
+        var policy = new VoiceEventPolicy();
         using var counter = new CountingPlayer(audible);
         var manager = new VoiceManager(
             provider,
             counter,
             VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
             TimeProvider.System,
+            revalidate: candidate => policy.IsRelevant(candidate, DateTimeOffset.UtcNow),
             muted: false);
         var history = new ActivityHistory();
-        var coordinator = new NotificationCoordinator(history, new VoiceEventPolicy(), manager, TimeProvider.System, settings);
+        var coordinator = new NotificationCoordinator(history, policy, manager, TimeProvider.System, settings);
         coordinator.Start();
 
         var key = new TaskKey("codex", "01a0f000-0000-0000-0000-000000000001");
@@ -152,8 +173,8 @@ internal static class VoiceSmokeRunner
             done,
             new[]
             {
-                Attention(AttentionEventKind.TaskCompleted, key2, 2, "turn-1"),
-                Attention(AttentionEventKind.TaskCompleted, key3, 3, "turn-1"),
+                Attention(AttentionEventKind.TaskCompleted, key2, 2, "turn-2"),
+                Attention(AttentionEventKind.TaskCompleted, key3, 3, "turn-3"),
             },
             working: CountValue.Partial(0),
             coverageComplete: false));
@@ -165,7 +186,7 @@ internal static class VoiceSmokeRunner
         var before = counter.Played.Count;
         coordinator.OnSnapshot(Snapshot(
             DateTimeOffset.UtcNow,
-            new[] { Task(new TaskKey("codex", "01a0f000-0000-0000-0000-000000000004"), 4, AgentTaskState.Error) },
+            new[] { Task(new TaskKey("codex", "01a0f000-0000-0000-0000-000000000004"), 4, AgentTaskState.Error, "turn-4") },
             new[] { Attention(AttentionEventKind.TaskError, new TaskKey("codex", "01a0f000-0000-0000-0000-000000000004"), 4, "turn-4") }));
         Thread.Sleep(400);
         Console.WriteLine("policy after error cue: " + coordinator.Describe());
@@ -177,7 +198,7 @@ internal static class VoiceSmokeRunner
         // A condition raised while muted stays silent (no backlog on unmute).
         coordinator.OnSnapshot(Snapshot(
             DateTimeOffset.UtcNow,
-            new[] { Task(new TaskKey("codex", "01a0f000-0000-0000-0000-00000000000a"), 10, AgentTaskState.Error) },
+            new[] { Task(new TaskKey("codex", "01a0f000-0000-0000-0000-00000000000a"), 10, AgentTaskState.Error, "turn-10") },
             new[] { Attention(AttentionEventKind.TaskError, new TaskKey("codex", "01a0f000-0000-0000-0000-00000000000a"), 10, "turn-10") }));
         Thread.Sleep(400);
         failures += Expect("mute prevents further cues", beforeMute, () => counter.Played.Count, 600);
@@ -222,15 +243,18 @@ internal static class VoiceSmokeRunner
         };
         var tts = new TtsEndpointProvider(client, () => settings);
         var pack = new VoicePackProvider(dataDirectory, () => settings);
-        var router = new FallbackVoiceProvider(tts, pack, allowFallback: true);
+        var policy = new VoiceEventPolicy();
+        bool Relevant(VoiceCandidate candidate) => policy.IsRelevant(candidate, DateTimeOffset.UtcNow);
+        var router = new FallbackVoiceProvider(tts, pack, allowFallback: true, Relevant);
         using var counter = new CountingPlayer(audible);
         var manager = new VoiceManager(
             router,
             counter,
             VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
             TimeProvider.System,
+            revalidate: Relevant,
             muted: false);
-        var coordinator = new NotificationCoordinator(new ActivityHistory(), new VoiceEventPolicy(), manager, TimeProvider.System, settings);
+        var coordinator = new NotificationCoordinator(new ActivityHistory(), policy, manager, TimeProvider.System, settings);
         coordinator.Start();
 
         // 1. Successful contract.
