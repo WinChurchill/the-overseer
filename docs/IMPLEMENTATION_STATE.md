@@ -303,5 +303,22 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   diagnostics and provider/settings lock ordering. Pending work is discarded on
   preview, mute, configuration changes and suspend; reconnect snapshots cannot
   replay task transitions. Imported clips remain local and bounded; no dependencies.
-- Build/tests, visual checks and packaged verification are recorded below once
-  the final candidate has passed. Real approval/input observability remains limited.
+- Final review: **PASS WITH NONBLOCKING NOTES**. No unresolved blocker/major/minor
+  findings in this follow-up. Real Codex approval/input observability remains
+  limited; user speech recordings have not been supplied. Physical device/display
+  qualifications recorded under Plan 4 remain separate from automated checks.
+- Release build: 0 warnings/errors; **438/438 tests passed** (23 added), including
+  lifecycle timing/relevance, no-backlog behavior, cancellation, settings persistence,
+  recording bounds/provider precedence and all four strip positions with DPI rounding.
+  Sixteen fixture renders generated; Light/Dark settings and strip layouts inspected.
+- Clean source `a536bc7`; candidate `artifacts/light-voice-release/OVERSEER-v1-win-x64.zip`,
+  SHA-256 `22F3F09BA0CC73E3C84743171158403388001F5A333EC91E025909AE1DB57C3B`.
+  **28/28 packaged smoke checks passed**, default durations and no skips. Nine
+  example event mappings validated; 548 foreground samples over the isolated
+  60-second normal-HUD check found no owned foreground window. Evidence:
+  `artifacts/light-voice-release/smoke/run-20260923T085512Z-4d29dddf/`.
+- Relaunched normal app from `artifacts/overseer-light-voice-a536bc7/`, preserving
+  existing settings. Native checks: visible, topmost, taskbar-enabled, no owned
+  foreground window in 60 samples/15s. Evidence: `artifacts/light-voice-release/live-evidence.json`.
+  Light remains optional/off by default; notifications remain muted unless enabled.
+  CHANGELOG updated, branch clean after evidence commit; no merge/tag.
