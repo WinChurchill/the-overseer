@@ -331,4 +331,14 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
 - The colored surface is a resize grip with horizontal/vertical cursor matching
   its side. Existing debounced settings persistence saves changes. Four routed
   drag tests cover direction and bounds; expansion expectation includes strip width.
-- Build/test and scoped packaged verification are recorded after validation.
+- Release build: 0 warnings/errors; **442/442 tests passed**. Default expanded
+  width is 392 DIPs (360 content + 32 light). Sixteen packaged renders generated;
+  default right-side expanded layout inspected with no overlap.
+- Clean source `cd2b89c`; candidate `artifacts/light-resize-release/OVERSEER-v1-win-x64.zip`,
+  SHA-256 `A72CCA97CE4255BFD312331E4ADF085BF472B630C5406AFBF5AEE7B19AA783B7`.
+- Scoped native check: visible/topmost/taskbar, zero owned-foreground observations
+  in 60 samples/15s. Evidence: `artifacts/light-resize-release/live-evidence.json`.
+  Preceding full 28-check run retained separately; not repeated for this UI update.
+- App left running from `artifacts/overseer-light-resize-cd2b89c/`. Applied the
+  user's requested right/32 preference after gracefully closing the previous
+  instance; other saved settings preserved. Changelog updated, no merge/tag.
