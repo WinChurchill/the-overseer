@@ -19,11 +19,13 @@ speak once per condition through a validated local WAV pack or one configured
 generic TTS endpoint, with completion aggregation, cooldown, instant persistent
 mute and local fallback.
 
-Plan 4 (Hardening and Release) is implemented on `impl/p4-release` and is ready
-for Astra Review 4: suspend/resume and per-monitor DPI handling, failure-matrix
+Plan 4 (Hardening and Release) passed Astra Review 4 with nonblocking notes on
+`impl/p4-release`: suspend/resume and window-DPI handling, failure-matrix
 regressions, an original opt-in example voice pack, and a self-contained
 `OVERSEER-v1-win-x64.zip` built and smoke-tested from a fresh extraction by the
-scripts in `scripts/`. Merging and tagging `v1.0.0` follow that review.
+scripts in `scripts/`. The reviewed candidate is under `artifacts/review4-final/`;
+398 tests and 28 packaged smoke checks passed. Physical sleep/wake and multi-monitor
+qualification remain unverified. Merging and tagging `v1.0.0` are separate steps.
 
 ## Naming and frozen sources
 
@@ -388,10 +390,9 @@ were not imported.
 
 ## Next action
 
-Plan 4 is implemented on `impl/p4-release`: the failure matrix has automated
-regressions, suspend/resume discard stale voice without changing the mute
-preference, placement resolves per-monitor DPI, the example pack ships with
-provenance, and the release archive is built from committed source and
-smoke-tested from a fresh extraction. The next action is **Astra Review 4**
-against `main`; merging and tagging `v1.0.0` follow that review. Physical
-validation limits stay explicit in `docs/IMPLEMENTATION_STATE.md`.
+Plan 4 passed **Astra Review 4 with nonblocking notes** after fixes on
+`impl/p4-release`. Build, 398 tests and 28 final packaged smoke checks passed.
+Use `artifacts/review4-final/OVERSEER-v1-win-x64.zip`; earlier candidates are
+superseded. Integration and tagging `v1.0.0` remain separate steps. Physical
+sleep/wake, mixed-DPI/monitor-removal, acoustic and clean-machine checks remain
+explicit qualifications in `docs/IMPLEMENTATION_STATE.md`.

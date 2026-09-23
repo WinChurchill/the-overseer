@@ -6,153 +6,130 @@ Goal: G4 — Harden, package, smoke-test, and release V1
 Branch: impl/p4-release
 
 ## Plan Status
-- Astra handoff: complete (.agent/HANDOFF.md, whole Plan 4 / Goal 4)
-- DeepSeek implementation: complete on `impl/p4-release` (9 commits after the
-  documentation-only plan head `0eaac1d`)
-- Build: Release build passed, 0 warnings / 0 errors (.NET SDK 10.0.401)
-- Tests: 394 passed, 0 failed, 0 skipped (reviewed 375-case P1–P3 baseline + 19 new)
-- Smoke: packaged smoke passed 28/28 checks from a fresh extraction of the final ZIP
-- Astra review: pending (Review 4)
+- Astra handoff: originally completed in planning; local ignored file now contains
+  only `pp` and was preserved. Review used the recorded handoff and frozen spec.
+- DeepSeek implementation: complete, with Astra Review 4 fixes
+- Build: passed, Release, 0 warnings / 0 errors, SDK 10.0.401
+- Tests: passed, 398 / 398, 0 failed/skipped
+- Smoke: passed, 28 / 28 checks from the final corrected ZIP
+- Astra review: PASS WITH NONBLOCKING NOTES (Review 4, 2026-09-22 local date)
 
 ## Completed
 
-### Implementation commits (base: reviewed P3 `663caf5`)
-| Commit | Change |
+Review covers the complete P4 branch against reviewed P3/main
+`663caf57caf0212699a6d96533a34f1171611c27`. Main is unchanged. Four projects,
+frozen documents, original reference PNGs and dependency boundaries are preserved.
+
+### Commits
+
+| Commit | Scope |
 | --- | --- |
-| `31e21aa` | Suspend discards stale voice inline; late cancellations cannot relabel state |
-| `ecce812` | Placement resolves per-monitor DPI (`GetDpiForMonitor`, system-DPI fallback) |
-| `e4ad382` | Missing clips report `clip-missing`; new silent `--voice-pack-check` mode |
-| `3c9ffc9` | Regressions for watcher failure, hint overflow and optional source recovery |
-| `9608164` | Original opt-in example voice pack under `assets/voicepacks/example/` |
-| `25bbfeb` | `scripts/Publish-Release.ps1`, `scripts/Test-PackagedRelease.ps1`, version 1.0.0 |
-| `dcd70b1` | README release/example-pack instructions, notices, provenance |
-| `d5d93c5` | Packaged smoke checks made payload-relative and timing-real |
-| `d7e72ef` | Checkout path mapped out of shipped binaries; leak audit; state check |
+| `0eaac1d` | P4 planning documents |
+| `31e21aa`, `ecce812`, `e4ad382`, `3c9ffc9` | Initial lifecycle/DPI/pack hardening and regressions |
+| `9608164`, `25bbfeb`, `dcd70b1` | Original example pack, release scripts, instructions/notices |
+| `d5d93c5`, `d7e72ef`, `cb9feec` | Initial smoke corrections, path mapping and implementation evidence |
+| `34a4d16` | Review fixes for suspend, late failure, pack validation, package provenance and smoke reliability |
+| `6c0fbfb` | Remove unsupported DPI query; finer foreground/input-timing evidence |
 
-### Hardening (spec §18)
-- **Sleep/wake**: `PowerModes.Suspend` is handled inline on the events thread
-  (a posted callback would not run before sleep): pending cues are discarded, the
-  in-flight provider call and audio are cancelled/fenced, the generation is
-  bumped, and the **saved mute preference is untouched**. `Resume` re-runs
-  geometry repair and reconcile on the UI thread. Latch/dedupe state survives, so
-  a condition that is still active after wake is not announced twice, while a new
-  episode still speaks. Late cancellations can no longer overwrite the recorded
-  reason code.
-- **Mixed DPI / multi-monitor**: screen enumeration asks the shell for the DPI of
-  the monitor that owns each screen centre (`GetDpiForMonitor`, MDT_EFFECTIVE_DPI)
-  and falls back to the system DPI only when that query is unavailable; the
-  per-window DPI still governs the real placement conversion. Placement
-  regressions cover two screens at different scales, a huge offset clamped inside
-  the owning work area, negative origins and a removed high-DPI screen.
-- **Restart during an active task**: a restarted process hydrates the running task
-  silently (no cue, no provider call) and speaks only the later explicit event.
-- **Watcher**: a sessions root that did not exist at construction still recovers
-  through bounded polling (reported as `watcher-failed`, never a healthy zero);
-  a 400-file burst proves hint overflow is reported and the hint set stays capped
-  at the configured bound.
-- **Optional state DB**: unavailable/locked/schema-mismatched results keep the
-  JSONL-derived counts authoritative and recover in-process without a restart; the
-  real read-only path also ran live (60 s monitor-debug, exit 0).
-- **Packs/providers**: a missing clip file is typed `clip-missing` instead of the
-  conservative `clip-reparse`; missing/malformed/removed pack cases are covered;
-  a 50-event completion burst yields exactly one aggregate with bounded membership
-  (≤ 32) instead of a burst of utterances; `--voice-pack-check` validates the
-  *shipped* pack through the production provider (voice smoke generates its own
-  pack, so it cannot prove packaged assets).
-- Existing suites were extended rather than replaced; the 26 Review 3 regressions
-  remain in place.
+### Review findings resolved
 
-### Release package
-- `artifacts/p4-release/OVERSEER-v1-win-x64.zip` — 76,380,582 bytes, 490 entries,
-  SHA-256 `F77C067E82EBFAE8BEBE2473BABDA9D9D18522EE56CA1815350295E9961907B5`.
-- Built by `scripts/Publish-Release.ps1` from committed source `d7e72ef` (clean
-  tree, no `-AllowDirtyTree`): self-contained Release/win-x64 **folder** publish,
-  `TheOverseer.App.exe`, `Version=1.0.0`, `PublishSingleFile=false`,
-  `PublishTrimmed=false`, `PublishAot=false`; included frameworks
-  `Microsoft.NETCore.App 10.0.12` and `Microsoft.WindowsDesktop.App 10.0.12`.
-- Payload = publish output + `README.md` + `THIRD_PARTY_NOTICES.md` +
-  `licenses/` (codex-monitor-hud MIT, .NET `LICENSE.txt`/`ThirdPartyNotices.txt`
-  from the publishing runtime) + `examples/voicepacks/example/`. No repository
-  files, agent documents, tests, caches, ZIPs, logs or private data.
-- `-p:PathMap=<repo>=/_/` keeps the build checkout path out of the shipped
-  binaries and symbols; the script fails the build when any payload file embeds
-  it. Independent scan of the final archive: 484 content files checked, 0 hits.
-- `build-manifest.json` records source commit/branch/dirty flag, version,
-  configuration, SDK, included frameworks, payload file list with sizes, archive
-  size and SHA-256. It contains no machine-specific cache paths or secrets.
-- Runtime packs were restored from nuget.org through a scoped, ignored NuGet
-  config generated by the script (no machine path is committed).
+- **MAJOR — suspend race.** One-time cancellation allowed a later producer
+  snapshot to enqueue audio while suspended. A deterministic regression reproduced
+  one queued cue where zero was required. The coordinator now keeps a suspended
+  state, observes/latches silently, discards pending work, resumes explicitly and
+  filters already-observed pre-resume events. Saved mute is unchanged. Fresh
+  post-resume episodes still enqueue normally.
+- **MINOR — late provider failure.** A null result or exception after cancellation
+  could replace the suspended status with a failure. Generation checks now reject
+  those stale outcomes; both cases have regression tests.
+- **MAJOR — false-positive packaged asset check.** The checker inspected only
+  the first clip for each event. A missing second permission variant still
+  returned success. It now validates every manifest variant through the real
+  provider. The regression failed before the fix and passes afterward; a negative
+  check against the extracted executable also returned exit 1 / `clip-missing`.
+- **MAJOR — smoke evidence isolation.** Only extraction was unique; data and
+  renders could survive earlier runs, malformed state could pass, and tray
+  shutdown accepted nonzero exits. Every run now has fresh data/render directories,
+  validates state fields and a nondefault saved theme, requires zero exit codes,
+  and cleans up only its owned processes even on script exceptions. Extraction
+  deliberately uses a space/Unicode path. Reduced-duration/skipped checks are
+  explicitly recorded; foreground samples include input timing.
+- **MINOR — release provenance/reliability.** Notices came from the SDK rather
+  than the exact redistributed runtime packages. The ZIP now includes matching
+  .NET and Windows Desktop licenses/notices; all four license files were compared
+  byte-for-byte to their sources. SDK selection uses the repository's global.json
+  even from another working directory, NuGet cache paths are XML-escaped,
+  archive names cannot escape the output root, prior ZIPs survive until replacement
+  validation, and a SHA-256 sidecar is written. Scripts explicitly require PS 7.
+- **MINOR — DPI API misuse/dead code.** The new GetDpiForMonitor call ran on a
+  per-monitor-aware thread, contrary to Microsoft's API guidance. It was removed;
+  the existing actual-HWND GetDpiForWindow and WPF DpiChanged/re-clamp path remains
+  authoritative. The pre-HWND system fallback no longer claims each monitor's
+  actual scale. Mixed-DPI/negative-origin/removed-monitor policy tests still pass.
+  Reference: https://learn.microsoft.com/en-us/windows/win32/api/shellscalingapi/nf-shellscalingapi-getdpiformonitor
 
-### Packaged smoke evidence (`artifacts/p4-release/smoke-final2/`)
-Fresh extraction of the final ZIP, extracted apphost run from an unrelated
-working directory, one isolated data directory per mode, and the child
-environment stripped of `DOTNET_ROOT`, `DOTNET_CLI_HOME`, `NUGET_PACKAGES`,
-`MSBuildSDKsPath` and every PATH entry containing `dotnet` (including
-`C:\Program Files\dotnet\`), verified with 0 leaks.
+### Verification
 
-| Check | Result |
-| --- | --- |
-| Archive required entries / apphost / FileVersion 1.0.0 / self-contained frameworks | pass (490 entries, 1.0.0.0, both frameworks) |
-| No private payload, sanitized child environment | pass (0 offending paths, 0 env leaks) |
-| `--hud-fixture` | exit 0, 6 non-empty renders |
-| `--hud-smoke --duration 15` | exit 0 |
-| `--voice-smoke` | exit 0, owned loopback endpoint |
-| `--voice-pack-check` on the shipped pack | exit 0, 5/5 events validated |
-| `--monitor-debug` synthetic home (15 s) | exit 0, 1 tracked file, `#1 … WORKING`, 1 working |
-| `--monitor-debug` real local Codex home (60 s, redacted) | exit 0 (readable) |
-| Normal HUD, 60 s | alive, visible window, 30 foreground samples with the HUD never foreground |
-| Second instance | exit 0 while the first stayed alive |
-| Graceful close of the owned window | exit 0; `state.json` (dpi 1.25, monitor recorded) + `config.json` (theme dark, muted true) persisted |
-| `--start-in-tray` hidden start | alive, no visible window, never foreground, clean close |
-| `--start-in-tray --no-tray` | visible, controllable window, clean close |
-
-### Spec §25 V1 acceptance accounting
-| Item | State | Evidence |
-| --- | --- | --- |
-| Packaged build launches directly | tested | extracted apphost, unrelated CWD, no SDK/runtime on PATH |
-| Active tasks detected; duplicates deduplicated | tested | deterministic synthetic run + real read-only run; identity/dedupe suites |
-| Normalized state, current-action labels | tested | reducer/classifier suites, live rows |
-| Approval state where observable | unsupported upstream | Codex 0.155.x keeps approval events transient; synthetic contracts only |
-| Input state where observable + documented | unsupported upstream | same, documented in README/ledger |
-| Monitoring failure visible (never zero) | tested | unavailable/degraded suites, synthetic recovery runs |
-| Collapsed + expanded HUD, sparkline, task rows | tested | 6 fixture renders inspected, view-model suites |
-| Light/Dark share one layout | tested | fixture renders + theme suites |
-| Drag/position persistence | tested (automated) | placement/state suites + packaged `state.json`; human drag not repeated |
-| Tray / startup | partially tested | hidden tray start, no-tray fallback and clean close automated; human tray clicks not exercised; Run entry unit-tested and last verified live in P2 |
-| Voice packs, mute, anti-spam | tested | pack-check on shipped assets, policy/manager suites, persisted mute |
-| Generic TTS endpoint | tested against owned loopback | no external service used by design |
-| Sleep/wake | **physical test not performed** | deterministic suspend/resume lifecycle tests + inline discard path |
-| DPI/multi-monitor recovery | **physical test not performed** | per-monitor DPI code + mixed-DPI/negative-origin/removed-screen regressions |
-| Build/tests pass | tested | Release 0 warnings/0 errors; 394/394 |
-| Upstream notices included | tested | archive entry checks + notices file |
-| Release ZIP smoke-tested | tested | 28/28 checks from a fresh extraction |
+- Initial submitted branch: Release build 0 warnings/errors, **394/394** tests.
+  Two new regressions reproduced the suspend and missing-variant bugs before fixes.
+- Final source: `dotnet build TheOverseer.sln -c Release --no-restore
+  --disable-build-servers` passed with 0 warnings/errors; `dotnet test
+  TheOverseer.sln -c Release --no-build --no-restore`: **398 passed**, none skipped.
+- Final self-contained publish restored successfully and ran from outside the
+  repository, using committed source `6c0fbfb122c12606aed4c20ea8598d276de4a4b6`
+  with `sourceTreeDirty=false`, version 1.0.0, win-x64, no trimming/AOT/single-file.
+- Corrected candidate: `artifacts/review4-final/OVERSEER-v1-win-x64.zip`,
+  76,379,935 bytes, 491 entries, SHA-256
+  `5525E3015027C7EBF4B3B140BF6C409893609165429F0CED91C988FD4122A545`.
+  Both included frameworks are 10.0.12. The manifest and `.sha256` sit alongside it.
+  Earlier archives under `artifacts/p4-release` and `artifacts/review4-release`
+  are superseded review inputs, not the final candidate.
+- Final smoke directory:
+  `artifacts/review4-final/smoke/run-20260923T062126Z-ffe87484/`.
+  Runs use the extracted apphost, unrelated CWD, SDK paths removed, separate fresh
+  data for each mode and a path containing spaces/Unicode. Runtime module inspection
+  on both corrected candidates confirmed hostfxr/hostpolicy/coreclr loaded
+  from the extraction. No settings, logs or agent documents were in the ZIP.
+- Six UI renders inspected on the first corrected candidate: Light/Dark shared
+  geometry, collapsed/expanded charts, partial/gap treatment, healthy empty and
+  unavailable counts. All six final candidate renders are byte-identical to the
+  inspected renders.
+- First corrected candidate: 27/28 smoke checks passed; the HUD appeared in the
+  foreground during a sample. User interaction could not be confirmed or excluded.
+  That result is retained under `artifacts/review4-release/smoke/`; it is not
+  relabeled as a pass. The final retest passed with 547 samples / zero owned-window
+  foreground observations over 60 seconds; input timing is retained. The earlier
+  failure was not reproduced, and no unsupported claim about its cause is made.
+- Final package: **28/28 checks passed**, all child modes/lifecycle exits 0.
+  Finite HUD, silent voice/owned-loopback TTS, all shipped pack variants, synthetic
+  active-task monitor, 60-second real monitor, 60-second visible HUD, second
+  instance, persisted light theme/mute/valid placement, hidden tray startup and
+  visible no-tray fallback passed. No skip/unavailable override was used.
+- No additional upstream source, NuGet dependency or framework was introduced.
+  Original synthetic cues are opt-in; upstream attribution remains present.
 
 ## Known Limitations
-- Physical sleep/wake, monitor disconnect and moving the HUD across monitors with
-  different DPI were not performed; only one display (125%) is available. The code
-  paths and deterministic regressions exist, but the physical checks remain open
-  release-qualification items.
-- A clean-machine test is not possible here: a global .NET 10 runtime is installed.
-  The packaged run removed `dotnet` from the child PATH and loaded the runtime
-  from its own folder, which is the strongest available substitute.
-- Acoustic output was not heard: the packaged voice smoke is silent by default and
-  `--audible` was not run. Native start/stop, cancellation and loopback TTS are
-  API-verified only.
-- Human tray interaction and the real Run-key registration path were not
-  re-exercised by the automated smoke (the script avoids touching user state).
-- Real approval/input events remain unobservable in the installed Codex version.
-- Byte-identical reproducibility is not claimed: the same source and command
-  produce the same file list and content, but archive timestamps (and therefore the
-  hash) differ per run. The requirement is a repeatable, validated process.
-- The archive embeds source `d7e72ef`; this ledger is a later documentation-only
-  commit, so the branch head differs from the binary's embedded commit by design.
+
+- Physical sleep/wake, monitor removal and moving between different-DPI monitors
+  remain unverified on this one-display 125% environment. Deterministic lifecycle
+  and geometry regressions pass; these are still physical release-qualification
+  items, not a claim of hardware validation.
+- No clean-machine run without a global runtime; local runtime module loading and
+  sanitized child environment are the available self-contained-package evidence.
+- Acoustic playback and human tray clicks were not rechecked. Voice smoke uses
+  an owned loopback endpoint and synthetic audio; native playback/cancellation
+  evidence from P3 remains API evidence, not a claim of hearing the cues.
+- Real approval/input remains unsupported by installed Codex rollouts. No guessing
+  was introduced; synthetic attention contracts remain covered.
+- The final archive records `6c0fbfb`; this later evidence-only ledger commit is
+  intentionally not the binary source commit. Byte-identical ZIPs are not promised.
 
 ## Blocking Issues
-- None. The remaining open items are physical/acoustic qualification checks, not
-  implementation blockers.
+- None for the reviewed code/package. Physical qualification remains explicitly
+  incomplete; this verdict does not claim the unperformed checks passed.
 
 ## Next Action
-- Astra Review 4 reviews `impl/p4-release` against `main` (whole branch): full
-  spec compliance, failure behavior, tests, package contents, dependencies,
-  provenance, dead code and release readiness. Do not merge, tag `v1.0.0` or
-  publish externally before that review passes.
+- Review 4 is complete. Integration and `v1.0.0` tagging are separate workflow
+  actions; neither was performed. Retain the physical sleep/wake, display/DPI,
+  acoustic and clean-machine qualifications until actually exercised. Use the
+  corrected archive under `artifacts/review4-final/`, not an earlier candidate.
