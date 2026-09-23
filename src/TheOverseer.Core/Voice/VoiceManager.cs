@@ -139,6 +139,41 @@ public sealed class VoiceManager : IAsyncDisposable
         Signal();
     }
 
+    /// <summary>
+    /// Discards queued and in-flight work without touching the mute preference.
+    /// Used when the machine suspends: cues captured before sleep are stale on
+    /// resume, but the user's own mute setting must survive untouched. Latches
+    /// live in the policy, so a condition that is still active after resume is
+    /// not announced twice.
+    /// </summary>
+    public void DiscardPendingWork(string code)
+    {
+        CancellationTokenSource? active;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            Interlocked.Increment(ref _generation);
+            _dropped += _queue.Count;
+            _queue.Clear();
+            _lastCode = code;
+            active = _active;
+        }
+
+        try
+        {
+            active?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        _player.Stop();
+    }
+
     /// <summary>Non-blocking enqueue. Called from the monitor callback path.</summary>
     public void Enqueue(IReadOnlyList<VoiceCandidate> candidates)
     {
@@ -382,7 +417,13 @@ public sealed class VoiceManager : IAsyncDisposable
         {
             lock (_gate)
             {
-                _lastCode = "cancelled";
+                // Only a cancellation of the current generation describes the
+                // present state; a late cancellation from work that mute,
+                // suspend, or shutdown already fenced must not relabel it.
+                if (item.Generation == Volatile.Read(ref _generation))
+                {
+                    _lastCode = "cancelled";
+                }
             }
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or InvalidOperationException or TimeoutException or HttpRequestException or NotSupportedException)

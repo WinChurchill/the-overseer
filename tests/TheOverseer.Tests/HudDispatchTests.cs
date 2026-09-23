@@ -1,9 +1,12 @@
+using Microsoft.Win32;
 using TheOverseer.App;
 using TheOverseer.App.Desktop;
 using TheOverseer.App.Diagnostics;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
+using TheOverseer.Core.History;
 using TheOverseer.Core.Models;
+using TheOverseer.Core.Voice;
 using TheOverseer.Tests.Support;
 using TheOverseer.UI;
 
@@ -359,6 +362,92 @@ public sealed class HudDispatchTests
         });
     }
 
+    [Fact]
+    public void SuspendDiscardsVoiceInlineAndResumeRepairsGeometryOnTheDispatcher()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var monitor = new FakeMonitorSource();
+            var placement = new FakePlacementService();
+            var key = VoiceTestData.Key();
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var provider = new FakeVoiceProvider { Gate = gate };
+            var player = new FakeVoicePlayer();
+            var policy = new VoiceEventPolicy(VoicePolicyOptions.Default with { Cooldown = TimeSpan.Zero });
+            var manager = new VoiceManager(
+                provider,
+                player,
+                VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
+                TimeProvider.System,
+                revalidate: candidate => policy.IsRelevant(candidate, DateTimeOffset.UtcNow),
+                muted: false);
+            var coordinator = new NotificationCoordinator(
+                new ActivityHistory(),
+                policy,
+                manager,
+                TimeProvider.System,
+                new VoiceSettings { Provider = "pack", Muted = false });
+            var controller = CreateController(dispatcher, monitor, placement, notifications: coordinator);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            coordinator.OnSnapshot(VoiceTestData.Snapshot(
+                DateTimeOffset.UtcNow,
+                new[] { VoiceTestData.Task(key: key, state: AgentTaskState.NeedsApproval) },
+                new[] { VoiceTestData.Event(AttentionEventKind.PermissionRequired, key: key, observedAt: DateTimeOffset.UtcNow) }));
+            Assert.True(SpinUntil(() => provider.Calls == 1), "provider was not entered");
+
+            dispatcher.DrainAll();
+            var postsBeforeSuspend = dispatcher.PostCount;
+            var appliesBeforeSuspend = placement.ApplyCount;
+
+            // Suspend has to run inline: a posted callback would not run before
+            // the machine sleeps, and stale audio would survive the wake.
+            controller.NotifyPowerModeChanged(PowerModes.Suspend);
+            Assert.Equal(postsBeforeSuspend, dispatcher.PostCount);
+            Assert.Equal(appliesBeforeSuspend, placement.ApplyCount);
+            Assert.False(coordinator.IsMuted);
+            Assert.Equal(0, coordinator.Status.QueuedCount);
+            gate.TrySetResult();
+            Assert.True(SpinUntil(() => player.Played.Count == 0 && player.StopCount >= 1), "audio was not stopped");
+
+            // Resume repairs geometry and reconciles through the UI thread.
+            controller.NotifyPowerModeChanged(PowerModes.Resume);
+            Assert.Equal(postsBeforeSuspend + 1, dispatcher.PostCount);
+            Assert.False(monitor.ReconcileRequested);
+            dispatcher.DrainAll();
+            Assert.True(monitor.ReconcileRequested);
+            Assert.True(placement.ApplyCount > appliesBeforeSuspend);
+
+            // A display change takes the same repair path.
+            var postsBeforeDisplay = dispatcher.PostCount;
+            controller.NotifyDisplaySettingsChanged();
+            Assert.Equal(postsBeforeDisplay + 1, dispatcher.PostCount);
+            dispatcher.DrainAll();
+            Assert.True(placement.ApplyCount > appliesBeforeSuspend + 1);
+
+            StaTestHost.Complete(controller.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(4)));
+            StaTestHost.Complete(coordinator.DisposeAsync().AsTask());
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    private static bool SpinUntil(Func<bool> condition, int timeoutMs = 2000)
+    {
+        var started = Environment.TickCount64;
+        while (Environment.TickCount64 - started < timeoutMs)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            Thread.Sleep(5);
+        }
+
+        return condition();
+    }
+
     private sealed class BlockingPersistence : IHudPersistence, IDisposable
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -411,7 +500,8 @@ public sealed class HudDispatchTests
         ITaskNavigator? navigator = null,
         IClipboardWriter? clipboard = null,
         bool startHidden = false,
-        IHudPersistence? persistence = null)
+        IHudPersistence? persistence = null,
+        NotificationCoordinator? notifications = null)
     {
         _directory = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_directory);
@@ -438,7 +528,8 @@ public sealed class HudDispatchTests
             TimeProvider.System,
             StartHidden: startHidden,
             TrayEnabled: false,
-            Persistence: persistence);
+            Persistence: persistence,
+            Notifications: notifications);
         return new HudApplicationController(dependencies);
     }
 

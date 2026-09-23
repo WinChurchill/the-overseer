@@ -220,6 +220,58 @@ public sealed class VoiceManagerTests
     }
 
     [Fact]
+    public async Task SuspendFencesInFlightProviderWorkWithoutChangingMute()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeVoiceProvider { Gate = gate };
+        var player = new FakeVoicePlayer();
+        await using var manager = new VoiceManager(provider, player, Options(), muted: false);
+        manager.Start();
+
+        manager.Enqueue(new[] { Candidate() });
+        Assert.True(await WaitForAsync(() => provider.Calls == 1), "provider was not entered");
+
+        // Suspend cancels work that was already inside the provider and fences
+        // every late result, but the user's mute preference is untouched.
+        manager.DiscardPendingWork("suspended");
+        gate.TrySetResult();
+        await Task.Delay(250);
+
+        Assert.Empty(player.Played);
+        Assert.False(manager.IsMuted);
+        Assert.Equal(0, manager.QueuedCount);
+        Assert.Equal("suspended", manager.Status.LastOutcomeCode);
+        Assert.True(player.StopCount >= 1, "audio stop was not requested");
+
+        // The same manager still speaks fresh work after wake.
+        manager.Enqueue(new[] { Candidate(number: 2, kind: VoiceEventKind.TaskError) });
+        Assert.True(await WaitForAsync(() => player.Played.Count == 1), "played " + player.Played.Count);
+    }
+
+    [Fact]
+    public async Task SuspendDropsQueuedCuesAndCountsThemWithoutMuting()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeVoiceProvider();
+        var player = new FakeVoicePlayer { Gate = gate };
+        await using var manager = new VoiceManager(provider, player, Options(), muted: false);
+        manager.Start();
+
+        manager.Enqueue(new[] { Candidate(1), Candidate(2), Candidate(3) });
+        Assert.True(await WaitForAsync(() => manager.QueuedCount >= 2), "queue did not fill");
+
+        manager.DiscardPendingWork("suspended");
+        gate.TrySetResult();
+        await Task.Delay(250);
+
+        Assert.Empty(player.Played);
+        Assert.Equal(0, manager.QueuedCount);
+        Assert.False(manager.IsMuted);
+        Assert.True(manager.Status.DroppedCount >= 2, "dropped=" + manager.Status.DroppedCount);
+        Assert.Equal("suspended", manager.Status.LastOutcomeCode);
+    }
+
+    [Fact]
     public async Task RepeatedDisposalIsIdempotentAndStopsWork()
     {
         var provider = new FakeVoiceProvider { Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };

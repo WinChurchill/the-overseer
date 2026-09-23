@@ -94,6 +94,25 @@ public sealed class NotificationCoordinator : IAsyncDisposable
 
     }
 
+    /// <summary>
+    /// System is going to sleep: drop queued/pending cues and stop audio, but
+    /// keep the mute preference and the once-per-condition latches. Nothing that
+    /// was captured before the suspend may play after the resume.
+    /// </summary>
+    public void OnSuspend()
+    {
+        lock (_gate)
+        {
+            if (_failed)
+            {
+                return;
+            }
+
+            _policy.DiscardPending();
+            _manager.DiscardPendingWork("suspended");
+        }
+    }
+
     /// <summary>Terminal monitor failure: stop voice, break history continuity.</summary>
     public void OnMonitorFailure(string code)
     {

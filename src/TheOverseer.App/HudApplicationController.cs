@@ -786,7 +786,14 @@ public sealed class HudApplicationController : IAsyncDisposable
         }
     }
 
-    private void OnDisplaySettingsChanged(object? sender, EventArgs e) =>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => NotifyDisplaySettingsChanged();
+
+    /// <summary>
+    /// Display layout changed: keep the window reachable and ask the monitor to
+    /// reconcile. Public so the lifecycle path is testable without a real
+    /// display change; no task state is invented here.
+    /// </summary>
+    public void NotifyDisplaySettingsChanged() =>
         _dependencies.Dispatcher.Post(() =>
         {
             if (_shuttingDown)
@@ -794,29 +801,45 @@ public sealed class HudApplicationController : IAsyncDisposable
                 return;
             }
 
-            // Display layout changed: keep the window reachable and ask the
-            // monitor to reconcile; no task state is invented here.
             ApplyGeometry(show: _window?.IsVisible ?? false);
             _dependencies.Monitor.RequestReconcile();
         });
 
-    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e) =>
+        NotifyPowerModeChanged(e.Mode);
+
+    /// <summary>
+    /// Power transitions. Suspend is handled inline on the events thread because
+    /// a posted callback would not run before the machine sleeps; it discards
+    /// cues that would otherwise play stale after wake. Resume re-runs the
+    /// display repair and the reconcile on the UI thread. Both paths repeat the
+    /// normal display-change handling, so a session that comes back with a
+    /// different monitor set is repaired instead of assumed unchanged.
+    /// </summary>
+    public void NotifyPowerModeChanged(PowerModes mode)
     {
-        if (e.Mode != PowerModes.Resume)
+        switch (mode)
         {
-            return;
+            case PowerModes.Suspend:
+                _dependencies.Notifications?.OnSuspend();
+                Log(MonitorLogLevel.Info, "hud-suspend-voice-discarded");
+                break;
+            case PowerModes.Resume:
+                _dependencies.Dispatcher.Post(() =>
+                {
+                    if (_shuttingDown)
+                    {
+                        return;
+                    }
+
+                    ApplyGeometry(show: _window?.IsVisible ?? false);
+                    _dependencies.Monitor.RequestReconcile();
+                    Log(MonitorLogLevel.Info, "hud-resume-reconcile");
+                });
+                break;
+            default:
+                break;
         }
-
-        _dependencies.Dispatcher.Post(() =>
-        {
-            if (_shuttingDown)
-            {
-                return;
-            }
-
-            ApplyGeometry(show: _window?.IsVisible ?? false);
-            _dependencies.Monitor.RequestReconcile();
-        });
     }
 
     // ---- shutdown ---------------------------------------------------------------

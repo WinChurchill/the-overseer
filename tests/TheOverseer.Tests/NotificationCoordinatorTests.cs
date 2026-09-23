@@ -224,4 +224,71 @@ public sealed class NotificationCoordinatorTests
         Assert.True(await WaitForAsync(() => player.Played.Count == 1), "played " + player.Played.Count);
         await coordinator.DisposeAsync();
     }
+
+    [Fact]
+    public async Task SuspendDropsPendingCuesAndKeepsLatchesSilent()
+    {
+        var (coordinator, player, _, _) = Create();
+        var key = VoiceTestData.Key();
+        var start = Start;
+        var attention = VoiceTestData.Event(AttentionEventKind.PermissionRequired, key: key, observedAt: start);
+        var task = VoiceTestData.Task(key: key, state: AgentTaskState.NeedsApproval);
+
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start, new[] { task }, new[] { attention }));
+        Assert.True(await WaitForAsync(() => player.Played.Count == 1), "played " + player.Played.Count);
+
+        coordinator.OnSuspend();
+        Assert.False(coordinator.IsMuted);
+
+        // A replay of the same condition after wake stays silent: the once-per-
+        // episode latch and the dedupe guard both survive the suspend.
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start.AddMilliseconds(400), new[] { task }, new[] { attention }));
+        await Task.Delay(200);
+        Assert.Single(player.Played);
+
+        // A genuinely new episode is still announced after wake.
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(
+            start.AddSeconds(3),
+            new[] { VoiceTestData.Task(key: key, state: AgentTaskState.Working, turnId: "turn-2") }));
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(
+            start.AddSeconds(4),
+            new[] { VoiceTestData.Task(key: key, state: AgentTaskState.NeedsApproval, turnId: "turn-2") },
+            new[] { VoiceTestData.Event(AttentionEventKind.PermissionRequired, key: key, turnId: "turn-2", observedAt: start.AddSeconds(4)) }));
+
+        Assert.True(await WaitForAsync(() => player.Played.Count == 2), "played " + player.Played.Count);
+        await coordinator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task RestartedProcessHydratesAnActiveTaskSilently()
+    {
+        var (coordinator, player, _, provider) = Create();
+        var key = VoiceTestData.Key();
+        var start = Start;
+
+        // Process restart: the first snapshot is a hydration of an already
+        // running task. Hydration is not an event, so nothing may be spoken.
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start, new[] { VoiceTestData.Task(key: key, state: AgentTaskState.Working) }));
+        await Task.Delay(200);
+        Assert.Empty(player.Played);
+        Assert.Equal(0, provider.Calls);
+
+        // The fresh explicit completion of that same task is announced once.
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(
+            start.AddSeconds(2),
+            new[] { VoiceTestData.Task(key: key, state: AgentTaskState.Done) },
+            new[] { VoiceTestData.Event(AttentionEventKind.TaskCompleted, key: key, observedAt: start.AddMilliseconds(250), state: AgentTaskState.Done) }));
+
+        // The timer-driven pump flushes the aggregation window once it elapses.
+        Assert.True(
+            await WaitForAsync(
+                () =>
+                {
+                    coordinator.Pump();
+                    return player.Played.Count == 1;
+                },
+                5000),
+            "played " + player.Played.Count);
+        await coordinator.DisposeAsync();
+    }
 }
