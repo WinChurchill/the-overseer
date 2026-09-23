@@ -387,3 +387,9 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   4px at 1280px), preserve geometry/spacing and white-gray fills, transparent
   background and negative space, no text/shadow/redesign. Generated result also
   reduces the original edge speckling. Converted to the existing seven ICO sizes.
+- Release build: zero warnings/errors; 442 tests passed. Packaged source `1e675ca`;
+  archive SHA-256 `AFA759C97C6FE08F295070A93692F534712E7851B238BE5615AA4AA16BE10D25`.
+  Sixteen fixture renders; extracted executable icon inspected. Scoped live check:
+  visible/topmost/taskbar, zero foreground observations in 60 samples/15 seconds.
+  Shortcut target/icon verified; updated app running with existing settings.
+  Evidence: `artifacts/outlined-release/`. Full smoke not repeated for asset edit.
