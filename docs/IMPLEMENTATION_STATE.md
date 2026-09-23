@@ -369,3 +369,12 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   transparency and artwork. Inspected the 32px result; no product logic changes.
 - Release build passed with zero warnings/errors; all 442 tests passed, including
   embedded icon frame and tray decoding checks. Changelog updated.
+- Packaged source `3405a26`; archive SHA-256
+  `00903EBB67206A12508E0CDF15AA3F1E051B541AAC0B7F6D00D70D5A7017C2F9`.
+  Sixteen fixture renders generated; executable icon extracted and inspected.
+  Scoped live check confirms visible/topmost/taskbar; 11/60 foreground samples
+  occurred during the interactive session, so this run does not establish absence
+  of focus activation. No focus code changed; full smoke was not repeated.
+- Updated and verified `C:\Users\tester\Desktop\OVERSEER.lnk` target and icon.
+  App left running from `artifacts/overseer-emblem-3405a26/`, settings preserved.
+  Evidence in `artifacts/emblem-release/`; no merge/tag.
