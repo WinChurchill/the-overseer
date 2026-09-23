@@ -76,6 +76,13 @@ public static class OverseerWindows
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [StructLayout(LayoutKind.Sequential)] private struct LastInput { public uint Size; public uint Tick; }
+    [DllImport("user32.dll")] private static extern bool GetLastInputInfo(ref LastInput value);
+    public static uint LastInputTick()
+    {
+        var value = new LastInput { Size = (uint)Marshal.SizeOf<LastInput>() };
+        return GetLastInputInfo(ref value) ? value.Tick : 0;
+    }
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
 
     private static List<IntPtr> WindowsOf(int processId)
@@ -351,11 +358,16 @@ if (-not $SkipHudLifecycle) {
     $foregroundSamples = New-Object System.Collections.ArrayList
     $deadline = (Get-Date).AddSeconds($HudSeconds)
     while ((Get-Date) -lt $deadline) {
-        Start-Sleep -Seconds 2
+        Start-Sleep -Milliseconds 100
         if ($live.HasExited) { $alive = $false; break }
         if ([OverseerWindows]::AnyVisibleWindowOf($livePid)) { $windowSeen = $true }
         $foreground = [OverseerWindows]::GetForegroundWindow()
-        [void]$foregroundSamples.Add($foreground.ToString())
+        [void]$foregroundSamples.Add([ordered]@{
+            atUtc = [DateTimeOffset]::UtcNow.ToString('o')
+            foreground = $foreground.ToString()
+            lastInputTick = [OverseerWindows]::LastInputTick()
+            ownedForeground = [OverseerWindows]::WindowsForProcess($livePid) -contains $foreground
+        })
         foreach ($hWnd in [OverseerWindows]::WindowsForProcess($livePid)) {
             if ($hWnd -eq $foreground) { $focusStolen = $true }
         }
@@ -364,6 +376,7 @@ if (-not $SkipHudLifecycle) {
     Add-Check 'hud-live-process-alive' $alive ('alive=' + $alive + ' seconds=' + $HudSeconds)
     Add-Check 'hud-live-window-visible' $windowSeen ('visible window seen=' + $windowSeen)
     Add-Check 'hud-live-no-focus-steal' (-not $focusStolen) ('foreground samples=' + $foregroundSamples.Count + ' own window foreground=' + $focusStolen)
+    $foregroundSamples | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $logRoot 'foreground-samples.json') -Encoding utf8
 
     if ($alive) {
         # Second instance must exit by itself without disturbing the first.

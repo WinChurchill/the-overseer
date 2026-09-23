@@ -37,52 +37,6 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint GetDpiForSystem();
 
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern IntPtr MonitorFromPoint(Point point, uint flags);
-
-    [DllImport("shcore.dll")]
-    private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
-
-    /// <summary>MONITOR_DEFAULTTONEAREST: never fail, return the closest monitor.</summary>
-    internal const uint MonitorDefaultToNearest = 2;
-
-    /// <summary>MDT_EFFECTIVE_DPI: the DPI the shell actually scales this monitor by.</summary>
-    private const int MdtEffectiveDpi = 0;
-
-    /// <summary>
-    /// Per-monitor scale for a physical point. Mixed-DPI desktops report a
-    /// different scale per screen, so screen enumeration must ask about the
-    /// monitor that owns the point instead of assuming the system baseline.
-    /// Returns 0 when the query is unavailable so callers can fall back.
-    /// </summary>
-    internal static uint GetMonitorDpi(int x, int y)
-    {
-        try
-        {
-            var monitor = MonitorFromPoint(new Point { X = x, Y = y }, MonitorDefaultToNearest);
-            if (monitor == IntPtr.Zero)
-            {
-                return 0;
-            }
-
-            if (GetDpiForMonitor(monitor, MdtEffectiveDpi, out var dpiX, out var dpiY) != 0)
-            {
-                return 0;
-            }
-
-            return dpiX != 0 ? dpiX : dpiY;
-        }
-        catch (DllNotFoundException)
-        {
-            // Pre-8.1 shells have no shcore.dll; the system DPI is the fallback.
-            return 0;
-        }
-        catch (EntryPointNotFoundException)
-        {
-            return 0;
-        }
-    }
-
     [DllImport("user32.dll", SetLastError = true, EntryPoint = "GetWindowLongPtrW")]
     internal static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int index);
 
@@ -91,13 +45,6 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool PostMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct Point
-    {
-        internal int X;
-        internal int Y;
-    }
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Rect
