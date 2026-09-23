@@ -9,6 +9,10 @@ public enum VoiceEventKind
     TaskError,
     TaskCompleted,
     AllTasksCompleted,
+    MonitoringLost,
+    MonitoringRestored,
+    StillWaiting,
+    SystemOnline,
 }
 
 /// <summary>
@@ -41,7 +45,7 @@ public sealed record VoiceClip(byte[] Wav, string SourceCode, string DetailCode)
 }
 
 /// <summary>Provider/protocol outcome codes surfaced to the HUD without private data.</summary>
-public sealed record VoiceProviderStatus(string ProviderId, bool IsAvailable, string LastCode);
+public sealed record VoiceProviderStatus(string ProviderId, bool IsAvailable, string LastCode, int FallbackCount = 0);
 
 public interface IVoiceProvider
 {
@@ -154,7 +158,7 @@ public sealed class FallbackVoiceProvider : IVoiceProvider, IDisposable
 
     public int FallbackCount { get; private set; }
 
-    public VoiceProviderStatus Status => new(_primary.Id, _primary.Status.IsAvailable, _lastCode);
+    public VoiceProviderStatus Status => new(_primary.Id, _primary.Status.IsAvailable, _lastCode, FallbackCount);
 
     public async ValueTask<VoiceClip?> TryCreateAsync(VoiceCandidate candidate, CancellationToken cancellationToken)
     {

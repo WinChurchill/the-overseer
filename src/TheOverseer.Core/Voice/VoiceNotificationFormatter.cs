@@ -14,17 +14,12 @@ public static class VoiceNotificationFormatter
 {
     public const int MaximumCharacters = 160;
 
-    public static string EventCode(VoiceEventKind kind) => kind switch
-    {
-        VoiceEventKind.PermissionRequired => "permission_required",
-        VoiceEventKind.InputRequired => "input_required",
-        VoiceEventKind.TaskError => "task_error",
-        VoiceEventKind.TaskCompleted => "task_complete",
-        _ => "all_tasks_complete",
-    };
+    public static string EventCode(VoiceEventKind kind) => VoiceEventCatalog.For(kind).Code;
 
     public static string Alias(VoiceCandidate candidate)
     {
+        if (candidate.Kind is VoiceEventKind.MonitoringLost or VoiceEventKind.MonitoringRestored or VoiceEventKind.SystemOnline)
+            return "OVERSEER";
         if (candidate.IsAggregate)
         {
             return candidate.TaskCount > 0
@@ -43,6 +38,8 @@ public static class VoiceNotificationFormatter
         var alias = Alias(candidate);
         var text = candidate.Kind switch
         {
+            VoiceEventKind.MonitoringLost or VoiceEventKind.MonitoringRestored or VoiceEventKind.SystemOnline => VoiceEventCatalog.For(candidate.Kind).Script,
+            VoiceEventKind.StillWaiting => alias + " is still waiting for you.",
             VoiceEventKind.PermissionRequired => alias + " needs your approval.",
             VoiceEventKind.InputRequired => alias + " needs your input.",
             VoiceEventKind.TaskError => alias + " failed.",

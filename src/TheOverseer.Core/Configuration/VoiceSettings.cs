@@ -39,6 +39,18 @@ public sealed record VoiceSettings
     [JsonPropertyName("timeoutSeconds")]
     public double TimeoutSeconds { get; init; } = DefaultTimeoutSeconds;
 
+    [JsonPropertyName("events")]
+    public IReadOnlyDictionary<string, bool> Events { get; init; } = new Dictionary<string, bool>();
+
+    [JsonPropertyName("clips")]
+    public IReadOnlyDictionary<string, string> Clips { get; init; } = new Dictionary<string, string>();
+
+    public bool IsEnabled(TheOverseer.Core.Voice.VoiceEventKind kind)
+    {
+        var entry = TheOverseer.Core.Voice.VoiceEventCatalog.For(kind);
+        return Events is not null && Events.TryGetValue(entry.Code, out var enabled) ? enabled : entry.DefaultEnabled;
+    }
+
     [JsonIgnore]
     public VoiceProviderKind ResolvedProvider =>
         string.Equals(Provider, "tts", StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Tts : VoiceProviderKind.Pack;
@@ -58,7 +70,15 @@ public sealed record VoiceSettings
         PackId = NormalizePackId(PackId),
         Endpoint = NormalizeEndpoint(Endpoint),
         TimeoutSeconds = NormalizeTimeout(TimeoutSeconds),
+        Events = TheOverseer.Core.Voice.VoiceEventCatalog.All.ToDictionary(item => item.Code, item => IsEnabled(item.Kind)),
+        Clips = (Clips ?? new Dictionary<string, string>())
+            .Where(pair => TheOverseer.Core.Voice.VoiceEventCatalog.All.Any(item => item.Code == pair.Key) &&
+                IsSafeClipName(pair.Value)).ToDictionary(pair => pair.Key, pair => pair.Value),
     };
+
+    public static bool IsSafeClipName(string? name) => !string.IsNullOrWhiteSpace(name) && name.Length <= 100 &&
+        name.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) &&
+        name.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.');
 
     public static double NormalizeTimeout(double value)
     {

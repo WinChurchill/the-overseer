@@ -9,6 +9,7 @@ namespace TheOverseer.Core.Voice;
 /// </summary>
 public sealed class VoiceManager : IAsyncDisposable
 {
+    public event Action<VoiceCandidate>? Played;
     private readonly IVoiceProvider _provider;
     private readonly IVoicePlayer _player;
     private readonly VoiceManagerOptions _options;
@@ -85,7 +86,7 @@ public sealed class VoiceManager : IAsyncDisposable
                     _spoken,
                     _dropped,
                     _failed,
-                    (_provider as FallbackVoiceProvider)?.FallbackCount ?? 0,
+                    _provider.Status.FallbackCount,
                     _speaking,
                     Describe());
             }
@@ -412,6 +413,7 @@ public sealed class VoiceManager : IAsyncDisposable
                     _lastCode = "playback-failed";
                 }
             }
+            if (played) Played?.Invoke(item.Candidate);
         }
         catch (OperationCanceledException)
         {

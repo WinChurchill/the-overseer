@@ -15,6 +15,15 @@
 
 ### Changed
 
+- Added Light & voice settings in the header and tray menus: an optional steady
+  status strip (four sides, adjustable size), nine voice situations with trigger
+  descriptions, per-event switches, WAV assignment, validation and explicit preview.
+- Added sustained monitoring-loss/restoration cues, an optional five-minute waiting
+  reminder and an optional startup greeting. Reminders and startup default off;
+  brief outages, user cancellation, normal UI actions and notification backlogs
+  stay silent. Restoration requires successful playback of the loss cue.
+- Assigned recordings are copied locally and override the configured pack/TTS for
+  that event. Preview works while muted; Stop, close and mute cancel playback.
 - Applied the supplied OVERSEER artwork to the executable, taskbar/window and tray
   icons, with standard Windows sizes and preserved transparency.
 - Replaced diagnostic headlines with concise status text. A compact coverage/input

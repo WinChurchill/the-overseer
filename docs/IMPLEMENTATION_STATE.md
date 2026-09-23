@@ -284,3 +284,24 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   this does not verify speech quality or real Codex approval/input observability.
   User confirmed the tones were heard clearly. Normal HUD settings remain muted;
   its selected `example` pack was not installed and no TTS endpoint was configured.
+
+### User-authorized light and voice setup — 2026-09-23
+
+- Additive follow-up on `ux/first-use`, base `118787b`; no new numbered plan and no
+  edits to the frozen specification. User explicitly approved the larger optional
+  status light and in-app nine-event recording setup, followed by review.
+- Light & voice panel is reachable from header and tray menus. Steady strip has
+  four positions and 6–24 DIP thickness; default off, settings persisted. Same
+  status palette and layout in both themes. WAV assignment copies validated audio
+  locally; per-event toggles, status, scripts, preview and stop are provided.
+- Four new lifecycle events supplement the original five. Loss waits ten seconds;
+  restore requires a successfully played loss cue. Startup and one five-minute
+  reminder are opt-in. Reminders require fresh explicit request evidence, never
+  inactivity or historical discovery. UI actions and cancellation stay silent.
+- Review fixed cancellation being eligible as error audio, sleep after terminal
+  failure, disabled all-complete suppressing individual completion, wrapper fallback
+  diagnostics and provider/settings lock ordering. Pending work is discarded on
+  preview, mute, configuration changes and suspend; reconnect snapshots cannot
+  replay task transitions. Imported clips remain local and bounded; no dependencies.
+- Build/tests, visual checks and packaged verification are recorded below once
+  the final candidate has passed. Real approval/input observability remains limited.

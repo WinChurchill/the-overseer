@@ -17,6 +17,10 @@
     "task_complete": [
       "complete.wav"
     ],
+    "monitoring_lost": ["error.wav"],
+    "monitoring_restored": ["complete.wav"],
+    "still_waiting": ["input.wav"],
+    "system_online": ["all.wav"],
     "all_tasks_complete": [
       "all.wav"
     ]

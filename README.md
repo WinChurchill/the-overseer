@@ -259,8 +259,37 @@ The tooltip retains detailed sample, peak and coverage information.
 
 ### Voice notifications
 
+Open **Light & voice…** from the HUD header's right-click menu or the tray menu.
+Choose Off/Top/Bottom/Left/Right and a 6–24 DIP size for the steady status strip.
+It uses the HUD's status palette and adds space around the HUD without covering
+the controls. Off is the default; placement and size are saved.
+
+The same panel lists all nine notification situations, suggested recording text,
+trigger descriptions, enable switches and clip availability. **Assign WAV…** copies
+a validated recording into `%LOCALAPPDATA%\OVERSEER\voiceclips` and takes precedence
+over the configured pack/TTS for that event. **Use pack / TTS** removes the assignment
+without deleting your recordings. **Preview** explicitly plays even while muted;
+Stop preview, closing the panel or muting stops it. Normal notifications do not
+overlap a preview, and events occurring during preview do not replay afterward.
+Opening the panel validates local clips but does not contact TTS or play audio.
+
+The original five event codes remain supported, with four additive codes:
+
+| Event code | Trigger | Default |
+| --- | --- | --- |
+| `monitoring_lost` | Monitoring unavailable for 10 seconds; once per outage | Enabled |
+| `monitoring_restored` | Monitoring available again after the loss cue successfully played | Enabled |
+| `still_waiting` | One reminder after five minutes of a fresh, observable unresolved request | Disabled |
+| `system_online` | Once when monitoring becomes available at app launch | Disabled |
+
+Routine UI actions, user cancellation and immediate work resumption do not speak.
+Mute, preview, sleep and settings changes discard pending notifications; enabling
+an event or unmuting does not replay old activity. Missing/invalid clips stay silent
+and can be inspected in the panel. These controls do not improve upstream Codex
+approval/input observability: those events still require available evidence.
+
 Voice starts **muted**; nothing is ever spoken until the user unmutes from the
-header button, the header context menu or the tray menu.
+header button, the header context menu or the tray menu, except an explicit Preview.
 
 Notifications come only from normalized attention transitions, and each active
 condition speaks once:

@@ -88,6 +88,12 @@ internal sealed class TrayService : IDisposable
             menu.Items.Add(reset);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(status);
+            if (callbacks.OpenSettings is { } openSettings)
+            {
+                var settings = new ToolStripMenuItem("Light & voice…");
+                settings.Click += (_, _) => openSettings();
+                menu.Items.Add(settings);
+            }
             menu.Items.Add(exit);
 
             artwork = AppIcon.CreateTrayIcon();
@@ -162,4 +168,5 @@ public sealed record TrayCallbacks(
     Action ToggleStartWithWindows,
     Action ToggleMute,
     Action ResetPosition,
-    Action Exit);
+    Action Exit,
+    Action? OpenSettings = null);

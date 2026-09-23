@@ -319,7 +319,7 @@ public sealed class VoiceEventPolicy
             VoiceEventKind.PermissionRequired => task.State == AgentTaskState.NeedsApproval,
             VoiceEventKind.InputRequired => task.State == AgentTaskState.NeedsInput ||
                 (task.NeedsHuman && task.State != AgentTaskState.NeedsApproval),
-            VoiceEventKind.TaskError => task.State == AgentTaskState.Error,
+            VoiceEventKind.TaskError => task.State == AgentTaskState.Error && !task.Cancelled,
             _ => false,
         };
     }

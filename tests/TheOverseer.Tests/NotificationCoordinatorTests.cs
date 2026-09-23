@@ -111,11 +111,11 @@ public sealed class NotificationCoordinatorTests
         Assert.True(await WaitForAsync(() => player.Played.Count == 1), "played " + player.Played.Count);
 
         coordinator.OnMonitorFailure("monitor-faulted");
-        Assert.True(coordinator.IsMuted);
+        Assert.False(coordinator.IsMuted); // Preserve preference; only the delayed monitoring-loss cue remains eligible.
         Assert.Single(history.Snapshot(start.AddMinutes(1)).Samples);
         Assert.True(history.Snapshot(start.AddMinutes(1)).HasGap);
 
-        // Later snapshots are ignored: a broken monitor never speaks.
+        // Later task snapshots are ignored: a broken monitor never announces task events.
         coordinator.OnSnapshot(VoiceTestData.Snapshot(
             start.AddMilliseconds(500),
             new[] { VoiceTestData.Task(key: key, state: AgentTaskState.NeedsApproval) },

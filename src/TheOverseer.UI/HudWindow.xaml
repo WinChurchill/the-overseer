@@ -159,6 +159,11 @@
   <Border x:Name="Shell" Background="{DynamicResource BackgroundBaseBrush}"
           BorderBrush="{DynamicResource BorderBrush}"
           BorderThickness="{DynamicResource ShellBorderThickness}">
+    <DockPanel>
+      <Border x:Name="StatusLight" DockPanel.Dock="{Binding LightDock}" Width="{Binding LightWidth}" Height="{Binding LightHeight}"
+              Visibility="{Binding LightVisible, Converter={StaticResource BoolToVisibility}}" Style="{StaticResource StatusAccent}"
+              Background="{Binding BorderBrush, RelativeSource={RelativeSource Self}}"
+              ToolTip="{Binding StatusHeadline}" automation:AutomationProperties.Name="{Binding StatusHeadline}" />
     <Grid>
       <Grid.RowDefinitions>
         <RowDefinition Height="72" />
@@ -426,5 +431,6 @@
                    Foreground="{DynamicResource MutedBrush}" />
       </Grid>
     </Grid>
+    </DockPanel>
   </Border>
 </Window>

@@ -97,11 +97,14 @@ internal static class HudComposition
     {
         var normalized = (settings ?? VoiceSettings.Default).Normalized();
         var policy = new VoiceEventPolicy();
-        bool Relevant(VoiceCandidate candidate) => policy.IsRelevant(candidate, TimeProvider.System.GetUtcNow());
-        var packProvider = new VoicePackProvider(dataDirectory, () => normalized);
-        IVoiceProvider provider = normalized.ResolvedProvider == VoiceProviderKind.Tts
-            ? new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), () => normalized), packProvider, allowFallback: true, Relevant)
+        NotificationCoordinator? coordinator = null;
+        VoiceSettings Settings() => coordinator?.Settings ?? normalized;
+        bool Relevant(VoiceCandidate candidate) => coordinator?.IsStillRelevant(candidate) ?? false;
+        var packProvider = new VoicePackProvider(dataDirectory, Settings);
+        IVoiceProvider fallback = normalized.ResolvedProvider == VoiceProviderKind.Tts
+            ? new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), Settings), packProvider, allowFallback: true, Relevant)
             : packProvider;
+        IVoiceProvider provider = new AssignedVoiceProvider(dataDirectory, Settings, fallback);
 
         var player = new WavPlaybackService();
         var manager = new VoiceManager(
@@ -112,7 +115,8 @@ internal static class HudComposition
             revalidate: Relevant,
             muted: normalized.Muted);
         _ = log;
-        return new NotificationCoordinator(new ActivityHistory(), policy, manager, TimeProvider.System, normalized);
+        coordinator = new NotificationCoordinator(new ActivityHistory(), policy, manager, TimeProvider.System, normalized);
+        return coordinator;
     }
 
     /// <summary>One reusable client: no redirects, no cookies, bounded by provider timeouts.</summary>

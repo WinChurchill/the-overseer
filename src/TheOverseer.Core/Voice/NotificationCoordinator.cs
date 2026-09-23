@@ -17,10 +17,13 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     private readonly VoiceManager _manager;
     private readonly TimeProvider _timeProvider;
     private readonly object _gate = new();
-    private VoiceSettings _settings;
+    private volatile VoiceSettings _settings;
     private bool _failed;
     private bool _suspended;
     private DateTimeOffset? _resumeAt;
+    private readonly VoiceLifecyclePolicy _lifecycle = new();
+    private bool _previewing;
+    private bool _monitorUnavailable;
 
     public NotificationCoordinator(
         ActivityHistory history,
@@ -34,18 +37,12 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         _manager = manager;
         _timeProvider = timeProvider;
         _settings = (settings ?? VoiceSettings.Default).Normalized();
+        _manager.Played += candidate => { lock (_gate) _lifecycle.Played(candidate); };
     }
 
-    public VoiceSettings Settings
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _settings;
-            }
-        }
-    }
+    // Immutable snapshots allow provider status reads without inverting the
+    // coordinator -> manager lock order during a concurrent monitor callback.
+    public VoiceSettings Settings => _settings;
 
     public bool IsMuted => _manager.IsMuted;
 
@@ -72,13 +69,21 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         {
             if (_failed) return;
             _history.Record(snapshot);
+            var unavailable = snapshot.Health.Level == MonitoringHealthLevel.Unavailable;
+            if (_monitorUnavailable && !unavailable)
+                snapshot = snapshot with { Transitions = Array.Empty<AttentionEvent>() };
+            _monitorUnavailable = unavailable;
             // A monitor cycle already in progress at wake can contain pre-wake
             // events. Keep its state/history but never revive those notifications.
             if (_resumeAt is { } resumed)
                 snapshot = snapshot with { Transitions = snapshot.Transitions.Where(e => e.ObservedAt > resumed).ToArray() };
+            if (!_settings.IsEnabled(VoiceEventKind.AllTasksCompleted))
+                snapshot = snapshot with { Transitions = snapshot.Transitions.Where(item => item.Kind != AttentionEventKind.AllTasksCompleted).ToArray() };
             var candidates = _policy.Observe(snapshot);
-            if (_manager.IsMuted || _suspended) _policy.DiscardPending();
-            if (!_suspended) _manager.Enqueue(candidates);
+            var audible = !_manager.IsMuted && !_suspended && !_previewing;
+            var extra = _lifecycle.Observe(snapshot, _settings, audible);
+            if (!audible) _policy.DiscardPending();
+            if (audible) _manager.Enqueue(candidates.Concat(extra).Where(candidate => _settings.IsEnabled(candidate.Kind)).ToArray());
         }
 
     }
@@ -86,17 +91,15 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     /// <summary>UI-thread step: flush completion aggregation and pending cooldowns.</summary>
     public void Pump()
     {
-        if (_failed)
-        {
-            return;
-        }
-
         lock (_gate)
         {
-            if (_failed) return;
             if (_suspended) { _policy.DiscardPending(); return; }
-            if (_manager.IsMuted) _policy.DiscardPending();
-            _manager.Enqueue(_policy.Pump(_timeProvider.GetUtcNow()));
+            var audible = !_manager.IsMuted && !_previewing;
+            if (!audible) _policy.DiscardPending();
+            var now = _timeProvider.GetUtcNow();
+            var extra = _lifecycle.Pump(now, _settings, audible);
+            var candidates = _failed ? Array.Empty<VoiceCandidate>() : _policy.Pump(now);
+            if (audible) _manager.Enqueue(candidates.Concat(extra).Where(candidate => _settings.IsEnabled(candidate.Kind)).ToArray());
         }
 
     }
@@ -110,12 +113,8 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_failed)
-            {
-                return;
-            }
-
             _suspended = true;
+            _lifecycle.Suppress();
             _policy.DiscardPending();
             _manager.DiscardPendingWork("suspended");
         }
@@ -126,7 +125,7 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_failed || !_suspended) return;
+            if (!_suspended) return;
             _resumeAt = _timeProvider.GetUtcNow();
             _policy.DiscardPending();
             _suspended = false;
@@ -140,7 +139,8 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         {
             _failed = true;
             _policy.Reset();
-            _manager.SetMuted(true);
+            _manager.DiscardPendingWork("monitor-failed");
+            _lifecycle.Fail(_timeProvider.GetUtcNow());
         }
 
         _ = code;
@@ -167,7 +167,8 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         {
             _settings = _settings with { Muted = muted };
             _policy.DiscardPending();
-            _manager.SetMuted(_failed || muted);
+            _lifecycle.Suppress();
+            _manager.SetMuted(muted);
         }
 
     }
@@ -175,7 +176,33 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     /// <summary>Revalidation used at playback: a queued cue must still be relevant.</summary>
     public bool IsStillRelevant(VoiceCandidate candidate)
     {
-        lock (_gate) return !_failed && !_suspended && _policy.IsRelevant(candidate, _timeProvider.GetUtcNow());
+        lock (_gate) return !_suspended && !_previewing && _settings.IsEnabled(candidate.Kind) &&
+            (candidate.Kind >= VoiceEventKind.MonitoringLost
+                ? _lifecycle.IsRelevant(candidate, _timeProvider.GetUtcNow())
+                : !_failed && _policy.IsRelevant(candidate, _timeProvider.GetUtcNow()));
+    }
+
+    public void UpdateSettings(VoiceSettings settings)
+    {
+        lock (_gate)
+        {
+            _settings = settings.Normalized();
+            _policy.DiscardPending();
+            _lifecycle.Suppress();
+            _manager.DiscardPendingWork("settings-changed");
+            _manager.SetMuted(_settings.Muted);
+        }
+    }
+
+    public void SetPreviewing(bool previewing)
+    {
+        lock (_gate)
+        {
+            _previewing = previewing;
+            _policy.DiscardPending();
+            _lifecycle.Suppress();
+            _manager.DiscardPendingWork("preview");
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -98,7 +98,7 @@ public sealed record HudControllerDependencies(
 /// Composition and lifetime owner for normal HUD mode: one monitor, one window,
 /// one tray icon, coalesced snapshot delivery and serialized persistence.
 /// </summary>
-public sealed class HudApplicationController : IAsyncDisposable
+public sealed partial class HudApplicationController : IAsyncDisposable
 {
     private static readonly HudSize ExpandedSize = new(360, 480);
     private const double ActivityChartWidth = 330;
@@ -134,6 +134,7 @@ public sealed class HudApplicationController : IAsyncDisposable
     public HudApplicationController(HudControllerDependencies dependencies)
     {
         _dependencies = dependencies;
+        _voiceSettings = dependencies.Config.Voice.Normalized();
         _logTask = Task.Run(async () =>
         {
             await foreach (var entry in _logQueue.Reader.ReadAllAsync())
@@ -293,6 +294,8 @@ public sealed class HudApplicationController : IAsyncDisposable
         var size = ViewModel.IsExpanded
             ? HudPlacementPolicy.BoundExpandedSize(target, ExpandedSize, _dpiScale, 8)
             : HudSize.Collapsed;
+        size = new HudSize(size.Width + ViewModel.LightExtraWidth, size.Height + ViewModel.LightExtraHeight);
+        if (ViewModel.IsExpanded) size = HudPlacementPolicy.BoundExpandedSize(target, size, _dpiScale, 8);
 
         // WPF owns the size (DIPs); the placement policy only decides where the
         // resulting window goes and keeps it reachable.
@@ -444,6 +447,8 @@ public sealed class HudApplicationController : IAsyncDisposable
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(HudViewModel.LightPosition) or nameof(HudViewModel.LightSize) && !_shuttingDown)
+            ApplyGeometry(show: false);
         if (e.PropertyName is nameof(HudViewModel.Theme) && !_shuttingDown) ApplyTheme();
         if (e.PropertyName is nameof(HudViewModel.IsExpanded))
         {
@@ -458,6 +463,8 @@ public sealed class HudApplicationController : IAsyncDisposable
 
         if (e.PropertyName is nameof(HudViewModel.IsMuted) && !_shuttingDown)
         {
+            if (ViewModel.IsMuted) StopVoicePreview();
+            _voiceSettings = _voiceSettings with { Muted = ViewModel.IsMuted };
             _dependencies.Notifications?.SetMuted(ViewModel.IsMuted);
             RefreshTrayState();
             return;
@@ -597,7 +604,8 @@ public sealed class HudApplicationController : IAsyncDisposable
             ToggleStartWithWindows,
             ToggleMute,
             ResetPosition,
-            () => ExitRequested?.Invoke(this, EventArgs.Empty));
+            () => ExitRequested?.Invoke(this, EventArgs.Empty),
+            OpenNotificationSettings);
         var (service, availability) = TrayService.TryCreate(callbacks);
         _tray = service;
         TrayAvailable = availability == TrayAvailability.Available;
@@ -637,6 +645,7 @@ public sealed class HudApplicationController : IAsyncDisposable
             Add("Opacity " + (int)Math.Round(value * 100) + "%", () => SetOpacity(value));
         }
         Add("Mute / unmute voice", ToggleMute);
+        Add("Light & voice…", OpenNotificationSettings);
         Add("Toggle start with Windows", ToggleStartWithWindows);
         Add("Reset position", ResetPosition);
         var monitoring = new System.Windows.Controls.MenuItem { Header = "Monitoring details" };
@@ -726,7 +735,7 @@ public sealed class HudApplicationController : IAsyncDisposable
         var state = _state;
         // Capture immutable UI state plus the live voice settings at save time;
         // the older dependency snapshot must never overwrite them.
-        var voice = (_dependencies.Notifications?.Settings ?? _dependencies.Config.Voice).Normalized() with
+        var voice = (_dependencies.Notifications?.Settings ?? _voiceSettings).Normalized() with
         {
             Muted = ViewModel.IsMuted,
         };
@@ -740,6 +749,8 @@ public sealed class HudApplicationController : IAsyncDisposable
                 StartWithWindows = ViewModel.StartWithWindows,
                 TaskView = ViewModel.TaskView,
                 RecentHours = ViewModel.RecentHours,
+                LightPosition = ViewModel.LightPosition,
+                LightSize = ViewModel.LightSize,
             },
             Voice = voice,
         };
@@ -868,6 +879,8 @@ public sealed class HudApplicationController : IAsyncDisposable
         }
 
         _shuttingDown = true;
+        _notificationSettings?.Close();
+        StopVoicePreview();
         _ageTimer.Stop();
         _saveTimer.Stop();
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;

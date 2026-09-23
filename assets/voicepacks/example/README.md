@@ -12,6 +12,10 @@ tone produced by the same tone generator the voice smoke check uses
 | `task_error` | `error.wav` | 320 Hz, 0.22 s |
 | `task_complete` | `complete.wav` | 880 Hz, 0.15 s |
 | `all_tasks_complete` | `all.wav` | 990 Hz, 0.25 s |
+| `monitoring_lost` | `error.wav` | Reuses the error tone |
+| `monitoring_restored` | `complete.wav` | Reuses the completion tone |
+| `still_waiting` | `input.wav` | Reuses the input tone; off by default |
+| `system_online` | `all.wav` | Reuses the all-complete tone; off by default |
 
 ## Install (opt-in)
 

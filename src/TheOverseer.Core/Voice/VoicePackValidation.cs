@@ -39,6 +39,10 @@ public static class VoicePackValidator
         "task_error",
         "task_complete",
         "all_tasks_complete",
+        "monitoring_lost",
+        "monitoring_restored",
+        "still_waiting",
+        "system_online",
     };
 
     private static readonly HashSet<int> SupportedRates = new() { 8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000, 96000 };

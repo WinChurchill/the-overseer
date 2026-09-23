@@ -103,6 +103,29 @@ internal static class HudFixtureRunner
             rendered.Add(path);
         }
 
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            foreach (var position in new[] { "top", "right" })
+            {
+                var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, LightPosition = position, LightSize = 18 });
+                vm.ApplySnapshot(scenarios[0]);
+                vm.IsExpanded = position == "right";
+                var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-light-" + position + ".png");
+                Render(vm, theme, path);
+                rendered.Add(path);
+            }
+            HudThemeManager.Apply(Application.Current, theme);
+            var rows = VoiceEventCatalog.All.Select(item => new VoiceSetupRow(item, item.DefaultEnabled) { Status = "No usable recording — assign a WAV." }).ToArray();
+            var settings = new NotificationSettingsWindow(new HudViewModel(HudSettings.Default), rows)
+            {
+                ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000, Top = -4000,
+            };
+            var settingsPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-settings.png");
+            RenderWindow(settings, settingsPath);
+            rendered.Add(settingsPath);
+        }
+
         Console.WriteLine("hud fixture rendered " + rendered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " views:");
         foreach (var path in rendered) Console.WriteLine("  " + path);
         return 0;
@@ -118,9 +141,14 @@ internal static class HudFixtureRunner
             DataContext = viewModel, ShowActivated = false, ShowInTaskbar = false,
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = -4000, Top = -4000,
-            Width = viewModel.IsExpanded ? ExpandedWidth : CollapsedWidth,
-            Height = viewModel.IsExpanded ? ExpandedHeight : CollapsedHeight,
+            Width = (viewModel.IsExpanded ? ExpandedWidth : CollapsedWidth) + viewModel.LightExtraWidth,
+            Height = (viewModel.IsExpanded ? ExpandedHeight : CollapsedHeight) + viewModel.LightExtraHeight,
         };
+        RenderWindow(window, path);
+    }
+
+    private static void RenderWindow(Window window, string path)
+    {
         try
         {
             window.Show();

@@ -47,7 +47,8 @@ public static class VoicePackCheckRunner
             return 1;
         }
         var failures = 0;
-        foreach (var kind in Events)
+        // Legacy five-event packs remain supported. Check any supplied extension events too.
+        foreach (var kind in Events.Concat(VoiceEventCatalog.All.Where(item => item.Kind >= VoiceEventKind.MonitoringLost && manifest.Events.ContainsKey(item.Code)).Select(item => item.Kind)))
         {
             var candidate = new VoiceCandidate(
                 kind,
