@@ -378,7 +378,7 @@ public sealed class VoiceManager : IAsyncDisposable
             var clip = await _provider.TryCreateAsync(item.Candidate, linked.Token).ConfigureAwait(false);
             if (clip is null)
             {
-                IncrementFailed(_provider.Status.LastCode);
+                IncrementFailed(_provider.Status.LastCode, item.Generation);
                 return;
             }
 
@@ -428,7 +428,7 @@ public sealed class VoiceManager : IAsyncDisposable
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or InvalidOperationException or TimeoutException or HttpRequestException or NotSupportedException)
         {
-            IncrementFailed("provider-error");
+            IncrementFailed("provider-error", item.Generation);
         }
         finally
         {
@@ -456,10 +456,11 @@ public sealed class VoiceManager : IAsyncDisposable
         }
     }
 
-    private void IncrementFailed(string code)
+    private void IncrementFailed(string code, int generation)
     {
         lock (_gate)
         {
+            if (_disposed || generation != _generation) return;
             _lastAttemptFailed = true;
             _failed++;
             _lastCode = string.IsNullOrEmpty(code) ? "provider-unavailable" : code;

@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Builds the OVERSEER V1 self-contained Windows x64 release payload and archive.
@@ -20,8 +21,8 @@
 [CmdletBinding()]
 param(
     [string] $OutputDirectory = 'artifacts/p4-release',
-    [string] $Configuration = 'Release',
-    [string] $RuntimeIdentifier = 'win-x64',
+    [ValidateSet('Release')][string] $Configuration = 'Release',
+    [ValidateSet('win-x64')][string] $RuntimeIdentifier = 'win-x64',
     [string] $Version = '1.0.0',
     [string] $ArchiveName = 'OVERSEER-v1-win-x64.zip',
     [string] $NuGetConfig,
@@ -37,8 +38,9 @@ function Write-Step([string] $message) { Write-Host ('==> ' + $message) }
 
 function Invoke-Checked([string] $file, [string[]] $arguments, [string] $what) {
     Write-Host ('    ' + $file + ' ' + ($arguments -join ' '))
-    & $file @arguments
-    $code = $LASTEXITCODE
+    Push-Location -LiteralPath $repoRoot
+    try { & $file @arguments; $code = $LASTEXITCODE }
+    finally { Pop-Location }
     if ($code -ne 0) { throw ($what + ' failed with exit code ' + $code) }
 }
 
@@ -71,6 +73,10 @@ $stagingRoot = Join-Path $outputRoot ('staging-' + $stamp + '-' + [Guid]::NewGui
 $publishRoot = Join-Path $stagingRoot 'publish'
 $payloadRoot = Join-Path $stagingRoot 'payload'
 $archivePath = Join-Path $outputRoot $ArchiveName
+if ([IO.Path]::GetFileName($ArchiveName) -ne $ArchiveName -or $ArchiveName -notlike '*.zip') {
+    throw 'ArchiveName must be a ZIP filename, not a path'
+}
+$pendingArchive = Join-Path $stagingRoot $ArchiveName
 $manifestPath = Join-Path $outputRoot 'build-manifest.json'
 $generatedNuGetConfig = $null
 
@@ -106,7 +112,9 @@ if (-not $dotnet -or -not (Test-Path -LiteralPath $dotnet)) {
 }
 
 $dotnetRoot = Split-Path -Parent $dotnet
-$sdkVersion = (& $dotnet --version).Trim()
+Push-Location -LiteralPath $repoRoot
+try { $sdkVersion = (& $dotnet --version).Trim(); if ($LASTEXITCODE -ne 0) { throw 'dotnet --version failed' } }
+finally { Pop-Location }
 Write-Step ('dotnet     ' + $dotnet + ' (' + $sdkVersion + ')')
 Write-Step ('source     ' + $sourceShort + ' on ' + $sourceBranch + $(if ($dirty) { ' (dirty tree allowed)' } else { '' }))
 Write-Step ('version    ' + $Version + ' ' + $Configuration + '/' + $RuntimeIdentifier)
@@ -130,6 +138,7 @@ try {
         $restoreArguments = @('--configfile', (Resolve-Path -LiteralPath $NuGetConfig).Path)
     } elseif ($env:NUGET_PACKAGES) {
         $generatedNuGetConfig = Join-Path $outputRoot ('nuget-' + $stamp + '.config')
+        $escapedPackages = [System.Security.SecurityElement]::Escape($env:NUGET_PACKAGES)
         $configXml = @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -138,7 +147,7 @@ try {
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
   </packageSources>
   <config>
-    <add key="globalPackagesFolder" value="$env:NUGET_PACKAGES" />
+    <add key="globalPackagesFolder" value="$escapedPackages" />
   </config>
 </configuration>
 "@
@@ -205,10 +214,26 @@ try {
     $requiredPayload = @(
         @{ Source = (Join-Path $repoRoot 'README.md'); Target = 'README.md' },
         @{ Source = (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md'); Target = 'THIRD_PARTY_NOTICES.md' },
-        @{ Source = (Join-Path $repoRoot 'third_party/codex-monitor-hud/LICENSE'); Target = 'licenses/codex-monitor-hud-MIT.txt' },
-        @{ Source = (Join-Path $dotnetRoot 'LICENSE.txt'); Target = 'licenses/dotnet-LICENSE.txt' },
-        @{ Source = (Join-Path $dotnetRoot 'ThirdPartyNotices.txt'); Target = 'licenses/dotnet-ThirdPartyNotices.txt' }
+        @{ Source = (Join-Path $repoRoot 'third_party/codex-monitor-hud/LICENSE'); Target = 'licenses/codex-monitor-hud-MIT.txt' }
     )
+    # SDK notices need not match the runtime version selected by restore. Read
+    # the exact redistributed runtime packages, using their actual versions.
+    $assets = Get-Content -LiteralPath (Join-Path $repoRoot 'src/TheOverseer.App/obj/project.assets.json') -Raw | ConvertFrom-Json
+    foreach ($framework in $selfContained.runtimeOptions.includedFrameworks) {
+        $packageId = ($framework.name + '.Runtime.' + $RuntimeIdentifier).ToLowerInvariant()
+        $packageRoot = $null
+        foreach ($folder in $assets.packageFolders.PSObject.Properties.Name) {
+            $candidate = Join-Path $folder ($packageId + '/' + $framework.version)
+            if (Test-Path -LiteralPath $candidate) { $packageRoot = $candidate; break }
+        }
+        if (-not $packageRoot) { throw ('Cannot locate redistributed runtime license: ' + $packageId + '/' + $framework.version) }
+        if ($framework.name -eq 'Microsoft.NETCore.App') {
+            $requiredPayload += @{ Source = (Join-Path $packageRoot 'LICENSE.TXT'); Target = 'licenses/dotnet-LICENSE.txt' }
+            $requiredPayload += @{ Source = (Join-Path $packageRoot 'THIRD-PARTY-NOTICES.TXT'); Target = 'licenses/dotnet-ThirdPartyNotices.txt' }
+        } elseif ($framework.name -eq 'Microsoft.WindowsDesktop.App') {
+            $requiredPayload += @{ Source = (Join-Path $packageRoot 'LICENSE'); Target = 'licenses/windowsdesktop-LICENSE.txt' }
+        } else { throw ('Unrecognized redistributed framework: ' + $framework.name) }
+    }
     foreach ($item in $requiredPayload) {
         if (-not (Test-Path -LiteralPath $item.Source)) { throw ('required payload source is missing: ' + $item.Source) }
         $destination = Join-Path $payloadRoot $item.Target
@@ -261,24 +286,23 @@ try {
 
     # ---- archive -------------------------------------------------------------
     Write-Step ('writing ' + $archivePath)
-    if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force }
     $created = $false
     try {
         Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
         # includeBaseDirectory = false: the payload root must be the archive root.
         [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            $payloadRoot, $archivePath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+            $payloadRoot, $pendingArchive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
         $created = $true
     } catch {
         Write-Warning ('zip creation through System.IO.Compression failed: ' + $_.Exception.Message)
-        if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force }
+        if (Test-Path -LiteralPath $pendingArchive) { Remove-ValidatedItem $pendingArchive $stagingRoot }
     }
 
     if (-not $created) {
-        Compress-Archive -Path (Join-Path $payloadRoot '*') -DestinationPath $archivePath -CompressionLevel Optimal
+        Compress-Archive -Path (Join-Path $payloadRoot '*') -DestinationPath $pendingArchive -CompressionLevel Optimal
     }
 
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($pendingArchive)
     try {
         $entries = @($archive.Entries | ForEach-Object { $_.FullName })
     } finally {
@@ -296,8 +320,11 @@ try {
         if ($entries -notcontains $required) { throw ('archive is missing ' + $required) }
     }
 
-    $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
-    $archiveBytes = (Get-Item -LiteralPath $archivePath).Length
+    $archiveHash = (Get-FileHash -LiteralPath $pendingArchive -Algorithm SHA256).Hash
+    $archiveBytes = (Get-Item -LiteralPath $pendingArchive).Length
+    # Preserve the preceding release until the replacement archive is validated.
+    Move-Item -LiteralPath $pendingArchive -Destination $archivePath -Force
+    Set-Content -LiteralPath ($archivePath + '.sha256') -Value ($archiveHash + '  ' + $ArchiveName) -Encoding ascii
 
     # ---- manifest ------------------------------------------------------------
     $manifest = [ordered]@{

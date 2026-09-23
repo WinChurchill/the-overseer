@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Smoke-tests the packaged OVERSEER release from a fresh extraction of the ZIP.
@@ -19,11 +20,11 @@
 param(
     [Parameter(Mandatory = $true)][string] $ArchivePath,
     [string] $EvidenceDirectory = 'artifacts/p4-release/smoke',
-    [int] $HudSeconds = 60,
-    [int] $HudSmokeSeconds = 15,
-    [int] $MonitorSeconds = 60,
-    [int] $SyntheticMonitorSeconds = 15,
-    [int] $FixtureMinimumRenders = 6,
+    [ValidateRange(1, 3600)][int] $HudSeconds = 60,
+    [ValidateRange(1, 3600)][int] $HudSmokeSeconds = 15,
+    [ValidateRange(1, 3600)][int] $MonitorSeconds = 60,
+    [ValidateRange(1, 3600)][int] $SyntheticMonitorSeconds = 15,
+    [ValidateRange(6, 6)][int] $FixtureMinimumRenders = 6,
     [switch] $AllowUnavailableMonitor,
     [switch] $SkipHudLifecycle,
     [switch] $KeepExtraction
@@ -34,6 +35,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $script:Checks = New-Object System.Collections.ArrayList
+$script:OwnedProcesses = New-Object System.Collections.ArrayList
 
 function Add-Check([string] $name, [bool] $passed, [string] $detail) {
     $entry = [ordered]@{ check = $name; status = $(if ($passed) { 'pass' } else { 'fail' }); detail = $detail }
@@ -153,6 +155,7 @@ function Start-PackagedProcess(
     $startInfo.Environment.Clear()
     foreach ($key in $environment.Keys) { $startInfo.Environment[$key] = [string]$environment[$key] }
     $process = [System.Diagnostics.Process]::Start($startInfo)
+    [void]$script:OwnedProcesses.Add($process)
     return [ordered]@{
         Process = $process
         Stdout = $process.StandardOutput.ReadToEndAsync()
@@ -197,13 +200,18 @@ function Invoke-FiniteMode(
     return $result
 }
 
+$extractionRoot = $null
+$evidenceRoot = $null
+try {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $resolvedArchive = Resolve-UnderRoot $ArchivePath $repoRoot
-$evidenceRoot = Resolve-UnderRoot $EvidenceDirectory $repoRoot
+$evidenceBase = Resolve-UnderRoot $EvidenceDirectory $repoRoot
 if (-not (Test-Path -LiteralPath $resolvedArchive)) { throw ('archive not found: ' + $resolvedArchive) }
 
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
-$extractionRoot = Join-Path $evidenceRoot ('extract-' + $stamp + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+$evidenceRoot = Join-Path $evidenceBase ('run-' + $stamp + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+# Every run gets fresh data and fixtures, so old files cannot make checks pass.
+$extractionRoot = Join-Path $evidenceRoot 'package Ω with spaces'
 $logRoot = Join-Path $evidenceRoot ('logs-' + $stamp)
 New-Item -ItemType Directory -Force -Path $extractionRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
@@ -229,6 +237,7 @@ $requiredEntries = @(
     'licenses/codex-monitor-hud-MIT.txt',
     'licenses/dotnet-LICENSE.txt',
     'licenses/dotnet-ThirdPartyNotices.txt',
+    'licenses/windowsdesktop-LICENSE.txt',
     'examples/voicepacks/example/manifest.json',
     'examples/voicepacks/example/permission-1.wav',
     'examples/voicepacks/example/all.wav'
@@ -332,6 +341,7 @@ if (-not $SkipHudLifecycle) {
     $liveData = Join-Path $evidenceRoot 'hud-live-data'
     New-Item -ItemType Directory -Force -Path $liveData | Out-Null
     Write-Step ('hud-live: launching for ' + $HudSeconds + 's from ' + $workingDirectory)
+    Set-Content -LiteralPath (Join-Path $liveData 'config.json') -Value '{"hud":{"theme":"light"},"voice":{"muted":true}}' -Encoding utf8
     $liveHandle = Start-PackagedProcess $executable @('--data-directory', $liveData) $sanitized.Environment $workingDirectory
     $live = $liveHandle.Process
     $livePid = $live.Id
@@ -378,6 +388,7 @@ if (-not $SkipHudLifecycle) {
         $stateExists = Test-Path -LiteralPath $statePath
         $configExists = Test-Path -LiteralPath $configPath
         $stateDetail = 'state=' + $stateExists
+        $validState = $false
         $themeValue = ''
         $muteValue = $null
         if ($configExists) {
@@ -393,6 +404,11 @@ if (-not $SkipHudLifecycle) {
         if ($stateExists) {
             try {
                 $stateJson = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+                $validState = $stateJson.version -eq 1 -and
+                    $stateJson.dpiScale -ge 0.5 -and $stateJson.dpiScale -le 4 -and
+                    -not [string]::IsNullOrWhiteSpace($stateJson.monitorDevice) -and
+                    [double]::IsFinite([double]$stateJson.offsetXDips) -and
+                    [double]::IsFinite([double]$stateJson.offsetYDips)
                 $stateDetail = $stateDetail + ' bytes=' + (Get-Item -LiteralPath $statePath).Length +
                     ' dpi=' + $stateJson.dpiScale +
                     ' monitor=' + (-not [string]::IsNullOrWhiteSpace($stateJson.monitorDevice))
@@ -402,7 +418,7 @@ if (-not $SkipHudLifecycle) {
         }
 
         $stateDetail = $stateDetail + ' theme=' + $themeValue + ' muted=' + $muteValue
-        Add-Check 'hud-live-persisted-state' ($stateExists -and $configExists -and $themeValue -in @('light', 'dark') -and $null -ne $muteValue) $stateDetail
+        Add-Check 'hud-live-persisted-state' ($validState -and $configExists -and $themeValue -eq 'light' -and $muteValue -is [bool] -and $muteValue) $stateDetail
 
         # Tray start: hidden, alive, still no focus steal, closed gracefully.
         Write-Step 'hud-tray: hidden startup'
@@ -417,7 +433,8 @@ if (-not $SkipHudLifecycle) {
         if ($trayWindow -ne [IntPtr]::Zero) { [void][OverseerWindows]::PostMessage($trayWindow, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
         $trayClosed = $tray.WaitForExit(45000)
         if (-not $trayClosed) { try { $tray.Kill($true) } catch { } }
-        Add-Check 'hud-tray-graceful-close' $trayClosed ('closed=' + $trayClosed)
+        $trayExit = if ($trayClosed) { $tray.ExitCode } else { -1 }
+        Add-Check 'hud-tray-graceful-close' ($trayClosed -and $trayExit -eq 0) ('closed=' + $trayClosed + ' exit=' + $trayExit)
         try { [void]$trayHandle.Stdout.GetAwaiter().GetResult() } catch { }
 
         # --start-in-tray --no-tray must still present a controllable window.
@@ -433,7 +450,8 @@ if (-not $SkipHudLifecycle) {
         if ($noTrayWindow -ne [IntPtr]::Zero) { [void][OverseerWindows]::PostMessage($noTrayWindow, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
         $noTrayClosed = $noTray.WaitForExit(45000)
         if (-not $noTrayClosed) { try { $noTray.Kill($true) } catch { } }
-        Add-Check 'hud-no-tray-graceful-close' $noTrayClosed ('closed=' + $noTrayClosed)
+        $noTrayExit = if ($noTrayClosed) { $noTray.ExitCode } else { -1 }
+        Add-Check 'hud-no-tray-graceful-close' ($noTrayClosed -and $noTrayExit -eq 0) ('closed=' + $noTrayClosed + ' exit=' + $noTrayExit)
         try { [void]$noTrayHandle.Stdout.GetAwaiter().GetResult() } catch { }
     } else {
         Add-Check 'hud-live-second-instance' $false 'skipped: the live HUD exited early'
@@ -463,6 +481,9 @@ $evidence = [ordered]@{
     includedFrameworks = $frameworks
     hudSeconds = $HudSeconds
     monitorSeconds = $MonitorSeconds
+    hudLifecycleSkipped = [bool]$SkipHudLifecycle
+    realMonitorUnavailable = $realDebug.ExitCode -eq 2
+    fullDurationChecks = $HudSeconds -ge 60 -and $MonitorSeconds -ge 60 -and $HudSmokeSeconds -ge 15 -and $SyntheticMonitorSeconds -ge 15
     physicalChecksNotPerformed = @(
         'physical sleep/wake (suspend/resume)',
         'monitor disconnect/reconnect and mixed-DPI movement',
@@ -480,9 +501,6 @@ Write-Host ('checks  : ' + $script:Checks.Count + ' total, ' + $failed.Count + '
 Write-Host ('evidence: ' + $evidencePath)
 Write-Host ('logs    : ' + $logRoot)
 
-if (-not $KeepExtraction) { Remove-ValidatedItem $extractionRoot $evidenceRoot }
-else { Write-Host ('extraction kept: ' + $extractionRoot) }
-
 if ($failed.Count -gt 0) {
     foreach ($item in $failed) { Write-Host ('FAILED: ' + $item.check + ' - ' + $item.detail) }
     exit 1
@@ -490,3 +508,16 @@ if ($failed.Count -gt 0) {
 
 Write-Host 'packaged smoke: passed'
 exit 0
+} finally {
+    # Even a script exception must not leave a HUD, hidden tray or child server
+    # alive. These Process objects refer only to processes started by this run.
+    foreach ($owned in $script:OwnedProcesses) {
+        try {
+            if (-not $owned.HasExited) { $owned.Kill($true); [void]$owned.WaitForExit(10000) }
+        } catch [System.InvalidOperationException] { } # already disposed
+        finally { $owned.Dispose() }
+    }
+    if ($extractionRoot -and $evidenceRoot -and -not $KeepExtraction) {
+        Remove-ValidatedItem $extractionRoot $evidenceRoot
+    }
+}

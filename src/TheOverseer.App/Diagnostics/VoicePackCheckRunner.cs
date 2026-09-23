@@ -40,6 +40,12 @@ public static class VoicePackCheckRunner
         }
 
         using var provider = new VoicePackProvider(dataDirectory, () => settings);
+        var manifest = provider.EnsureManifestAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        if (manifest is null)
+        {
+            Console.WriteLine("FAIL manifest " + provider.Status.LastCode);
+            return 1;
+        }
         var failures = 0;
         foreach (var kind in Events)
         {
@@ -55,9 +61,22 @@ public static class VoicePackCheckRunner
                 1,
                 string.Empty);
             VoiceClip? clip = null;
+            var valid = true;
             try
             {
-                clip = provider.TryCreateAsync(candidate, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+                var code = VoiceNotificationFormatter.EventCode(kind);
+                var count = manifest.Events.TryGetValue(code, out var variants) ? variants.Count : 1;
+                // The production provider rotates variants. Inspect a full cycle,
+                // including variants beyond the first which may be absent/corrupt.
+                for (var index = 0; index < count; index++)
+                {
+                    clip = provider.TryCreateAsync(candidate, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+                    if (clip is null || !VoicePackValidator.ValidateWav(clip.Wav).IsValid)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
@@ -66,7 +85,6 @@ public static class VoicePackCheckRunner
                 continue;
             }
 
-            var valid = clip is not null && VoicePackValidator.ValidateWav(clip.Wav).IsValid;
             Console.WriteLine(
                 (valid ? "ok   " : "FAIL ") + VoiceNotificationFormatter.EventCode(kind) +
                 " clip-bytes=" + (clip?.ByteCount ?? 0).ToString(CultureInfo.InvariantCulture) +

@@ -19,6 +19,8 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     private readonly object _gate = new();
     private VoiceSettings _settings;
     private bool _failed;
+    private bool _suspended;
+    private DateTimeOffset? _resumeAt;
 
     public NotificationCoordinator(
         ActivityHistory history,
@@ -70,9 +72,13 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         {
             if (_failed) return;
             _history.Record(snapshot);
+            // A monitor cycle already in progress at wake can contain pre-wake
+            // events. Keep its state/history but never revive those notifications.
+            if (_resumeAt is { } resumed)
+                snapshot = snapshot with { Transitions = snapshot.Transitions.Where(e => e.ObservedAt > resumed).ToArray() };
             var candidates = _policy.Observe(snapshot);
-            if (_manager.IsMuted) _policy.DiscardPending();
-            _manager.Enqueue(candidates);
+            if (_manager.IsMuted || _suspended) _policy.DiscardPending();
+            if (!_suspended) _manager.Enqueue(candidates);
         }
 
     }
@@ -88,6 +94,7 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         lock (_gate)
         {
             if (_failed) return;
+            if (_suspended) { _policy.DiscardPending(); return; }
             if (_manager.IsMuted) _policy.DiscardPending();
             _manager.Enqueue(_policy.Pump(_timeProvider.GetUtcNow()));
         }
@@ -108,8 +115,21 @@ public sealed class NotificationCoordinator : IAsyncDisposable
                 return;
             }
 
+            _suspended = true;
             _policy.DiscardPending();
             _manager.DiscardPendingWork("suspended");
+        }
+    }
+
+    /// <summary>Permit fresh post-wake events without replaying work from sleep.</summary>
+    public void OnResume()
+    {
+        lock (_gate)
+        {
+            if (_failed || !_suspended) return;
+            _resumeAt = _timeProvider.GetUtcNow();
+            _policy.DiscardPending();
+            _suspended = false;
         }
     }
 
@@ -155,7 +175,7 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     /// <summary>Revalidation used at playback: a queued cue must still be relevant.</summary>
     public bool IsStillRelevant(VoiceCandidate candidate)
     {
-        lock (_gate) return !_failed && _policy.IsRelevant(candidate, _timeProvider.GetUtcNow());
+        lock (_gate) return !_failed && !_suspended && _policy.IsRelevant(candidate, _timeProvider.GetUtcNow());
     }
 
     public async ValueTask DisposeAsync()

@@ -44,10 +44,11 @@ the pack is opt-in: voice starts muted and OVERSEER never installs a pack itself
 ## Shipped .NET runtime
 
 The self-contained release archive redistributes the .NET runtime and Windows
-Desktop runtime files. Their license terms come from the SDK/runtime used to
-publish; `scripts/Publish-Release.ps1` copies the applicable
-`LICENSE.txt` and `ThirdPartyNotices.txt` from that runtime into the archive's
-`licenses/` directory. No NuGet runtime package is referenced by the product.
+Desktop runtime files. `scripts/Publish-Release.ps1` copies the license and
+third-party notices from the exact Microsoft.NETCore.App runtime package version
+listed in the published runtime configuration, plus the license from the exact
+Microsoft.WindowsDesktop.App runtime package, into the archive's `licenses/`
+directory. No runtime package is directly referenced by the product projects.
 
 ## Build and test dependencies
 

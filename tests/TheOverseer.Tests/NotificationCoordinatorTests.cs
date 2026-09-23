@@ -247,6 +247,7 @@ public sealed class NotificationCoordinatorTests
         Assert.Single(player.Played);
 
         // A genuinely new episode is still announced after wake.
+        coordinator.OnResume();
         coordinator.OnSnapshot(VoiceTestData.Snapshot(
             start.AddSeconds(3),
             new[] { VoiceTestData.Task(key: key, state: AgentTaskState.Working, turnId: "turn-2") }));

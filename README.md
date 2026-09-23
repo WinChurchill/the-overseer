@@ -274,7 +274,7 @@ pack clip; with neither provider available the HUD stays silent and says so.
 
 ## Release package (V1)
 
-Build the release from committed source (the script refuses a dirty tree unless
+Build the release using PowerShell 7 and the .NET 10 SDK from committed source (the script refuses a dirty tree unless
 `-AllowDirtyTree` is passed):
 
 ```powershell
@@ -298,12 +298,12 @@ differ between runs.
    the .NET runtime from its own directory and does not need a system .NET
    installation, `dotnet run`, the SDK or this repository.
 3. Runtime data stays in `%LOCALAPPDATA%\OVERSEER` (`config.json`,
-   `hud-state.json`, logs). Pass `--data-directory PATH` for an isolated run.
+   `state.json`, logs). Pass `--data-directory PATH` for an isolated run.
 
 Archive contents: the complete publish output, `README.md`,
 `THIRD_PARTY_NOTICES.md`, `licenses/` (the upstream codex-monitor-hud MIT license
-and the .NET runtime license/third-party notices taken from the SDK used to
-publish) and `examples/voicepacks/example/`. No repository files, tests, agent
+and the licenses/notices from the exact .NET and Windows Desktop runtime packages
+redistributed) and `examples/voicepacks/example/`. No repository files, tests, agent
 documents, build caches, logs or private data are included.
 
 ### Example voice pack (opt-in)

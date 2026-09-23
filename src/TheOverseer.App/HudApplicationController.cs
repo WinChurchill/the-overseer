@@ -825,6 +825,7 @@ public sealed class HudApplicationController : IAsyncDisposable
                 Log(MonitorLogLevel.Info, "hud-suspend-voice-discarded");
                 break;
             case PowerModes.Resume:
+                _dependencies.Notifications?.OnResume();
                 _dependencies.Dispatcher.Post(() =>
                 {
                     if (_shuttingDown)
