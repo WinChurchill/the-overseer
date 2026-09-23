@@ -181,5 +181,15 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
 - The existing live HWND was verified topmost (`WS_EX_TOPMOST` set) and its saved
   preference was already true. That behavior/preferences are retained.
 - Release build: 0 warnings/errors; 407 tests passed, including routed input and
-  incomplete-zero regressions. Ten updated renders inspected under
-  `artifacts/upper-section-ui`. Updated package/live verification pending.
+  incomplete-zero regressions. Ten updated renders generated; Light/Dark attention
+  and unavailable layouts inspected under `artifacts/upper-section-ui` and the
+  packaged renders directory.
+- Clean source `8967274`; self-contained candidate:
+  `artifacts/upper-section-release/OVERSEER-v1-win-x64.zip`, SHA-256
+  `419497A988D1BE5E6533B8EA10E3F8A5D827270EAD5C49290C2B763CC8EA09C9`.
+- Scoped package checks passed: ten renders and normal startup, visible native
+  window, topmost and taskbar flags set, 60 foreground samples over 15 seconds
+  with none owned by OVERSEER. Evidence: `artifacts/upper-section-release/live-evidence.json`.
+  The prior 28-check package run was not repeated for these UI-only changes.
+- Updated app left running from `artifacts/overseer-upper-8967274/`, with existing
+  user settings preserved. Human evaluation of the new drag surface is next.
