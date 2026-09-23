@@ -1,0 +1,24 @@
+{
+  "id": "example",
+  "name": "Example synthetic cues",
+  "language": "en",
+  "version": 1,
+  "events": {
+    "permission_required": [
+      "permission-1.wav",
+      "permission-2.wav"
+    ],
+    "input_required": [
+      "input.wav"
+    ],
+    "task_error": [
+      "error.wav"
+    ],
+    "task_complete": [
+      "complete.wav"
+    ],
+    "all_tasks_complete": [
+      "all.wav"
+    ]
+  }
+}
