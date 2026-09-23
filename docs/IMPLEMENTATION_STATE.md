@@ -230,3 +230,14 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   claimed as a no-focus pass. See `artifacts/activity-fix-release/live-evidence.json`.
 - Branch remains `ux/first-use`; frozen sources and monitoring/privacy/resource
   bounds preserved. Latest candidate is the activity-fix package above.
+
+### Caption and row color refinement — 2026-09-23
+
+- User requested a much quieter, better-scaling graph caption and consistent
+  per-task coloring. Caption uses the metadata font size, regular weight and
+  muted color in a shrink-only Viewbox. Rows reuse the overall status palette
+  for a thin accent and status line; stale/provisional takes amber precedence.
+- Release build: 0 warnings/errors; 414/414 tests passed. Ten fixture renders
+  generated under `artifacts/caption-rows-ui`; dark Now and light Recent inspected.
+- CHANGELOG.md updated. Package and running-app replacement pending; no monitor
+  or lifecycle behavior changed in this refinement.

@@ -137,7 +137,10 @@
           <ControlTemplate TargetType="Button">
             <Border x:Name="Row" Background="Transparent" BorderBrush="{DynamicResource RowSeparatorBrush}"
                     BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}">
-              <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+              <Grid>
+                <Border Style="{StaticResource StatusAccent}" BorderThickness="3,0,0,0" IsHitTestVisible="False" />
+                <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,0,0" />
+              </Grid>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
@@ -303,8 +306,10 @@
 
           <!-- One shared 60-minute working-count line; gaps stay unobserved. -->
           <StackPanel Grid.Row="1" Margin="0,7,0,0" ToolTip="{Binding ActivityTooltip}">
-            <TextBlock Text="Working tasks · past hour" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource ForegroundBrush}" />
+            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" MaxHeight="12">
+              <TextBlock Text="Working tasks · past hour" FontSize="{DynamicResource FontSizeMeta}" FontWeight="Normal"
+                         FontFamily="{DynamicResource PrimaryFontFamily}" Foreground="{DynamicResource MutedBrush}" />
+            </Viewbox>
             <Grid Margin="0,5,0,0">
               <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
               <TextBlock Text="{Binding ActivityAxisMaximum}" VerticalAlignment="Top" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
@@ -394,10 +399,9 @@
                                    FontFamily="{DynamicResource PrimaryFontFamily}"
                                    FontSize="{DynamicResource FontSizeBody}"
                                    Foreground="{DynamicResource ForegroundBrush}" />
-                        <TextBlock Text="{Binding RowSubtitle}" TextTrimming="CharacterEllipsis"
+                        <TextBlock Text="{Binding RowSubtitle}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}" FontWeight="Normal"
                                    FontFamily="{DynamicResource MetadataFontFamily}"
-                                   FontSize="{DynamicResource FontSizeMeta}"
-                                   Foreground="{DynamicResource MutedBrush}" />
+                                   FontSize="{DynamicResource FontSizeMeta}" />
                       </StackPanel>
                       <TextBlock Grid.Column="2" Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" Margin="8,0,0,0" VerticalAlignment="Center"
                                  FontFamily="{DynamicResource MetadataFontFamily}"

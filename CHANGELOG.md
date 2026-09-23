@@ -15,6 +15,11 @@
 
 ### Changed
 
+- Reduced the graph caption to small, muted, regular-weight text that shrinks to
+  fit narrow layouts without enlarging in wider ones.
+- Task rows share the HUD status palette through a thin accent and colored status
+  text: green for work, red for attention/errors, amber for stale/uncertain rows,
+  and neutral for settled tasks. Titles retain their normal text color.
 - Larger status text: green for working, red for confirmed attention/errors and
   amber for uncertain activity. Unread history and stale updates are explained.
 - The expanded graph is labeled **Working tasks · past hour**, with a task-count

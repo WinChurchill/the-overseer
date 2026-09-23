@@ -66,6 +66,12 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
 
     public string NumberText => "#" + Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+    /// <summary>Uses the same visual status palette as the overall HUD.</summary>
+    public string StatusKind => IsStale || IsProvisional ? "uncertain"
+        : NeedsHuman || TaskState is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput ? "attention"
+        : TaskState == AgentTaskState.Error ? "error"
+        : TaskState == AgentTaskState.Working ? "working" : "idle";
+
     /// <summary>State, action and marks on one compact metadata line.</summary>
     public string RowSubtitle => MarksText.Length > 0
         ? StateText + " · " + ActionText + " · " + MarksText
@@ -119,6 +125,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         Raise(nameof(TurnId));
         Raise(nameof(RowSubtitle));
         Raise(nameof(NumberText));
+        Raise(nameof(StatusKind));
     }
 
     /// <summary>Cheap relative-age refresh; no monitor I/O and no reordering.</summary>
