@@ -350,5 +350,11 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   Toggling preserves width and restores the preceding side within the session.
 - Doubled maximum thickness to 128 DIPs in configuration, drag grip, slider and
   menu presets. Default remains right/32. Changelog and README updated.
-- Release build: 0 warnings/errors; 442 tests passed. Packaged visual/runtime
-  validation is recorded below after relaunch.
+- Release build: 0 warnings/errors; 442 tests passed. Sixteen packaged fixture
+  renders generated; visible header toggle inspected in collapsed Dark and expanded
+  Light layouts. Scoped native check passed: visible/topmost/taskbar, no owned
+  foreground observations in 60 samples/15s. The previous full smoke remains separate.
+- Source `d44bbdc`; package `artifacts/light-toggle-release/OVERSEER-v1-win-x64.zip`,
+  SHA-256 `EB2F59C67EE06CC2E4D1739F2941A32F85FB2D520A4CB8FB87C2EB7CC0EE8B1B`.
+  Evidence: `artifacts/light-toggle-release/live-evidence.json`. Updated app left
+  running from `artifacts/overseer-light-toggle-d44bbdc/`, existing settings preserved.
