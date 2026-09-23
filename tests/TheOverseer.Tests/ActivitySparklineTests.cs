@@ -87,8 +87,8 @@ public sealed class ActivitySparklineTests
 
         Assert.True(viewModel.HasActivity);
         Assert.NotEmpty(viewModel.ActivitySegments);
-        Assert.Contains("samples", viewModel.ActivitySummaryLine, StringComparison.Ordinal);
-        Assert.Contains("peak", viewModel.ActivitySummaryLine, StringComparison.Ordinal);
+        Assert.Equal(Math.Max(1, series.PeakWorking).ToString(), viewModel.ActivityAxisMaximum);
+        Assert.NotEmpty(viewModel.ActivitySummaryLine);
         Assert.Equal("Spoken 2.", viewModel.VoiceStatusLine);
         Assert.False(viewModel.IsMuted);
         Assert.Equal("V", viewModel.MuteGlyph);
@@ -134,13 +134,10 @@ public sealed class ActivitySparklineTests
                 Assert.True(chart.ActualHeight > 0);
                 Assert.NotEmpty(chart.Segments!);
                 Assert.Equal("V", mute.Content);
-                Assert.False(((ActivitySparkline)window.FindName("CollapsedActivityChart")!).IsVisible);
+                Assert.Null(window.FindName("CollapsedActivityChart"));
 
                 viewModel.IsExpanded = false;
                 window.UpdateLayout();
-                var collapsedChart = (ActivitySparkline)window.FindName("CollapsedActivityChart")!;
-                Assert.True(collapsedChart.IsVisible);
-                Assert.NotEmpty(collapsedChart.Segments!);
                 Assert.False(chart.IsVisible);
 
                 viewModel.ToggleMuteCommand.Execute(null);

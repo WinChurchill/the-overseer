@@ -193,3 +193,29 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   The prior 28-check package run was not repeated for these UI-only changes.
 - Updated app left running from `artifacts/overseer-upper-8967274/`, with existing
   user settings preserved. Human evaluation of the new drag surface is next.
+
+### Intermittent counts, graph and elapsed timer — 2026-09-23
+
+- Root cause reproduced: `ImageView` items and `world_state` records were treated
+  as unknown schema. The resulting evidence-gap flag excluded active tasks from
+  counts until a later lifecycle event. Four startup/live regressions failed before
+  the fix and pass afterward. ImageView now projects bounded ReadingFiles activity;
+  world-state context data is explicitly ignored without examining its contents.
+  Genuinely unknown schema still degrades counts (negative regression retained).
+- Evidence: bounded structural-only inspection of recent local rollout tails,
+  plus local upstream `codex-protocol-reference/protocol.rs` WorldStateItem definition.
+  No raw conversation data added to the repository. Redacted 20-second before/after
+  traces live under `artifacts/monitor-before.txt` and `artifacts/monitor-after.txt`.
+  The after trace observed 2 working tasks; stale/history limits remained. Runs
+  occurred at different times, so the controlled regressions establish causality.
+- Graph now names the metric (working tasks), count scale and hour axis; removed
+  the unexplained collapsed miniature. Move cursors mark drag surfaces; buttons
+  and header context menu retain interaction-appropriate cursors.
+- Active-row elapsed time uses current-turn StartedAt, never LastActivityAt.
+  Unobserved starts show a dash. New turns clear prior start/completion timestamps;
+  tests cover action changes, a new turn and missing lifecycle evidence.
+- Added user-facing CHANGELOG.md and included it in release payload checks.
+- Release build: 0 warnings/errors; **414/414** tests passed. Light/Dark chart and
+  collapsed renders inspected under `artifacts/monitor-chart-ui`.
+- Updated clean-source package and packaged smoke pending. Branch remains
+  `ux/first-use`; frozen sources and monitoring/privacy/resource bounds preserved.

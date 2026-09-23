@@ -95,6 +95,9 @@ public static class CodexEventParser
                 "response_item" => ParseResponseItem(payload, in context),
                 "token_usage_record" => Build(RawCodexEventKind.TokenUsage, in context, payload),
                 "compacted" => Build(RawCodexEventKind.HistoryCompacted, in context, payload),
+                // Model-context comparison data, not a task lifecycle signal.
+                // Never inspect or retain its arbitrary state contents.
+                "world_state" => new ParseResult(null, ParseOutcome.Ignored),
                 _ => new ParseResult(null, ParseOutcome.UnknownSchema),
             };
 
@@ -154,6 +157,8 @@ public static class CodexEventParser
                 ToolCallCategory.Message, null),
             "ContextCompaction" => Build(RawCodexEventKind.ItemActivity, in context, payload,
                 ToolCallCategory.None, AgentActionKind.Thinking, "context-compaction"),
+            "ImageView" => Build(RawCodexEventKind.ItemActivity, in context, payload,
+                ToolCallCategory.Extension, AgentActionKind.ReadingFiles, "image-view"),
             _ => new ParseResult(null, ParseOutcome.UnknownSchema),
         };
     }

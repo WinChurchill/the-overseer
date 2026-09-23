@@ -22,7 +22,7 @@ internal static class HudFixtureRunner
     private const double CollapsedWidth = 280;
     private const double CollapsedHeight = 72;
     private const double ExpandedWidth = 360;
-    private const double ExpandedHeight = 440;
+    private const double ExpandedHeight = 480;
 
     /// <summary>Schedules the preview render on the UI thread; returns immediately.</summary>
     public static void StartFixture(StartupArguments arguments, Dispatcher dispatcher)

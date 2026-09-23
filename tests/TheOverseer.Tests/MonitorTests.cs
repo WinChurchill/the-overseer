@@ -60,6 +60,60 @@ public sealed class MonitorTests : IDisposable
         Assert.Equal(1, snapshot.Counts.Total.Value);
     }
 
+    [Theory]
+    [InlineData("image", false)]
+    [InlineData("image", true)]
+    [InlineData("world", false)]
+    [InlineData("world", true)]
+    public void KnownNonLifecycleRecordsDoNotHideWorkingTasks(string kind, bool appendLive)
+    {
+        const string id = "01a0c700-0000-0000-0000-000000000091";
+        var record = kind == "image" ? Records.ItemCompleted("turn-1", "ImageView")
+            : "{\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{}}}";
+        var records = new List<string> { Records.SessionMeta(id), Records.TaskStarted("turn-1") };
+        if (!appendLive) records.Add(record);
+        var path = _home.WriteRollout(id, records);
+        using var monitor = Create();
+        var snapshot = monitor.Refresh();
+        if (appendLive)
+        {
+            SyntheticCodexHome.Append(path, new[] { record });
+            snapshot = monitor.Refresh();
+        }
+        Assert.False(Single(snapshot).IsStale);
+        Assert.Equal(AgentTaskState.Working, Single(snapshot).State);
+        Assert.Equal(1, snapshot.Counts.Working.Value);
+        SyntheticCodexHome.Append(path, new[] { Records.TaskComplete("turn-1") });
+        Assert.Equal(AgentTaskState.Done, Single(monitor.Refresh()).State);
+    }
+
+    [Fact]
+    public void NewTurnWithoutStartDoesNotInheritPreviousTurnTimestamps()
+    {
+        const string id = "01a0c700-0000-0000-0000-000000000092";
+        var path = _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("old"), Records.TaskComplete("old") });
+        using var monitor = Create();
+        Assert.NotNull(Single(monitor.Refresh()).StartedAt);
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        SyntheticCodexHome.Append(path, new[] { Records.TurnContext("new"), Records.ItemCompleted("new", "Reasoning", completedAtMs: _clock.GetUtcNow().ToUnixTimeMilliseconds()) });
+        var task = Single(monitor.Refresh());
+        Assert.Equal("new", task.TurnId);
+        Assert.Null(task.StartedAt);
+        Assert.Null(task.CompletedAt);
+    }
+
+    [Fact]
+    public void TrulyUnknownRecordsStillMakeWorkUncertain()
+    {
+        const string id = "01a0c700-0000-0000-0000-000000000093";
+        _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("turn"), "{\"type\":\"future_record\",\"payload\":{}}" });
+        using var monitor = Create();
+        var snapshot = monitor.Refresh();
+        Assert.True(Single(snapshot).IsStale);
+        Assert.False(snapshot.Counts.Working.IsComplete);
+        Assert.Equal(0, snapshot.Counts.Working.Value);
+    }
+
     [Fact]
     public void ContinuationFilesOfOneConversationCollapseToOneNumberedTask()
     {

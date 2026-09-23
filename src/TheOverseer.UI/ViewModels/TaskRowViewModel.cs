@@ -12,6 +12,8 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
 {
     private string _ageText = "now";
     private string _detailText = string.Empty;
+    private DateTimeOffset? _startedAt;
+    private string _ageHint = string.Empty;
 
     public TaskRowViewModel(AgentTask task, bool canNavigate, string navigationHint)
     {
@@ -81,6 +83,8 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         private set => Set(ref _detailText, value);
     }
 
+    public string AgeHint { get => _ageHint; private set => Set(ref _ageHint, value); }
+
     /// <summary>Ordering rank: attention first, then work, then settled rows.</summary>
     public static int Rank(AgentTask task) => task.NeedsHuman && task.State == AgentTaskState.Working ? 1 : task.State switch
     {
@@ -103,6 +107,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         IsStale = task.IsStale;
         IsProvisional = task.IsProvisional;
         TurnId = task.TurnId;
+        _startedAt = task.StartedAt;
         Raise(nameof(Label));
         Raise(nameof(StateText));
         Raise(nameof(ActionText));
@@ -119,11 +124,17 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     /// <summary>Cheap relative-age refresh; no monitor I/O and no reordering.</summary>
     public void UpdateAge(DateTimeOffset now, DateTimeOffset lastActivity)
     {
-        AgeText = HudText.Relative(now - lastActivity);
+        var active = TaskState is AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval;
+        var freshness = HudText.Relative(now - lastActivity) + " ago";
+        AgeText = active ? _startedAt is { } start ? HudText.Relative(now - start) : "—" : freshness;
+        AgeHint = active
+            ? (_startedAt is null ? "Turn start was not observed." : "Elapsed this turn: " + AgeText + ".") +
+              " Last activity: " + freshness + (IsStale ? ". Activity is stale; current work is unconfirmed." : ".")
+            : "Last activity: " + freshness + ".";
         DetailText = "#" + Number.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                      " · " + StateText +
                      " · " + ActionText +
-                     " · " + AgeText +
+                     " · " + AgeHint +
                      (MarksText.Length > 0 ? " · " + MarksText : string.Empty);
     }
 

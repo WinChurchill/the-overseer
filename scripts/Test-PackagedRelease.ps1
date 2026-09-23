@@ -240,6 +240,7 @@ $requiredEntries = @(
     'hostfxr.dll',
     'hostpolicy.dll',
     'README.md',
+    'CHANGELOG.md',
     'THIRD_PARTY_NOTICES.md',
     'licenses/codex-monitor-hud-MIT.txt',
     'licenses/dotnet-LICENSE.txt',

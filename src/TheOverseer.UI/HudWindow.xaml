@@ -174,7 +174,7 @@
       </Canvas>
 
       <!-- Collapsed summary: always visible, stable geometry. -->
-      <Grid x:Name="DragRegion" Grid.Row="0" Margin="14,8,14,8" Background="Transparent"
+      <Grid x:Name="DragRegion" Grid.Row="0" Margin="14,8,14,8" Background="Transparent" Cursor="SizeAll"
             PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
             PreviewMouseMove="OnDragRegionMouseMove"
             PreviewMouseUp="OnDragRegionMouseLeftButtonUp">
@@ -259,11 +259,7 @@
         </Viewbox>
 
         <Grid Grid.Row="2">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="60" />
-          </Grid.ColumnDefinitions>
-        <Button x:Name="StatusButton" Grid.Column="0" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
+        <Button x:Name="StatusButton" Cursor="SizeAll" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
                 HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding MonitoringDisclosure}"
                 automation:AutomationProperties.Name="Show current tasks">
         <TextBlock Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}"
@@ -271,16 +267,6 @@
                    FontSize="14"
                    ToolTip="{Binding MonitoringDisclosure}" />
         </Button>
-          <Viewbox Grid.Column="1" Height="11" Margin="6,0,0,0" Stretch="Fill"
-                   Visibility="{Binding IsExpanded, Converter={StaticResource InverseBoolToVisibility}}">
-            <controls:ActivitySparkline x:Name="CollapsedActivityChart" Width="330" Height="30"
-                                        Segments="{Binding ActivitySegments}"
-                                        LineBrush="{DynamicResource AccentPrimaryBrush}"
-                                        PartialBrush="{DynamicResource AccentSecondaryBrush}"
-                                        BaselineBrush="{DynamicResource BorderBrush}"
-                                        ToolTip="{Binding ActivityTooltip}"
-                                        automation:AutomationProperties.Name="{Binding ActivityTooltip}" />
-          </Viewbox>
         </Grid>
       </Grid>
 
@@ -294,7 +280,7 @@
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="14,8,14,6" Background="Transparent"
+        <Grid Grid.Row="0" Margin="14,8,14,6" Background="Transparent" Cursor="SizeAll"
               PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
               PreviewMouseMove="OnDragRegionMouseMove"
               PreviewMouseUp="OnDragRegionMouseLeftButtonUp">
@@ -316,15 +302,28 @@
           </StackPanel>
 
           <!-- One shared 60-minute working-count line; gaps stay unobserved. -->
-          <Viewbox Grid.Row="1" Height="30" Margin="0,4,0,0" Stretch="Fill">
-          <controls:ActivitySparkline x:Name="ActivityChart" Width="330" Height="30"
+          <StackPanel Grid.Row="1" Margin="0,7,0,0" ToolTip="{Binding ActivityTooltip}">
+            <TextBlock Text="Working tasks · past hour" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource ForegroundBrush}" />
+            <Grid Margin="0,5,0,0">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding ActivityAxisMaximum}" VerticalAlignment="Top" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
+              <TextBlock Text="0" VerticalAlignment="Bottom" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
+              <Viewbox Grid.Column="1" Height="40" Stretch="Fill">
+                <controls:ActivitySparkline x:Name="ActivityChart" Width="330" Height="30"
                                       Segments="{Binding ActivitySegments}"
                                       LineBrush="{DynamicResource AccentPrimaryBrush}"
                                       PartialBrush="{DynamicResource AccentSecondaryBrush}"
                                       BaselineBrush="{DynamicResource BorderBrush}"
                                       ToolTip="{Binding ActivityTooltip}"
                                       automation:AutomationProperties.Name="{Binding ActivityTooltip}" />
-          </Viewbox>
+              </Viewbox>
+            </Grid>
+            <Grid Margin="24,2,0,0">
+              <TextBlock Text="60 min ago" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
+              <TextBlock Text="Now" HorizontalAlignment="Right" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
+            </Grid>
+          </StackPanel>
 
           <Grid Grid.Row="2" Margin="0,3,0,0">
             <Grid.ColumnDefinitions>
@@ -400,7 +399,7 @@
                                    FontSize="{DynamicResource FontSizeMeta}"
                                    Foreground="{DynamicResource MutedBrush}" />
                       </StackPanel>
-                      <TextBlock Grid.Column="2" Text="{Binding AgeText}" Margin="8,0,0,0" VerticalAlignment="Center"
+                      <TextBlock Grid.Column="2" Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" Margin="8,0,0,0" VerticalAlignment="Center"
                                  FontFamily="{DynamicResource MetadataFontFamily}"
                                  FontSize="{DynamicResource FontSizeMeta}"
                                  Foreground="{DynamicResource MutedBrush}" />

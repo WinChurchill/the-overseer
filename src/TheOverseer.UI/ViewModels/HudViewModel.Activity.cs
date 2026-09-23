@@ -17,6 +17,9 @@ public sealed partial class HudViewModel
     private bool _isMuted = true;
     private bool _voiceAvailable;
     private bool _hasActivity;
+    private string _activityAxisMaximum = "1";
+
+    public string ActivityAxisMaximum { get => _activityAxisMaximum; private set => Set(ref _activityAxisMaximum, value); }
 
     /// <summary>Geometry for the shared sparkline (already bounded by the chart builder).</summary>
     public IReadOnlyList<ActivityChartSegment> ActivitySegments
@@ -92,14 +95,11 @@ public sealed partial class HudViewModel
         ActivitySegments = ActivityChartGeometry.Build(series, chartWidth, chartHeight);
         ActivityTooltip = ActivityChartGeometry.Tooltip(series, series.To);
         HasActivity = !series.IsEmpty;
+        ActivityAxisMaximum = Math.Max(1, series.PeakWorking).ToString(System.Globalization.CultureInfo.InvariantCulture);
         ActivitySummaryLine = series.IsEmpty
-            ? "no activity in the last 60 minutes"
-            : series.SampleCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
-              (series.SampleCount == 1 ? " sample" : " samples") +
-              " · peak " + series.PeakWorking.ToString(System.Globalization.CultureInfo.InvariantCulture) +
-              (series.HasGap ? " · gaps" : string.Empty) +
-              (series.HasPartial ? " · partial" : string.Empty) +
-              (series.HasUnknown ? " · unknown" : string.Empty);
+            ? "Collecting activity…"
+            : series.HasPartial ? "Dashed: minimum known"
+                : series.HasGap || series.HasUnknown ? "Gaps: no observation" : "Count of working tasks";
         VoiceStatusLine = status.Detail;
         VoiceAvailable = !status.IsMuted && status.ProviderId != "silent";
         IsMuted = status.IsMuted;

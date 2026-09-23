@@ -417,6 +417,8 @@ public sealed class AgentStateReducer
             task.CancellationObserved = false;
             task.FailureCode = null;
             task.TurnId = turnId;
+            task.StartedAt = null;
+            task.CompletedAt = null;
             task.TurnStartedAt = record.LastActivityAt;
             task.TurnLastActivityAt = record.LastActivityAt;
             task.HasActivityInCurrentTurn = false;

@@ -108,6 +108,9 @@ public sealed class HudWindowTests
                 var summary = (FrameworkElement)window.FindName("SummaryRegion");
                 Assert.True(region.IsAncestorOf(summary));
                 Assert.True(region.ActualHeight > 45);
+                Assert.Equal(System.Windows.Input.Cursors.SizeAll, region.Cursor);
+                Assert.Equal(System.Windows.Input.Cursors.Hand, ((FrameworkElement)window.FindName("MuteButton")).Cursor);
+                Assert.Equal(System.Windows.Input.Cursors.Hand, ((FrameworkElement)window.FindName("ExpandButton")).Cursor);
                 void MouseEvent(UIElement target, RoutedEvent routedEvent) => target.RaiseEvent(
                     new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
                     { RoutedEvent = routedEvent });

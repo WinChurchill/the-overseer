@@ -100,7 +100,7 @@ public sealed record HudControllerDependencies(
 /// </summary>
 public sealed class HudApplicationController : IAsyncDisposable
 {
-    private static readonly HudSize ExpandedSize = new(360, 440);
+    private static readonly HudSize ExpandedSize = new(360, 480);
     private const double ActivityChartWidth = 330;
     private const double ActivityChartHeight = 30;
 
@@ -619,7 +619,7 @@ public sealed class HudApplicationController : IAsyncDisposable
 
     private void CreateWindowMenu()
     {
-        var menu = new System.Windows.Controls.ContextMenu();
+        var menu = new System.Windows.Controls.ContextMenu { Cursor = System.Windows.Input.Cursors.Arrow };
         void Add(string label, Action action)
         {
             var item = new System.Windows.Controls.MenuItem { Header = label };

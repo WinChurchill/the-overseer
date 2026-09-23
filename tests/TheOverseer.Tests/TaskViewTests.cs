@@ -112,6 +112,26 @@ public sealed class TaskViewTests
     }
 
     [Fact]
+    public void ElapsedTurnTimeSurvivesActionChangesAndResetsOnlyForANewTurn()
+    {
+        var task = Task(1, AgentTaskState.Working, 0) with { StartedAt = Now.AddMinutes(-5) };
+        var row = new TaskRowViewModel(task, false, "");
+        row.UpdateAge(Now, task.LastActivityAt);
+        Assert.Equal("5m", row.AgeText);
+        row.Update(task with { Action = new AgentAction(AgentActionKind.EditingFiles, EvidenceKind.Structured), LastActivityAt = Now.AddSeconds(10) });
+        row.UpdateAge(Now.AddSeconds(10), Now.AddSeconds(10));
+        Assert.Equal("5m", row.AgeText);
+        Assert.Contains("Last activity: 0s ago", row.AgeHint);
+        row.Update(task with { TurnId = "new-turn", StartedAt = Now.AddSeconds(10) });
+        row.UpdateAge(Now.AddSeconds(11), Now.AddSeconds(10));
+        Assert.Equal("1s", row.AgeText);
+        row.Update(task with { TurnId = "unobserved-start", StartedAt = null });
+        row.UpdateAge(Now, Now);
+        Assert.Equal("—", row.AgeText);
+        Assert.Contains("not observed", row.AgeHint);
+    }
+
+    [Fact]
     public void IncompleteZeroExplainsUnreadHistoryWithoutClaimingIdle()
     {
         var vm = new HudViewModel(HudSettings.Default);

@@ -213,6 +213,7 @@ try {
 
     $requiredPayload = @(
         @{ Source = (Join-Path $repoRoot 'README.md'); Target = 'README.md' },
+        @{ Source = (Join-Path $repoRoot 'CHANGELOG.md'); Target = 'CHANGELOG.md' },
         @{ Source = (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md'); Target = 'THIRD_PARTY_NOTICES.md' },
         @{ Source = (Join-Path $repoRoot 'third_party/codex-monitor-hud/LICENSE'); Target = 'licenses/codex-monitor-hud-MIT.txt' }
     )

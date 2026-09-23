@@ -2,6 +2,7 @@
 
 **OVERSEER** is a private Windows desktop companion for Codex sessions.
 Repository: `the-overseer`. Solution: `TheOverseer.sln`.
+User-facing changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 Plan 1 (Foundation and Monitoring) is merged into `main`: a bounded, read-only
 local monitor that turns Codex rollout records into normalized task state,
@@ -126,6 +127,9 @@ Working is green, confirmed attention/errors are red, and uncertain activity is
 amber. An incomplete zero is labeled "No confirmed work"; a plain-language line
 explains unread history or stale activity instead of treating missing data as idle.
 Always on top remains enabled by default and can be toggled in the header/tray menu.
+Active-row timers show elapsed time for the current turn, including waiting time;
+action changes do not reset them. Hover for last-activity freshness. A missing
+start timestamp displays a dash. Settled rows show time since their last activity.
 
 The HUD never activates itself: it is shown with `ShowActivated=false` and the
 window is positioned without activation, so monitoring updates, theme changes and
@@ -242,9 +246,11 @@ second (maximum 3,601), each holding the working and needs-human `CountValue`
 from the newest snapshot in that second. Nothing is persisted and no labels or
 conversation data are stored. Unknown samples and gaps longer than 10 seconds
 break the line, partial counts keep a distinct dashed style, and the x-axis is a
-fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. Both collapsed
-and expanded modes show the working-count sparkline; expanded mode adds a summary such as
-`551 samples · peak 5 · gaps · partial`; the same samples feed the tooltip.
+fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. The expanded
+HUD labels the graph **Working tasks · past hour**, with a task-count scale and
+**60 min ago → Now** axis. Dashed segments show minimum known counts and gaps
+are unobserved time, not zero. The collapsed HUD focuses on the current status.
+The tooltip retains detailed sample, peak and coverage information.
 
 ### Voice notifications
 
@@ -328,7 +334,7 @@ differ between runs.
 3. Runtime data stays in `%LOCALAPPDATA%\OVERSEER` (`config.json`,
    `state.json`, logs). Pass `--data-directory PATH` for an isolated run.
 
-Archive contents: the complete publish output, `README.md`,
+Archive contents: the complete publish output, `README.md`, `CHANGELOG.md`,
 `THIRD_PARTY_NOTICES.md`, `licenses/` (the upstream codex-monitor-hud MIT license
 and the licenses/notices from the exact .NET and Windows Desktop runtime packages
 redistributed) and `examples/voicepacks/example/`. No repository files, tests, agent
