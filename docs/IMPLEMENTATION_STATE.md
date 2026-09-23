@@ -282,5 +282,5 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   Native in-flight cancellation completed in 11ms.
 - Evidence: `artifacts/voice-audible-20260923/stdout.txt`. Synthetic tones only;
   this does not verify speech quality or real Codex approval/input observability.
-  User confirmation of audibility is pending. Normal HUD settings remain muted;
+  User confirmed the tones were heard clearly. Normal HUD settings remain muted;
   its selected `example` pack was not installed and no TTS endpoint was configured.
