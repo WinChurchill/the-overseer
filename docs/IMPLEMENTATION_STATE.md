@@ -217,5 +217,16 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
 - Added user-facing CHANGELOG.md and included it in release payload checks.
 - Release build: 0 warnings/errors; **414/414** tests passed. Light/Dark chart and
   collapsed renders inspected under `artifacts/monitor-chart-ui`.
-- Updated clean-source package and packaged smoke pending. Branch remains
-  `ux/first-use`; frozen sources and monitoring/privacy/resource bounds preserved.
+- Clean source `ceb2b50`; package `artifacts/activity-fix-release/OVERSEER-v1-win-x64.zip`
+  includes CHANGELOG.md, SHA-256
+  `D51A9083525549BB2E25881FCCF5AC832B1E1952C30B7AD7211FF77B36194AE9`.
+- All **28/28 packaged checks passed**, default durations, no overrides. The
+  isolated 60-second normal-HUD check sampled 548 times with no owned foreground
+  window. Evidence: `artifacts/activity-fix-release/smoke/run-20260923T072544Z-0659d796/`.
+- Updated normal HUD left running from `artifacts/overseer-activity-ceb2b50/` with
+  saved user settings. Native window checks confirmed visible/topmost/taskbar.
+  This interactive relaunch separately recorded 11 owned-foreground observations
+  in 60 samples; user interaction was not attributed, so that observation is not
+  claimed as a no-focus pass. See `artifacts/activity-fix-release/live-evidence.json`.
+- Branch remains `ux/first-use`; frozen sources and monitoring/privacy/resource
+  bounds preserved. Latest candidate is the activity-fix package above.
