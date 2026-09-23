@@ -18,6 +18,7 @@ public enum TrayAvailability
 internal sealed class TrayService : IDisposable
 {
     private readonly NotifyIcon _icon;
+    private readonly Icon _artwork;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _visibilityItem;
     private readonly ToolStripMenuItem _themeItem;
@@ -32,6 +33,7 @@ internal sealed class TrayService : IDisposable
         ToolStripMenuItem topmost, ToolStripMenuItem opacity, ToolStripMenuItem startup, ToolStripMenuItem mute, ToolStripMenuItem status)
     {
         _icon = icon;
+        _artwork = icon.Icon!;
         _menu = menu;
         _visibilityItem = visibility;
         _themeItem = theme;
@@ -46,6 +48,7 @@ internal sealed class TrayService : IDisposable
     {
         ContextMenuStrip? menu = null;
         NotifyIcon? icon = null;
+        Icon? artwork = null;
         try
         {
             menu = new ContextMenuStrip();
@@ -87,9 +90,10 @@ internal sealed class TrayService : IDisposable
             menu.Items.Add(status);
             menu.Items.Add(exit);
 
+            artwork = AppIcon.CreateTrayIcon();
             icon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = artwork,
                 Text = "OVERSEER",
                 ContextMenuStrip = menu,
                 Visible = true,
@@ -101,6 +105,7 @@ internal sealed class TrayService : IDisposable
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
         {
             icon?.Dispose();
+            artwork?.Dispose();
             menu?.Dispose();
             return (null, TrayAvailability.Unavailable);
         }
@@ -144,6 +149,7 @@ internal sealed class TrayService : IDisposable
         _disposed = true;
         _icon.Visible = false;
         _icon.Dispose();
+        _artwork.Dispose();
         _menu.Dispose();
     }
 }

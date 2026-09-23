@@ -15,6 +15,11 @@
 
 ### Changed
 
+- Applied the supplied OVERSEER artwork to the executable, taskbar/window and tray
+  icons, with standard Windows sizes and preserved transparency.
+- Replaced diagnostic headlines with concise status text. A compact coverage/input
+  label replaces the persistent disclaimers; full explanations remain in tooltips
+  and the header's Monitoring details menu. Uncertain counts remain marked.
 - Reduced the graph caption to small, muted, regular-weight text that shrinks to
   fit narrow layouts without enlarging in wider ones.
 - Task rows share the HUD status palette through a thin accent and colored status

@@ -248,3 +248,17 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   preserved; app left running from `artifacts/overseer-caption-a6b12ca/`.
 - No monitor or lifecycle behavior changed; the preceding full 28-check package
   result remains separate from this scoped visual-update check.
+
+### App icon and concise status copy — 2026-09-23
+
+- User-supplied artwork preserved byte-for-byte in `design/branding/overseer-source.png`
+  (SHA-256 `7F6EBFF07B6E4B8D5E39CCC5F660C4F0032C4EF8C5A12170613AB1AA7EB87F4C`).
+  Mechanical Windows icon conversion preserves transparency and includes 16, 24,
+  32, 48, 64, 128 and 256 pixel frames. Embedded for executable, window and tray;
+  tray owns and disposes its icon independently.
+- Visible statuses use Idle, Limited visibility and Monitor offline. Replaced
+  persistent diagnostic paragraphs with one compact coverage/input-detection
+  label; full details remain in tooltips and the header's Monitoring details menu.
+  Unknown/lower-bound counts and monitoring semantics are unchanged.
+- CHANGELOG.md and README.md updated. Release build/tests and packaged runtime
+  verification are recorded below once the candidate has been checked.

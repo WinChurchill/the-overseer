@@ -149,12 +149,12 @@ public static class HudText
     {
         if (snapshot.Health.Level == MonitoringHealthLevel.Unavailable)
         {
-            return "Monitor unavailable — task state is unknown, not zero.";
+            return "Task activity unavailable.";
         }
 
         if (snapshot.Health.Level == MonitoringHealthLevel.Degraded)
         {
-            return "No conversations in view while monitoring is degraded.";
+            return "No tasks visible. Coverage is limited.";
         }
 
         return "No Codex conversations tracked yet.";

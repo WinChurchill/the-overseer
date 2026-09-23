@@ -158,16 +158,15 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         {
             if (MonitoringUnavailable)
             {
-                return "? Monitor unavailable";
+                return "Monitor offline";
             }
 
-            return StatusSymbol + " " + StatusHeadline;
+            return StatusHeadline;
         }
     }
 
     /// <summary>Compact metadata strip where Plan 3 will draw the activity chart.</summary>
-    public string MetaStripLine => TaskCountLine + " · " + UpdatedLine +
-                                   (IsPartial ? " · counts may be incomplete" : " · activity up to date");
+    public string MetaStripLine => TaskCountLine + " · " + UpdatedLine;
 
     public string FooterHint => StatusMessage.Length > 0
         ? StatusMessage
@@ -224,7 +223,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     public string HealthLine
     {
         get => _healthLine;
-        private set => Set(ref _healthLine, value);
+        private set { if (Set(ref _healthLine, value)) Raise(nameof(StatusDetails)); }
     }
 
     public string UpdatedLine
@@ -321,11 +320,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     public void NotifyMonitorFailure(string code)
     {
         _latestSnapshot = null;
-        StatusHeadline = "Monitoring unavailable";
+        StatusHeadline = "Monitor offline";
         StatusKind = "unavailable";
-        StatusSymbol = "?";
+        StatusSymbol = string.Empty;
         AttentionDisclosure = "Task state is unknown. Check monitoring.";
         MonitoringDisclosure = "Cannot read task activity. Counts are unknown.";
+        MonitoringBadgeText = "Activity unavailable";
         RaiseStatus();
         MonitoringTitle = "MONITORING UNAVAILABLE";
         MonitoringDetail = "monitor stopped · " + code;
@@ -342,7 +342,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         CountQualifier = "unknown";
         SummaryText = "working unknown · needs you unknown";
         Raise(nameof(SummaryText));
-        EmptyStateText = "Monitor unavailable — task state is unknown, not zero.";
+        EmptyStateText = "Task activity unavailable.";
         StatusMessage = "Monitor stopped (" + code + ") — task state is unknown.";
         Raise(nameof(CollapsedStatusLine));
         Raise(nameof(MetaStripLine));

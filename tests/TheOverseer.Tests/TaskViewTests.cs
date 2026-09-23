@@ -138,7 +138,9 @@ public sealed class TaskViewTests
         var snapshot = VoiceTestData.Snapshot(Now, working: CountValue.Partial(0), coverageComplete: false);
         snapshot = snapshot with { Health = snapshot.Health with { Reasons = new[] { HealthReasons.HydrationBudget } } };
         vm.ApplySnapshot(snapshot);
-        Assert.Equal("No confirmed work", vm.StatusHeadline);
+        Assert.Equal("Limited visibility", vm.StatusHeadline);
+        Assert.Contains("Limited coverage", vm.MonitoringBadgeText);
+        Assert.Contains("unread", vm.StatusDetails);
         Assert.Equal("uncertain", vm.StatusKind);
         Assert.Equal("0+", vm.WorkingCountText);
         Assert.Contains("unread", vm.MonitoringDisclosure);

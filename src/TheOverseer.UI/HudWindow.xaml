@@ -202,7 +202,7 @@
                     automation:AutomationProperties.Name="{Binding MuteTooltip}"
                     ToolTip="{Binding MuteTooltip}" Margin="0,0,2,0" />
             <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="2,0,6,0"
-                     ToolTip="{Binding HealthLine}">
+                     ToolTip="{Binding StatusDetails}">
               <Ellipse.Style>
                 <Style TargetType="Ellipse">
                   <Setter Property="Fill" Value="{DynamicResource HealthyBrush}" />
@@ -263,12 +263,12 @@
 
         <Grid Grid.Row="2">
         <Button x:Name="StatusButton" Cursor="SizeAll" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
-                HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding MonitoringDisclosure}"
+                HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding StatusDetails}"
                 automation:AutomationProperties.Name="Show current tasks">
         <TextBlock Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}"
                    FontFamily="{DynamicResource PrimaryFontFamily}"
                    FontSize="14"
-                   ToolTip="{Binding MonitoringDisclosure}" />
+                   ToolTip="{Binding StatusDetails}" />
         </Button>
         </Grid>
       </Grid>
@@ -295,13 +295,11 @@
           </Grid.RowDefinitions>
           <StackPanel Grid.Row="0">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="{Binding StatusSymbol}" Margin="0,0,8,0" FontSize="23" Style="{StaticResource StatusText}" />
-              <TextBlock Text="{Binding StatusHeadline}" FontSize="23" Style="{StaticResource StatusText}" ToolTip="{Binding HealthLine}" />
+              <TextBlock Text="{Binding StatusHeadline}" FontSize="23" Style="{StaticResource StatusText}" ToolTip="{Binding StatusDetails}" />
             </StackPanel>
-            <TextBlock Text="{Binding MonitoringDisclosure}" FontSize="11" Margin="0,2,0,2"
-                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding HealthLine}" />
-            <TextBlock Text="{Binding AttentionDisclosure}" FontSize="11" Margin="0,2,0,2"
-                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding CapabilityLine}" />
+            <TextBlock Text="{Binding MonitoringBadgeText}" FontSize="10" Margin="0,3,0,2"
+                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding StatusDetails}"
+                       automation:AutomationProperties.HelpText="{Binding StatusDetails}" />
           </StackPanel>
 
           <!-- One shared 60-minute working-count line; gaps stay unobserved. -->

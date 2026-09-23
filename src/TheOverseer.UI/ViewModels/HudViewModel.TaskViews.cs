@@ -58,6 +58,8 @@ public sealed partial class HudViewModel
     public bool AttentionLimited { get; private set; } = true;
     public string AttentionDisclosure { get; private set; } = "Checking attention detection…";
     public string MonitoringDisclosure { get; private set; } = "Reading local task activity…";
+    public string MonitoringBadgeText { get; private set; } = "Connecting…";
+    public string StatusDetails => MonitoringDisclosure + "\n" + AttentionDisclosure + "\n" + HealthLine;
 
     private void RefreshTaskView()
     {
@@ -92,6 +94,10 @@ public sealed partial class HudViewModel
             ? "Approval/input detection limited — check Codex for requests."
             : "Approval/input detection available.";
         var reasons = snapshot.Health.Reasons;
+        var limited = !snapshot.Counts.Working.IsComplete || !snapshot.Counts.Working.IsKnown || !snapshot.Health.CoverageComplete;
+        MonitoringBadgeText = snapshot.Health.Level == MonitoringHealthLevel.Unavailable ? "Activity unavailable"
+            : limited && AttentionLimited ? "Limited coverage · input detection limited"
+            : limited ? "Limited coverage" : AttentionLimited ? "Input detection limited" : "Live monitoring";
         MonitoringDisclosure = snapshot.Health.Level == MonitoringHealthLevel.Unavailable
             ? "Cannot read task activity. Counts are unknown."
             : reasons.Contains(HealthReasons.HydrationBudget) || reasons.Contains(HealthReasons.DiscoveryBacklog)
@@ -104,8 +110,8 @@ public sealed partial class HudViewModel
         if (snapshot.Health.Level == MonitoringHealthLevel.Unavailable)
         {
             StatusKind = "unavailable";
-            StatusHeadline = "Monitoring unavailable";
-            StatusSymbol = "?";
+            StatusHeadline = "Monitor offline";
+            StatusSymbol = string.Empty;
         }
         else if (snapshot.Counts.NeedsHuman.IsKnown && snapshot.Counts.NeedsHuman.Value > 0)
         {
@@ -128,13 +134,13 @@ public sealed partial class HudViewModel
         else if (!snapshot.Counts.Working.IsKnown || !snapshot.Counts.Working.IsComplete)
         {
             StatusKind = "uncertain";
-            StatusHeadline = snapshot.Counts.Working.IsKnown ? "No confirmed work" : "Work status unknown";
-            StatusSymbol = "?";
+            StatusHeadline = "Limited visibility";
+            StatusSymbol = string.Empty;
         }
         else
         {
             StatusKind = "idle";
-            StatusHeadline = "No current work";
+            StatusHeadline = "Idle";
             StatusSymbol = "–";
         }
         RaiseStatus();
@@ -148,5 +154,7 @@ public sealed partial class HudViewModel
         Raise(nameof(AttentionLimited));
         Raise(nameof(AttentionDisclosure));
         Raise(nameof(MonitoringDisclosure));
+        Raise(nameof(MonitoringBadgeText));
+        Raise(nameof(StatusDetails));
     }
 }

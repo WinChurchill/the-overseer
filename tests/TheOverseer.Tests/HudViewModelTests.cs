@@ -63,7 +63,7 @@ public sealed class HudViewModelTests
         unavailable.ApplySnapshot(SyntheticHudScenarios.Unavailable());
         Assert.True(unavailable.MonitoringUnavailable);
         Assert.Equal("?", unavailable.WorkingCountText);
-        Assert.Contains("unknown", unavailable.EmptyStateText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Task activity unavailable.", unavailable.EmptyStateText);
     }
 
     [Fact]

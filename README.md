@@ -109,7 +109,7 @@ Controls:
 | Click a task row | Requests the validated `codex://threads/<id>` route for a resolved Desktop task. |
 | Right-click a task row, then Copy task id | Copies only the selected task id. |
 | `Enter`/`Space` on a focused row | Same as clicking it. |
-| Right-click the HUD header | Display settings, expansion, startup, reset position and Exit; available even without a tray. |
+| Right-click the HUD header | Display settings, expansion, startup, reset position, Monitoring details and Exit; available even without a tray. |
 | Tray icon | Show/Hide, Light/Dark, Always on top, opacity presets, Start with Windows, Reset position, monitoring status, Exit. |
 
 The visible HUD appears in the Windows taskbar and Alt+Tab. Now is the default
@@ -119,17 +119,22 @@ this app launch. Headline counts always cover all monitored work, independently
 of the selected view. Older and stale rows remain accessible in Recent when
 within its time window. The selected view and recent window are saved.
 
-A prominent text, symbol and color status shows Working, Needs you, Task failed,
-No current work or an unavailable/incomplete monitor. When approval/input
+A prominent text and color status shows Working, Needs you, Task failed,
+Idle, Limited visibility or Monitor offline. When approval/input
 detection is unsupported, the attention count is `?` (or a known lower bound
-such as `1+`), and the expanded HUD discloses that limitation.
+such as `1+`), and a compact monitoring label discloses that limitation.
 Working is green, confirmed attention/errors are red, and uncertain activity is
-amber. An incomplete zero is labeled "No confirmed work"; a plain-language line
-explains unread history or stale activity instead of treating missing data as idle.
+amber. An incomplete zero is labeled "Limited visibility". Full explanations of
+unread history, stale activity and input detection are available in status tooltips
+and the header's Monitoring details menu; missing data is never treated as idle.
 Always on top remains enabled by default and can be toggled in the header/tray menu.
 Active-row timers show elapsed time for the current turn, including waiting time;
 action changes do not reset them. Hover for last-activity freshness. A missing
 start timestamp displays a dash. Settled rows show time since their last activity.
+
+The executable, taskbar/window and tray use the user-supplied OVERSEER artwork.
+The original is preserved in `design/branding/overseer-source.png`; the embedded
+Windows icon contains transparent 16, 24, 32, 48, 64, 128 and 256 pixel frames.
 
 The HUD never activates itself: it is shown with `ShowActivated=false` and the
 window is positioned without activation, so monitoring updates, theme changes and

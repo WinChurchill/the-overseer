@@ -208,6 +208,7 @@ public sealed class HudApplicationController : IAsyncDisposable
     private void CreateWindow()
     {
         _window = _dependencies.WindowFactory();
+        _window.Icon = AppIcon.WindowImage;
         _window.DataContext = ViewModel;
         _window.PlacementChangedByUser += (_, _) =>
         {
@@ -638,6 +639,15 @@ public sealed class HudApplicationController : IAsyncDisposable
         Add("Mute / unmute voice", ToggleMute);
         Add("Toggle start with Windows", ToggleStartWithWindows);
         Add("Reset position", ResetPosition);
+        var monitoring = new System.Windows.Controls.MenuItem { Header = "Monitoring details" };
+        foreach (var property in new[] { nameof(HudViewModel.MonitoringDisclosure), nameof(HudViewModel.AttentionDisclosure), nameof(HudViewModel.HealthLine) })
+        {
+            var detail = new System.Windows.Controls.MenuItem { IsEnabled = false };
+            detail.SetBinding(System.Windows.Controls.HeaderedItemsControl.HeaderProperty,
+                new System.Windows.Data.Binding(property) { Source = ViewModel });
+            monitoring.Items.Add(detail);
+        }
+        menu.Items.Add(monitoring);
         Add("Exit", () => ExitRequested?.Invoke(this, EventArgs.Empty));
         _window!.ContextMenu = menu;
     }
