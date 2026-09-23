@@ -40,7 +40,7 @@ internal sealed class WindowsWindowPlacementService : IWindowPlacementService
                     bounds.Y,
                     bounds.Width,
                     bounds.Height,
-                    GetScaleForScreen()));
+                    GetScaleForScreen(bounds)));
             }
         }
         catch (InvalidOperationException)
@@ -136,11 +136,17 @@ internal sealed class WindowsWindowPlacementService : IWindowPlacementService
         return layout.IsEmpty ? null : layout.Primary;
     }
 
-    private static double GetScaleForScreen()
+    private static double GetScaleForScreen(System.Drawing.Rectangle bounds)
     {
-        // Screens carry no HWND; the system DPI is the stable baseline here and
-        // the per-window DPI is used for the real placement conversion.
-        var dpi = NativeMethods.GetDpiForSystem();
+        // Screens carry no HWND, so ask about the monitor that owns the screen
+        // centre. On a mixed-DPI desktop each screen reports its own scale; the
+        // system DPI is only the baseline when the per-monitor query is not
+        // available (older shells) or fails. The per-window DPI still governs
+        // the real placement conversion.
+        var monitorDpi = NativeMethods.GetMonitorDpi(
+            bounds.Left + (bounds.Width / 2),
+            bounds.Top + (bounds.Height / 2));
+        var dpi = monitorDpi >= 96 ? monitorDpi : NativeMethods.GetDpiForSystem();
         return dpi >= 96 ? dpi / 96.0 : 1.0;
     }
 }
