@@ -14,6 +14,22 @@ public partial class HudWindow : Window
 {
     private readonly DragGestureTracker _drag = new();
     private bool _statusClick;
+    private double _lightResizeSize;
+
+    private void OnLightResizeStarted(object sender, DragStartedEventArgs e) => _lightResizeSize = ViewModel?.LightSize ?? 32;
+
+    private void OnLightResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (ViewModel is not { } vm) return;
+        var delta = vm.LightPosition switch
+        {
+            "left" => -e.HorizontalChange, "right" => e.HorizontalChange,
+            "top" => -e.VerticalChange, "bottom" => e.VerticalChange, _ => 0,
+        };
+        _lightResizeSize = Math.Clamp(_lightResizeSize + delta, 6, 64);
+        vm.LightSize = (int)Math.Round(_lightResizeSize);
+        e.Handled = true;
+    }
 
     public HudWindow()
     {

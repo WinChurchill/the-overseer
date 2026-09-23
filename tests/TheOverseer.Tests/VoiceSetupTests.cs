@@ -12,6 +12,32 @@ namespace TheOverseer.Tests;
 
 public sealed class VoiceSetupTests
 {
+    [Theory]
+    [InlineData("right", 12, 0)]
+    [InlineData("left", -12, 0)]
+    [InlineData("top", 0, -12)]
+    [InlineData("bottom", 0, 12)]
+    public void LightSurfaceDragResizesWithBounds(string position, double x, double y)
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var vm = new HudViewModel(HudSettings.Default with { LightPosition = position });
+            var window = new HudWindow { DataContext = vm };
+            try
+            {
+                var grip = (System.Windows.Controls.Primitives.Thumb)window.FindName("LightResizeGrip");
+                grip.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent });
+                grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(x, y) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+                Assert.Equal(44, vm.LightSize);
+                grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(x * 100, y * 100) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+                Assert.Equal(64, vm.LightSize);
+                grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-x * 100, -y * 100) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+                Assert.Equal(6, vm.LightSize);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [Fact]
     public async Task RecordingWrapperPreservesTtsFallbackDiagnostics()
     {
@@ -73,7 +99,7 @@ public sealed class VoiceSetupTests
         });
         var loaded = MonitorConfigStore.Load(path).Config;
         Assert.Equal("right", loaded.Hud.LightPosition);
-        Assert.Equal(24, loaded.Hud.LightSize);
+        Assert.Equal(64, loaded.Hud.LightSize);
         Assert.True(loaded.Voice.IsEnabled(VoiceEventKind.SystemOnline));
         Assert.False(loaded.Voice.IsEnabled(VoiceEventKind.TaskCompleted));
         Assert.Single(loaded.Voice.Clips);

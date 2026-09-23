@@ -163,7 +163,14 @@
       <Border x:Name="StatusLight" DockPanel.Dock="{Binding LightDock}" Width="{Binding LightWidth}" Height="{Binding LightHeight}"
               Visibility="{Binding LightVisible, Converter={StaticResource BoolToVisibility}}" Style="{StaticResource StatusAccent}"
               Background="{Binding BorderBrush, RelativeSource={RelativeSource Self}}"
-              ToolTip="{Binding StatusHeadline}" automation:AutomationProperties.Name="{Binding StatusHeadline}" />
+              ToolTip="{Binding StatusHeadline}" automation:AutomationProperties.Name="{Binding StatusHeadline}">
+        <Thumb x:Name="LightResizeGrip" Cursor="{Binding LightResizeCursor}"
+               DragStarted="OnLightResizeStarted" DragDelta="OnLightResizeDelta"
+               ToolTip="Drag to resize the light. Right-click for position and width options."
+               automation:AutomationProperties.Name="Resize status light">
+          <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
+        </Thumb>
+      </Border>
     <Grid>
       <Grid.RowDefinitions>
         <RowDefinition Height="72" />

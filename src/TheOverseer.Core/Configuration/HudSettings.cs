@@ -40,14 +40,14 @@ public sealed record HudSettings
     public int RecentHours { get; init; } = 2;
 
     [JsonPropertyName("lightPosition")]
-    public string LightPosition { get; init; } = "off";
+    public string LightPosition { get; init; } = "right";
 
     [JsonPropertyName("lightSize")]
-    public int LightSize { get; init; } = 12;
+    public int LightSize { get; init; } = 32;
 
     public static string NormalizeLightPosition(string? value) => value?.ToLowerInvariant() switch
     {
-        "top" => "top", "bottom" => "bottom", "left" => "left", "right" => "right", _ => "off",
+        "top" => "top", "bottom" => "bottom", "left" => "left", "off" => "off", _ => "right",
     };
 
     public static string NormalizeTaskView(string? value) => value?.ToLowerInvariant() switch
@@ -72,7 +72,7 @@ public sealed record HudSettings
         TaskView = NormalizeTaskView(TaskView),
         RecentHours = Math.Clamp(RecentHours, 1, 24),
         LightPosition = NormalizeLightPosition(LightPosition),
-        LightSize = Math.Clamp(LightSize, 6, 24),
+        LightSize = Math.Clamp(LightSize, 6, 64),
     };
 
     /// <summary>Finite, clamped, readable opacity. Never NaN, infinity or off-range.</summary>

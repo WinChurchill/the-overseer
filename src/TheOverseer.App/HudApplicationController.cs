@@ -637,6 +637,23 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         Add("Expand / collapse", () => ViewModel.IsExpanded = !ViewModel.IsExpanded);
+        var lightMenu = new System.Windows.Controls.MenuItem { Header = "Status light" };
+        foreach (var position in new[] { "right", "left", "top", "bottom", "off" })
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = char.ToUpperInvariant(position[0]) + position[1..], IsCheckable = true };
+            item.Click += (_, _) => ViewModel.LightPosition = position;
+            lightMenu.SubmenuOpened += (_, _) => item.IsChecked = ViewModel.LightPosition == position;
+            lightMenu.Items.Add(item);
+        }
+        lightMenu.Items.Add(new System.Windows.Controls.Separator());
+        foreach (var size in new[] { 24, 32, 48, 64 })
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = $"Width {size}", IsCheckable = true };
+            item.Click += (_, _) => ViewModel.LightSize = size;
+            lightMenu.SubmenuOpened += (_, _) => item.IsChecked = ViewModel.LightSize == size;
+            lightMenu.Items.Add(item);
+        }
+        menu.Items.Add(lightMenu);
         Add("Light / dark", ToggleTheme);
         Add("Toggle always on top", ToggleTopmost);
         foreach (var opacity in new[] { 0.75, 0.85, 0.96, 1.0 })

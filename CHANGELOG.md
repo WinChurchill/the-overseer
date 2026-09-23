@@ -15,6 +15,9 @@
 
 ### Changed
 
+- Surfaced Status light directly in the HUD menu with position/width presets.
+  It now defaults to the right at 32 DIPs wide, with sizes up to 64 DIPs.
+  Drag the light directly to resize it, with a direction-appropriate cursor.
 - Added Light & voice settings in the header and tray menus: an optional steady
   status strip (four sides, adjustable size), nine voice situations with trigger
   descriptions, per-event switches, WAV assignment, validation and explicit preview.

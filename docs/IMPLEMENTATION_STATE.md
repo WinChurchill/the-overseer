@@ -322,3 +322,13 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   foreground window in 60 samples/15s. Evidence: `artifacts/light-voice-release/live-evidence.json`.
   Light remains optional/off by default; notifications remain muted unless enabled.
   CHANGELOG updated, branch clean after evidence commit; no merge/tag.
+
+### Direct light controls and resizing — 2026-09-23
+
+- User requested a surface-menu option, larger width, right-side default and
+  direct dragging to resize. Added Status light directly to the HUD menu with
+  position and width presets. Default is right/32 DIPs, adjustable from 6 to 64.
+- The colored surface is a resize grip with horizontal/vertical cursor matching
+  its side. Existing debounced settings persistence saves changes. Four routed
+  drag tests cover direction and bounds; expansion expectation includes strip width.
+- Build/test and scoped packaged verification are recorded after validation.

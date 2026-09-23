@@ -260,9 +260,11 @@ The tooltip retains detailed sample, peak and coverage information.
 ### Voice notifications
 
 Open **Light & voice…** from the HUD header's right-click menu or the tray menu.
-Choose Off/Top/Bottom/Left/Right and a 6–24 DIP size for the steady status strip.
+The header menu also exposes **Status light** directly, with position and width
+presets. Choose Off/Top/Bottom/Left/Right and a 6–64 DIP size for the steady status strip.
 It uses the HUD's status palette and adds space around the HUD without covering
-the controls. Off is the default; placement and size are saved.
+the controls. The default is Right at 32 DIPs; placement and size are saved.
+Drag the colored light itself to resize it; its cursor shows the resize direction.
 
 The same panel lists all nine notification situations, suggested recording text,
 trigger descriptions, enable switches and clip availability. **Assign WAV…** copies

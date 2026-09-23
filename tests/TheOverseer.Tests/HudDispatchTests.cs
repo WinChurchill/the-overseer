@@ -222,7 +222,7 @@ public sealed class HudDispatchTests
 
             Assert.True(placement.ApplyCount > before, "expansion must re-apply bounded geometry");
             // WPF owns the size in DIPs; the placement boundary owns position.
-            Assert.Equal(360, controller.Window!.Width);
+            Assert.Equal(392, controller.Window!.Width); // 360-DIP content plus the default 32-DIP right light.
             Assert.True(controller.Window.Height > collapsedDip, "expanded geometry must be taller");
             Assert.NotNull(placement.LastPlacement);
             StaTestHost.Complete(controller.ShutdownAsync());
