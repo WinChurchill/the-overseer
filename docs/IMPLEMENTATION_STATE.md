@@ -272,3 +272,15 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   and PNGs. The full 28-check smoke suite was not repeated for this icon/copy update.
 - Updated normal app left running from `artifacts/overseer-identity-b99fc68/` with
   saved settings. Branch remains `ux/first-use`; no merge/tag or dependency changes.
+
+### Audible notification check — 2026-09-23
+
+- Ran the packaged `b99fc68` executable with `--voice-smoke --audible` and an
+  isolated data directory. PASS: 4 pack and 5 loopback/fallback playback API
+  successes, no device-unavailable result; duplicate suppression, re-arm,
+  completion aggregation, mute/no-backlog and TTS failure fallback checks passed.
+  Native in-flight cancellation completed in 11ms.
+- Evidence: `artifacts/voice-audible-20260923/stdout.txt`. Synthetic tones only;
+  this does not verify speech quality or real Codex approval/input observability.
+  User confirmation of audibility is pending. Normal HUD settings remain muted;
+  its selected `example` pack was not installed and no TTS endpoint was configured.
