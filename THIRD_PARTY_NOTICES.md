@@ -31,6 +31,24 @@ Not copied: `MainHudView`, `Presentation/`, `Pricing/`, `OfficialCodexAllowanceR
 `Configuration/HudConfigStore`/`HudSettings`, animation recipes, layout matrices,
 MCP features, the upstream projects/solution, and the upstream executable test runner.
 
+## Shipped example voice pack (original, no third-party assets)
+
+`assets/voicepacks/example/` (shipped inside the release archive as
+`examples/voicepacks/example/`) contains **original synthetic PCM tones**
+generated for OVERSEER by `VoicePackValidator.CreateTone` (22050 Hz mono 16-bit
+sine tones, 0.15–0.25 s). They are not speech, not recordings and not derived
+from any third-party voice, model or asset library, so no additional license
+applies. The cues are documented in `assets/voicepacks/example/README.md`, and
+the pack is opt-in: voice starts muted and OVERSEER never installs a pack itself.
+
+## Shipped .NET runtime
+
+The self-contained release archive redistributes the .NET runtime and Windows
+Desktop runtime files. Their license terms come from the SDK/runtime used to
+publish; `scripts/Publish-Release.ps1` copies the applicable
+`LICENSE.txt` and `ThirdPartyNotices.txt` from that runtime into the archive's
+`licenses/` directory. No NuGet runtime package is referenced by the product.
+
 ## Build and test dependencies
 
 - Microsoft .NET / WPF: platform SDK and runtime, governed by their distributed licenses.

@@ -17,8 +17,13 @@ Plan 3 (Activity and Voice) is reviewed and merged into `main`: a bounded
 60-minute working-count sparkline, and meaningful attention notifications that
 speak once per condition through a validated local WAV pack or one configured
 generic TTS endpoint, with completion aggregation, cooldown, instant persistent
-mute and local fallback. Plan 4 (Hardening and Release) is planned on
-`impl/p4-release`; implementation and packaged release validation are pending.
+mute and local fallback.
+
+Plan 4 (Hardening and Release) is implemented on `impl/p4-release` and is ready
+for Astra Review 4: suspend/resume and per-monitor DPI handling, failure-matrix
+regressions, an original opt-in example voice pack, and a self-contained
+`OVERSEER-v1-win-x64.zip` built and smoke-tested from a fresh extraction by the
+scripts in `scripts/`. Merging and tagging `v1.0.0` follow that review.
 
 ## Naming and frozen sources
 
@@ -183,11 +188,22 @@ dotnet run --project src/TheOverseer.App -- --voice-smoke --data-directory artif
 dotnet run --project src/TheOverseer.App -- --voice-smoke --audible --data-directory artifacts/p3-voice
 ```
 
+```powershell
+# Silent check of the pack selected in the isolated data directory's config.json
+dotnet run --project src/TheOverseer.App -- --voice-pack-check --data-directory artifacts/p4-pack-check
+```
+
 The voice smoke is silent by default and proves the pack, policy, aggregation,
 mute and TTS contracts with generated PCM tones and a loopback HTTP server it
 owns; `--audible` additionally sends the clips to the real sound device and
 reports that observation separately from API success. No remote account,
 credential or spoken sample is required or used.
+
+`--voice-pack-check` plays nothing and is the packaged-asset check:
+`--voice-smoke` generates its own pack, so it cannot prove that the pack shipped
+inside a release archive loads. This mode loads `<data-directory>/voicepacks/<packId>`
+through the same provider the HUD uses, resolves all five event keys, validates
+every WAV and exits `0`/`1`.
 
 ## Activity history and voice
 
@@ -256,6 +272,68 @@ pack clip; with neither provider available the HUD stays silent and says so.
 }
 ```
 
+## Release package (V1)
+
+Build the release from committed source (the script refuses a dirty tree unless
+`-AllowDirtyTree` is passed):
+
+```powershell
+pwsh -NoProfile -File scripts/Publish-Release.ps1 -OutputDirectory artifacts/p4-release
+pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 -ArchivePath artifacts/p4-release/OVERSEER-v1-win-x64.zip
+```
+
+`Publish-Release.ps1` runs the documented self-contained publish
+(`Release`, `win-x64`, `PublishSingleFile=false`, `PublishTrimmed=false`,
+`PublishAot=false`, `Version=1.0.0`), assembles an explicit payload, writes
+`OVERSEER-v1-win-x64.zip`, and records `build-manifest.json` with the source
+commit, SDK version, included frameworks, payload file list and archive SHA-256.
+The process is repeatable and validated, not byte-identical: archive timestamps
+differ between runs.
+
+### Install and run
+
+1. Unzip `OVERSEER-v1-win-x64.zip` anywhere (a per-user folder needs no
+   elevation) and keep the extracted folder together.
+2. Run `TheOverseer.App.exe`. It is a self-contained x64 folder build: it loads
+   the .NET runtime from its own directory and does not need a system .NET
+   installation, `dotnet run`, the SDK or this repository.
+3. Runtime data stays in `%LOCALAPPDATA%\OVERSEER` (`config.json`,
+   `hud-state.json`, logs). Pass `--data-directory PATH` for an isolated run.
+
+Archive contents: the complete publish output, `README.md`,
+`THIRD_PARTY_NOTICES.md`, `licenses/` (the upstream codex-monitor-hud MIT license
+and the .NET runtime license/third-party notices taken from the SDK used to
+publish) and `examples/voicepacks/example/`. No repository files, tests, agent
+documents, build caches, logs or private data are included.
+
+### Example voice pack (opt-in)
+
+`examples/voicepacks/example/` contains original synthetic PCM tones (not
+speech, no third-party assets) for the five known events. Copy it to
+`%LOCALAPPDATA%\OVERSEER\voicepacks\example`, set `"provider": "pack"` and
+`"packId": "example"` under `voice` in `config.json`, restart and unmute. The
+manifest cannot escape the pack directory, and OVERSEER never installs or
+replaces a pack by itself. See `examples/voicepacks/example/README.md`.
+
+### Smoke evidence and known limits
+
+`Test-PackagedRelease.ps1` extracts the ZIP into a fresh directory, verifies the
+payload and version metadata, removes workspace SDK paths from the child
+environment, and runs the extracted apphost from an unrelated working directory
+with isolated data directories: six HUD fixture renders, `--hud-smoke`,
+`--voice-smoke` (owned loopback endpoint), `--voice-pack-check` against the
+shipped pack, deterministic `--monitor-debug` against a synthetic Codex home, one
+read-only real-monitor run, a 60-second normal HUD run (no foreground change, no
+window while started in the tray, second instance exits politely, graceful close
+and persisted state) and the `--start-in-tray --no-tray` visible fallback. It
+writes `smoke-evidence-<timestamp>.json` and fails on any failed check.
+
+Not covered by that script and still listed as unverified in
+`docs/IMPLEMENTATION_STATE.md`: physical sleep/wake, monitor disconnect and
+movement across monitors with different DPI, human tray interaction, acoustic
+playback by ear, and a clean machine that has no global .NET runtime installed.
+Approval and input attention remain unsupported in the installed Codex version.
+
 ## Configuration and logs
 
 `%LOCALAPPDATA%\OVERSEER\config.json` (System.Text.Json) is optional:
@@ -310,10 +388,10 @@ were not imported.
 
 ## Next action
 
-Astra Review 3 passed with nonblocking notes and its reviewed changes are now on
-`main`. The Plan 4 baseline builds with no warnings/errors and passes 375 tests.
-DeepSeek should execute the entire Plan 4 / Goal 4 on `impl/p4-release` using
-`AGENTS.md`, `.agent/HANDOFF.md` and `docs/IMPLEMENTATION_STATE.md`. This includes
-hardening, a self-contained Windows x64 ZIP and smoke tests from the extracted
-package. Leave the branch ready for Astra Review 4; merging and tagging follow
-that review. Physical validation limits remain explicit in the ledger.
+Plan 4 is implemented on `impl/p4-release`: the failure matrix has automated
+regressions, suspend/resume discard stale voice without changing the mute
+preference, placement resolves per-monitor DPI, the example pack ships with
+provenance, and the release archive is built from committed source and
+smoke-tested from a fresh extraction. The next action is **Astra Review 4**
+against `main`; merging and tagging `v1.0.0` follow that review. Physical
+validation limits stay explicit in `docs/IMPLEMENTATION_STATE.md`.
