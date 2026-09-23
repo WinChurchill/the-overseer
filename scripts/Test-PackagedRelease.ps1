@@ -378,18 +378,31 @@ if (-not $SkipHudLifecycle) {
         $stateExists = Test-Path -LiteralPath $statePath
         $configExists = Test-Path -LiteralPath $configPath
         $stateDetail = 'state=' + $stateExists
-        if ($stateExists) {
+        $themeValue = ''
+        $muteValue = $null
+        if ($configExists) {
             try {
-                $stateJson = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-                $stateDetail = 'state=yes bytes=' + (Get-Item -LiteralPath $statePath).Length +
-                    ' theme=' + $stateJson.Theme + ' dpi=' + $stateJson.DpiScale +
-                    ' monitor=' + (-not [string]::IsNullOrWhiteSpace($stateJson.MonitorDeviceName))
+                $configJson = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+                $themeValue = [string]$configJson.hud.theme
+                $muteValue = $configJson.voice.muted
             } catch {
-                $stateDetail = 'state=yes but unreadable: ' + $_.Exception.Message
+                $stateDetail = $stateDetail + ' config-unreadable=' + $_.Exception.Message
             }
         }
 
-        Add-Check 'hud-live-persisted-state' ($stateExists -and $configExists) ($stateDetail + ' config=' + $configExists)
+        if ($stateExists) {
+            try {
+                $stateJson = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+                $stateDetail = $stateDetail + ' bytes=' + (Get-Item -LiteralPath $statePath).Length +
+                    ' dpi=' + $stateJson.dpiScale +
+                    ' monitor=' + (-not [string]::IsNullOrWhiteSpace($stateJson.monitorDevice))
+            } catch {
+                $stateDetail = $stateDetail + ' unreadable=' + $_.Exception.Message
+            }
+        }
+
+        $stateDetail = $stateDetail + ' theme=' + $themeValue + ' muted=' + $muteValue
+        Add-Check 'hud-live-persisted-state' ($stateExists -and $configExists -and $themeValue -in @('light', 'dark') -and $null -ne $muteValue) $stateDetail
 
         # Tray start: hidden, alive, still no focus steal, closed gracefully.
         Write-Step 'hud-tray: hidden startup'

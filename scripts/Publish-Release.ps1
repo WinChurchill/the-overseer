@@ -157,6 +157,10 @@ try {
         '-p:PublishTrimmed=false',
         '-p:PublishAot=false',
         ('-p:Version=' + $Version),
+        # Map the checkout path out of the deterministic build metadata so the
+        # shipped binaries and symbols cannot leak where the release was built.
+        ('-p:PathMap=' + $repoRoot + '=/_/'),
+        '-p:DeterministicSourcePaths=true',
         '--disable-build-servers',
         '-nodeReuse:false',
         '-m:1',
@@ -240,6 +244,19 @@ try {
         (Join-Path $payloadRoot 'licenses/codex-monitor-hud-MIT.txt'),
         (Join-Path $payloadRoot 'examples/voicepacks/example/manifest.json'))) {
         if (-not (Test-Path -LiteralPath $required)) { throw ('payload is missing ' + $required) }
+    }
+
+    # The build machine's checkout path must not be embedded in shipped binaries
+    # or symbols; PathMap above is what keeps this true.
+    $leaking = New-Object System.Collections.ArrayList
+    foreach ($file in $payloadFiles) {
+        if ($file.Extension -notin @('.dll', '.exe', '.pdb', '.json')) { continue }
+        $text = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($file.FullName))
+        if ($text.Contains($repoRoot)) { [void]$leaking.Add($file.Name) }
+    }
+
+    if ($leaking.Count -gt 0) {
+        throw ('payload embeds the build checkout path in: ' + (($leaking | Select-Object -First 5) -join ', '))
     }
 
     # ---- archive -------------------------------------------------------------
