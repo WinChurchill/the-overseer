@@ -2,6 +2,7 @@ using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
+using TheOverseer.Core.Monitoring.Sessions;
 using TheOverseer.Tests.Support;
 
 namespace TheOverseer.Tests;
@@ -426,6 +427,97 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
+    public void WatcherFailureIsReportedWhilePollingStillRecoversWithoutRestart()
+    {
+        // The watcher is a hint source, never the state source. A sessions root
+        // that did not exist when the monitor was built leaves the watcher
+        // unavailable; bounded discovery must still find later files.
+        var lateSessions = Path.Combine(_home.Root, "late-watch-sessions");
+        var profile = Profile with { SessionsRoot = lateSessions };
+        using var monitor = new CodexMonitor(MonitorOptions.Default, new[] { profile }, null, null, _clock);
+
+        var unavailable = monitor.Refresh();
+        Assert.Equal(MonitoringHealthLevel.Unavailable, unavailable.Health.Level);
+        Assert.False(unavailable.Counts.Working.IsKnown);
+
+        var id = "01a0c712-0000-0000-0000-000000000013";
+        var directory = Path.Combine(lateSessions, "2026", "01", "02");
+        Directory.CreateDirectory(directory);
+        File.WriteAllLines(
+            Path.Combine(directory, "rollout-2026-01-02T03-04-05-" + id + ".jsonl"),
+            new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });
+
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        var recovered = monitor.Refresh();
+
+        Assert.Contains(HealthReasons.WatcherFailed, recovered.Health.Reasons);
+        Assert.Equal(id, Single(recovered).ConversationId);
+        Assert.Equal(AgentTaskState.Working, Single(recovered).State);
+        Assert.Equal(1, recovered.Counts.Working.Value);
+        Assert.True(recovered.Counts.Working.IsKnown);
+    }
+
+    [Fact]
+    public async Task WatcherHintOverflowStaysBoundedAndReported()
+    {
+        // A burst of changes must not grow the hint set without bound; overflow
+        // is a reported condition, and reconciliation is the recovery path.
+        using var tracker = new SessionChangeTracker(_home.SessionsRoot, 16);
+        Assert.True(tracker.Available);
+
+        for (var index = 0; index < 400; index++)
+        {
+            File.WriteAllLines(
+                Path.Combine(_home.SessionsRoot, "rollout-2026-01-02T03-04-05-burst-" + index.ToString("D4") + ".jsonl"),
+                new[] { "{}" });
+        }
+
+        var deadline = Environment.TickCount64 + 5000;
+        var overflowed = false;
+        while (Environment.TickCount64 < deadline && !(overflowed = tracker.ConsumeOverflow()))
+        {
+            await Task.Delay(25);
+        }
+
+        Assert.True(overflowed, "watcher hints must report overflow instead of growing unbounded");
+        Assert.True(tracker.DrainHints().Count <= 16, "hints must stay capped after overflow");
+    }
+
+    [Fact]
+    public void OptionalActivitySourceFailureIsHonestAndRecoversWithoutRestart()
+    {
+        var id = "01a0c713-0000-0000-0000-000000000014";
+        _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });
+
+        var source = new MutableActivitySource();
+        using var monitor = Create(activity: source);
+
+        // Locked or schema-mismatched optional store: JSONL stays authoritative
+        // and the capability is reported as unavailable instead of a silent zero.
+        source.Set(RuntimeActivityResult.Unavailable("state-db-locked"));
+        var failed = monitor.Refresh();
+        Assert.Equal(1, failed.Counts.Working.Value);
+        Assert.True(failed.Counts.Working.IsKnown);
+        Assert.Equal(CapabilitySupport.Unavailable, failed.Capabilities.RuntimeActivitySource.Support);
+
+        // The store returns later in the same process: the hint is used again.
+        var hinted = "01a0c714-0000-0000-0000-000000000015";
+        var sideRoot = Path.Combine(_home.SessionsRoot, ".hint-only-recovered");
+        Directory.CreateDirectory(sideRoot);
+        var hintedPath = Path.Combine(sideRoot, "rollout-2026-01-02T03-04-05-" + hinted + ".jsonl");
+        File.WriteAllLines(hintedPath, new[] { Records.SessionMeta(hinted), Records.TaskStarted("turn-1") });
+        source.Set(new RuntimeActivityResult(
+            RuntimeActivityAvailability.Available,
+            new[] { new RuntimeActivityHint("codex", hinted, hintedPath, Start) },
+            "ok"));
+
+        var recovered = monitor.Refresh();
+        Assert.Equal(CapabilitySupport.LiveObserved, recovered.Capabilities.RuntimeActivitySource.Support);
+        Assert.Contains(recovered.Tasks, task => task.ConversationId == hinted);
+        Assert.Equal(2, recovered.Counts.Total.Value);
+    }
+
+    [Fact]
     public async Task DisposalIsIdempotentAndCancelsTheLoop()
     {
         var monitor = Create();
@@ -441,5 +533,15 @@ public sealed class MonitorTests : IDisposable
 
         public RuntimeActivityResult Read(SessionProfile profile, DateTimeOffset cutoff, int maximumRows) =>
             new(RuntimeActivityAvailability.Available, _hints, "ok");
+    }
+
+    /// <summary>Optional source whose availability can change mid-process.</summary>
+    private sealed class MutableActivitySource : IRuntimeActivitySource
+    {
+        private RuntimeActivityResult _result = RuntimeActivityResult.Unavailable("not-read");
+
+        public void Set(RuntimeActivityResult result) => _result = result;
+
+        public RuntimeActivityResult Read(SessionProfile profile, DateTimeOffset cutoff, int maximumRows) => _result;
     }
 }
