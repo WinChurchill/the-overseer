@@ -251,8 +251,17 @@ if ($runtimeConfig.runtimeOptions.includedFrameworks) {
 }
 Add-Check 'extraction-self-contained' ($frameworks.Count -gt 0) ('includedFrameworks=' + ($frameworks -join '; '))
 
+# Relative segments only: the extraction itself lives under artifacts\.
 $payloadFiles = Get-ChildItem -LiteralPath $extractionRoot -Recurse -File
-Add-Check 'extraction-no-private-payload' (-not ($payloadFiles | Where-Object { $_.FullName -match '\\(\.git|artifacts)\\' -or $_.Name -eq 'HANDOFF.md' })) ('files=' + $payloadFiles.Count)
+$forbiddenSegments = @('.git', 'artifacts', 'HANDOFF.md', 'TheOverseer.Tests', 'node_modules')
+$offending = @()
+foreach ($file in $payloadFiles) {
+    $relative = $file.FullName.Substring($extractionRoot.Length + 1)
+    foreach ($segment in ($relative -split '[\\/]')) {
+        if ($forbiddenSegments -contains $segment) { $offending += $relative }
+    }
+}
+Add-Check 'extraction-no-private-payload' ($offending.Count -eq 0) ('files=' + $payloadFiles.Count + ' offending=' + ($offending -join ','))
 
 # ---- sanitized child environment --------------------------------------------
 $sanitized = New-SanitizedEnvironment
@@ -294,15 +303,21 @@ $syntheticHome = Join-Path $evidenceRoot 'synthetic-codex-home'
 $syntheticSessions = Join-Path $syntheticHome 'sessions/2026/01/02'
 New-Item -ItemType Directory -Force -Path $syntheticSessions | Out-Null
 $conversationId = '01a0c900-0000-0000-0000-0000000000c1'
-$rollout = @(
-    '{"type":"session_meta","payload":{"id":"' + $conversationId + '","session_id":"' + $conversationId + '","timestamp":"2026-01-02T03:04:05Z","cwd":"C:\\\\work\\\\demo","originator":"Codex Desktop","source":"vscode","history_mode":"paginated","cli_version":"0.155.1","model_provider":"openai","thread_source":"user"}}',
-    '{"type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1","started_at":1767323045,"collaboration_mode_kind":"default"}}'
-)
-Set-Content -LiteralPath (Join-Path $syntheticSessions ('rollout-2026-01-02T03-04-05-' + $conversationId + '.jsonl')) -Value $rollout -Encoding utf8
+# Recent timestamps keep the synthetic task inside the stale lease, so the run
+# proves live WORKING state rather than an aged idle row. Each record is built as
+# its own expression: PowerShell's comma binds tighter than '+', so an array
+# literal of concatenations would silently collapse into one line.
+$nowUtc = [DateTimeOffset]::UtcNow
+$startedAt = $nowUtc.ToUnixTimeSeconds()
+$sessionMeta = '{"type":"session_meta","payload":{"id":"' + $conversationId + '","session_id":"' + $conversationId + '","timestamp":"' + $nowUtc.ToString('yyyy-MM-ddTHH:mm:ssZ') + '","cwd":"C:\\work\\demo","originator":"Codex Desktop","source":"vscode","history_mode":"paginated","cli_version":"0.155.1","model_provider":"openai","thread_source":"user"}}'
+$taskStarted = '{"type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1","started_at":' + $startedAt + ',"collaboration_mode_kind":"default"}}'
+$rolloutPath = Join-Path $syntheticSessions ('rollout-2026-01-02T03-04-05-' + $conversationId + '.jsonl')
+[System.IO.File]::WriteAllLines($rolloutPath, @($sessionMeta, $taskStarted), [System.Text.UTF8Encoding]::new($false))
 $syntheticDebug = Invoke-FiniteMode $executable 'monitor-debug-synthetic' @('--monitor-debug', '--duration', [string]$SyntheticMonitorSeconds, '--redact-labels', '--codex-home', $syntheticHome, '--data-directory', (Join-Path $evidenceRoot 'monitor-synthetic-data')) $sanitized.Environment $workingDirectory $logRoot ($SyntheticMonitorSeconds + 90) @(0)
 $tracked = $syntheticDebug.Stdout -match 'files tracked=1'
 $taskRow = $syntheticDebug.Stdout -match '(?m)^#1 \[redacted\] / WORKING'
-Add-Check 'monitor-debug-synthetic-task' ($tracked -and $taskRow) ('filesTracked1=' + $tracked + ' workingRow=' + $taskRow)
+$workingSummary = $syntheticDebug.Stdout -match '(?m)^1 working '
+Add-Check 'monitor-debug-synthetic-task' ($tracked -and $taskRow -and $workingSummary) ('filesTracked1=' + $tracked + ' workingRow=' + $taskRow + ' workingCount=' + $workingSummary)
 
 # Read-only real monitoring check (may legitimately be unavailable here).
 $realDebug = Invoke-FiniteMode $executable 'monitor-debug-real' @('--monitor-debug', '--duration', [string]$MonitorSeconds, '--redact-labels', '--data-directory', (Join-Path $evidenceRoot 'monitor-real-data')) $sanitized.Environment $workingDirectory $logRoot ($MonitorSeconds + 120) @(0, 2)
@@ -358,10 +373,23 @@ if (-not $SkipHudLifecycle) {
         try { $liveStdout = $liveHandle.Stdout.GetAwaiter().GetResult() } catch { }
         Set-Content -LiteralPath (Join-Path $logRoot 'hud-live.log') -Value $liveStdout -Encoding utf8
 
-        $statePath = Join-Path $liveData 'hud-state.json'
+        $statePath = Join-Path $liveData 'state.json'
         $configPath = Join-Path $liveData 'config.json'
         $stateExists = Test-Path -LiteralPath $statePath
-        Add-Check 'hud-live-persisted-state' $stateExists ('state=' + $statePath)
+        $configExists = Test-Path -LiteralPath $configPath
+        $stateDetail = 'state=' + $stateExists
+        if ($stateExists) {
+            try {
+                $stateJson = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+                $stateDetail = 'state=yes bytes=' + (Get-Item -LiteralPath $statePath).Length +
+                    ' theme=' + $stateJson.Theme + ' dpi=' + $stateJson.DpiScale +
+                    ' monitor=' + (-not [string]::IsNullOrWhiteSpace($stateJson.MonitorDeviceName))
+            } catch {
+                $stateDetail = 'state=yes but unreadable: ' + $_.Exception.Message
+            }
+        }
+
+        Add-Check 'hud-live-persisted-state' ($stateExists -and $configExists) ($stateDetail + ' config=' + $configExists)
 
         # Tray start: hidden, alive, still no focus steal, closed gracefully.
         Write-Step 'hud-tray: hidden startup'
