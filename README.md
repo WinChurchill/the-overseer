@@ -13,11 +13,12 @@ collapsed counts, a bounded expanded task list, shared Light/Dark website
 themes, drag placement with recovery, a tray menu, opt-in current-user startup
 and safe task navigation.
 
-Plan 3 (Activity and Voice) is implemented on `impl/p3-history-voice`: a bounded
+Plan 3 (Activity and Voice) is reviewed and merged into `main`: a bounded
 60-minute working-count sparkline, and meaningful attention notifications that
 speak once per condition through a validated local WAV pack or one configured
 generic TTS endpoint, with completion aggregation, cooldown, instant persistent
-mute and local fallback. Release packaging remains Plan 4.
+mute and local fallback. Plan 4 (Hardening and Release) is planned on
+`impl/p4-release`; implementation and packaged release validation are pending.
 
 ## Naming and frozen sources
 
@@ -309,8 +310,10 @@ were not imported.
 
 ## Next action
 
-Astra Review 3 passed with nonblocking notes after fixes on
-`impl/p3-history-voice`. Build, 375 tests, voice/TTS smoke and live HUD lifecycle
-checks passed. See `docs/IMPLEMENTATION_STATE.md` for the review evidence and
-remaining physical validation limits. The branch remains unmerged; Plan 4
-planning is the next workflow step after the reviewed P3 changes are integrated.
+Astra Review 3 passed with nonblocking notes and its reviewed changes are now on
+`main`. The Plan 4 baseline builds with no warnings/errors and passes 375 tests.
+DeepSeek should execute the entire Plan 4 / Goal 4 on `impl/p4-release` using
+`AGENTS.md`, `.agent/HANDOFF.md` and `docs/IMPLEMENTATION_STATE.md`. This includes
+hardening, a self-contained Windows x64 ZIP and smoke tests from the extracted
+package. Leave the branch ready for Astra Review 4; merging and tagging follow
+that review. Physical validation limits remain explicit in the ledger.
