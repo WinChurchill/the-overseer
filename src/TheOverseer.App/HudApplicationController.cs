@@ -100,7 +100,7 @@ public sealed record HudControllerDependencies(
 /// </summary>
 public sealed class HudApplicationController : IAsyncDisposable
 {
-    private static readonly HudSize ExpandedSize = new(360, 392);
+    private static readonly HudSize ExpandedSize = new(360, 440);
     private const double ActivityChartWidth = 330;
     private const double ActivityChartHeight = 30;
 
@@ -140,7 +140,8 @@ public sealed class HudApplicationController : IAsyncDisposable
                 dependencies.Log.Write(entry.Level, entry.Code);
         });
         _state = (dependencies.WindowState ?? HudWindowState.Default).Normalized();
-        ViewModel = new HudViewModel(dependencies.Config.Hud, OnActivateTask, OnCopyTaskId);
+        ViewModel = new HudViewModel(dependencies.Config.Hud, OnActivateTask, OnCopyTaskId,
+            dependencies.TimeProvider.GetUtcNow());
         _pump = new SnapshotPump(dependencies.Dispatcher, ApplySnapshot);
         _ageTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher.CurrentDispatcher)
         {
@@ -727,6 +728,8 @@ public sealed class HudApplicationController : IAsyncDisposable
                 AlwaysOnTop = ViewModel.AlwaysOnTop,
                 Opacity = ViewModel.Opacity,
                 StartWithWindows = ViewModel.StartWithWindows,
+                TaskView = ViewModel.TaskView,
+                RecentHours = ViewModel.RecentHours,
             },
             Voice = voice,
         };

@@ -97,12 +97,27 @@ Controls:
 | --- | --- |
 | Drag the header row | Moves the HUD; the position is saved (debounced). |
 | Click the chevron | Expands or collapses the task list. |
+| Click the status line | Opens the expanded Now view. |
+| Now / Recent / This session | Shows current work, recent activity, or tasks touched since OVERSEER launched. |
+| Hour button in Recent | Cycles the recent window through 1, 2, 4, 8 and 24 hours. |
 | `Escape` | Collapses the list. |
 | Click a task row | Requests the validated `codex://threads/<id>` route for a resolved Desktop task. |
 | Right-click a task row, then Copy task id | Copies only the selected task id. |
 | `Enter`/`Space` on a focused row | Same as clicking it. |
 | Right-click the HUD header | Display settings, expansion, startup, reset position and Exit; available even without a tray. |
 | Tray icon | Show/Hide, Light/Dark, Always on top, opacity presets, Start with Windows, Reset position, monitoring status, Exit. |
+
+The visible HUD appears in the Windows taskbar and Alt+Tab. Now is the default
+task view: live work and attention, plus completions/errors from the last ten
+minutes. Recent defaults to two hours; This session uses observed activity since
+this app launch. Headline counts always cover all monitored work, independently
+of the selected view. Older and stale rows remain accessible in Recent when
+within its time window. The selected view and recent window are saved.
+
+A prominent text, symbol and color status shows Working, Needs you, Task failed,
+No current work or an unavailable/incomplete monitor. When approval/input
+detection is unsupported, the attention count is `?` (or a known lower bound
+such as `1+`), and the expanded HUD discloses that limitation.
 
 The HUD never activates itself: it is shown with `ShowActivated=false` and the
 window is positioned without activation, so monitoring updates, theme changes and
@@ -119,11 +134,14 @@ preserved when the HUD saves:
   "theme": "dark",
   "alwaysOnTop": true,
   "opacity": 0.96,
-  "startWithWindows": false
+  "startWithWindows": false,
+  "taskView": "now",
+  "recentHours": 2
 }
 ```
 
 Opacity is clamped to 0.65–1.0 and only `light`/`dark` themes are accepted.
+Task views accept `now`, `recent`, or `session`; recent hours are clamped to 1–24.
 `state.json` stores placement as display independent pixels relative to the saved
 monitor's working area plus the DPI scale in effect, so a DPI change keeps the
 same physical spot and a removed monitor is clamped back onto a reachable one.
@@ -176,7 +194,7 @@ These explicit, isolated, finite modes never register startup, never read real
 rollout files and never replace production input:
 
 ```powershell
-# Render synthetic previews (light/dark x collapsed/expanded + empty/unavailable)
+# Render synthetic previews (light/dark x collapsed/Now/Recent/Session + empty/unavailable)
 dotnet run --project src/TheOverseer.App -- --hud-fixture --output-directory artifacts/p2-ui
 
 # Full production composition against a synthetic monitor, then a clean exit
@@ -322,7 +340,7 @@ replaces a pack by itself. See `examples/voicepacks/example/README.md`.
 `Test-PackagedRelease.ps1` extracts the ZIP into a fresh directory, verifies the
 payload and version metadata, removes workspace SDK paths from the child
 environment, and runs the extracted apphost from an unrelated working directory
-with isolated data directories: six HUD fixture renders, `--hud-smoke`,
+with isolated data directories: ten HUD fixture renders, `--hud-smoke`,
 `--voice-smoke` (owned loopback endpoint), `--voice-pack-check` against the
 shipped pack, deterministic `--monitor-debug` against a synthetic Codex home, one
 read-only real-monitor run, a 60-second normal HUD run (no foreground change, no

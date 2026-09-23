@@ -33,6 +33,19 @@ public sealed record HudSettings
     [JsonPropertyName("startWithWindows")]
     public bool StartWithWindows { get; init; }
 
+    [JsonPropertyName("taskView")]
+    public string TaskView { get; init; } = "now";
+
+    [JsonPropertyName("recentHours")]
+    public int RecentHours { get; init; } = 2;
+
+    public static string NormalizeTaskView(string? value) => value?.ToLowerInvariant() switch
+    {
+        "recent" => "recent",
+        "session" => "session",
+        _ => "now",
+    };
+
     [JsonIgnore]
     public HudTheme ResolvedTheme => string.Equals(Theme, "light", StringComparison.OrdinalIgnoreCase)
         ? HudTheme.Light
@@ -45,6 +58,8 @@ public sealed record HudSettings
     {
         Theme = ThemeName,
         Opacity = NormalizeOpacity(Opacity),
+        TaskView = NormalizeTaskView(TaskView),
+        RecentHours = Math.Clamp(RecentHours, 1, 24),
     };
 
     /// <summary>Finite, clamped, readable opacity. Never NaN, infinity or off-range.</summary>

@@ -39,13 +39,19 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     private string _statusMessage = string.Empty;
     private string _placementLine = string.Empty;
 
-    public HudViewModel(HudSettings settings, Action<TaskRowViewModel>? activateTask = null, Action<TaskRowViewModel>? copyTaskId = null)
+    public HudViewModel(HudSettings settings, Action<TaskRowViewModel>? activateTask = null, Action<TaskRowViewModel>? copyTaskId = null,
+        DateTimeOffset? sessionStartedAt = null)
     {
         var normalized = (settings ?? HudSettings.Default).Normalized();
         _theme = normalized.ResolvedTheme;
         _alwaysOnTop = normalized.AlwaysOnTop;
         _opacity = normalized.Opacity;
         _startWithWindows = normalized.StartWithWindows;
+        _taskView = normalized.TaskView;
+        _recentHours = normalized.RecentHours;
+        _sessionStartedAt = sessionStartedAt ?? DateTimeOffset.UtcNow;
+        CycleRecentWindowCommand = new RelayCommand(() => RecentHours = RecentHourChoices.FirstOrDefault(hour => hour > RecentHours, 1));
+        ShowCurrentTasksCommand = new RelayCommand(() => { TaskView = "now"; IsExpanded = true; });
         _activateTask = activateTask;
         _copyTaskId = copyTaskId;
         ActivateTaskCommand = new RelayCommand<TaskRowViewModel>(task => _activateTask?.Invoke(task));
@@ -155,20 +161,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 return "monitor unavailable · counts unknown";
             }
 
-            if (StatusMessage.Length > 0)
-            {
-                return StatusMessage;
-            }
-
-            var line = _monitoringTitle.Replace("MONITORING ", string.Empty, StringComparison.Ordinal);
-            if (IsPartial)
-            {
-                // Coverage qualifier directly after health so it survives
-                // ellipsis in the narrow collapsed strip.
-                line += " · partial";
-            }
-
-            return line + " · " + TaskCountLine + " · " + UpdatedLine.Replace("updated ", string.Empty, StringComparison.Ordinal);
+            return StatusSymbol + " " + StatusHeadline + (IsPartial ? " · partial" : "");
         }
     }
 
@@ -327,6 +320,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     /// </summary>
     public void NotifyMonitorFailure(string code)
     {
+        _latestSnapshot = null;
+        StatusHeadline = "Monitoring unavailable";
+        StatusKind = "unavailable";
+        StatusSymbol = "?";
+        AttentionDisclosure = "Task state is unknown. Check monitoring.";
+        RaiseStatus();
         MonitoringTitle = "MONITORING UNAVAILABLE";
         MonitoringDetail = "monitor stopped · " + code;
         HealthLine = MonitoringTitle + " · " + MonitoringDetail;
@@ -354,11 +353,21 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     {
         HasAppliedSnapshot = true;
         var now = snapshot.GeneratedAt;
+        _latestSnapshot = snapshot;
+        _viewNow = now;
 
         WorkingCountText = HudText.CountValue(snapshot.Counts.Working);
         NeedsHumanCountText = HudText.CountValue(snapshot.Counts.NeedsHuman);
+        UpdateVisualStatus(snapshot, now);
+        if (AttentionLimited && snapshot.Counts.NeedsHuman.IsKnown)
+            NeedsHumanCountText = snapshot.Counts.NeedsHuman.Value == 0 ? "?"
+                : snapshot.Counts.NeedsHuman.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + "+";
         CountQualifier = HudText.CountQualifier(snapshot.Counts.Working, snapshot.Counts.NeedsHuman);
-        SummaryText = snapshot.Counts.ToSummary();
+        SummaryText = snapshot.Counts.Working.ToDisplay("working") + " · " +
+            (AttentionLimited
+                ? snapshot.Counts.NeedsHuman.IsKnown && snapshot.Counts.NeedsHuman.Value > 0
+                    ? snapshot.Counts.NeedsHuman.Value + " needs you (partial)" : "needs you unknown"
+                : snapshot.Counts.NeedsHuman.ToDisplay("needs you"));
         Raise(nameof(SummaryText));
 
         MonitoringTitle = HudText.HealthTitle(snapshot.Health.Level);
@@ -370,16 +379,21 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         CountsNeedAttention = snapshot.Counts.NeedsHuman.IsKnown && snapshot.Counts.NeedsHuman.Value > 0;
         EmptyStateText = HudText.EmptyState(snapshot);
         TaskCountLine = snapshot.Tasks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " tracked";
-        SyncRows(snapshot, now);
         UpdateAges(now);
         Raise(nameof(CollapsedStatusLine));
         Raise(nameof(MetaStripLine));
         Raise(nameof(FooterHint));
     }
 
-    /// <summary>Relative-age refresh only; never reorders rows.</summary>
+    /// <summary>Refreshes ages and expires rows outside the selected time window.</summary>
     public void UpdateAges(DateTimeOffset now)
     {
+        _viewNow = now;
+        if (_latestSnapshot is { } snapshot)
+        {
+            SyncRows(snapshot, now);
+            UpdateVisualStatus(snapshot, now);
+        }
         for (var index = 0; index < Tasks.Count; index++)
         {
             var task = Tasks[index];
@@ -399,8 +413,18 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
     private void SyncRows(MonitoringSnapshot snapshot, DateTimeOffset now)
     {
-        var ordered = Order(snapshot.Tasks);
+        var ordered = Order(SelectTasks(snapshot.Tasks, now));
+        if (IsRecentView) ordered = ordered.OrderByDescending(task => task.LastActivityAt).ThenBy(task => task.Number).ToArray();
         _generatedAt = snapshot.GeneratedAt;
+        TaskCountLine = ordered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " shown · " +
+            snapshot.Tasks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " tracked";
+        if (snapshot.Tasks.Count > 0 && snapshot.Health.Level != MonitoringHealthLevel.Unavailable)
+            EmptyStateText = TaskView switch
+            {
+                "recent" => "No tasks touched in the last " + RecentHours + " hours.",
+                "session" => "No tasks touched since OVERSEER started. Try Recent.",
+                _ => "No current tasks. Try Recent for earlier work.",
+            };
 
         if (!SequenceEqual(ordered))
         {

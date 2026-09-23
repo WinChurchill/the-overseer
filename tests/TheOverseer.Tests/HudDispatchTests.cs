@@ -189,12 +189,16 @@ public sealed class HudDispatchTests
             controller.ViewModel.Theme = HudTheme.Light;
             controller.ViewModel.Opacity = 0.8;
             controller.ViewModel.AlwaysOnTop = false;
+            controller.ViewModel.TaskView = "recent";
+            controller.ViewModel.RecentHours = 8;
             StaTestHost.Complete(controller.ShutdownAsync());
 
             var config = MonitorConfigStore.Load(ConfigPath).Config;
             Assert.Equal("light", config.Hud.ThemeName);
             Assert.Equal(0.8, config.Hud.Opacity);
             Assert.False(config.Hud.AlwaysOnTop);
+            Assert.Equal("recent", config.Hud.TaskView);
+            Assert.Equal(8, config.Hud.RecentHours);
             Assert.Equal(32, config.Limits.MaxTrackedFiles);
             Assert.Equal("C:\\synthetic", config.CodexHome);
             Cleanup();

@@ -7,7 +7,7 @@
         Title="OVERSEER"
         Width="280" Height="72"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
+        ResizeMode="NoResize" ShowInTaskbar="True" ShowActivated="False"
         SnapsToDevicePixels="True" UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         Topmost="{Binding AlwaysOnTop}"
@@ -15,6 +15,49 @@
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+    <Style x:Key="StatusAccent" TargetType="Border">
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding StatusKind}" Value="working"><Setter Property="BorderBrush" Value="{DynamicResource HealthyBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="attention"><Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="error"><Setter Property="BorderBrush" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="unavailable"><Setter Property="BorderBrush" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="StatusText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding StatusKind}" Value="working"><Setter Property="Foreground" Value="{DynamicResource HealthyBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="attention"><Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="error"><Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="unavailable"><Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="TaskViewTab" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0,0,0,2" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="RadioButton">
+          <Border Background="Transparent" Padding="{TemplateBinding Padding}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsChecked" Value="True">
+          <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="FontWeight" Value="SemiBold" />
+        </Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource ForegroundBrush}" /></Trigger>
+      </Style.Triggers>
+    </Style>
     <Style x:Key="HudScrollBarThumb" TargetType="Thumb">
       <Setter Property="OverridesDefaultStyle" Value="True" />
       <Setter Property="IsTabStop" Value="False" />
@@ -117,6 +160,8 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
+      <Border Grid.RowSpan="2" Style="{StaticResource StatusAccent}" BorderThickness="4,0,0,0" IsHitTestVisible="False" />
+
       <!-- Static technical linework: no animation, never hit-testable. -->
       <Canvas Grid.RowSpan="2" IsHitTestVisible="False" ClipToBounds="True">
         <Line X1="0" Y1="0.5" X2="280" Y2="0.5" Stroke="{DynamicResource DecorLineBrush}" StrokeThickness="1" />
@@ -216,11 +261,14 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="90" />
           </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis"
+        <Button Grid.Column="0" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
+                HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding AttentionDisclosure}"
+                automation:AutomationProperties.Name="Show current tasks">
+        <TextBlock Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}"
                    FontFamily="{DynamicResource MetadataFontFamily}"
                    FontSize="{DynamicResource FontSizeMeta}"
-                   Foreground="{DynamicResource MutedBrush}"
-                   ToolTip="{Binding HealthLine}" />
+                   ToolTip="{Binding AttentionDisclosure}" />
+        </Button>
           <Viewbox Grid.Column="1" Height="11" Margin="6,0,0,0" Stretch="Fill"
                    Visibility="{Binding IsExpanded, Converter={StaticResource InverseBoolToVisibility}}">
             <controls:ActivitySparkline x:Name="CollapsedActivityChart" Width="330" Height="30"
@@ -239,6 +287,7 @@
             Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -250,10 +299,14 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
-          <TextBlock Grid.Row="0" Text="{Binding HealthLine}" ToolTip="{Binding HealthLine}" TextTrimming="CharacterEllipsis"
-                     FontFamily="{DynamicResource MetadataFontFamily}" FontWeight="SemiBold"
-                     FontSize="{DynamicResource FontSizeMeta}"
-                     Foreground="{DynamicResource ForegroundBrush}" />
+          <StackPanel Grid.Row="0">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding StatusSymbol}" Margin="0,0,8,0" FontSize="18" Style="{StaticResource StatusText}" />
+              <TextBlock Text="{Binding StatusHeadline}" FontSize="18" Style="{StaticResource StatusText}" ToolTip="{Binding HealthLine}" />
+            </StackPanel>
+            <TextBlock Text="{Binding AttentionDisclosure}" FontSize="11" Margin="0,2,0,2"
+                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding CapabilityLine}" />
+          </StackPanel>
 
           <!-- One shared 60-minute working-count line; gaps stay unobserved. -->
           <Viewbox Grid.Row="1" Height="30" Margin="0,4,0,0" Stretch="Fill">
@@ -291,7 +344,19 @@
                      ToolTip="{Binding CapabilityLine}" />
         </Grid>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+        <Grid Grid.Row="1" Margin="6,0,10,5" ToolTip="{Binding TaskViewHint}">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="NowTab" Content="Now" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsNowView}" />
+            <RadioButton x:Name="RecentTab" Content="Recent" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsRecentView}" />
+            <RadioButton x:Name="SessionTab" Content="This session" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsSessionView}" />
+          </StackPanel>
+          <Button Grid.Column="1" Content="{Binding RecentWindowLabel}" Command="{Binding CycleRecentWindowCommand}"
+                  Style="{StaticResource HudIconButton}" Visibility="{Binding IsRecentView, Converter={StaticResource BoolToVisibility}}"
+                  ToolTip="Change time window: 1, 2, 4, 8 or 24 hours" automation:AutomationProperties.Name="Change recent time window" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       MaxHeight="212" PanningMode="VerticalOnly"
                       Resources="{StaticResource HudScrollBarResources}">
           <Grid>
@@ -345,7 +410,7 @@
           </Grid>
         </ScrollViewer>
 
-        <TextBlock Grid.Row="2" Margin="14,6,14,8" TextTrimming="CharacterEllipsis"
+        <TextBlock Grid.Row="3" Margin="14,6,14,8" TextTrimming="CharacterEllipsis"
                    Text="{Binding FooterHint}"
                    Visibility="{Binding HasTasks, Converter={StaticResource BoolToVisibility}}"
                    FontFamily="{DynamicResource MetadataFontFamily}"

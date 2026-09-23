@@ -22,7 +22,7 @@ internal static class HudFixtureRunner
     private const double CollapsedWidth = 280;
     private const double CollapsedHeight = 72;
     private const double ExpandedWidth = 360;
-    private const double ExpandedHeight = 392;
+    private const double ExpandedHeight = 440;
 
     /// <summary>Schedules the preview render on the UI thread; returns immediately.</summary>
     public static void StartFixture(StartupArguments arguments, Dispatcher dispatcher)
@@ -90,6 +90,19 @@ internal static class HudFixtureRunner
             rendered.Add(path);
         }
 
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        foreach (var taskView in new[] { "recent", "session" })
+        {
+            var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1, TaskView = taskView },
+                sessionStartedAt: scenarios[0].GeneratedAt.AddMinutes(-10));
+            viewModel.ApplySnapshot(scenarios[0]);
+            viewModel.ApplyActivity(activity, VoiceStatus.Initial);
+            viewModel.IsExpanded = true;
+            var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-" + taskView + ".png");
+            Render(viewModel, theme, path);
+            rendered.Add(path);
+        }
+
         Console.WriteLine("hud fixture rendered " + rendered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " views:");
         foreach (var path in rendered) Console.WriteLine("  " + path);
         return 0;
@@ -102,7 +115,7 @@ internal static class HudFixtureRunner
         HudThemeManager.Apply(Application.Current, theme);
         var window = new HudWindow
         {
-            DataContext = viewModel, ShowActivated = false,
+            DataContext = viewModel, ShowActivated = false, ShowInTaskbar = false,
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = -4000, Top = -4000,
             Width = viewModel.IsExpanded ? ExpandedWidth : CollapsedWidth,

@@ -70,6 +70,7 @@ public sealed class HudViewModelTests
     public void DegradedSnapshotRetainsRowsAndMarksThem()
     {
         var viewModel = CreateViewModel();
+        viewModel.TaskView = "recent";
         viewModel.ApplySnapshot(SyntheticHudScenarios.Mixed());
 
         Assert.True(viewModel.Tasks.Count > 0);
@@ -201,7 +202,8 @@ public sealed class HudViewModelTests
         var viewModel = CreateViewModel();
         viewModel.ApplySnapshot(CompleteSnapshot(1, 0));
         viewModel.NotifyStatus("Opening task in Codex…");
-        Assert.Equal("Opening task in Codex…", viewModel.CollapsedStatusLine);
+        Assert.Equal("Opening task in Codex…", viewModel.FooterHint);
+        Assert.Contains("Working", viewModel.CollapsedStatusLine);
         viewModel.ClearStatus();
         Assert.NotEqual("Opening task in Codex…", viewModel.CollapsedStatusLine);
     }
@@ -253,7 +255,11 @@ public sealed class HudViewModelTests
                 CountValue.Known(tasks.Count)),
             tasks,
             Array.Empty<AttentionEvent>(),
-            MonitorCapabilities.Initial,
+            MonitorCapabilities.Initial with
+            {
+                PermissionRequests = new(CapabilitySupport.Supported, "test", "test"),
+                InputRequests = new(CapabilitySupport.Supported, "test", "test"),
+            },
             LiveObservationStats.Empty);
     }
 

@@ -133,3 +133,25 @@ frozen documents, original reference PNGs and dependency boundaries are preserve
   actions; neither was performed. Retain the physical sleep/wake, display/DPI,
   acoustic and clean-machine qualifications until actually exercised. Use the
   corrected archive under `artifacts/review4-final/`, not an earlier candidate.
+
+## First-use follow-up — 2026-09-22
+
+User-directed usability changes on `ux/first-use`, based on reviewed P4 head
+`551429a`; the four original plans remain complete. Product name stays OVERSEER.
+
+- Visible HUD participates in Windows taskbar/Alt+Tab while automatic updates
+  remain nonactivating.
+- Default Now view keeps current work/attention and ten minutes of terminal
+  results. Recent supports 1/2/4/8/24 hours; This session uses activity since app
+  launch. Preferences persist. Filtering never changes monitor counts/state.
+- Text, symbol and color status distinguishes work, attention, error and unknown
+  monitoring. Unsupported attention shows `?` or a known lower bound, with a
+  visible disclosure. Clicking collapsed status opens Now.
+- Release build passed with 0 warnings/errors; 405 tests passed, none skipped.
+  Tests cover time boundaries/expiry, live-task retention, unknown attention,
+  settings persistence through controller shutdown and WPF tab bindings.
+- Ten synthetic Light/Dark renders generated under `artifacts/first-use-ui`;
+  Now/Recent/Session, collapsed and unavailable layouts inspected.
+- Packaging and normal-window validation pending. Frozen documents, references,
+  monitoring/voice policies and dependencies unchanged. All physical qualification
+  and real attention-observability limits above still apply.

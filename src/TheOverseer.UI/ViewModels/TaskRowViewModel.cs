@@ -82,7 +82,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Ordering rank: attention first, then work, then settled rows.</summary>
-    public static int Rank(AgentTask task) => task.State switch
+    public static int Rank(AgentTask task) => task.NeedsHuman && task.State == AgentTaskState.Working ? 1 : task.State switch
     {
         AgentTaskState.NeedsApproval => 0,
         AgentTaskState.NeedsInput => 1,
