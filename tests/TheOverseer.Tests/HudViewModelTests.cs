@@ -32,7 +32,7 @@ public sealed class HudViewModelTests
         Assert.Equal("3+", viewModel.WorkingCountText);
         Assert.Equal("1+", viewModel.NeedsHumanCountText);
         Assert.Equal("partial", viewModel.CountQualifier);
-        Assert.Contains("partial", viewModel.CollapsedStatusLine, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Counts may miss work", viewModel.MonitoringDisclosure, StringComparison.OrdinalIgnoreCase);
         Assert.True(viewModel.IsPartial);
     }
 

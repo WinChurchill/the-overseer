@@ -112,6 +112,23 @@ public sealed class TaskViewTests
     }
 
     [Fact]
+    public void IncompleteZeroExplainsUnreadHistoryWithoutClaimingIdle()
+    {
+        var vm = new HudViewModel(HudSettings.Default);
+        var snapshot = VoiceTestData.Snapshot(Now, working: CountValue.Partial(0), coverageComplete: false);
+        snapshot = snapshot with { Health = snapshot.Health with { Reasons = new[] { HealthReasons.HydrationBudget } } };
+        vm.ApplySnapshot(snapshot);
+        Assert.Equal("No confirmed work", vm.StatusHeadline);
+        Assert.Equal("uncertain", vm.StatusKind);
+        Assert.Equal("0+", vm.WorkingCountText);
+        Assert.Contains("unread", vm.MonitoringDisclosure);
+        Assert.Contains("may miss work", vm.MonitoringDisclosure);
+        vm.NotifyMonitorFailure("test");
+        Assert.Contains("unknown", vm.MonitoringDisclosure);
+        Assert.Equal("?", vm.WorkingCountText);
+    }
+
+    [Fact]
     public void WindowIsFindableWithoutAutomaticallyActivatingAndTabsAreBound()
     {
         StaTestHost.Invoke(() =>

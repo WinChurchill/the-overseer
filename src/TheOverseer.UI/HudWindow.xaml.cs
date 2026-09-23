@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using TheOverseer.UI.ViewModels;
 
 namespace TheOverseer.UI;
@@ -11,6 +13,7 @@ namespace TheOverseer.UI;
 public partial class HudWindow : Window
 {
     private readonly DragGestureTracker _drag = new();
+    private bool _statusClick;
 
     public HudWindow()
     {
@@ -69,8 +72,21 @@ public partial class HudWindow : Window
             return;
         }
 
+        _statusClick = false;
+        for (var node = e.OriginalSource as DependencyObject; node is not null && node != sender;
+             node = node is FrameworkContentElement content ? content.Parent : VisualTreeHelper.GetParent(node))
+        {
+            if (node is ButtonBase button)
+            {
+                if (button != StatusButton) return;
+                _statusClick = true;
+                break;
+            }
+        }
         var position = e.GetPosition(this);
         _drag.Begin(position.X, position.Y);
+        ((UIElement)sender).CaptureMouse();
+        e.Handled = true;
     }
 
     private void OnDragRegionMouseMove(object sender, MouseEventArgs e)
@@ -88,6 +104,7 @@ public partial class HudWindow : Window
 
         try
         {
+            Mouse.Capture(null);
             DragMove();
             PlacementChangedByUser?.Invoke(this, EventArgs.Empty);
         }
@@ -96,6 +113,11 @@ public partial class HudWindow : Window
             // DragMove can reject a gesture that ended before the call; the
             // window simply stays where it is.
             _drag.Cancel();
+        }
+        finally
+        {
+            _drag.Cancel();
+            _statusClick = false;
         }
     }
 
@@ -106,8 +128,11 @@ public partial class HudWindow : Window
             return;
         }
 
-        // A click inside the drag region intentionally does nothing: dragging
-        // must never also toggle the list or open a task.
-        _ = _drag.End();
+        if (!_drag.IsPressed) return;
+        var clicked = _drag.End();
+        Mouse.Capture(null);
+        if (clicked && _statusClick) ViewModel?.ShowCurrentTasksCommand.Execute(null);
+        _statusClick = false;
+        e.Handled = true;
     }
 }

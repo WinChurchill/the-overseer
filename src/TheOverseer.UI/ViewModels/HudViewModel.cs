@@ -151,23 +151,23 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     /// <summary>Chevron glyph for the expand control.</summary>
     public string ExpandGlyph => _isExpanded ? "\u25B4" : "\u25BE";
 
-    /// <summary>One concise line under the counts: health, tracked rows, freshness.</summary>
+    /// <summary>Prominent task status; monitoring limitations are explained separately.</summary>
     public string CollapsedStatusLine
     {
         get
         {
             if (MonitoringUnavailable)
             {
-                return "monitor unavailable · counts unknown";
+                return "? Monitor unavailable";
             }
 
-            return StatusSymbol + " " + StatusHeadline + (IsPartial ? " · partial" : "");
+            return StatusSymbol + " " + StatusHeadline;
         }
     }
 
     /// <summary>Compact metadata strip where Plan 3 will draw the activity chart.</summary>
     public string MetaStripLine => TaskCountLine + " · " + UpdatedLine +
-                                   (IsPartial ? " · coverage partial" : " · coverage complete");
+                                   (IsPartial ? " · counts may be incomplete" : " · activity up to date");
 
     public string FooterHint => StatusMessage.Length > 0
         ? StatusMessage
@@ -325,6 +325,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         StatusKind = "unavailable";
         StatusSymbol = "?";
         AttentionDisclosure = "Task state is unknown. Check monitoring.";
+        MonitoringDisclosure = "Cannot read task activity. Counts are unknown.";
         RaiseStatus();
         MonitoringTitle = "MONITORING UNAVAILABLE";
         MonitoringDetail = "monitor stopped · " + code;

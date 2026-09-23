@@ -99,7 +99,7 @@ Controls:
 
 | Action | Result |
 | --- | --- |
-| Drag the header row | Moves the HUD; the position is saved (debounced). |
+| Drag anywhere in the upper summary or expanded status area | Moves the HUD; the position is saved (debounced). Mute/expand remain clickable. |
 | Click the chevron | Expands or collapses the task list. |
 | Click the status line | Opens the expanded Now view. |
 | Now / Recent / This session | Shows current work, recent activity, or tasks touched since OVERSEER launched. |
@@ -122,6 +122,10 @@ A prominent text, symbol and color status shows Working, Needs you, Task failed,
 No current work or an unavailable/incomplete monitor. When approval/input
 detection is unsupported, the attention count is `?` (or a known lower bound
 such as `1+`), and the expanded HUD discloses that limitation.
+Working is green, confirmed attention/errors are red, and uncertain activity is
+amber. An incomplete zero is labeled "No confirmed work"; a plain-language line
+explains unread history or stale activity instead of treating missing data as idle.
+Always on top remains enabled by default and can be toggled in the header/tray menu.
 
 The HUD never activates itself: it is shown with `ShowActivated=false` and the
 window is positioned without activation, so monitoring updates, theme changes and

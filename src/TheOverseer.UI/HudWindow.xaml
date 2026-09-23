@@ -19,7 +19,8 @@
       <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
       <Style.Triggers>
         <DataTrigger Binding="{Binding StatusKind}" Value="working"><Setter Property="BorderBrush" Value="{DynamicResource HealthyBrush}" /></DataTrigger>
-        <DataTrigger Binding="{Binding StatusKind}" Value="attention"><Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="attention"><Setter Property="BorderBrush" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="uncertain"><Setter Property="BorderBrush" Value="{DynamicResource DegradedBrush}" /></DataTrigger>
         <DataTrigger Binding="{Binding StatusKind}" Value="error"><Setter Property="BorderBrush" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
         <DataTrigger Binding="{Binding StatusKind}" Value="unavailable"><Setter Property="BorderBrush" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
       </Style.Triggers>
@@ -29,7 +30,8 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Style.Triggers>
         <DataTrigger Binding="{Binding StatusKind}" Value="working"><Setter Property="Foreground" Value="{DynamicResource HealthyBrush}" /></DataTrigger>
-        <DataTrigger Binding="{Binding StatusKind}" Value="attention"><Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="attention"><Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
+        <DataTrigger Binding="{Binding StatusKind}" Value="uncertain"><Setter Property="Foreground" Value="{DynamicResource DegradedBrush}" /></DataTrigger>
         <DataTrigger Binding="{Binding StatusKind}" Value="error"><Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
         <DataTrigger Binding="{Binding StatusKind}" Value="unavailable"><Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" /></DataTrigger>
       </Style.Triggers>
@@ -160,7 +162,7 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <Border Grid.RowSpan="2" Style="{StaticResource StatusAccent}" BorderThickness="4,0,0,0" IsHitTestVisible="False" />
+      <Border Grid.RowSpan="2" Style="{StaticResource StatusAccent}" BorderThickness="6,0,0,0" IsHitTestVisible="False" />
 
       <!-- Static technical linework: no animation, never hit-testable. -->
       <Canvas Grid.RowSpan="2" IsHitTestVisible="False" ClipToBounds="True">
@@ -172,17 +174,17 @@
       </Canvas>
 
       <!-- Collapsed summary: always visible, stable geometry. -->
-      <Grid Grid.Row="0" Margin="14,8,14,8">
+      <Grid x:Name="DragRegion" Grid.Row="0" Margin="14,8,14,8" Background="Transparent"
+            PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
+            PreviewMouseMove="OnDragRegionMouseMove"
+            PreviewMouseUp="OnDragRegionMouseLeftButtonUp">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="DragRegion" Grid.Row="0" Background="Transparent"
-              MouseLeftButtonDown="OnDragRegionMouseLeftButtonDown"
-              MouseMove="OnDragRegionMouseMove"
-              MouseLeftButtonUp="OnDragRegionMouseLeftButtonUp">
+        <Grid Grid.Row="0" Background="Transparent">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
@@ -243,7 +245,7 @@
                 <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
                 <Style.Triggers>
                   <DataTrigger Binding="{Binding CountsNeedAttention}" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" />
                   </DataTrigger>
                 </Style.Triggers>
               </Style>
@@ -259,15 +261,15 @@
         <Grid Grid.Row="2">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="90" />
+            <ColumnDefinition Width="60" />
           </Grid.ColumnDefinitions>
-        <Button Grid.Column="0" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
-                HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding AttentionDisclosure}"
+        <Button x:Name="StatusButton" Grid.Column="0" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
+                HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding MonitoringDisclosure}"
                 automation:AutomationProperties.Name="Show current tasks">
         <TextBlock Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}"
-                   FontFamily="{DynamicResource MetadataFontFamily}"
-                   FontSize="{DynamicResource FontSizeMeta}"
-                   ToolTip="{Binding AttentionDisclosure}" />
+                   FontFamily="{DynamicResource PrimaryFontFamily}"
+                   FontSize="14"
+                   ToolTip="{Binding MonitoringDisclosure}" />
         </Button>
           <Viewbox Grid.Column="1" Height="11" Margin="6,0,0,0" Stretch="Fill"
                    Visibility="{Binding IsExpanded, Converter={StaticResource InverseBoolToVisibility}}">
@@ -292,7 +294,10 @@
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="14,8,14,6">
+        <Grid Grid.Row="0" Margin="14,8,14,6" Background="Transparent"
+              PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
+              PreviewMouseMove="OnDragRegionMouseMove"
+              PreviewMouseUp="OnDragRegionMouseLeftButtonUp">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -301,9 +306,11 @@
           </Grid.RowDefinitions>
           <StackPanel Grid.Row="0">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="{Binding StatusSymbol}" Margin="0,0,8,0" FontSize="18" Style="{StaticResource StatusText}" />
-              <TextBlock Text="{Binding StatusHeadline}" FontSize="18" Style="{StaticResource StatusText}" ToolTip="{Binding HealthLine}" />
+              <TextBlock Text="{Binding StatusSymbol}" Margin="0,0,8,0" FontSize="23" Style="{StaticResource StatusText}" />
+              <TextBlock Text="{Binding StatusHeadline}" FontSize="23" Style="{StaticResource StatusText}" ToolTip="{Binding HealthLine}" />
             </StackPanel>
+            <TextBlock Text="{Binding MonitoringDisclosure}" FontSize="11" Margin="0,2,0,2"
+                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding HealthLine}" />
             <TextBlock Text="{Binding AttentionDisclosure}" FontSize="11" Margin="0,2,0,2"
                        TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding CapabilityLine}" />
           </StackPanel>

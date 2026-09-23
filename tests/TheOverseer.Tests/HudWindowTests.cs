@@ -93,6 +93,40 @@ public sealed class HudWindowTests
     }
 
     [Fact]
+    public void WholeSummaryCapturesDragButHeaderButtonsKeepTheirClicks()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            HudThemeManager.Apply(Application.Current, HudTheme.Dark);
+            var vm = new HudViewModel(HudSettings.Default);
+            var window = new HudWindow { DataContext = vm };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var region = (System.Windows.Controls.Grid)window.FindName("DragRegion");
+                var summary = (FrameworkElement)window.FindName("SummaryRegion");
+                Assert.True(region.IsAncestorOf(summary));
+                Assert.True(region.ActualHeight > 45);
+                void MouseEvent(UIElement target, RoutedEvent routedEvent) => target.RaiseEvent(
+                    new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                    { RoutedEvent = routedEvent });
+                MouseEvent(summary, UIElement.PreviewMouseDownEvent);
+                Assert.Same(region, System.Windows.Input.Mouse.Captured);
+                MouseEvent(region, UIElement.PreviewMouseUpEvent);
+                Assert.Null(System.Windows.Input.Mouse.Captured);
+                Assert.False(vm.IsExpanded);
+                MouseEvent((UIElement)window.FindName("MuteButton"), UIElement.PreviewMouseDownEvent);
+                Assert.Null(System.Windows.Input.Mouse.Captured);
+                MouseEvent((UIElement)window.FindName("StatusButton"), UIElement.PreviewMouseDownEvent);
+                MouseEvent(region, UIElement.PreviewMouseUpEvent);
+                Assert.True(vm.IsExpanded);
+            }
+            finally { System.Windows.Input.Mouse.Capture(null); window.Close(); }
+        });
+    }
+
+    [Fact]
     public void TaskContextMenuCopiesOnlyTheSelectedIdentifierOnExplicitClick()
     {
         StaTestHost.Invoke(() =>

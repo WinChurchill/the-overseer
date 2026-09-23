@@ -57,6 +57,7 @@ public sealed partial class HudViewModel
     public string StatusSymbol { get; private set; } = "?";
     public bool AttentionLimited { get; private set; } = true;
     public string AttentionDisclosure { get; private set; } = "Checking attention detection…";
+    public string MonitoringDisclosure { get; private set; } = "Reading local task activity…";
 
     private void RefreshTaskView()
     {
@@ -90,6 +91,16 @@ public sealed partial class HudViewModel
         AttentionDisclosure = AttentionLimited
             ? "Approval/input detection limited — check Codex for requests."
             : "Approval/input detection available.";
+        var reasons = snapshot.Health.Reasons;
+        MonitoringDisclosure = snapshot.Health.Level == MonitoringHealthLevel.Unavailable
+            ? "Cannot read task activity. Counts are unknown."
+            : reasons.Contains(HealthReasons.HydrationBudget) || reasons.Contains(HealthReasons.DiscoveryBacklog)
+                ? "Some task history is still unread. Counts may miss work."
+                : reasons.Contains(HealthReasons.StaleTasks)
+                    ? "Some tasks have no fresh updates. Counts may miss work."
+                    : !snapshot.Counts.Working.IsComplete || !snapshot.Counts.Working.IsKnown || !snapshot.Health.CoverageComplete
+                        ? "Only some task activity is available. Counts may miss work."
+                        : "Task activity is up to date.";
         if (snapshot.Health.Level == MonitoringHealthLevel.Unavailable)
         {
             StatusKind = "unavailable";
@@ -116,8 +127,8 @@ public sealed partial class HudViewModel
         }
         else if (!snapshot.Counts.Working.IsKnown || !snapshot.Counts.Working.IsComplete)
         {
-            StatusKind = "unavailable";
-            StatusHeadline = "Status incomplete";
+            StatusKind = "uncertain";
+            StatusHeadline = snapshot.Counts.Working.IsKnown ? "No confirmed work" : "Work status unknown";
             StatusSymbol = "?";
         }
         else
@@ -136,5 +147,6 @@ public sealed partial class HudViewModel
         Raise(nameof(StatusSymbol));
         Raise(nameof(AttentionLimited));
         Raise(nameof(AttentionDisclosure));
+        Raise(nameof(MonitoringDisclosure));
     }
 }

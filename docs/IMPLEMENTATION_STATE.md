@@ -168,3 +168,18 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   unchanged. All physical qualification and real attention-observability limits
   above still apply. No merge or tag. Next: evaluate these controls in daily use;
   the latest first-use candidate supersedes the earlier candidate for this trial.
+
+### Upper-section feedback — 2026-09-23
+
+- User requested broad upper-section dragging, larger red/green status, always-on-top
+  behavior, and clarification of "status incomplete / partial".
+- Summary and expanded status areas now capture drag gestures; mute/expand keep
+  their clicks and the status still opens Now on a click rather than a drag.
+- Larger status text uses red for confirmed attention, green for work and amber
+  for uncertain activity. Unread history/stale updates receive plain-language
+  explanations. Unknown/partial counts remain honest; monitor rules are unchanged.
+- The existing live HWND was verified topmost (`WS_EX_TOPMOST` set) and its saved
+  preference was already true. That behavior/preferences are retained.
+- Release build: 0 warnings/errors; 407 tests passed, including routed input and
+  incomplete-zero regressions. Ten updated renders inspected under
+  `artifacts/upper-section-ui`. Updated package/live verification pending.
