@@ -152,6 +152,19 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   settings persistence through controller shutdown and WPF tab bindings.
 - Ten synthetic Light/Dark renders generated under `artifacts/first-use-ui`;
   Now/Recent/Session, collapsed and unavailable layouts inspected.
-- Packaging and normal-window validation pending. Frozen documents, references,
-  monitoring/voice policies and dependencies unchanged. All physical qualification
-  and real attention-observability limits above still apply.
+- Implementation commit: `cdd52b1`; clean-source self-contained package at
+  `artifacts/first-use-release/OVERSEER-v1-win-x64.zip`, SHA-256
+  `624AF905F8881B102977B17B6D90692E446FE9803D6163AABFCF130A436CBEC7`.
+- Full packaged checks: **28/28 passed**, default durations, ten nonempty renders,
+  real/synthetic monitoring, voice, second instance, persistence and tray fallback.
+  The 60-second live check recorded 547 samples with no owned foreground window.
+  Evidence: `artifacts/first-use-release/smoke/run-20260923T065420Z-91e273db/`.
+- Replaced the previously launched HUD with a fresh extraction at
+  `artifacts/overseer-first-use-cdd52b1/`, retaining the normal user's data/settings.
+  Native verification found a visible OVERSEER window with APPWINDOW set and
+  TOOLWINDOW clear; `artifacts/first-use-release/live-launch-evidence.json` records
+  the launch. The updated app was left running for user evaluation.
+- Frozen documents, references, monitoring/voice policies and dependencies are
+  unchanged. All physical qualification and real attention-observability limits
+  above still apply. No merge or tag. Next: evaluate these controls in daily use;
+  the latest first-use candidate supersedes the earlier candidate for this trial.

@@ -27,6 +27,10 @@ scripts in `scripts/`. The reviewed candidate is under `artifacts/review4-final/
 398 tests and 28 packaged smoke checks passed. Physical sleep/wake and multi-monitor
 qualification remain unverified. Merging and tagging `v1.0.0` are separate steps.
 
+The subsequent user-directed first-use update on `ux/first-use` adds taskbar/Alt+Tab
+visibility, three task views and clearer visual status. Its candidate is under
+`artifacts/first-use-release/`: 405 tests and all 28 packaged checks passed.
+
 ## Naming and frozen sources
 
 The application/product name is **OVERSEER**. **THE OVERSEER PROJECT** is the
