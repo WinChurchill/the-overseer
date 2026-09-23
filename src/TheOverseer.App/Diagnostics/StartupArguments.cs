@@ -25,6 +25,9 @@ public sealed class StartupArguments
     /// <summary>Play through the real sound device during the voice smoke.</summary>
     public bool Audible { get; private init; }
 
+    /// <summary>Silent check of an installed voice pack's shipped assets.</summary>
+    public bool VoicePackCheck { get; private init; }
+
     public bool StartInTray { get; private init; }
 
     public bool NoTray { get; private init; }
@@ -39,7 +42,7 @@ public sealed class StartupArguments
 
     public string? OutputDirectory { get; private init; }
 
-    public bool IsFixtureInvocation => HudFixture || HudSmoke || HudStartupCheck || VoiceSmoke;
+    public bool IsFixtureInvocation => HudFixture || HudSmoke || HudStartupCheck || VoiceSmoke || VoicePackCheck;
 
     public static bool TryParse(IReadOnlyList<string> args, out StartupArguments result, out string error)
     {
@@ -49,6 +52,7 @@ public sealed class StartupArguments
         var smoke = false;
         var startupCheck = false;
         var voiceSmoke = false;
+        var voicePackCheck = false;
         var audible = false;
         var startInTray = false;
         var noTray = false;
@@ -73,6 +77,9 @@ public sealed class StartupArguments
                     break;
                 case "--voice-smoke":
                     voiceSmoke = true;
+                    break;
+                case "--voice-pack-check":
+                    voicePackCheck = true;
                     break;
                 case "--audible":
                     audible = true;
@@ -140,6 +147,7 @@ public sealed class StartupArguments
             HudSmoke = smoke,
             HudStartupCheck = startupCheck,
             VoiceSmoke = voiceSmoke,
+            VoicePackCheck = voicePackCheck,
             Audible = audible,
             StartInTray = startInTray,
             NoTray = noTray,
@@ -157,7 +165,8 @@ public sealed class StartupArguments
        TheOverseer.App --hud-smoke [--duration SECONDS] [--data-directory PATH] [--no-tray]
        TheOverseer.App --hud-fixture --output-directory DIR [--data-directory PATH]
        TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)
-       TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]";
+       TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]
+       TheOverseer.App --voice-pack-check [--data-directory PATH]";
 }
 
 public static class DataDirectoryResolver

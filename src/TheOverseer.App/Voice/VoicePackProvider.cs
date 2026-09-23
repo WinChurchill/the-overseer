@@ -158,6 +158,15 @@ public sealed class VoicePackProvider : IVoiceProvider, IDisposable
             return null;
         }
 
+        // Existence is checked before the reparse test so a clip that is simply
+        // gone reports "missing" instead of the conservative "reparse" verdict
+        // that an uninspectable path would otherwise produce.
+        if (!File.Exists(full))
+        {
+            _lastCode = "clip-missing";
+            return null;
+        }
+
         if (HasReparsePoint(full))
         {
             _lastCode = "clip-reparse";

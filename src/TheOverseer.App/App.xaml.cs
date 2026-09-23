@@ -52,6 +52,14 @@ public partial class App : Application
                 return;
             }
 
+            if (arguments.VoicePackCheck)
+            {
+                // Silent packaged-asset check of the configured pack: no audio,
+                // no network, no settings writes.
+                Shutdown(await Task.Run(() => VoicePackCheckRunner.Run(arguments)));
+                return;
+            }
+
             if (arguments.HudFixture)
             {
                 HudFixtureRunner.StartFixture(arguments, Dispatcher);
