@@ -15,6 +15,7 @@
 
 ### Changed
 
+- Added a thin black outline to the white emblem for contrast on light surfaces.
 - Replaced the app, taskbar and tray icon with the supplied white standalone
   OVERSEER emblem; preserved the original artwork and transparency.
 - Added a visible LIGHT ON / LIGHT OFF toggle directly on the HUD header, beside

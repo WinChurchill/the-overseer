@@ -378,3 +378,12 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
 - Updated and verified `C:\Users\tester\Desktop\OVERSEER.lnk` target and icon.
   App left running from `artifacts/overseer-emblem-3405a26/`, settings preserved.
   Evidence in `artifacts/emblem-release/`; no merge/tag.
+
+### Thin outlined emblem — 2026-09-23
+
+- Added the requested thin black outline using built-in imagegen. Original source
+  remains untouched; edited asset is `design/branding/overseer-outlined.png`.
+  Prompt: add only a very thin black outline around constituent shapes (about
+  4px at 1280px), preserve geometry/spacing and white-gray fills, transparent
+  background and negative space, no text/shadow/redesign. Generated result also
+  reduces the original edge speckling. Converted to the existing seven ICO sizes.
