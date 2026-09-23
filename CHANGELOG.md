@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Replaced the app, taskbar and tray icon with the supplied white standalone
+  OVERSEER emblem; preserved the original artwork and transparency.
 - Added a visible LIGHT ON / LIGHT OFF toggle directly on the HUD header, beside
   mute. Doubled the light's maximum size to 128 DIPs for dragging, slider and presets.
 - Surfaced Status light directly in the HUD menu with position/width presets.

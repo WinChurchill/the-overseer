@@ -358,3 +358,14 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   SHA-256 `EB2F59C67EE06CC2E4D1739F2941A32F85FB2D520A4CB8FB87C2EB7CC0EE8B1B`.
   Evidence: `artifacts/light-toggle-release/live-evidence.json`. Updated app left
   running from `artifacts/overseer-light-toggle-d44bbdc/`, existing settings preserved.
+
+### Replacement emblem — 2026-09-23
+
+- Selected the user's white standalone emblem (`01_44_11 AM.png`) for app,
+  window/taskbar and tray icons. Source retained byte-for-byte in
+  `design/branding/overseer-source.png`; SHA-256
+  `3FFC955D05D39444FB4C6E020A85A34D6D39152A2E7901A599E930FF5CF7B7FA`.
+- Mechanically generated the seven existing Windows icon sizes, preserving
+  transparency and artwork. Inspected the 32px result; no product logic changes.
+- Release build passed with zero warnings/errors; all 442 tests passed, including
+  embedded icon frame and tray decoding checks. Changelog updated.
