@@ -26,7 +26,7 @@ public partial class HudWindow : Window
             "left" => -e.HorizontalChange, "right" => e.HorizontalChange,
             "top" => -e.VerticalChange, "bottom" => e.VerticalChange, _ => 0,
         };
-        _lightResizeSize = Math.Clamp(_lightResizeSize + delta, 6, 64);
+        _lightResizeSize = Math.Clamp(_lightResizeSize + delta, 6, 128);
         vm.LightSize = (int)Math.Round(_lightResizeSize);
         e.Handled = true;
     }

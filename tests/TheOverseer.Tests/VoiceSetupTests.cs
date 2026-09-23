@@ -30,7 +30,7 @@ public sealed class VoiceSetupTests
                 grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(x, y) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
                 Assert.Equal(44, vm.LightSize);
                 grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(x * 100, y * 100) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
-                Assert.Equal(64, vm.LightSize);
+                Assert.Equal(128, vm.LightSize);
                 grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-x * 100, -y * 100) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
                 Assert.Equal(6, vm.LightSize);
             }
@@ -90,7 +90,7 @@ public sealed class VoiceSetupTests
         var path = Path.Combine(home.Root, "config.json");
         MonitorConfigStore.Save(path, MonitorConfig.Default with
         {
-            Hud = HudSettings.Default with { LightPosition = "RIGHT", LightSize = 99 },
+            Hud = HudSettings.Default with { LightPosition = "RIGHT", LightSize = 999 },
             Voice = VoiceSettings.Default with
             {
                 Events = new Dictionary<string, bool> { ["system_online"] = true, ["task_complete"] = false },
@@ -99,7 +99,7 @@ public sealed class VoiceSetupTests
         });
         var loaded = MonitorConfigStore.Load(path).Config;
         Assert.Equal("right", loaded.Hud.LightPosition);
-        Assert.Equal(64, loaded.Hud.LightSize);
+        Assert.Equal(128, loaded.Hud.LightSize);
         Assert.True(loaded.Voice.IsEnabled(VoiceEventKind.SystemOnline));
         Assert.False(loaded.Voice.IsEnabled(VoiceEventKind.TaskCompleted));
         Assert.Single(loaded.Voice.Clips);

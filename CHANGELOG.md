@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Added a visible LIGHT ON / LIGHT OFF toggle directly on the HUD header, beside
+  mute. Doubled the light's maximum size to 128 DIPs for dragging, slider and presets.
 - Surfaced Status light directly in the HUD menu with position/width presets.
   It now defaults to the right at 32 DIPs wide, with sizes up to 64 DIPs.
   Drag the light directly to resize it, with a direction-appropriate cursor.

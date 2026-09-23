@@ -72,7 +72,7 @@ public sealed record HudSettings
         TaskView = NormalizeTaskView(TaskView),
         RecentHours = Math.Clamp(RecentHours, 1, 24),
         LightPosition = NormalizeLightPosition(LightPosition),
-        LightSize = Math.Clamp(LightSize, 6, 64),
+        LightSize = Math.Clamp(LightSize, 6, 128),
     };
 
     /// <summary>Finite, clamped, readable opacity. Never NaN, infinity or off-range.</summary>

@@ -26,7 +26,7 @@
           <ComboBoxItem Content="Bottom" Tag="bottom" /><ComboBoxItem Content="Left" Tag="left" /><ComboBoxItem Content="Right" Tag="right" />
         </ComboBox>
         <TextBlock Text="Size" VerticalAlignment="Center" Margin="18,0,8,0" />
-        <Slider Width="130" Minimum="6" Maximum="64" TickFrequency="2" IsSnapToTickEnabled="True" Value="{Binding LightSize}" />
+        <Slider Width="130" Minimum="6" Maximum="128" TickFrequency="2" IsSnapToTickEnabled="True" Value="{Binding LightSize}" />
         <TextBlock Text="{Binding LightSize, StringFormat={}{0} px}" Margin="8,0,0,0" VerticalAlignment="Center" />
       </WrapPanel>
       <TextBlock Text="Green: working · Red: needs attention / offline · Amber: uncertain · Neutral: idle" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,16" />

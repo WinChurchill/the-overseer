@@ -646,7 +646,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             lightMenu.Items.Add(item);
         }
         lightMenu.Items.Add(new System.Windows.Controls.Separator());
-        foreach (var size in new[] { 24, 32, 48, 64 })
+        foreach (var size in new[] { 24, 32, 48, 64, 96, 128 })
         {
             var item = new System.Windows.Controls.MenuItem { Header = $"Width {size}", IsCheckable = true };
             item.Click += (_, _) => ViewModel.LightSize = size;

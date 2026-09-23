@@ -342,3 +342,13 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
 - App left running from `artifacts/overseer-light-resize-cd2b89c/`. Applied the
   user's requested right/32 preference after gracefully closing the previous
   instance; other saved settings preserved. Changelog updated, no merge/tag.
+
+### Visible HUD light toggle — 2026-09-23
+
+- Clarified request: toggle must be directly on the HUD, not just in a menu.
+  Added LIGHT ON / LIGHT OFF beside mute, with active color and action tooltip.
+  Toggling preserves width and restores the preceding side within the session.
+- Doubled maximum thickness to 128 DIPs in configuration, drag grip, slider and
+  menu presets. Default remains right/32. Changelog and README updated.
+- Release build: 0 warnings/errors; 442 tests passed. Packaged visual/runtime
+  validation is recorded below after relaunch.
