@@ -239,5 +239,12 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   for a thin accent and status line; stale/provisional takes amber precedence.
 - Release build: 0 warnings/errors; 414/414 tests passed. Ten fixture renders
   generated under `artifacts/caption-rows-ui`; dark Now and light Recent inspected.
-- CHANGELOG.md updated. Package and running-app replacement pending; no monitor
-  or lifecycle behavior changed in this refinement.
+- CHANGELOG.md updated. Clean source `a6b12ca`; candidate:
+  `artifacts/caption-rows-release/OVERSEER-v1-win-x64.zip`, SHA-256
+  `16B5FDF2356AC60CE8BE91CBEE6EBE625300A4B99D1F774EC2826B823C670E9C`.
+- Scoped package check passed: ten renders; updated normal HUD visible, topmost,
+  taskbar-enabled and no owned foreground window in 60 samples over 15 seconds.
+  Evidence: `artifacts/caption-rows-release/live-evidence.json`. Existing settings
+  preserved; app left running from `artifacts/overseer-caption-a6b12ca/`.
+- No monitor or lifecycle behavior changed; the preceding full 28-check package
+  result remains separate from this scoped visual-update check.
