@@ -260,5 +260,15 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   persistent diagnostic paragraphs with one compact coverage/input-detection
   label; full details remain in tooltips and the header's Monitoring details menu.
   Unknown/lower-bound counts and monitoring semantics are unchanged.
-- CHANGELOG.md and README.md updated. Release build/tests and packaged runtime
-  verification are recorded below once the candidate has been checked.
+- CHANGELOG.md and README.md updated. Release build: 0 warnings/errors;
+  **415/415 tests passed**, including embedded icon frame/native tray-size decoding.
+- Clean source `b99fc68`; candidate `artifacts/identity-copy-release/OVERSEER-v1-win-x64.zip`,
+  SHA-256 `28D51021297F742712333742E554A181235CD8043CF6372EC45FBB3706A839AF`.
+- Scoped package checks passed: ten fixture renders; Light/Dark expanded and
+  unavailable layouts inspected. Extracted executable icon and live window icon
+  visually match the supplied artwork. Native window remained visible, topmost,
+  taskbar-enabled, with zero owned-foreground observations across 60 samples/15s.
+  Evidence: `artifacts/identity-copy-release/live-evidence.json`, `icon-evidence.json`
+  and PNGs. The full 28-check smoke suite was not repeated for this icon/copy update.
+- Updated normal app left running from `artifacts/overseer-identity-b99fc68/` with
+  saved settings. Branch remains `ux/first-use`; no merge/tag or dependency changes.
