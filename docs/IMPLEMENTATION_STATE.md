@@ -489,6 +489,36 @@ settings surface, the visible close button/header/menu/responsive sizing, and fi
 renders + clean publish + packaged lifecycle smoke. Still absent: any UI change, renders,
 and all package/smoke evidence for this round.
 
+### DeepSeek session checkpoint 5 — project-first HUD grouping (2026-09-24)
+
+Packet item 3's grouping half is implemented and committed:
+
+- `TaskRowViewModel` now carries a sortable `ProjectGroupKey`, the group label and a
+  bounded group summary; the key orders attention (needs-human) → active → recent, with
+  Unassigned forced last and a stable name tie-break, so groups never shuffle between
+  ticks.
+- `HudViewModel.ProjectGroups` groups the visible rows by `AgentTask.AssignedProject`.
+  Counts, harness badges and coverage come from every monitored member of that project,
+  not only the filtered rows, so a filtered view cannot claim full project health; a
+  stale or provisional member appends `partial coverage` to the summary.
+- `HudWindow.xaml` renders one header per project through a `CollectionViewSource` with
+  a `PropertyGroupDescription` on the group key and a `GroupStyle.HeaderTemplate` showing
+  the project name plus summary. The task row template and the single `Tasks` collection
+  are unchanged, and labels/summaries never contain a local root path (asserted).
+
+Evidence: Release build **0 warnings / 0 errors**; .NET tests **550 passed / 0 failed /
+0 skipped** (4 new `ProjectViewTests`: attention-first ordering with Unassigned last,
+one shared group key with counts and harness badges, partial-coverage disclosure for a
+stale member, and no root path in any label or summary).
+
+Next executable step: render inspection with `--hud-fixture` (and a project-bearing
+synthetic scenario so a header is actually visible), then the hourly activity strips on
+the project/task rows from `NotificationCoordinator.ActivityStrips`, the "Use baseline"
+control in the voice settings surface, the visible close button/header/menu/responsive
+sizing, and finally the clean publish plus packaged lifecycle smoke. Still absent: render
+evidence, activity strips, the baseline settings control, the close/header/sizing
+refinement, and all package/smoke evidence for this round.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
