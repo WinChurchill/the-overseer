@@ -13,6 +13,41 @@
 - Full multi-harness recovery, settings, speech lifecycle and release validation
   remain unfinished; see the latest implementation-state review.
 
+### Continuation round — bridge recovery, shared budgets and honest freshness
+
+- **Bridge state/recovery.** OVERSEER now consumes each producer's atomically
+  published `current.json` as an authoritative resynchronization point: a late attach,
+  a dropped record or a rotated event file no longer leaves a source's coverage
+  incomplete forever. Coverage is split into recoverable *current state* and a
+  permanent *history gap*, a session the producer no longer lists is retired instead
+  of looking like ongoing work, and a sequence gap is reported instead of smoothed
+  over. The unread tail of a rotated event file is drained, and a same-size file
+  replacement is detected by file identity rather than by length.
+- **Liveness is not action evidence.** A heartbeat keeps the source fresh but can
+  never renew an action, overwrite an observed category, or hide an unanswered
+  approval/input request behind continuing tool activity. An action older than ten
+  seconds becomes unknown coverage, an unrecognized `turn/end` outcome is never a
+  completion, a late `turn/end` for a closed turn cannot close the current one, and
+  producer clock skew is bounded by the collector's receipt time.
+- **Two producer defects found by the new fixtures.** An event-file rotation silently
+  swallowed the record that triggered it, and the published sequence reused host
+  sequence numbers, so every host event the observer deliberately does not export
+  looked like a lost record. Both are fixed and covered.
+- **Shared source budgets.** One aggregate per-pass read allowance and one tracked-item
+  allowance are divided between enabled sources instead of being multiplied by them;
+  at most eight source instances are monitored, truncation is reported, and source
+  discovery is bounded per root, deterministic, honours explicitly configured roots
+  and still excludes disabled sources.
+- **Correct freshness and capability aggregation.** Source freshness is the producer's
+  own evidence time, so repolling an idle spool never looks like a fresh read and a
+  fresh peer cannot refresh a dead source. Capability sets are merged across readable
+  sources with a per-harness note, and a bridge declares what it actually provides
+  instead of inheriting the Codex capability set.
+- **Generated producer fixtures.** `integrations/deepseek-harness/fixtures/spool/`
+  holds live, rotated and drop-affected spools produced by the real observer state
+  machine and the real spool writer; the .NET integration tests consume them, so a
+  change in the producer's actual output shape fails the suite.
+
 ### Added
 
 - Project identity and a deterministic project resolver (explicit mapping, configured
