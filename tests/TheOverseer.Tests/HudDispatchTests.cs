@@ -521,6 +521,140 @@ public sealed class HudDispatchTests
         });
     }
 
+    [Fact]
+    public void MenuOffersTheCleanTopLevelSetAndOnlyOffersHideToTrayWhenItWorks()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var withTray = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService(), trayAvailable: true);
+            withTray.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var menu = withTray.Window!.ContextMenu!;
+            var items = menu.Items.Cast<System.Windows.Controls.MenuItem>().ToArray();
+
+            Assert.Equal(
+                new[] { "Always on top", "Theme", "View", "Light & voice…", "Projects & sources…", "Hide to tray", "Exit" },
+                items.Select(item => item.Header!.ToString()).ToArray());
+
+            // Presets and layout live in submenus, not as many top-level entries.
+            var view = items.Single(item => Equals(item.Header, "View"));
+            var nested = view.Items.Cast<object>().Select(entry => entry is System.Windows.Controls.MenuItem item ? item.Header!.ToString() : null).ToArray();
+            Assert.Contains("Recent interval", nested);
+            Assert.Contains("Reset position", nested);
+            Assert.Contains("Opacity", nested);
+            Assert.Contains("Status light", nested);
+            Assert.Contains("Expand all projects", nested);
+            Assert.Contains("Collapse all projects", nested);
+
+            var pin = items.Single(item => Equals(item.Header, "Always on top"));
+            Assert.True(pin.IsChecked);
+            Assert.True(items.Single(item => Equals(item.Header, "Hide to tray")).IsEnabled);
+
+            StaTestHost.Complete(withTray.DisposeAsync().AsTask());
+            Cleanup();
+
+            // A session with no tray never pretends hiding would be recoverable.
+            var noTray = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService(), trayAvailable: false);
+            noTray.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.False(noTray.Window!.ContextMenu!.Items.Cast<System.Windows.Controls.MenuItem>()
+                .Single(item => Equals(item.Header, "Hide to tray")).IsEnabled);
+            StaTestHost.Complete(noTray.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void TheCloseControlHidesToTrayWhileExitStillShutsDown()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var controller = CreateController(dispatcher, new FakeMonitorSource(), new FakePlacementService(), trayAvailable: true);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            dispatcher.DrainAll();
+            var exits = 0;
+            controller.ExitRequested += (_, _) => exits++;
+            var window = controller.Window!;
+            var close = (System.Windows.Controls.Button)window.FindName("CloseButton")!;
+            Assert.Equal("Hide to tray", close.ToolTip);
+
+            close.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+
+            Assert.False(window.IsVisible);
+            Assert.Equal(0, exits);
+            Assert.False(controller.IsShuttingDown);
+
+            // Exit stays explicit and unconditional.
+            StaTestHost.Complete(controller.ShutdownAsync());
+            Assert.True(controller.IsShuttingDown);
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void AnUnsupportedHarnessOffersTheHonestCopyIdFallback()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var navigator = new FakeTaskNavigator
+            {
+                Result = new TaskNavigationResult(TaskNavigationOutcome.UnsupportedSurface,
+                    "Open this task in its coding application — this harness has no supported route.", null),
+            };
+            var clipboard = new FakeClipboardWriter();
+            var controller = CreateController(dispatcher, new FakeMonitorSource(), new FakePlacementService(), null, navigator, clipboard);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var monitor = (FakeMonitorSource)controllerMonitor!;
+            monitor.Push(SyntheticHudScenarios.Mixed());
+            dispatcher.DrainAll();
+
+            var dshRow = controller.ViewModel.Tasks.First(row => row.Key.HarnessId == HarnessIds.Dsh);
+            Assert.False(dshRow.CanNavigate);
+            controller.ViewModel.ActivateTaskCommand.Execute(dshRow);
+
+            // No route is claimed and the honest action happened instead.
+            Assert.Equal(dshRow.Key.ConversationId, clipboard.Text);
+            Assert.Contains("copied", controller.ViewModel.FooterHint, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(TaskNavigationOutcome.UnsupportedSurface.ToString(), controller.NavigationCode);
+
+            StaTestHost.Complete(controller.ShutdownAsync());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void CollapsingAProjectKeepsMonitoringAndHistoryRunning()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var monitor = new FakeMonitorSource();
+            var controller = CreateController(dispatcher, monitor, new FakePlacementService());
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            monitor.Push(SyntheticHudScenarios.Mixed());
+            dispatcher.DrainAll();
+            var starts = monitor.StartCount;
+            Assert.NotNull(controller.Window!.ContextMenu);
+
+            controller.ViewModel.SetAllProjectsExpanded(false);
+            Assert.All(controller.ViewModel.Projects, project => Assert.False(project.IsExpanded));
+            Assert.NotEmpty(controller.ViewModel.Tasks);
+
+            // A collapsed project is presentation only: the monitor keeps publishing,
+            // rows keep updating and the next snapshot is still applied.
+            monitor.Push(SyntheticHudScenarios.PartialUnknown());
+            dispatcher.DrainAll();
+            Assert.Equal(starts, monitor.StartCount);
+            Assert.False(monitor.Disposed);
+            Assert.All(controller.ViewModel.Projects, project => Assert.False(project.IsExpanded));
+            Assert.NotEmpty(controller.ViewModel.Tasks);
+
+            StaTestHost.Complete(controller.ShutdownAsync());
+            Cleanup();
+        });
+    }
+
     private static bool SpinUntil(Func<bool> condition, int timeoutMs = 2000)
     {
         var started = Environment.TickCount64;

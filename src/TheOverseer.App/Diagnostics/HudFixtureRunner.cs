@@ -111,6 +111,53 @@ internal static class HudFixtureRunner
             }
         }
 
+        // Project-surface cases: one project, several projects, and every project
+        // collapsed, so the expandable row and its affordance are inspectable.
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            foreach (var (name, snapshot, collapsed) in new[]
+            {
+                ("one-project", SyntheticHudScenarios.SingleProject(), false),
+                ("collapsed-projects", scenarios[0], true),
+            })
+            {
+                var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+                viewModel.UseActivitySource(fixtureActivity.Source);
+                viewModel.ApplySnapshot(snapshot);
+                viewModel.ApplyActivity(activity, VoiceStatus.Initial);
+                viewModel.IsExpanded = true;
+                if (collapsed)
+                {
+                    viewModel.SetAllProjectsExpanded(false);
+                }
+
+                var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-" + name + ".png");
+                Render(viewModel, theme, path);
+                rendered.Add(path);
+            }
+        }
+
+        // A staggered hour with a deliberate unobserved stretch: several categories,
+        // an inferred tail, mixed projects and unknown coverage in one render.
+        var hourActivity = CreateFixtureActivity();
+        var hour = SyntheticHudScenarios.ActivityHour(SyntheticHudScenarios.Now);
+        foreach (var step in hour)
+        {
+            hourActivity.Coordinator.OnSnapshot(step);
+        }
+
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0, TaskView = "recent" });
+            viewModel.UseActivitySource(hourActivity.Source);
+            viewModel.ApplySnapshot(hour[^1]);
+            viewModel.ApplyActivity(activity, VoiceStatus.Initial);
+            viewModel.IsExpanded = true;
+            var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-activity-hour.png");
+            Render(viewModel, theme, path);
+            rendered.Add(path);
+        }
+
         foreach (var (name, snapshot) in new[]
         {
             ("dark-empty.png", SyntheticHudScenarios.HealthyEmpty()),
@@ -163,7 +210,7 @@ internal static class HudFixtureRunner
         }
 
         foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
-        foreach (var size in new[] { (280, 720), (480, 720), (900, 700), (640, 260), (1400, 900) })
+        foreach (var size in new[] { (320, 220), (280, 720), (320, 720), (440, 620), (480, 720), (900, 700), (640, 260), (1400, 900) })
         {
             HudThemeManager.Apply(Application.Current, theme);
             var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, LightSize = 128 });

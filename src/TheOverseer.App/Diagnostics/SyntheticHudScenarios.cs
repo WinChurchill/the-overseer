@@ -10,7 +10,8 @@ namespace TheOverseer.App.Diagnostics;
 /// </summary>
 public static class SyntheticHudScenarios
 {
-    private static readonly DateTimeOffset Now = new(2026, 1, 2, 12, 0, 0, TimeSpan.Zero);
+    /// <summary>Fixed synthetic clock every scenario is anchored to.</summary>
+    public static DateTimeOffset Now { get; } = new(2026, 1, 2, 12, 0, 0, TimeSpan.Zero);
 
     public static IReadOnlyList<MonitoringSnapshot> Create() => new[]
     {
@@ -111,6 +112,78 @@ public static class SyntheticHudScenarios
         return Snapshot(tasks, MonitoringHealthLevel.Degraded, new[] { "stale-tasks", "discovery-backlog" }, coverageComplete: false, known: true);
     }
 
+    /// <summary>One project with three tasks: the single-project render case.</summary>
+    public static MonitoringSnapshot SingleProject()
+    {
+        var tasks = new List<AgentTask>
+        {
+            Task("01a0f000-0000-0000-0000-000000000001", 1, "Aurora release checklist", AgentTaskState.NeedsApproval,
+                new AgentAction(AgentActionKind.WaitingForApproval, EvidenceKind.Explicit, "permission-requested"),
+                needsHuman: true, stale: false, provisional: false, minutesAgo: 1, attention: "permission-requested"),
+            Task("01a0f000-0000-0000-0000-000000000003", 3, "TCS data pipeline", AgentTaskState.Working,
+                new AgentAction(AgentActionKind.RunningTests, EvidenceKind.Structured, "test-runner"),
+                needsHuman: false, stale: false, provisional: false, minutesAgo: 0),
+            Task("01a0f000-0000-0000-0000-000000000009", 9, "Failed verification", AgentTaskState.Error,
+                new AgentAction(AgentActionKind.Error, EvidenceKind.Explicit, "task-error"),
+                needsHuman: false, stale: false, provisional: false, minutesAgo: 4, failed: true),
+        };
+
+        return Snapshot(tasks, MonitoringHealthLevel.Healthy, Array.Empty<string>(), coverageComplete: true, known: true);
+    }
+
+    /// <summary>
+    /// A staggered synthetic hour for render inspection: the same projects observed at
+    /// different states with a deliberate unobserved stretch, so one PNG shows
+    /// thinking, working, waiting, error, idle and unknown cells together. The last
+    /// snapshot is the render source.
+    /// </summary>
+    public static IReadOnlyList<MonitoringSnapshot> ActivityHour(DateTimeOffset end)
+    {
+        var steps = new List<MonitoringSnapshot>();
+
+        AgentTask Build(int number, string label, AgentTaskState state, AgentAction action, bool needsHuman = false, bool failed = false) =>
+            Task(Conversation(number), number, label, state, action, needsHuman,
+                stale: false, provisional: false, minutesAgo: 0, attention: needsHuman ? action.DetailCode : null,
+                failed: failed, anchor: end);
+
+        void Observe(int minutesAgo, params AgentTask[] tasks) =>
+            steps.Add(Snapshot(tasks, MonitoringHealthLevel.Degraded, new[] { "synthetic" }, coverageComplete: false, known: true,
+                at: end.AddMinutes(-minutesAgo)));
+
+        // Aurora: an explicit plan marker, then inferred reasoning, then tool work.
+        Observe(54,
+            Build(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.EditingFiles, EvidenceKind.Explicit, "plan-mode")),
+            Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")));
+        for (var minute = 48; minute >= 30; minute -= 3)
+        {
+            Observe(minute,
+                Build(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.Thinking, EvidenceKind.Inferred, "inferred-turn")),
+                Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")));
+        }
+
+        for (var minute = 27; minute >= 18; minute -= 3)
+        {
+            Observe(minute,
+                Build(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.RunningTests, EvidenceKind.Structured, "test-runner")),
+                Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")));
+        }
+
+        // Minutes 17..7 are deliberately unobserved: unknown coverage, never idle.
+        Observe(6,
+            Build(1, "Aurora release checklist", AgentTaskState.NeedsApproval, new AgentAction(AgentActionKind.WaitingForApproval, EvidenceKind.Explicit, "permission-requested"), needsHuman: true),
+            Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")),
+            Build(5, "Webots simulation harness", AgentTaskState.Working, new AgentAction(AgentActionKind.Searching, EvidenceKind.Structured, "search-command")));
+        Observe(1,
+            Build(1, "Aurora release checklist", AgentTaskState.Error, new AgentAction(AgentActionKind.Error, EvidenceKind.Explicit, "task-error"), failed: true),
+            Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")),
+            Build(5, "Webots simulation harness", AgentTaskState.NeedsInput, new AgentAction(AgentActionKind.WaitingForInput, EvidenceKind.Explicit, "input-requested"), needsHuman: true),
+            Build(10, "Finished report", AgentTaskState.Done, new AgentAction(AgentActionKind.Completed, EvidenceKind.Explicit, "task-complete")));
+        return steps;
+    }
+
+    private static string Conversation(int number) =>
+        "01a0f000-0000-0000-0000-0000000000" + number.ToString("x2", System.Globalization.CultureInfo.InvariantCulture);
+
     public static MonitoringSnapshot HealthyEmpty() =>
         Snapshot(Array.Empty<AgentTask>(), MonitoringHealthLevel.Healthy, Array.Empty<string>(), coverageComplete: true, known: true);
 
@@ -144,9 +217,10 @@ public static class SyntheticHudScenarios
         int minutesAgo,
         string? attention = null,
         bool cancelled = false,
-        bool failed = false)
+        bool failed = false,
+        DateTimeOffset? anchor = null)
     {
-        var lastActivity = Now.AddMinutes(-minutesAgo);
+        var lastActivity = (anchor ?? Now).AddMinutes(-minutesAgo);
         // Synthetic project and harness variety so a fixture render shows real
         // project headers and multi-harness badges. Roots are synthetic placeholders.
         var harnessId = number is 5 or 6 ? HarnessIds.Dsh : HarnessIds.Codex;
@@ -199,8 +273,10 @@ public static class SyntheticHudScenarios
         MonitoringHealthLevel level,
         IReadOnlyList<string> reasons,
         bool coverageComplete,
-        bool known)
+        bool known,
+        DateTimeOffset? at = null)
     {
+        var now = at ?? Now;
         var working = tasks.Count(static task => task.State == AgentTaskState.Working);
         var needsHuman = tasks.Count(static task => task.NeedsHuman);
         CountValue Count(int value) => known
@@ -217,9 +293,9 @@ public static class SyntheticHudScenarios
             Count(tasks.Count(static task => task.State == AgentTaskState.Idle)),
             Count(tasks.Count));
 
-        var health = new MonitoringHealth(level, reasons, coverageComplete, Now.AddSeconds(-2), Now);
+        var health = new MonitoringHealth(level, reasons, coverageComplete, now.AddSeconds(-2), now);
         return new MonitoringSnapshot(
-            Now,
+            now,
             health,
             counts,
             tasks,
