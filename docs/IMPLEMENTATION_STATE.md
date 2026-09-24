@@ -401,3 +401,9 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   summary remains draggable; popup menu also forces the arrow cursor.
 - Extended routed-input regression to cover the controls panel and health dot.
   Changelog updated; no monitoring or voice behavior changes.
+- Release build: zero warnings/errors; 442 tests passed. Packaged source `1351dda`;
+  archive SHA-256 `E97799079740BB13BC4DCB05C4C741D6B1A80789CF86444ACC1AD2238C25A5F0`.
+  Sixteen packaged fixture renders; scoped native check confirms visible/topmost/
+  taskbar and zero foreground observations in 60 samples/15 seconds. Existing
+  settings preserved, app restarted and desktop shortcut updated. Evidence in
+  `artifacts/header-controls-release/`; full package smoke not repeated.
