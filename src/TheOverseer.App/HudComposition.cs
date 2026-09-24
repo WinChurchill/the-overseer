@@ -1,5 +1,4 @@
 using System.IO;
-using System.Net.Http;
 using System.Windows.Threading;
 using TheOverseer.App.Desktop;
 using TheOverseer.App.Diagnostics;
@@ -11,7 +10,6 @@ using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
 using TheOverseer.Core.Voice;
 using TheOverseer.App.Voice;
-using TheOverseer.App.Voice.Speech;
 using TheOverseer.UI;
 
 namespace TheOverseer.App;
@@ -40,31 +38,40 @@ internal static class HudComposition
         var statePath = Path.Combine(dataDirectory, HudStateStore.FileName);
         var configResult = MonitorConfigStore.Load(configPath);
         var stateResult = HudStateStore.Load(statePath);
+        // A brand-new data directory has no stored preference to preserve, so it
+        // takes the agreed offline baseline default (still muted). An existing
+        // config.json is used exactly as written: a missing "provider" key keeps the
+        // current pack behaviour, and explicit provider/mute/endpoint choices and
+        // assigned recordings are never reset.
+        var config = configResult.Config with
+        {
+            Voice = VoiceSettings.Effective(configResult.Status, configResult.Config.Voice),
+        };
 
-        var codexHome = arguments.CodexHome ?? configResult.Config.CodexHome ?? MonitorProfiles.ResolveCodexHome(null);
-        var profiles = MonitorProfiles.Create(codexHome, configResult.Config.AdditionalRoots);
-        var monitorOptions = MonitorConfigStore.ToOptions(configResult.Config);
+        var codexHome = arguments.CodexHome ?? config.CodexHome ?? MonitorProfiles.ResolveCodexHome(null);
+        var profiles = MonitorProfiles.Create(codexHome, config.AdditionalRoots);
+        var monitorOptions = MonitorConfigStore.ToOptions(config);
 
         IMonitorLog log = NullMonitorLog.Instance;
-        if (configResult.Config.Logging.Enabled)
+        if (config.Logging.Enabled)
         {
             var fileLog = LocalLog.TryCreate(
                 Path.Combine(dataDirectory, "logs", "overseer.log"),
-                configResult.Config.Logging.MaxBytes,
-                configResult.Config.Logging.Level);
+                config.Logging.MaxBytes,
+                config.Logging.Level);
             if (fileLog is not null)
             {
                 log = fileLog;
             }
         }
 
-        IRuntimeActivitySource activitySource = configResult.Config.RuntimeActivitySourceEnabled
+        IRuntimeActivitySource activitySource = config.RuntimeActivitySourceEnabled
             ? new WindowsSessionActivitySource()
             : NullRuntimeActivitySource.Instance;
 
         // Project attribution is resolved by the monitor from each session's
         // retained workspace root; the resolver is bounded and cached.
-        var projects = new ProjectResolver(configResult.Config.Project);
+        var projects = new ProjectResolver(config.Project);
         var monitor = new CodexMonitor(monitorOptions, profiles, activitySource, log, TimeProvider.System, projects);
 
         // One HUD-facing monitor over every enabled source: Codex plus each bridge
@@ -73,7 +80,7 @@ internal static class HudComposition
         {
             new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
         };
-        foreach (var source in HarnessSources.Discover(dataDirectory, configResult.Config.DisabledHarnessSources))
+        foreach (var source in HarnessSources.Discover(dataDirectory, config.DisabledHarnessSources))
         {
             adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
         }
@@ -83,7 +90,7 @@ internal static class HudComposition
         var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
         var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));
 
-        var notifications = CreateNotifications(dataDirectory, configResult.Config.Voice, log);
+        var notifications = CreateNotifications(dataDirectory, config.Voice, log);
 
         var dependencies = new HudControllerDependencies(
             monitorSource,
@@ -93,7 +100,7 @@ internal static class HudComposition
             startup,
             new WpfClipboardWriter(),
             log,
-            configResult.Config,
+            config,
             stateResult.State,
             new HudControllerPaths(dataDirectory, configPath, statePath),
             () => new HudWindow(),
@@ -118,16 +125,11 @@ internal static class HudComposition
         NotificationCoordinator? coordinator = null;
         VoiceSettings Settings() => coordinator?.Settings ?? normalized;
         bool Relevant(VoiceCandidate candidate) => coordinator?.IsStillRelevant(candidate) ?? false;
-        var packProvider = new VoicePackProvider(dataDirectory, Settings);
-        // Selected provider only: no automatic cross-provider fallback in this round,
-        // so a failing baseline engine is visible instead of quietly swapping voices.
-        IVoiceProvider selected = normalized.ResolvedProvider switch
-        {
-            VoiceProviderKind.Tts => new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), Settings), packProvider, allowFallback: true, Relevant),
-            VoiceProviderKind.Speech => new WindowsSpeechVoiceProvider(new SapiSpeechSynthesisEngine(), Settings),
-            _ => packProvider,
-        };
-        IVoiceProvider provider = new AssignedVoiceProvider(dataDirectory, Settings, selected);
+        // The assigned recording wins; otherwise exactly the provider the current
+        // settings select, decided per request so a settings change takes effect at
+        // once. No automatic cross-provider fallback: a failing selected provider is
+        // reported unavailable instead of quietly speaking another voice.
+        var provider = VoiceProviderFactory.Create(dataDirectory, Settings);
 
         var player = new WavPlaybackService();
         var manager = new VoiceManager(
@@ -142,18 +144,4 @@ internal static class HudComposition
         return coordinator;
     }
 
-    /// <summary>One reusable client: no redirects, no cookies, bounded by provider timeouts.</summary>
-    private static HttpClient CreateTtsClient()
-    {
-        var handler = new HttpClientHandler
-        {
-            AllowAutoRedirect = false,
-            UseCookies = false,
-        };
-        var client = new HttpClient(handler, disposeHandler: true)
-        {
-            Timeout = Timeout.InfiniteTimeSpan,
-        };
-        return client;
-    }
 }
