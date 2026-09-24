@@ -58,7 +58,24 @@ try {
  Start-Sleep -Milliseconds 700
  [void][ScalingProbe]::GetWindowRect($window,[ref]$r)
  if ([Math]::Abs(($r.Right-$r.Left)-760) -gt 2) { throw 'Native restore failed.' }
- [ordered]@{ nativeResize=$true; resizeSurvivesUpdates=$true; nativeMaximizeHitTarget=$maxHit; maximizeRestore=$true; normalBoundsPersisted=$true; dpi=$dpi; snapKeyboardAndHover='not automated'; realMixedDpiTransitions='not exercised' } | ConvertTo-Json | Tee-Object -FilePath (Join-Path $root 'window-scaling-evidence.json')
+ Add-Type -AssemblyName System.Windows.Forms
+ $transitions=@()
+ $originalLeft=$r.Left; $originalTop=$r.Top
+ $logicalWidth=($r.Right-$r.Left)*96/$dpi
+ foreach ($screen in [System.Windows.Forms.Screen]::AllScreens) {
+  $work=$screen.WorkingArea
+  [void][ScalingProbe]::SetWindowPos($window,[IntPtr]::Zero,($work.Left+40),($work.Top+40),0,0,0x15)
+  Start-Sleep -Milliseconds 1200
+  $newDpi=[ScalingProbe]::GetDpiForWindow($window)
+  [void][ScalingProbe]::GetWindowRect($window,[ref]$r)
+  $newLogical=($r.Right-$r.Left)*96/$newDpi
+  if ([Math]::Abs($newLogical-$logicalWidth) -gt 3) { throw 'DPI transition changed logical width.' }
+  if ($r.Left -lt $work.Left-8 -or $r.Right -gt $work.Right+8 -or $r.Top -lt $work.Top-8 -or $r.Bottom -gt $work.Bottom+8) { throw 'DPI transition left window outside the work area.' }
+  $transitions += @{monitor=$screen.DeviceName; dpi=$newDpi; logicalWidth=$newLogical}
+ }
+ [void][ScalingProbe]::SetWindowPos($window,[IntPtr]::Zero,$originalLeft,$originalTop,0,0,0x15)
+ Start-Sleep -Milliseconds 1200
+ [ordered]@{ nativeResize=$true; resizeSurvivesUpdates=$true; nativeMaximizeHitTarget=$maxHit; maximizeRestore=$true; normalBoundsPersisted=$true; dpi=$dpi; snapKeyboardAndHover='not automated'; monitorTransitions=$transitions } | ConvertTo-Json -Depth 4 | Tee-Object -FilePath (Join-Path $root 'window-scaling-evidence.json')
 } finally {
  if (-not $process.HasExited) {
   $window=[ScalingProbe]::Find($process.Id)

@@ -434,8 +434,27 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   bounds persistence. Evidence: `artifacts/window-native-3/`. Earlier probe attempts
   exposed probe startup timing and PowerShell DPI virtualization, corrected in the
   test harness; final checks use PerMonitorV2 coordinates.
-- Limitations: native Snap keyboard/flyout interactions and physical mixed-DPI,
-  unplug/reconnect and sleep/resume still need hands-on qualification. Windows
+- Limitations: native Snap keyboard/flyout interactions, unplug/reconnect and
+  sleep/resume still need hands-on qualification. Windows
   text-size-only accessibility scaling is not wired to the explicit font resources;
   Windows display scaling works through WPF. No separate app zoom was introduced.
-  Package review and launch evidence to follow; no merge/tag.
+  No merge/tag.
+- Review: PASS WITH NONBLOCKING NOTES for the documented manual qualifications.
+  Found and fixed a clipped voice mute control by wrapping the settings heading
+  row; final build/tests passed (453 tests). Final 26 renders inspected, including
+  corrected settings. The fixed native caption avoids custom hit-test code.
+- Full default-duration package smoke: 28/28 passed for `395a06d`, including
+  547 foreground samples with no owned foreground window. Evidence:
+  `artifacts/window-scaling-release/smoke/run-20260924T025356Z-8810dd42/`.
+  Subsequent source `db60aa6` changes only the settings heading WrapPanel; final
+  package received fresh renders, scoped launch and native-window verification.
+- Final archive `artifacts/window-scaling-final/OVERSEER-v1-win-x64.zip`, SHA-256
+  `61C2B40FE8921C2A937C3D2BEC4417867398024C11554AF008D87F9A42B8133A`.
+  Desktop shortcut updated; app running from `artifacts/overseer-scaling-db60aa6/`
+  with saved user settings preserved. Scoped live check: visible/topmost/taskbar,
+  0/60 foreground samples. Evidence: `artifacts/window-scaling-final/`.
+- Final isolated native test also moved across the actual primary 125%-scale and
+  left portrait 100%-scale displays and back, preserving logical width (608 DIPs)
+  and work-area reachability. Resize, maximize/restore, native maximize hit target
+  and persisted normal bounds all passed on the final package. Evidence:
+  `artifacts/window-scaling-final/native-monitor-check/window-scaling-evidence.json`.
