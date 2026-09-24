@@ -424,9 +424,19 @@ Verification: Release build **0 warnings / 0 errors**; .NET tests **531 passed /
   consumes only complete new lines, defers a partial trailing record, and reports producer
   drops as coverage evidence.
 
-Next executable step: cross-source notification verification through
-`NotificationCoordinator` with two sources (dedupe by harness-qualified key, no replay on
-hydration, no source-loss storm). Then the UI, voice and packaging work listed below.
+Cross-source notification verification is complete (`CrossSourceNotificationTests`, 3
+regressions): the same conversation id in Codex and dsh produces two distinct
+notifications instead of one collapsed cue; a degraded, partially covered composite
+snapshot (one peer source failing) still notifies healthy work exactly once; and
+repeated hydration-only publications speak nothing while a later explicit condition in
+the same bridge session speaks exactly once.
+
+Next executable step: the project-first HUD and settings surface plus the project/task
+hourly activity strips (`ActivityStrips` is already wired into the coordinator), then
+the offline baseline voice, the visible close button/header/menu/responsive sizing, and
+finally renders + clean publish + packaged lifecycle smoke. Still absent: all UI work,
+baseline voice, renders and any package/smoke evidence for this round; live Claude
+qualification remains a disclosed gap (not installed).
 
 Next executable steps, in order:
 1. Cross-source notification verification (see above).
