@@ -655,6 +655,48 @@ public sealed class HudDispatchTests
         });
     }
 
+    [Fact]
+    public void ProjectSourcesSettingsListDiscoveriesAndPersistAdditively()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var controller = CreateController(dispatcher, new FakeMonitorSource(), new FakePlacementService());
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var monitor = (FakeMonitorSource)controllerMonitor!;
+            monitor.Push(SyntheticHudScenarios.Mixed());
+            dispatcher.DrainAll();
+            // The Recent view keeps the unassigned members visible, so the settings
+            // surface can show that bucket alongside the named projects.
+            controller.ViewModel.TaskView = "recent";
+
+            controller.OpenProjectSources();
+            var window = controller.ProjectSources;
+            Assert.NotNull(window);
+            var model = window!.ViewModel;
+
+            // Discovered harness sources and the Unassigned bucket are both visible.
+            Assert.Contains(model.Sources, source => source.HarnessId == HarnessIds.Codex);
+            Assert.Contains(model.Sources, source => source.HarnessId == HarnessIds.Dsh);
+            Assert.All(model.Sources, source => Assert.True(source.Enabled));
+            Assert.Contains(model.Projects, project => project.Name == "Unassigned");
+            Assert.Empty(model.DisabledHarnessSources);
+
+            // Disabling one source is additive: every unrelated preference survives.
+            var dsh = model.Sources.Single(source => source.HarnessId == HarnessIds.Dsh);
+            dsh.Enabled = false;
+            Assert.Equal(new[] { dsh.Key }, model.DisabledHarnessSources);
+
+            StaTestHost.Complete(controller.ShutdownAsync());
+            var saved = MonitorConfigStore.Load(ConfigPath).Config;
+            Assert.Equal(new[] { dsh.Key }, saved.DisabledHarnessSources);
+            Assert.Equal("C:\\synthetic", saved.CodexHome);
+            Assert.Equal(32, saved.Limits.MaxTrackedFiles);
+            Assert.Equal(HudSettings.Default.ThemeName, saved.Hud.ThemeName);
+            Cleanup();
+        });
+    }
+
     private static bool SpinUntil(Func<bool> condition, int timeoutMs = 2000)
     {
         var started = Environment.TickCount64;
