@@ -449,6 +449,46 @@ Next executable steps, in order:
 Still absent: the UI work, baseline voice, renders, any package/smoke evidence for this
 round, and live multi-harness qualification.
 
+### DeepSeek session checkpoint 4 — offline baseline voice (2026-09-24)
+
+Packet item 4 is implemented and committed as `6d0c40c`:
+
+- `App/Voice/Speech/ISpeechSynthesisEngine.cs` — injectable engine boundary returning
+  validated WAV bytes or a bounded failure code; the engine never plays audio.
+- `App/Voice/Speech/SapiSpeechSynthesisEngine.cs` — Windows speech stream synthesis
+  (`SAPI.SpVoice` + `SAPI.SpFileStream`) on a dedicated STA worker, explicit
+  English (409) engine selection, 4 MiB byte cap, timeout plus abandonment of a stuck
+  worker, COM release, temp-file cleanup, and a `speech-no-english-voice` /
+  `speech-missing` unavailable result instead of a guessed voice.
+- `App/Voice/Speech/WindowsSpeechVoiceProvider.cs` — maps each candidate to its fixed
+  catalog script, synthesizes through the engine, re-validates the WAV with
+  `VoicePackValidator`, caches at most nine clips, and reports `speech-*` codes. It
+  implements only `IVoiceProvider`: playback stays in the existing
+  `WavPlaybackService` path.
+- `VoiceSettings` gained `VoiceProviderKind.Speech` with `speech`/`baseline`
+  accepted names (unknown values still resolve to `pack`), and composition selects the
+  baseline only when it is actually configured — no automatic cross-provider fallback.
+
+Evidence: Release build **0 warnings / 0 errors**; .NET tests **546 passed / 0 failed /
+0 skipped** (12 new `BaselineVoiceTests`: nine catalog scripts synthesize once and
+cache, missing English voice is visible and silent, unvalidated audio is rejected,
+engine failures are reported without throwing, the caller's cancellation token reaches
+the engine, the provider cannot play audio, and provider-name migration never resets an
+existing choice).
+
+Live qualification of the engine path on this machine: one English voice is installed and
+a bounded stream-synthesis probe produced a valid 78,500-byte RIFF/WAVE file. This is
+API-level evidence only — no acoustic check was performed, and no audio was routed to the
+speakers.
+
+Next executable step: the project-first HUD (group `MonitoringSnapshot.Tasks` by
+`AssignedProject` in `HudViewModel`, project header rows with harness badges and
+per-project counts above their tasks, and hourly strips from
+`NotificationCoordinator.ActivityStrips`), then the "Use baseline" control in the voice
+settings surface, the visible close button/header/menu/responsive sizing, and finally
+renders + clean publish + packaged lifecycle smoke. Still absent: any UI change, renders,
+and all package/smoke evidence for this round.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
