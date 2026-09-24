@@ -1,0 +1,9 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "hook_event_name": "Notification",
+  "message": "SANITIZED_NOTIFICATION_TEXT must never be stored",
+  "title": "Fixture",
+  "notification_type": "agent_needs_input"
+}

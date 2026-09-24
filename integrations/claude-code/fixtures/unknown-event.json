@@ -1,0 +1,8 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "hook_event_name": "SomeFutureHookEvent",
+  "prompt_id": "fixture-prompt-0001",
+  "detail": "SANITIZED_DETAIL must never be stored"
+}

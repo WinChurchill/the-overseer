@@ -1,0 +1,86 @@
+{
+  "description": "Sanitized synthetic live-session metadata for attach/snapshot tests: headers carry fork lineage, trailing events carry turn and plan state.",
+  "synthetic": true,
+  "sessions": [
+    {
+      "sessionId": "session-live-root",
+      "header": {
+        "version": 4,
+        "id": "session-live-root",
+        "createdAt": 1767225600000,
+        "cwd": "C:\\fixtures\\project",
+        "isSeeded": false
+      },
+      "events": [
+        {
+          "type": "turn/start",
+          "seq": 0,
+          "time": 1767225600000,
+          "data": {
+            "turn": 7
+          }
+        },
+        {
+          "type": "plan/mode",
+          "seq": 1,
+          "time": 1767225600005,
+          "data": {
+            "active": true
+          }
+        },
+        {
+          "type": "user/message",
+          "seq": 2,
+          "time": 1767225600010,
+          "data": {
+            "role": "user",
+            "id": "msg-live",
+            "source": {
+              "kind": "user"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "SECRET_BODY_TEXT"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "sessionId": "session-live-child",
+      "header": {
+        "version": 4,
+        "id": "session-live-child",
+        "createdAt": 1767225600100,
+        "cwd": "C:\\fixtures\\project",
+        "parentSession": "session-live-root",
+        "isSeeded": true,
+        "origin": "subagent",
+        "delegationDepth": 1
+      },
+      "events": [
+        {
+          "type": "turn/start",
+          "seq": 0,
+          "time": 1767225600100,
+          "data": {
+            "turn": 3
+          }
+        },
+        {
+          "type": "turn/end",
+          "seq": 1,
+          "time": 1767225600110,
+          "data": {
+            "turn": 3,
+            "reason": {
+              "kind": "completed"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

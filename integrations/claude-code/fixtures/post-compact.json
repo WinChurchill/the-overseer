@@ -1,0 +1,8 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "hook_event_name": "PostCompact",
+  "trigger": "manual",
+  "compact_summary": "SANITIZED_SUMMARY_TEXT must never be stored"
+}

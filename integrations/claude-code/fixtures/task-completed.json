@@ -1,0 +1,12 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "permission_mode": "default",
+  "hook_event_name": "TaskCompleted",
+  "task_id": "fixture-task-0001",
+  "task_subject": "SANITIZED_TASK_SUBJECT",
+  "task_description": "SANITIZED_TASK_DESCRIPTION",
+  "teammate_name": "fixture-teammate",
+  "team_name": "fixture-team"
+}

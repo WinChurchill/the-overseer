@@ -1,0 +1,12 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "permission_mode": "default",
+  "hook_event_name": "Stop",
+  "prompt_id": "fixture-prompt-0001",
+  "stop_hook_active": false,
+  "last_assistant_message": "SANITIZED_ASSISTANT_TEXT must never be stored",
+  "background_tasks": [],
+  "session_crons": []
+}

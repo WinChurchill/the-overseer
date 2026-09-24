@@ -1,0 +1,11 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "hook_event_name": "MessageDisplay",
+  "turn_id": "fixture-turn-0001",
+  "message_id": "fixture-message-0001",
+  "index": 0,
+  "final": true,
+  "delta": "SANITIZED_DELTA_TEXT must never be stored"
+}

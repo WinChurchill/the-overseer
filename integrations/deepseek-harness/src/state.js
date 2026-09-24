@@ -1,0 +1,594 @@
+/**
+ * Per-session observation state and normalized record assembly.
+ *
+ * Upstream contracts read (pinned read-only reference checkout, commit
+ * 46a7f68b0922371ce7144b668b90e377d8e799f4):
+ * - packages/core/session/src/types.ts — `SessionEvent.seq` is the per-session
+ *   monotonic number with the `seq = log.length` contiguity contract, so a
+ *   received `seq` is `Session.seq - 1` at emission time; `Session.seq` is the
+ *   next event's number.
+ * - packages/core/session/src/index.ts — `session/created`, `session/event`,
+ *   `session/disposed` are post-commit, fire-and-forget feeds whose listener
+ *   failures are logged and contained. `Session.header` carries `id`,
+ *   `createdAt`, `cwd`, and `parentSession`; `SessionStore.list()` returns the
+ *   live sessions in creation order.
+ *
+ * Sequence rules (per source epoch, per session):
+ * - A host event carrying `seq` publishes `sequence = seq` when that keeps the
+ *   per-session sequence strictly increasing, so `eventId` is
+ *   `dsh:<sessionId>:<seq>` and stays identical when the same logical event is
+ *   delivered again (replay/reconnect), which is exactly when `hydration` is
+ *   set to true.
+ * - Observer-originated records (session/start, session/end, plan/mode? no —
+ *   heartbeat, snapshot) consume the next free number, so a later host event
+ *   whose number was consumed takes `lastSequence + 1`. Sequence strictly
+ *   increases per session in both directions.
+ * - A duplicate delivery repeats its original sequence (same `eventId`); that
+ *   is the point of the duplicate rule, and distinct events never repeat one.
+ *
+ * @module overseer-dsh-observer/state
+ */
+
+import {
+  CATEGORIES,
+  EVIDENCES,
+  HARNESS_ID,
+  KINDS,
+  LIMITS,
+  OUTCOMES,
+  PRODUCER_VERSION,
+  SCHEMA_VERSION,
+  clampText,
+  describeEvent,
+} from './normalize.js'
+
+/** Maximum number of session states kept in memory (least-recently-observed evicted first). */
+export const MAX_TRACKED_SESSIONS = 512
+/** Maximum number of ended turn numbers remembered per session (for the late-event rule). */
+export const MAX_ENDED_TURNS = 64
+/** Maximum number of host seq -> sequence mappings remembered per session. */
+export const HOST_SEQ_MEMORY = 1024
+/** Key of the source-scoped pseudo session used by session-less heartbeats/snapshots. */
+const SOURCE_SCOPE_KEY = '*'
+
+/**
+ * Build the stable event id of one logical event.
+ * @param sessionId - session id, or null for a source-scoped record.
+ * @param sequence - per-session (or per-source) sequence number.
+ * @returns `dsh:<sessionId>:<sequence>`, with `*` for a null session id.
+ */
+export function eventIdFor(sessionId, sequence) {
+  return `${HARNESS_ID}:${sessionId ?? SOURCE_SCOPE_KEY}:${sequence}`
+}
+
+/**
+ * Build the stable turn id of one turn.
+ * @param sessionId - owning session id.
+ * @param turnNumber - the upstream `turn` number.
+ * @returns `dsh:<sessionId>:turn:<n>`, or null without a turn number.
+ */
+export function turnIdFor(sessionId, turnNumber) {
+  if (sessionId === null || turnNumber === null || turnNumber === undefined) return null
+  return `${HARNESS_ID}:${sessionId}:turn:${turnNumber}`
+}
+
+/**
+ * Create the observer's per-session state machine.
+ *
+ * @param options - `{ sourceInstanceId, sourceEpoch, producerVersion, now, maxSessions }`.
+ * @returns the state API used by the plugin wiring and by tests.
+ */
+export function createObserverState(options = {}) {
+  const now = typeof options.now === 'function' ? options.now : Date.now
+  const sourceInstanceId = clampText(options.sourceInstanceId, LIMITS.sourceIdChars) ?? 'dsh-default'
+  const sourceEpoch = clampText(options.sourceEpoch, LIMITS.sourceEpochChars) ?? 'epoch-unknown'
+  const producerVersion = clampText(options.producerVersion, LIMITS.idChars) ?? PRODUCER_VERSION
+  const maxSessions = typeof options.maxSessions === 'number' && options.maxSessions > 0
+    ? Math.trunc(options.maxSessions)
+    : MAX_TRACKED_SESSIONS
+
+  /** @type {Map<string, object>} */
+  const sessions = new Map()
+  let evictions = 0
+
+  function newTrack(sessionId) {
+    return {
+      sessionId,
+      projectRoot: null,
+      parentSessionId: null,
+      createdAtMs: null,
+      firstSeenMs: now(),
+      lastObservedMs: now(),
+      lastSequence: -1,
+      lastHostSeq: -1,
+      hostSeqToSequence: new Map(),
+      openTurn: null,
+      endedTurns: new Set(),
+      planActive: false,
+      pendingApprovalRequestId: null,
+      lastKind: null,
+      lastEventId: null,
+      lastCategory: 'idle',
+      hydration: false,
+      disposed: false,
+      records: 0,
+    }
+  }
+
+  function sourceTrack() {
+    let track = sessions.get(SOURCE_SCOPE_KEY)
+    if (track === undefined) {
+      track = newTrack(null)
+      sessions.set(SOURCE_SCOPE_KEY, track)
+    }
+    return track
+  }
+
+  function evictIfNeeded() {
+    while (sessions.size > maxSessions) {
+      let oldestKey
+      let oldestMs = Infinity
+      for (const [key, track] of sessions) {
+        if (track.sessionId === null) continue
+        if (track.lastObservedMs < oldestMs) {
+          oldestMs = track.lastObservedMs
+          oldestKey = key
+        }
+      }
+      if (oldestKey === undefined) return
+      sessions.delete(oldestKey)
+      evictions++
+    }
+  }
+
+  /**
+   * Get or create the state of one session.
+   * @param sessionId - session id string.
+   * @returns the session track.
+   */
+  function trackFor(sessionId) {
+    const key = sessionId === null || sessionId === undefined ? SOURCE_SCOPE_KEY : String(sessionId)
+    let track = sessions.get(key)
+    if (track === undefined) {
+      track = newTrack(key === SOURCE_SCOPE_KEY ? null : key)
+      sessions.set(key, track)
+      evictIfNeeded()
+    }
+    return track
+  }
+
+  /** Tracked activity category: no open turn is idle; nothing else is ever invented. */
+  function currentCategory(track) {
+    if (track.disposed || track.openTurn === null) return 'idle'
+    if (track.planActive) return 'planning'
+    if (track.pendingApprovalRequestId !== null) return 'waiting'
+    return 'working'
+  }
+
+  function nextSynthetic(track) {
+    track.lastSequence += 1
+    return track.lastSequence
+  }
+
+  function allocateForHostEvent(track, hostSeq) {
+    if (hostSeq === null) return { sequence: nextSynthetic(track), hydration: false }
+    const known = track.hostSeqToSequence.get(hostSeq)
+    if (known !== undefined) {
+      // Duplicate delivery of the same logical event: same eventId, hydration set.
+      return { sequence: known, hydration: true }
+    }
+    const sequence = hostSeq > track.lastSequence ? hostSeq : track.lastSequence + 1
+    track.hostSeqToSequence.set(hostSeq, sequence)
+    if (track.hostSeqToSequence.size > HOST_SEQ_MEMORY) {
+      const oldest = track.hostSeqToSequence.keys().next().value
+      if (oldest !== undefined) track.hostSeqToSequence.delete(oldest)
+    }
+    if (hostSeq > track.lastHostSeq) track.lastHostSeq = hostSeq
+    track.lastSequence = sequence
+    return { sequence, hydration: false }
+  }
+
+  function isoTimestamp(ms) {
+    if (typeof ms !== 'number' || !Number.isFinite(ms)) return null
+    try {
+      return new Date(ms).toISOString()
+    } catch {
+      // Timestamp outside the Date range: publish no upstream time rather than a wrong one.
+      return null
+    }
+  }
+
+  function buildRecord(track, fields) {
+    if (!KINDS.has(fields.kind)) return null
+    const sessionId = track.sessionId
+    const sequence = fields.sequence
+    const category = CATEGORIES.has(fields.category) ? fields.category : 'unknown'
+    const evidence = EVIDENCES.has(fields.evidence) ? fields.evidence : 'unknown'
+    const outcome = OUTCOMES.has(fields.outcome) ? fields.outcome : null
+    const record = {
+      schemaVersion: SCHEMA_VERSION,
+      harnessId: HARNESS_ID,
+      sourceInstanceId,
+      sourceEpoch,
+      sessionId,
+      sequence,
+      eventId: eventIdFor(sessionId, sequence),
+      observedAtUtc: isoTimestamp(now()),
+      eventAtUtc: isoTimestamp(fields.eventAtMs ?? null),
+      kind: fields.kind,
+      turnId: fields.turnNumber === null || fields.turnNumber === undefined
+        ? null
+        : turnIdFor(sessionId, fields.turnNumber),
+      callId: clampText(fields.callId, LIMITS.idChars),
+      requestId: clampText(fields.requestId, LIMITS.idChars),
+      projectRoot: track.projectRoot,
+      category,
+      evidence,
+      outcome,
+      hydration: fields.hydration === true,
+      producerVersion,
+    }
+    track.lastKind = record.kind
+    track.lastEventId = record.eventId
+    track.lastCategory = category
+    track.records += 1
+    return record
+  }
+
+  /**
+   * Membership of a turn number relative to the observed turn lifecycle.
+   * A turn that already ended never becomes the open turn again.
+   */
+  function membership(track, turnNumber) {
+    if (turnNumber === null) return 'unknown'
+    if (track.endedTurns.has(turnNumber)) return 'closed'
+    if (track.openTurn === turnNumber) return 'open'
+    if (track.openTurn === null) return 'adopt'
+    return turnNumber > track.openTurn ? 'adopt' : 'stale'
+  }
+
+  function closeTurn(track, turnNumber) {
+    if (turnNumber === null) return
+    track.endedTurns.add(turnNumber)
+    while (track.endedTurns.size > MAX_ENDED_TURNS) {
+      const oldest = track.endedTurns.values().next().value
+      if (oldest === undefined) break
+      track.endedTurns.delete(oldest)
+    }
+    if (track.openTurn === turnNumber) track.openTurn = null
+  }
+
+  /**
+   * Publish a `session/start` record for a session the observer saw created.
+   * @param sessionId - session id string.
+   * @param meta - `{ projectRoot, parentSessionId, createdAtMs }` read from the session header only.
+   * @returns the normalized record.
+   */
+  function sessionStart(sessionId, meta = {}) {
+    const track = trackFor(sessionId)
+    if (meta.projectRoot !== undefined) track.projectRoot = clampText(meta.projectRoot, LIMITS.projectRootChars)
+    if (meta.parentSessionId !== undefined) track.parentSessionId = clampText(meta.parentSessionId, LIMITS.idChars)
+    if (meta.createdAtMs !== undefined) track.createdAtMs = meta.createdAtMs
+    track.disposed = false
+    track.lastObservedMs = now()
+    return buildRecord(track, {
+      kind: 'session/start',
+      sequence: nextSynthetic(track),
+      eventAtMs: track.createdAtMs,
+      turnNumber: track.openTurn,
+      callId: null,
+      requestId: null,
+      category: 'unknown',
+      evidence: 'explicit',
+      outcome: null,
+      hydration: false,
+    })
+  }
+
+  /**
+   * Publish a `session/end` record. A session disposed with an open turn is a
+   * silent cancellation (`aborted`); otherwise the end carries `ok`.
+   * @param sessionId - session id string.
+   * @returns the normalized record.
+   */
+  function sessionEnd(sessionId) {
+    const track = trackFor(sessionId)
+    const openTurn = track.openTurn
+    const outcome = openTurn === null ? 'ok' : 'aborted'
+    if (openTurn !== null) closeTurn(track, openTurn)
+    const record = buildRecord(track, {
+      kind: 'session/end',
+      sequence: nextSynthetic(track),
+      eventAtMs: null,
+      turnNumber: null,
+      callId: null,
+      requestId: null,
+      category: 'unknown',
+      evidence: 'explicit',
+      outcome,
+      hydration: false,
+    })
+    track.disposed = true
+    track.pendingApprovalRequestId = null
+    return record
+  }
+
+  /**
+   * Observe one `session/event` payload and publish a record when the event
+   * type is in the exported vocabulary.
+   *
+   * @param input - `{ sessionId, type, seq, time, data }`.
+   * @returns the normalized record, or null when nothing is exported.
+   */
+  function observe(input) {
+    const track = trackFor(input.sessionId)
+    track.lastObservedMs = now()
+    const descriptor = describeEvent({ type: input.type, data: input.data })
+    if (descriptor === null) return null
+    const hostSeq = typeof input.seq === 'number' && Number.isSafeInteger(input.seq) && input.seq >= 0
+      ? input.seq
+      : null
+    const { sequence, hydration } = allocateForHostEvent(track, hostSeq)
+    const membershipState = membership(track, descriptor.turnNumber)
+    let category = descriptor.category
+    let evidence = descriptor.evidence
+    let effectiveTurn = descriptor.turnNumber
+    let hydrationFlag = hydration
+
+    switch (descriptor.kind) {
+      case 'turn/start':
+        if (membershipState === 'closed' || membershipState === 'stale') {
+          // Replayed turn/start for a turn that already ended: current state only.
+          category = 'unknown'
+          evidence = 'inferred'
+        } else if (membershipState === 'open') {
+          // Duplicate delivery of the live turn/start: same eventId, hydration set.
+          hydrationFlag = true
+        } else {
+          track.openTurn = descriptor.turnNumber
+        }
+        break
+      case 'turn/end':
+        closeTurn(track, descriptor.turnNumber)
+        track.pendingApprovalRequestId = null
+        break
+      case 'tool/start':
+      case 'tool/end':
+        if (membershipState === 'closed' || membershipState === 'stale') {
+          // A late tool event never reopens a closed turn: the record is still
+          // published (history is real), but it reports no active category and
+          // the tracked turn/category stay exactly as they were.
+          category = 'unknown'
+          evidence = 'inferred'
+          effectiveTurn = descriptor.turnNumber
+        } else if (membershipState === 'adopt') {
+          // Attached mid-turn: adopt the observed turn without inventing turn/start.
+          track.openTurn = descriptor.turnNumber
+        }
+        break
+      case 'approval/asked':
+        track.pendingApprovalRequestId = descriptor.requestId
+        break
+      case 'approval/decided':
+        if (track.pendingApprovalRequestId === descriptor.requestId) track.pendingApprovalRequestId = null
+        break
+      case 'plan/mode':
+        track.planActive = category === 'planning'
+        break
+      default:
+        break
+    }
+
+    // Planning is reported only while plan mode is actually on (plan-mode owns the
+    // boolean; the observer never derives a planning duration from it).
+    if (category === 'working' && track.planActive && track.openTurn !== null) category = 'planning'
+    return buildRecord(track, {
+      kind: descriptor.kind,
+      sequence,
+      eventAtMs: input.time,
+      turnNumber: effectiveTurn,
+      callId: descriptor.callId,
+      requestId: descriptor.requestId,
+      category,
+      evidence,
+      outcome: descriptor.outcome,
+      hydration: hydrationFlag,
+    })
+  }
+
+  /**
+   * Seed or refresh a session track from a live `Session` read at attach time.
+   * @param meta - `{ sessionId, projectRoot, parentSessionId, createdAtMs, openTurnNumber, planActive, lastHostSeq }`.
+   * @returns nothing.
+   */
+  function seedSession(meta) {
+    const track = trackFor(meta.sessionId)
+    if (meta.projectRoot !== undefined) track.projectRoot = clampText(meta.projectRoot, LIMITS.projectRootChars)
+    if (meta.parentSessionId !== undefined) track.parentSessionId = clampText(meta.parentSessionId, LIMITS.idChars)
+    if (meta.createdAtMs !== undefined) track.createdAtMs = meta.createdAtMs
+    if (meta.openTurnNumber !== undefined) track.openTurn = meta.openTurnNumber
+    if (meta.planActive !== undefined) track.planActive = meta.planActive === true
+    if (typeof meta.lastHostSeq === 'number' && meta.lastHostSeq > track.lastHostSeq && track.records === 0
+      && track.hostSeqToSequence.size === 0) {
+      track.lastHostSeq = meta.lastHostSeq
+      track.lastSequence = Math.max(track.lastSequence, meta.lastHostSeq)
+    }
+  }
+
+  function liveTracks() {
+    const live = []
+    for (const track of sessions.values()) {
+      if (track.sessionId === null || track.disposed) continue
+      live.push(track)
+    }
+    return live
+  }
+
+  /**
+   * Publish one `heartbeat` per tracked live session, or one source-scoped
+   * heartbeat when no session is known. Heartbeats prove the observer is
+   * attached; they never invent activity, they report the tracked category.
+   * @returns the normalized records.
+   */
+  function heartbeats() {
+    const live = liveTracks()
+    if (live.length === 0) {
+      const track = sourceTrack()
+      const record = buildRecord(track, {
+        kind: 'heartbeat',
+        sequence: nextSynthetic(track),
+        eventAtMs: null,
+        turnNumber: null,
+        callId: null,
+        requestId: null,
+        category: 'unknown',
+        evidence: 'inferred',
+        outcome: null,
+        hydration: false,
+      })
+      return record === null ? [] : [record]
+    }
+    const records = []
+    for (const track of live) {
+      const record = buildRecord(track, {
+        kind: 'heartbeat',
+        sequence: nextSynthetic(track),
+        eventAtMs: null,
+        turnNumber: track.openTurn,
+        callId: null,
+        requestId: null,
+        category: currentCategory(track),
+        evidence: 'inferred',
+        outcome: null,
+        hydration: false,
+      })
+      if (record !== null) records.push(record)
+    }
+    return records
+  }
+
+  /**
+   * Publish one `snapshot` record per tracked live session, flagged
+   * `hydration: true` so OVERSEER suppresses voice for replayed state. With no
+   * known session, one source-scoped snapshot states the attach itself.
+   * @returns the normalized records.
+   */
+  function snapshots() {
+    const live = liveTracks()
+    if (live.length === 0) {
+      const track = sourceTrack()
+      const record = buildRecord(track, {
+        kind: 'snapshot',
+        sequence: nextSynthetic(track),
+        eventAtMs: null,
+        turnNumber: null,
+        callId: null,
+        requestId: null,
+        category: 'unknown',
+        evidence: 'inferred',
+        outcome: null,
+        hydration: true,
+      })
+      return record === null ? [] : [record]
+    }
+    const records = []
+    for (const track of live) {
+      const record = buildRecord(track, {
+        kind: 'snapshot',
+        sequence: nextSynthetic(track),
+        eventAtMs: track.createdAtMs,
+        turnNumber: track.openTurn,
+        callId: null,
+        requestId: null,
+        category: currentCategory(track),
+        evidence: 'inferred',
+        outcome: null,
+        hydration: true,
+      })
+      if (record !== null) records.push(record)
+    }
+    return records
+  }
+
+  /**
+   * The atomically replaced `current.json` document: the current known session
+   * state, including fork lineage read from the session header.
+   * @returns the current-state document.
+   */
+  function currentDocument() {
+    const entries = []
+    for (const track of sessions.values()) {
+      if (track.sessionId === null) continue
+      entries.push({
+        sessionId: track.sessionId,
+        parentSessionId: track.parentSessionId,
+        projectRoot: track.projectRoot,
+        createdAtUtc: isoTimestamp(track.createdAtMs),
+        firstSeenUtc: isoTimestamp(track.firstSeenMs),
+        lastObservedUtc: isoTimestamp(track.lastObservedMs),
+        openTurnId: track.openTurn === null ? null : turnIdFor(track.sessionId, track.openTurn),
+        planMode: track.planActive === true,
+        pendingApprovalRequestId: track.pendingApprovalRequestId,
+        category: currentCategory(track),
+        disposed: track.disposed,
+        lastSequence: track.lastSequence,
+        lastHostSeq: track.lastHostSeq,
+        lastKind: track.lastKind,
+        lastEventId: track.lastEventId,
+        records: track.records,
+      })
+    }
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      harnessId: HARNESS_ID,
+      sourceInstanceId,
+      sourceEpoch,
+      producerVersion,
+      updatedAtUtc: isoTimestamp(now()),
+      evictedSessions: evictions,
+      sessions: entries,
+    }
+  }
+
+  /**
+   * Read-only view of one tracked session, for tests and diagnostics.
+   * @param sessionId - session id string.
+   * @returns a detached copy of the tracked state, or null.
+   */
+  function inspect(sessionId) {
+    const track = sessions.get(String(sessionId))
+    if (track === undefined) return null
+    return {
+      sessionId: track.sessionId,
+      openTurn: track.openTurn,
+      endedTurns: [...track.endedTurns],
+      planActive: track.planActive,
+      pendingApprovalRequestId: track.pendingApprovalRequestId,
+      category: currentCategory(track),
+      lastSequence: track.lastSequence,
+      lastHostSeq: track.lastHostSeq,
+      lastKind: track.lastKind,
+      lastEventId: track.lastEventId,
+      projectRoot: track.projectRoot,
+      parentSessionId: track.parentSessionId,
+      disposed: track.disposed,
+      records: track.records,
+    }
+  }
+
+  return {
+    sessionStart,
+    sessionEnd,
+    observe,
+    seedSession,
+    heartbeats,
+    snapshots,
+    currentDocument,
+    inspect,
+    trackFor,
+    currentCategory,
+    sourceInstanceId,
+    sourceEpoch,
+    producerVersion,
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
+  "prompt_id": "fixture-prompt-0001",
+  "tool_name": "Bash",
+  "tool_use_id": "fixture-tool-use-0001",
+  "tool_input": {
+    "command": "SANITIZED_COMMAND_TEXT must never be stored"
+  },
+  "tool_response": {
+    "stdout": "SANITIZED_TOOL_OUTPUT must never be stored"
+  },
+  "duration_ms": 42
+}

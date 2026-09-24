@@ -1,0 +1,13 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "permission_mode": "default",
+  "hook_event_name": "SubagentStop",
+  "prompt_id": "fixture-prompt-0001",
+  "stop_hook_active": false,
+  "agent_id": "fixture-agent-0001",
+  "agent_type": "Explore",
+  "agent_transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript/subagents/agent-fixture.jsonl",
+  "last_assistant_message": "SANITIZED_ASSISTANT_TEXT must never be stored"
+}

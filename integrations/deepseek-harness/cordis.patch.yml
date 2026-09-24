@@ -1,0 +1,23 @@
+# OVERSEER observer bundle patch for the official DeepSeek Harness (dsh).
+#
+# This file is a profile bundle patch document: `dsh plugin --profile <name> add
+# <absolute path to this directory>` installs the package into that profile and
+# selects this bundle, and the launcher stacks the patch over the profile root
+# (see packages/bundle/base/cordis.patch.yml in the pinned reference for the
+# shape of a root insert).
+#
+# The single row mounts this package's Cordis function plugin. It writes only
+# into the OVERSEER spool directory; it registers no service, no tool, no
+# command, and no waterfall listener.
+#
+# Configuration is environment-only by design (see README.md): the row carries
+# no `config` block. Set OVERSEER_DSH_SPOOL / OVERSEER_DSH_SOURCE_ID /
+# OVERSEER_DSH_QUEUE / OVERSEER_DSH_HEARTBEAT_SECONDS / OVERSEER_DSH_DISABLED in
+# the environment that launches dsh.
+#
+# Reversal: `dsh plugin --profile <name> remove overseer-dsh-observer` (or delete
+# this row from the profile's cordis.patch.yml). Nothing else is touched.
+
+- insert:
+    - id: overseer-dsh-observer
+      name: 'overseer-dsh-observer'

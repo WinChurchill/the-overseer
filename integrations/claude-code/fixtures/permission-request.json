@@ -1,0 +1,19 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "prompt_id": "fixture-prompt-0001",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "SANITIZED_COMMAND_TEXT must never be stored"
+  },
+  "permission_suggestions": [
+    {
+      "type": "addRules",
+      "behavior": "allow",
+      "destination": "localSettings"
+    }
+  ]
+}

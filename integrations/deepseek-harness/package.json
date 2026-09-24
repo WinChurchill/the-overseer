@@ -1,0 +1,42 @@
+{
+  "name": "overseer-dsh-observer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OVERSEER observer plugin for the official DeepSeek Harness (dsh): publishes allowlisted status metadata into an OVERSEER-owned local spool.",
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./normalize": "./src/normalize.js",
+    "./state": "./src/state.js",
+    "./spool": "./src/spool.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "NOTICE.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "overseer",
+    "dsh",
+    "deepseek-harness",
+    "observer",
+    "cordis-plugin"
+  ],
+  "dependencies": {}
+}

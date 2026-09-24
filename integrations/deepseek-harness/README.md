@@ -1,0 +1,335 @@
+# overseer-dsh-observer
+
+A small, host-native observer plugin for the official **DeepSeek Harness** (`dsh`). It runs
+inside the user's existing `dsh` process and copies **allowlisted status metadata** — never
+message text — into an OVERSEER-owned local spool. OVERSEER reads the spool as plain files and
+never imports dsh code.
+
+**Status: not yet qualified on a live host.** This directory is the integration asset only. Live
+qualification on the installed `dsh` 0.1.5-rc.3 host is performed by the OVERSEER implementation,
+which owns the end-to-end run, the spool reader, and the acceptance evidence. Nothing in this
+directory was executed against a live `dsh` profile.
+
+---
+
+## 1. Pinned source of truth
+
+Everything this plugin assumes about the host was read from the read-only reference checkout at
+commit `46a7f68b0922371ce7144b668b90e377d8e799f4` of <https://github.com/deepseek-ai/deepseek-harness>:
+
+| Pinned file | Contract used here |
+|---|---|
+| [packages/core/session/src/index.ts](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/core/session/src/index.ts) | `session/created` ("a synchronous throw vetoes and rolls back with a paired disposal"), `session/event` ("post-commit, fire-and-forget append feed … observer failures are logged and contained"), `session/disposed`; `Session.header`, `Session.seq`, `SessionStore.list()` |
+| [packages/core/session/src/types.ts](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/core/session/src/types.ts) | `SESSION_FORMAT_VERSION = 4`; header `id`/`createdAt`/`cwd`/`parentSession`; `SessionEvent` envelope `{ type, seq, time, data }`; `turn/start` `{ turn }`, `turn/end` `{ turn, reason }`; `TurnEndReason` variants |
+| [packages/core/session/src/known-event-types.ts](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/core/session/src/known-event-types.ts) | the emitted vocabulary: `tool/call`, `tool/result`, `approval/asked`, `approval/decided`, `plan/mode`, `turn/start`, `turn/end` |
+| [packages/interaction/user-approval/src/types.ts](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/interaction/user-approval/src/types.ts) | `approval/asked` `{ id, toolName, callId?, reason? }`, `approval/decided` `{ id, outcome }` — correlation by `id`; `ApprovalOutcome` = `allowed-once` \| `rejected` \| `cancelled` \| `unavailable` |
+| [packages/plan/plan-mode/src/index.ts](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/plan/plan-mode/src/index.ts) | `plan/mode` is `{ active }: boolean`, "log-only, non-surface, whole-value replace. The last `plan/mode` wins" |
+| [packages/bundle/base/cordis.patch.yml](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/bundle/base/cordis.patch.yml) | profile bundle patch format (`- insert:` root row list) and `dsh.bundle.patch` package metadata |
+
+## 2. What it observes, and what it must never touch
+
+Subscribed seams — observe-only, all synchronous and all wrapped so they cannot throw into the host:
+
+| Seam | Why it is safe |
+|---|---|
+| `session/created` | Post-construction announcement. A synchronous listener throw can roll back publication, so the observer's listener body is fully contained. |
+| `session/event` | Post-commit, fire-and-forget append feed; observer failures are contained by the host and cannot fail the committed append. |
+| `session/disposed` | Emitted once when an announced session leaves the store. |
+
+Deliberately **not** subscribed:
+
+- `session/flush` — an awaited parallel durability checkpoint. Subscribing would put this adapter
+  inside the host's durability path and violate the "no awaited barrier" rule.
+- `approval/request` and the user-question answerer waterfalls — waterfalls decide execution. The
+  observer registers no waterfall listener, returns no decision, and never influences approval or
+  input flow. Approval activity is observed only from the log-only `approval/asked` /
+  `approval/decided` audit events.
+
+## 3. Normalized record schema
+
+One JSON object per line in `events.jsonl`. Every record carries **exactly** these 19 keys, in this
+order; unknown keys are never added, and unset values are `null`.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `schemaVersion` | number | `1` |
+| `harnessId` | string | always `"dsh"` |
+| `sourceInstanceId` | string | configured source id (default `dsh-default`) |
+| `sourceEpoch` | string | stable id of one producer process/attach (`dsh-<pid>-<base36 time>-<random>`) |
+| `sessionId` | string \| null | upstream session id; `null` for a source-scoped record |
+| `sequence` | number | per-session sequence (see §4) |
+| `eventId` | string | `dsh:<sessionId>:<sequence>`, `dsh:*:<sequence>` when `sessionId` is null; stable across duplicate delivery |
+| `observedAtUtc` | string | collector receipt time (ISO 8601) |
+| `eventAtUtc` | string \| null | upstream event time (`SessionEvent.time`, ISO 8601) |
+| `kind` | string | one of the kind allowlist below |
+| `turnId` | string \| null | `dsh:<sessionId>:turn:<n>` |
+| `callId` | string \| null | upstream tool-call id (`tool/call.callId`, `tool/result.message.toolCallId`, `approval/asked.callId`) |
+| `requestId` | string \| null | upstream approval request id (`approval/asked.id` / `approval/decided.id`) |
+| `projectRoot` | string \| null | session header `cwd`, bounded to 512 characters |
+| `category` | string | one of the category allowlist below |
+| `evidence` | string | `explicit` \| `inferred` \| `unknown` |
+| `outcome` | string \| null | `completed` \| `aborted` \| `error` \| `ok` \| `failed` \| `null` |
+| `hydration` | boolean | `true` marks replayed/current-state records so OVERSEER can suppress voice |
+| `producerVersion` | string | `dsh-observer/1.0.0` |
+
+**Kind allowlist:** `session/start`, `session/end`, `turn/start`, `turn/end`, `tool/start`,
+`tool/end`, `approval/asked`, `approval/decided`, `input/asked`, `input/answered`, `plan/mode`,
+`heartbeat`, `snapshot`.
+
+**Category allowlist:** `thinking`, `planning`, `working`, `waiting`, `error`, `complete`,
+`idle`, `unknown`.
+
+Upstream event → record mapping (reads only the named scalar fields; every other field is never
+opened):
+
+| Upstream `SessionEvent` | `kind` | `category` | `outcome` | Fields read |
+|---|---|---|---|---|
+| `turn/start` | `turn/start` | `working` (or `planning` while plan mode is on) | `null` | `data.turn` |
+| `turn/end` reason `completed` | `turn/end` | `complete` | `completed` | `data.turn`, `data.reason.kind` |
+| `turn/end` reason `aborted` | `turn/end` | `idle` | `aborted` | idem |
+| `turn/end` reason `error` | `turn/end` | `error` | `error` | idem |
+| `turn/end` reason `max-tokens` / `blocked` / `forked` | `turn/end` | `unknown` | `aborted` | idem |
+| `turn/end` reason `interrupted` | `turn/end` | `error` | `aborted` | idem |
+| `turn/end` reason outside the known set | `turn/end` | `unknown` | `null` | `evidence = unknown` |
+| `tool/call` | `tool/start` | `working` | `null` | `data.turn`, `data.callId` (never `name`, never `arguments`) |
+| `tool/result` | `tool/end` | `working` | `ok` / `failed` from `message.isError` | `data.turn`, `data.message.toolCallId`, `data.message.isError` (never `content`, never `meta`) |
+| `approval/asked` | `approval/asked` | `waiting` | `null` | `data.id`, `data.callId` (never `toolName`, never `reason`) |
+| `approval/decided` | `approval/decided` | `working` \| `idle` \| `error` | `ok` \| `failed` \| `aborted` \| `error` | `data.id`, `data.outcome` |
+| `plan/mode` `active: true` | `plan/mode` | `planning` | `null` | `data.active` |
+| `plan/mode` `active: false` | `plan/mode` | `unknown` | `null` | `data.active` |
+| observer timer | `heartbeat` | tracked category | `null` | none (`evidence = inferred`) |
+| observer attach | `snapshot` | tracked category | `null` | none (`evidence = inferred`, `hydration = true`) |
+| `session/created` | `session/start` | `unknown` | `null` | session header `id`/`cwd`/`createdAt`/`parentSession` |
+| `session/disposed` | `session/end` | `unknown` | `ok`, or `aborted` when a turn was open | none |
+
+A failed tool (`tool/end` + `outcome: failed`) is **not** a task failure: it stays local to that
+record and leaves the turn open.
+
+## 4. Behaviour rules
+
+- **Sequence.** A host event carrying `seq` publishes `sequence = seq` whenever that keeps the
+  per-session sequence strictly increasing (which is the normal case, and makes `eventId` equal to
+  `dsh:<sessionId>:<seq>`). Observer-originated records (`session/start`, `session/end`,
+  `heartbeat`, `snapshot`) take the next free number; a later host event whose number was consumed
+  takes `lastSequence + 1`. Sequence is strictly increasing per session in both directions, and
+  downstream validation is per source epoch **and** per session.
+- **Duplicates and hydration.** Re-delivery of the same logical event (same host `seq`) reuses its
+  original `sequence`, so the `eventId` is identical, and sets `hydration: true`. Reconnects and
+  attach snapshots are therefore idempotent and voice-suppressible. The duplicate window is bounded
+  (1024 host seqs per session).
+- **Turn lifecycle.** The tracked open turn is set by `turn/start` and cleared by `turn/end`.
+  A turn that already ended is never reopened: a late `tool/call` or `tool/result` for a closed
+  turn is still published (the observation is real) with `category: unknown` and
+  `evidence: inferred`, and the tracked turn and category stay unchanged. Attaching mid-turn adopts
+  the observed turn without inventing a `turn/start`.
+- **No invented activity.** Activity records exist only for observed events. Silence produces
+  nothing except `heartbeat`. A heartbeat reports the tracked category (`idle` when no turn is
+  open), never a fabricated turn or tool.
+- **Plan mode.** `plan/mode` is published with `evidence: explicit` and `category: planning`
+  **only while plan mode is actually on**. Switching off publishes `category: unknown`. Plan mode
+  never becomes a sustained planning duration.
+- **Attach snapshot.** On attach/restart the observer publishes one `snapshot` record per known live
+  session (or one source-scoped snapshot when no session is known), all with `hydration: true`, then
+  a heartbeat every 30 s (configurable). At attach it reads only each session's header and the last
+  256 trailing event types plus `turn`/`active` scalars to recover the current turn and plan state.
+- **Forks and child sessions.** Child sessions are exported as first-class sessions, never
+  discarded. Fork lineage (`header.parentSession`) is exported in `current.json` as
+  `parentSessionId` — the normalized record schema in §3 has no lineage key, and adding one would
+  break the frozen key list, so lineage lives in the current-state document instead.
+- **Session end.** `session/disposed` publishes `session/end` with `outcome: ok`, or
+  `outcome: aborted` ("silent cancellation") when a turn was still open.
+
+## 5. Data locations and files
+
+```text
+<spoolRoot>/dsh/<sourceInstanceId>/
+  events.jsonl                     append-only, one complete JSON record per line
+  current.json                     atomically replaced current-state document
+  health.json                      atomically replaced writer health
+  events-<utcstamp>.jsonl          rotated event files (OVERSEER-owned, TTL-bounded)
+  <name>.<pid>.<n>.tmp             transient atomic-replacement files (same directory)
+```
+
+Default `spoolRoot`: `%LOCALAPPDATA%\OVERSEER\bridges` on Windows, else
+`$XDG_STATE_HOME/overseer/bridges` (falling back to `~/.local/state/overseer/bridges`).
+
+`current.json` (atomic, one document):
+
+```json
+{
+  "schemaVersion": 1,
+  "harnessId": "dsh",
+  "sourceInstanceId": "dsh-default",
+  "sourceEpoch": "dsh-12345-abc-def",
+  "producerVersion": "dsh-observer/1.0.0",
+  "updatedAtUtc": "2026-01-01T00:00:00.000Z",
+  "evictedSessions": 0,
+  "sessions": [
+    {
+      "sessionId": "…", "parentSessionId": null, "projectRoot": "C:\\work",
+      "createdAtUtc": "…", "firstSeenUtc": "…", "lastObservedUtc": "…",
+      "openTurnId": "dsh:…:turn:3", "planMode": false, "pendingApprovalRequestId": null,
+      "category": "working", "disposed": false,
+      "lastSequence": 42, "lastHostSeq": 40, "lastKind": "tool/start",
+      "lastEventId": "dsh:…:42", "records": 43
+    }
+  ]
+}
+```
+
+`health.json`: `version`, `lastWrite`, `queueDepth`, `dropped`, `counters` (enqueued, written,
+bytesWritten, droppedOldest, droppedOversize, droppedError, droppedClosed, writeErrors, unavailable,
+rotations, pruned, expired, currentWrites, healthWrites), `lastError`, `unavailable`,
+`sourceInstanceId`, `sourceEpoch`, `producerVersion`, `startedAtUtc`, `harnessId`, `directory`.
+
+## 6. Bounds, caps and failure behaviour
+
+| Bound | Value | Behaviour at the bound |
+|---|---|---|
+| In-process queue | 512 records (env-clamped 16..8192) | drops the **oldest** record, increments `dropped`/`droppedOldest`; the callback never blocks and never touches disk |
+| Record size | 64 KiB serialized | oversized record refused, `droppedOversize` counted |
+| Event file rotation | 4 MiB | `events.jsonl` renamed to `events-<utcstamp>.jsonl`, `rotations` counted |
+| Rotated-file TTL | 1 hour | expired OVERSEER-owned rotated files and stale `.tmp` files are deleted (`pruned`/`expired`) |
+| Spool soft cap | 16 MiB | oldest rotated files pruned until under the cap |
+| File cap | 4096 files | oldest rotated files pruned until under the cap |
+| In-memory sessions | 512 | least-recently-observed session state evicted (`evictedSessions` counted); host-seq identity makes later records idempotent anyway |
+
+Cleanup stays inside `<spoolRoot>/dsh/<sourceInstanceId>/` and only removes files matching this
+adapter's rotated-event or temp naming. Unrelated files in the same directory are never touched.
+
+Failure behaviour: every spool method is total. A failure to create/open the directory, a write
+error, an unserializable record, or a full queue is recorded in `health.json` counters; the host
+callback returns normally. Disk errors never crash, block, or throw into `dsh`.
+
+Durability note: appends are single `write(2)` calls on a descriptor opened `'a'`; the observer
+does not `fsync`. The spool is a status projection, not the host's system of record.
+
+## 7. Configuration
+
+| Knob | Default | Clamp |
+|---|---|---|
+| `OVERSEER_DSH_SPOOL` | `%LOCALAPPDATA%/OVERSEER/bridges` (Windows), else `$XDG_STATE_HOME/overseer/bridges` | — |
+| `OVERSEER_DSH_SOURCE_ID` | `dsh-default` | restricted to `[A-Za-z0-9._-]`, 128 chars (it is one directory segment) |
+| `OVERSEER_DSH_QUEUE` | `512` | 16..8192 |
+| `OVERSEER_DSH_HEARTBEAT_SECONDS` | `30` | 5..300 |
+| `OVERSEER_DSH_DISABLED` | unset | `1` (or `true`) disables the observer entirely: no subscription, no timer, no write |
+
+Configuration is environment-only by design; the shipped bundle row carries no `config` block. The
+plugin's `apply(ctx, config)` also accepts the same values programmatically (used by the tests), and
+`dsh` passes a row `config` through unchanged if a deployment chooses to set one.
+
+## 8. Install (opt-in, previewable, reversible)
+
+This package is a `dsh` **profile bundle**: `package.json` declares `dsh.bundle.patch` and
+`cordis.patch.yml` inserts exactly one row (id `overseer-dsh-observer`, module
+`overseer-dsh-observer`). Installing it makes it a dependency of one profile and selects it as a
+bundle layer for that profile. Nothing is installed by reading this document.
+
+Preview before installing — there is no dry-run flag, so read what would change:
+
+1. This package: `package.json` (`dsh.bundle.patch`) and `cordis.patch.yml` (one inserted row).
+2. The target profile's current state: `dsh plugin --profile <name> list`.
+3. In the GUI, the Plugins page lists installed bundles and the rows a bundle would add.
+
+Install (run by the user, never by this repository):
+
+```sh
+dsh plugin --profile <profile-name> add "<absolute path to this directory>"
+```
+
+The launcher installs the path into that profile, then selects the bundle (installation enables it
+by default). Restart `dsh`, or let HMR reload if it is enabled in that profile. Verify:
+
+```sh
+dsh plugin --profile <profile-name> list
+```
+
+Confirm the observer is alive by reading `<spoolRoot>/dsh/<sourceInstanceId>/health.json`
+(`lastWrite` advances, `queueDepth` returns to 0) and `events.jsonl` (a `snapshot` record with
+`hydration: true` at attach, then `heartbeat` records).
+
+Uninstall:
+
+```sh
+dsh plugin --profile <profile-name> remove overseer-dsh-observer
+```
+
+Removal deselects the bundle, unloads its row, and removes the dependency from that profile. Nothing
+else is touched: no other profile, no `~/.dsh` file outside that profile's own package manifest, no
+host configuration. As a manual fallback, delete the `overseer-dsh-observer` row from the profile's
+`cordis.patch.yml` and the name from `dsh.profile.bundles` in its `package.json`. Spool files are
+OVERSEER-owned data and are simply left behind; delete the adapter directory to remove them.
+
+Never hand-edit `~/.dsh` in this repository's automation, and never read the harness credential
+store.
+
+## 9. Privacy statement
+
+- Exported: the 19 keys in §3 and nothing else. Message bodies, reasoning text, system/developer
+  prompts, tool arguments, tool results, tool names, approval reasons, request headers, model
+  configuration, credentials, and environment values are **never read**, not merely never written.
+- The mapping switches on the event `type` first, so unmapped events — `user/message`,
+  `assistant/message`, `assistant/attempt`, `system/message`, `developer/message`,
+  `request/header`, `request/context`, `tool/ptc-dispatch`, and every other vocabulary member —
+  are never opened at all. `tool/result` reads exactly two fields: `message.toolCallId` and
+  `message.isError`.
+- Paths and ids are bounded (project root 512 chars, ids 256 chars) before they reach a record.
+- The spool is local files owned by OVERSEER. The plugin performs no network I/O, starts no
+  subprocess, reads no credential store, and imports nothing from `dsh` (Node standard library
+  only). `fixtures/` contains invented data only.
+
+## 10. Tests
+
+```sh
+cd integrations/deepseek-harness
+node --test
+```
+
+Plain Node (`node --test`, Node >= 20). No dependencies, no package install, no TypeScript build
+step: the plugin is plain ESM with JSDoc types. Tests use the real filesystem in `os.tmpdir()` and
+a worker-thread reader; `fixtures/` holds sanitized synthetic event shapes.
+
+| Test | Requirement covered |
+|---|---|
+| `(a) host callbacks never throw when the spool target is unwritable` | disk failure cannot reach the host (the `session/created` rollback hazard) |
+| `(a) a disk failure degrades to counters without throwing` | error degradation to counters |
+| `(b) queue overflow drops the oldest records …` | bounded queue, drop-oldest, drop counting, no disk I/O in the caller path |
+| `(c) concurrent observation keeps a strictly increasing sequence per session` | ordering under interleaved sessions |
+| `(d) duplicate publication keeps the same eventId and flags hydration` | idempotent re-delivery across epochs |
+| `(e) attach publishes hydration-flagged snapshots, then heartbeats` | snapshot/hydration flags, plan-mode and turn recovery |
+| `(f) a late tool-start after turn end never reopens the turn` | the documented late-event rule |
+| `(g) the 64 KiB record cap is enforced at the exact boundary` | record cap |
+| `(h) atomic current.json replacement leaves a complete document for a concurrent reader` | atomic replacement under a real concurrent reader |
+| `the fixtures' message bodies, … never reach the spool` | privacy: canaries for bodies, arguments, outputs, reasons, credentials |
+| `the observer subscribes to exactly the three observe-only seams` | no `session/flush`, no waterfall |
+| rotation / TTL / file-cap / health tests | bounded cleanup of this adapter's own files only |
+
+## 11. Known limitations
+
+- **`input/asked` and `input/answered` are reserved, not emitted.** `dsh` 0.1.5-rc.3 logs no session
+  event for a human question: the only input seam is the user-question waterfall, which this
+  observer must not intercept. The kinds stay in the allowlist for a future emit-mode seam.
+- **`thinking` is reserved, not emitted.** Reasoning text is never read, so the observer cannot
+  distinguish "thinking" from "working" inside an open turn; an open turn reports `working`
+  (`planning` while plan mode is on, `waiting` while an approval is pending).
+- **Lineage is in `current.json`, not in a record.** The normalized key list is frozen at 19 keys;
+  `parentSessionId` is exported in the current-state document.
+- **No `fsync`.** A hard power loss can lose the newest lines; the spool is a status projection.
+- **Bounded memory.** Session state (512 sessions) and the duplicate window (1024 host seqs per
+  session) are bounded; a re-delivery older than the window is published as a new record.
+- **No peer dependency on `@deepseek-ai/dsh`.** The plugin imports nothing from `dsh`, so the
+  profile installer's DSH peer-compatibility check has nothing to evaluate; compatibility is with
+  the documented event seam at the pinned commit, and live qualification is OVERSEER's step.
+
+## 12. Layout
+
+```text
+src/normalize.js   allowlisted mapping from dsh session events to record fields (no state)
+src/state.js       per-session state, sequence allocation, duplicate/hydration, snapshots
+src/spool.js       bounded queue, atomic files, rotation, caps, health
+src/index.js       Cordis plugin: seams, attach snapshot, heartbeat, env configuration
+test/              node --test suites for the behaviours above
+fixtures/          sanitized synthetic event shapes + the concurrent-reader worker
+cordis.patch.yml   the single inserted profile row
+NOTICE.md          origin and licensing statement
+```

@@ -1,0 +1,13 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "hook_event_name": "Elicitation",
+  "mcp_server_name": "fixture-mcp-server",
+  "message": "SANITIZED_ELICITATION_MESSAGE must never be stored",
+  "mode": "form",
+  "elicitation_id": "fixture-elicitation-0001",
+  "requested_schema": {
+    "type": "object"
+  }
+}
