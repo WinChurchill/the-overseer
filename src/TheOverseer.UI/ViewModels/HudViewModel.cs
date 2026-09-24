@@ -513,7 +513,9 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 entry.Partial = true;
             }
 
-            entry.Harnesses.Add(HarnessIds.DisplayName(task.Key.HarnessId));
+            // Short badge labels: the header must stay readable at the minimum width
+            // (the full name remains available through the group tooltip).
+            entry.Harnesses.Add(ShortHarness(task.Key.HarnessId));
         }
 
         var ranks = new Dictionary<ProjectId, int>();
@@ -538,7 +540,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                        string.Join(", ", entry.Harnesses.OrderBy(static item => item, StringComparer.Ordinal));
             if (entry.Partial)
             {
-                meta += " · partial coverage";
+                meta += " · partial";
             }
 
             result[index] = (key, project.IsUnassigned ? "Unassigned" : project.DisplayName, meta);
@@ -546,6 +548,14 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
         return result;
     }
+
+    private static string ShortHarness(string harnessId) => HarnessIds.Normalize(harnessId) switch
+    {
+        HarnessIds.Codex => "Codex",
+        HarnessIds.Dsh => "dsh",
+        HarnessIds.Claude => "Claude",
+        var other => other,
+    };
 
     private sealed class ProjectStats
     {

@@ -77,7 +77,7 @@ public sealed class ProjectViewTests
         Assert.Contains("2 working", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.Contains("0 needs you", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.Contains("Codex", row.ProjectGroupMeta, StringComparison.Ordinal);
-        Assert.Contains("DeepSeek Harness", row.ProjectGroupMeta, StringComparison.Ordinal);
+        Assert.Contains("dsh", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.DoesNotContain("partial", row.ProjectGroupMeta, StringComparison.Ordinal);
     }
 
@@ -89,7 +89,7 @@ public sealed class ProjectViewTests
             Task("01a0e000-0000-0000-0000-000000000221", beta),
             Task("01a0e000-0000-0000-0000-000000000222", beta, stale: true));
 
-        Assert.Contains("partial coverage", viewModel.Tasks[0].ProjectGroupMeta, StringComparison.Ordinal);
+        Assert.Contains("partial", viewModel.Tasks[0].ProjectGroupMeta, StringComparison.Ordinal);
     }
 
     [Fact]

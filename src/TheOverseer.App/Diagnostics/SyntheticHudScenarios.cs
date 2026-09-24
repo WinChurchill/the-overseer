@@ -147,11 +147,15 @@ public static class SyntheticHudScenarios
         bool failed = false)
     {
         var lastActivity = Now.AddMinutes(-minutesAgo);
+        // Synthetic project and harness variety so a fixture render shows real
+        // project headers and multi-harness badges. Roots are synthetic placeholders.
+        var harnessId = number is 5 or 6 ? HarnessIds.Dsh : HarnessIds.Codex;
+        var sourceInstance = harnessId == HarnessIds.Dsh ? "dsh-default" : "codex";
         return new AgentTask(
-            new TaskKey("codex", conversationId),
+            TaskKey.For(harnessId, sourceInstance, conversationId),
             number,
             conversationId,
-            "codex",
+            sourceInstance,
             ClientSurface.Desktop,
             label,
             "turn-" + number.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -169,7 +173,25 @@ public static class SyntheticHudScenarios
             cancelled,
             failed,
             attention,
-            1);
+            1,
+            @"C:\synthetic\" + ProjectName(number),
+            ProjectFor(number));
+    }
+
+    private static string ProjectName(int number) => number switch
+    {
+        1 or 2 or 9 => "Aurora",
+        3 or 4 or 10 => "TCS pipeline",
+        5 or 6 => "Webots harness",
+        _ => "Unassigned",
+    };
+
+    private static ProjectDescriptor ProjectFor(int number)
+    {
+        var name = ProjectName(number);
+        return name == "Unassigned"
+            ? ProjectDescriptor.UnassignedProject
+            : new ProjectDescriptor(ProjectId.FromRoot("c:\\synthetic\\" + name), name, @"C:\synthetic\" + name, ProjectResolution.ConfiguredRoot);
     }
 
     private static MonitoringSnapshot Snapshot(
