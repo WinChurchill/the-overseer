@@ -34,12 +34,26 @@ public enum EvidenceKind
 }
 
 /// <summary>
-/// Identity of one user conversation inside one Codex profile.
-/// Paths, titles and client surfaces deliberately do not participate.
+/// Identity of one user conversation inside one observation source. Paths,
+/// titles and client surfaces deliberately do not participate.
+///
+/// <see cref="HarnessId"/> qualifies the harness that produced the session and is
+/// part of equality, so equal conversation ids in different harnesses never
+/// dedupe into one task. Existing two-argument construction keeps the Codex
+/// default, which is a deterministic migration for persisted and in-memory keys.
 /// </summary>
 public readonly record struct TaskKey(string ProfileId, string ConversationId)
 {
+    /// <summary>Harness that produced the session. Defaults to Codex.</summary>
+    public string HarnessId { get; init; } = HarnessIds.Codex;
+
+    /// <summary>The profile field is the stable source-instance id.</summary>
+    public string SourceInstanceId => ProfileId;
+
     public bool IsEmpty => string.IsNullOrEmpty(ProfileId) || string.IsNullOrEmpty(ConversationId);
+
+    public static TaskKey For(string harnessId, string sourceInstanceId, string conversationId) =>
+        new(sourceInstanceId, conversationId) { HarnessId = HarnessIds.Normalize(harnessId) };
 
     public override string ToString() => ProfileId + "/" + ConversationId;
 }
