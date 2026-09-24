@@ -605,6 +605,35 @@ unknown-versus-idle), a fixture that feeds staggered snapshots so several catego
 visible, then the task-row strip, the "Use baseline" settings control, and the
 close/header/sizing refinement before the publish + packaged smoke pass.
 
+### DeepSeek session checkpoint 9 — strip automation (2026-09-24)
+
+The stated gap from checkpoint 8 is closed: `ActivityStripSourceTests` (5 regressions)
+now cover the strip path end to end.
+
+- A project with observed work yields bounded bins (1..56), contains the working
+  category, contains unknown for unobserved time, and contains **no idle** — unknown
+  coverage is never rendered as confirmed inactivity.
+- A task lane renders its own bins, while a task that was never observed yields no strip
+  at all rather than an invented one.
+- With no history at all every project bin is unknown coverage.
+- A lane observed twenty minutes earlier no longer claims working time in the recent
+  tail (the ten-second freshness bound ages action evidence honestly).
+- `TaskRowViewModel.UpdateActivity` raises a change only when the bins actually
+  changed, so the per-second HUD tick does not churn the strip.
+- Test detail worth recording: the bin window is half-open, so the tests project five
+  seconds after the observation, exactly as the 1 s HUD tick does.
+
+Verification: Release build **0 warnings / 0 errors**; .NET tests **555 passed / 0 failed /
+0 skipped**.
+
+Remaining for the strip work: the fixture records only a couple of known instants, so the
+per-category palette is still only partially exercised visually; the task-row strip is not
+implemented (project header strip only).
+
+Next executable step: a fixture that feeds staggered snapshots so several categories are
+visible in one render, then the task-row strip, the "Use baseline" settings control, and
+the close/header/sizing refinement before the publish + packaged smoke pass.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
