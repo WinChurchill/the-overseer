@@ -6,8 +6,8 @@ Goal: One integrated implementation/review round for project grouping, activity 
 responsive HUD controls, and an offline baseline voice
 Branch: ux/first-use
 Product base: d869db6 (custom HUD implementation: 5521980)
-Implementation head: **92c111f**; this ledger, README and CHANGELOG are the
-documentation commit on top of it.
+Packaged implementation: **915b735** (`ux/first-use`); this smoke-record commit is
+documentation-only and changes no product file.
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
@@ -16,7 +16,7 @@ documentation commit on top of it.
 - Verification for this round: Release build **0 warnings / 0 errors**; **641 .NET
   tests passed**, 0 failed, 0 skipped; **30/30 dsh** and **19/19 Claude** Node tests;
   **38 render fixtures** rendered and inspected from committed source; clean-source
-  publish from `92c111f` (sha256 `B73A3A2D…AD5679`); packaged smoke **17/17 passed**
+  publish from `915b735` (sha256 `2F578ECF…3E10B`); packaged smoke **17/17 passed**
   with the HUD lifecycle block environment-blocked (exact reason below).
 - Astra review: CHANGES REQUIRED on 26e642b — this round is the response; **no further
   blocker identified by the implementer**.
@@ -56,8 +56,8 @@ user-requested post-V1 extension.
 ### DeepSeek completion — response to "inspected 26e642b" (2026-09-24)
 
 **Status: implementation complete for the five ordered areas; ready for Astra review.**
-Branch `ux/first-use`, implementation head `92c111f` (the ledger/README/CHANGELOG update
-is the documentation commit on top).
+Branch `ux/first-use`, packaged implementation head `915b735` (this smoke record is a
+documentation-only commit on top).
 No merge, no push, no history rewrite; `main` untouched; the running package and
 shortcut were not replaced.
 
@@ -194,17 +194,21 @@ per-pass budget bound, capability disclosure, no replayed attention).
 #### Area 5 — release gates (review item 5)
 
 ```text
-build      Release, committed source 92c111f: 0 warnings / 0 errors
+build      Release, committed source 915b735: 0 warnings / 0 errors
 tests      Passed! Failed: 0, Passed: 641, Skipped: 0, Total: 641
 node       deepseek-harness 30/30 passed; claude-code 21/21 passed, and 30/30
            consecutive runs green under concurrent .NET test load (the previous
            round saw this suite intermittently red; the cause is fixed above)
 renders    38 fixtures (19 per theme), inspected: dark/light expanded, one-project,
            activity-hour, collapsed-projects, 320x220, 440x620, 640x260, settings
-publish    scripts/Publish-Release.ps1 from clean committed source 92c111f
-           OVERSEER-v1-win-x64.zip 76,656,663 bytes, 492 entries,
-           sha256 B73A3A2D4326CD753E02C59C18B72972B19D6F2EDE55AA116A4CF4A599AD5679
-smoke      17 checks, 0 failed (hud-fixture 38/38 non-empty renders, hud-smoke,
+publish    scripts/Publish-Release.ps1 from clean committed source 915b735
+           OVERSEER-v1-win-x64.zip 76,658,061 bytes, 492 entries,
+           sha256 2F578ECF497DC2E7158F28B9BA46965AF21ECF3E82726A935C3D54947813E10B
+           (an earlier archive from 92c111f, sha256 B73A3A2D...AD5679, was replaced
+           after the Claude bridge fix, because the shipping payload includes the
+           integration assets that fix changed)
+smoke      17 checks, 0 failed, run against that exact archive
+           (hud-fixture 38/38 non-empty renders, hud-smoke,
            voice-smoke + owned loopback, voice-pack-check, monitor-debug synthetic
            and real, packaged payload/entry checks)
 live codex --monitor-debug --duration 15 against the real Codex home: exit 0,
@@ -226,8 +230,9 @@ audit pair the bridge correlates.
    stopping the user's app was not authorized. Everything else in the packaged smoke
    ran (17/17). Re-run when the HUD is closed:
    `pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 -ArchivePath
-   artifacts/final/release/OVERSEER-v1-win-x64.zip -EvidenceDirectory
-   artifacts/final/smoke-lifecycle`.
+   artifacts/final/release2/OVERSEER-v1-win-x64.zip -EvidenceDirectory
+   artifacts/final/smoke-lifecycle` (from the repository root, with the workspace SDK
+   on PATH).
 2. **dsh is not attached live.** The observer plugin was not installed into the user's
    dsh profile (that is the opt-in step and would modify live harness settings), and no
    model-backed session was run. Contract tests plus the structural probe above are the
