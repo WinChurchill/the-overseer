@@ -266,6 +266,33 @@ public sealed class BridgeProducerFixtureTests
         Assert.DoesNotContain("producer-dropped", adapter.Describe());
     }
 
+    [Fact]
+    public async Task BridgeCapabilitiesDescribeWhatTheBridgeActuallyProvides()
+    {
+        using var fixture = BridgeFixture.Create("live");
+        var clock = new ManualTimeProvider(ProducerStart);
+        await using var adapter = fixture.CreateAdapter(clock);
+        await adapter.StartAsync(new CancellationToken(canceled: true));
+
+        var capabilities = adapter.Poll().Capabilities;
+
+        // The bridge exports correlated requests and explicit outcomes, so it must
+        // not inherit the Codex capability set that calls those unsupported.
+        Assert.Equal(CapabilitySupport.Supported, capabilities.PermissionRequests.Support);
+        Assert.Equal(CapabilitySupport.Supported, capabilities.InputRequests.Support);
+        Assert.Equal(CapabilitySupport.Supported, capabilities.TaskFailureEvidence.Support);
+        Assert.Equal(CapabilitySupport.Unsupported, MonitorCapabilities.Initial.PermissionRequests.Support);
+        // What it genuinely cannot provide stays unsupported and says why.
+        Assert.Equal(CapabilitySupport.Unsupported, capabilities.SessionTitles.Support);
+        Assert.Equal(CapabilitySupport.Unsupported, capabilities.RuntimeActivitySource.Support);
+        Assert.Contains("DeepSeek Harness", capabilities.PermissionRequests.Note, StringComparison.Ordinal);
+
+        // A one-shot hook source is event-driven: its capability note must say that
+        // absence proves neither idle nor disconnection.
+        Assert.Contains("absence of events", MonitorCapabilities.ForBridge(HarnessIds.Claude, continuousHeartbeat: false).AttentionLiveVerification.Note, StringComparison.Ordinal);
+        Assert.Contains("heartbeat", MonitorCapabilities.ForBridge(HarnessIds.Dsh, continuousHeartbeat: true).AttentionLiveVerification.Note, StringComparison.Ordinal);
+    }
+
     private static long Applied(string description)
     {
         foreach (var part in description.Split(' '))

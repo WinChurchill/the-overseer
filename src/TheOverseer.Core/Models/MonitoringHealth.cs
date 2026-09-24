@@ -160,6 +160,30 @@ public sealed record MonitorCapabilities(
         _ => "unsupported",
     };
 
+    /// <summary>
+    /// What an external metadata bridge (dsh observer or Claude hook bridge)
+    /// actually provides. It is not the Codex capability set: the bridges DO export
+    /// correlated approval/input requests and explicit turn outcomes, so publishing
+    /// the Codex "unsupported" claims would under-report them. Capabilities a bridge
+    /// cannot supply are stated as unsupported instead of being guessed.
+    /// </summary>
+    public static MonitorCapabilities ForBridge(string harnessId, bool continuousHeartbeat)
+    {
+        var source = HarnessIds.DisplayName(harnessId);
+        var heartbeatNote = continuousHeartbeat
+            ? source + ": periodic heartbeat while attached"
+            : source + ": event-driven; absence of events proves neither idle nor disconnection";
+        return new MonitorCapabilities(
+            new CapabilityStatus(CapabilitySupport.Supported, "bridge-lifecycle", source + ": session/turn start and end records"),
+            new CapabilityStatus(CapabilitySupport.Supported, "bridge-activity", source + ": tool start/end and plan markers, no content"),
+            new CapabilityStatus(CapabilitySupport.Supported, "bridge-permission-requests", source + ": approval asked/decided correlated by request id"),
+            new CapabilityStatus(CapabilitySupport.Supported, "bridge-input-requests", source + ": input asked/answered correlated by request id"),
+            new CapabilityStatus(CapabilitySupport.Supported, "bridge-task-failure", source + ": explicit turn outcome"),
+            new CapabilityStatus(CapabilitySupport.Unsupported, "bridge-runtime-activity", source + ": the bridge runs in its own host and cannot report machine activity"),
+            new CapabilityStatus(CapabilitySupport.Unsupported, "bridge-session-titles", source + ": titles are conversation content and are never exported"),
+            new CapabilityStatus(CapabilitySupport.Supported, "bridge-attention-live", heartbeatNote));
+    }
+
     public static MonitorCapabilities Initial { get; } = new(
         new CapabilityStatus(CapabilitySupport.NotExercised, "rollout-lifecycle", "task_started/task_complete/turn_aborted from rollout records"),
         new CapabilityStatus(CapabilitySupport.NotExercised, "structured-activity", "item_completed and tool call records"),

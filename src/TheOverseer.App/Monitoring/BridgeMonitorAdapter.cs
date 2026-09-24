@@ -261,7 +261,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             complete,
             tasks,
             transitions ?? Array.Empty<AttentionEvent>(),
-            MonitorCapabilities.Initial,
+            MonitorCapabilities.ForBridge(Source.HarnessId, continuousHeartbeat: Source.HarnessId != HarnessIds.Claude),
             adapterCode,
             evidenceAt == DateTimeOffset.MinValue ? now : evidenceAt);
         SnapshotAvailable?.Invoke(_current);
