@@ -13,7 +13,7 @@
 - Full multi-harness recovery, settings, speech lifecycle and release validation
   remain unfinished; see the latest implementation-state review.
 
-### Continuation round — bridge recovery, shared budgets and honest freshness
+### Continuation round — bridge recovery, budgets, baseline voice and project-first HUD
 
 - **Bridge state/recovery.** OVERSEER now consumes each producer's atomically
   published `current.json` as an authoritative resynchronization point: a late attach,
@@ -47,6 +47,35 @@
   holds live, rotated and drop-affected spools produced by the real observer state
   machine and the real spool writer; the .NET integration tests consume them, so a
   change in the producer's actual output shape fails the suite.
+- **Offline baseline voice is real and selectable.** `Light & voice…` now offers the
+  three providers explicitly (voice pack, offline Windows speech baseline, TTS
+  endpoint) with the baseline's own availability line, an explicit **Use baseline**
+  action and no audio or network request merely from opening the panel. A **new** data
+  directory selects the baseline by default (still muted); an **existing** config is
+  never reset, including a file that has no `provider` key. Exactly one provider is
+  used: no automatic cross-provider fallback, an assigned recording still wins, and a
+  failing selected provider stays silent and is reported.
+- **Bounded, cancellable speech workers.** SAPI synthesis runs on at most two STA
+  workers; further calls report `speech-busy` instead of piling up threads. Every call
+  observes cancellation and its deadline *while waiting*, and each worker deletes the
+  temporary WAV it created in its own cleanup, so a hung or abandoned engine cannot
+  leak files or hold a slot forever. Failures and timeouts are never cached, the
+  nine-script cache is bounded, and a missing English voice is visibly unavailable.
+- **Project-first HUD.** Projects are now real expandable rows (name, harness badges,
+  working/needs-you counts, hour strip, chevron) above their tasks, ordered
+  attention → active → recent with stable identity tie-breaks. The last-hour strip
+  carries category, evidence, coverage, interval and detail into its tooltip and
+  automation name, draws unknown as a hatch that can never be confused with idle, and
+  is explained by an eight-entry legend. The competing global count chart is gone from
+  the default view, and each project's bins are computed once per refresh instead of
+  once per task.
+- **Header, menu and sizing completed.** The top-level menu is the agreed short set,
+  the visible ✕ hides to tray whenever a tray can restore the window, the header stays
+  pinned while content scrolls, branding collapses before the controls, and the size
+  matrix (compact, 320×220, 320×720, 440×620, 640×260, 900×700, maximized) renders
+  without clipping. Navigation is harness-qualified: an unsupported harness offers its
+  task id instead of advertising a route that cannot work, and `Projects & sources…`
+  lists discovered sources and project buckets with additive persistence.
 
 ### Added
 
@@ -89,11 +118,19 @@
   normalized snapshots; a terminal marker closes the action timeline without erasing
   the confirmed work.
 
-### Not yet implemented
+### Remaining qualifications
 
-- Project-first HUD rows, activity strips, responsive header/menu refinement, the
-  composite multi-source monitor, the dsh/Claude adapters inside the app, and the
-  offline baseline voice. Details and next steps: `docs/IMPLEMENTATION_STATE.md`.
+- The dsh observer is **not attached to a live host**: that needs the documented
+  opt-in plugin install into the user's own dsh profile and a real model-backed
+  session. Structural compatibility with the installed `dsh 0.1.5-rc.3` seam
+  declarations is verified; live attach is not claimed.
+- Claude Code is not installed on this machine, so its bridge remains contract-tested
+  with a synthetic hook payload only.
+- The packaged **HUD lifecycle** block of the release smoke was not executed in this
+  round because the user's own running OVERSEER owns the single-instance guard;
+  stopping it was not authorized. The rest of the packaged smoke ran.
+- A stored source enable/disable decision applies the next time OVERSEER starts, and
+  the settings window says so. Details and evidence: `docs/IMPLEMENTATION_STATE.md`.
 
 ## Unreleased — 2026-09-23
 

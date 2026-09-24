@@ -208,7 +208,8 @@ Caps and budgets:
 | :--- | :--- | :--- |
 | stdin size | 1 MiB | stdin is destroyed, nothing is recorded, `droppedOversizeInput` |
 | stdin deadline | 2 s from process start | stdin is destroyed, nothing is recorded, `droppedStdinDeadline`; empty stdout, exit 0 |
-| acquisition + write budget | 250 ms | the record is dropped, `droppedLockTimeout` or `droppedOversizeRecord` |
+| acquisition + write budget | 250 ms | the record is dropped, `droppedLockTimeout`, `droppedOversizeRecord` or `droppedWriteFailed` |
+| failed append | - | `droppedWriteFailed`; the per-session sequence counter is only advanced after a successful append, so a failed write leaves no gap |
 | record size | 64 KiB per line | the record is dropped and counted, never truncated into invalid JSON |
 | `projectRoot` | 512 characters | truncated at the bound |
 | health counters | fixed key set | `health.json` cannot grow with event volume |
@@ -223,8 +224,11 @@ fresh epoch on purpose, stop publishing and delete `source-epoch.json`.
 
 Failure counters in `health.json`: `recordsWritten`, `droppedOversizeInput`, `droppedEmptyInput`,
 `droppedMalformedInput`, `droppedStdinDeadline`, `droppedStdinError`, `droppedLockTimeout`,
-`droppedOversizeRecord`, `droppedCorruptSourceEpoch`, `droppedUnsupportedPayload`,
-`droppedInternalError`, `recoveredCorruptFile`, `unknownEvents`.
+`droppedOversizeRecord`, `droppedWriteFailed`, `droppedCorruptSourceEpoch`,
+`droppedUnsupportedPayload`, `droppedInternalError`, `recoveredCorruptFile`, `unknownEvents`.
+Every name the bridge can emit is asserted to be in this allowlist by
+`test/bridge.records.test.mjs`, because an unlisted name is silently discarded and
+would turn a lost record into an invisible one.
 
 Environment variables read by `bridge.mjs`:
 

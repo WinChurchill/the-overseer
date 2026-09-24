@@ -32,6 +32,9 @@ export const HEALTH_COUNTERS = Object.freeze([
   'droppedStdinError',
   'droppedLockTimeout',
   'droppedOversizeRecord',
+  // A genuine append/lock failure is a distinct outcome from a lock timeout; it
+  // must be counted, or a lost record would be invisible in health.json.
+  'droppedWriteFailed',
   'droppedCorruptSourceEpoch',
   'droppedUnsupportedPayload',
   'droppedInternalError',
@@ -251,29 +254,35 @@ function sessionCounterFile(dir, sessionId) {
 }
 
 /**
- * Per-session ingestion order. Allocated inside the writer lock, so two
- * concurrent hook invocations never receive the same number. Ingestion order
- * is the order the spool received events; it is not proof of causal hook order
+ * Per-session ingestion order. Read and persisted inside the writer lock, so two
+ * concurrent hook invocations never receive the same number. Ingestion order is
+ * the order the spool received events; it is not proof of causal hook order
  * upstream.
+ *
+ * The counter is only advanced by `commitSequence` after the record has actually
+ * been appended: a failed append must not consume a number, because a consumed
+ * number without a record is an unexplainable gap in the published sequence.
  */
-function nextSequence(dir, sessionId) {
+function readSequence(dir, sessionId) {
   const file = sessionCounterFile(dir, sessionId);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  let current = 0;
   try {
     const parsed = Number.parseInt(fs.readFileSync(file, 'utf8').trim(), 10);
-    if (Number.isSafeInteger(parsed) && parsed > 0) current = parsed;
+    if (Number.isSafeInteger(parsed) && parsed > 0) return parsed;
   } catch { /* missing or unreadable counter starts at zero */ }
-  const next = current + 1;
+  return 0;
+}
+
+function commitSequence(dir, sessionId, sequence) {
+  const file = sessionCounterFile(dir, sessionId);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
-  fs.writeFileSync(tmp, String(next), { encoding: 'utf8', flag: 'wx' });
+  fs.writeFileSync(tmp, String(sequence), { encoding: 'utf8', flag: 'wx' });
   try {
     fs.renameSync(tmp, file);
   } catch (err) {
     try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ }
     throw err;
   }
-  return next;
 }
 
 /**
@@ -288,7 +297,7 @@ export function publishRecord({ dir, record, deadline }) {
   let outcome;
   try {
     outcome = withLock(lockPath, deadline, () => {
-      const sequence = nextSequence(dir, record.sessionId);
+      const sequence = readSequence(dir, record.sessionId) + 1;
       const line = JSON.stringify({ ...record, sequence }) + '\n';
       const bytes = Buffer.byteLength(line, 'utf8');
       if (bytes > MAX_RECORD_BYTES) return { ok: false, reason: 'record-too-large' };
@@ -309,6 +318,9 @@ export function publishRecord({ dir, record, deadline }) {
       } finally {
         try { fs.closeSync(fd); } catch { /* ignore */ }
       }
+
+      // The append succeeded, so the number is now consumed.
+      commitSequence(dir, record.sessionId, sequence);
       return { ok: true, sequence, bytes };
     });
   } catch (err) {

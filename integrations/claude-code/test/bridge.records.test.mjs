@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { RECORD_KEYS, buildRecord, classify, validateRecord } from '../lib/mapping.mjs';
+import { Deadline, HEALTH_COUNTERS, publishRecord } from '../lib/spool.mjs';
 import {
   collectStrings,
   fixture,
@@ -181,4 +182,52 @@ test('the end-to-end spool line is bounded and contract-valid', async (t) => {
     assert.deepEqual(validateRecord(record), []);
   }
   assert.equal(lines.join('\n').includes('SANITIZED'), false);
+});
+
+test('every failure counter the bridge can emit is an allowlisted counter', () => {
+  // A counter name that is not in HEALTH_COUNTERS is silently discarded by
+  // bumpHealth, which turns a lost record into an invisible one. Guard the whole
+  // class of bug structurally instead of trusting the two lists to agree.
+  const source = fs.readFileSync(new URL('../bridge.mjs', import.meta.url), 'utf8');
+  const names = [...source.matchAll(/'((?:dropped|recovered|unknown)[A-Za-z]+)'/g)].map((match) => match[1]);
+  assert.ok(names.length >= 8, 'expected the bridge to name its failure counters');
+  for (const name of new Set(names)) {
+    assert.ok(HEALTH_COUNTERS.includes(name), name + ' must be an allowlisted health counter');
+  }
+});
+
+test('a failed append consumes no sequence number and is reported as a write failure', async (t) => {
+  const spool = tempDir();
+  t.after(() => removeDir(spool));
+  const dir = path.join(spool, 'claude', 'cc-write-failure');
+  fs.mkdirSync(dir, { recursive: true });
+
+  const record = buildRecord(fixture('stop.json'), CTX);
+  assert.ok(record);
+
+  // First append succeeds and takes sequence 1.
+  const first = publishRecord({ dir, record, deadline: new Deadline(250) });
+  assert.equal(first.ok, true);
+  assert.equal(first.sequence, 1);
+
+  // Make the event path unappendable while keeping the landed line: the append
+  // fails inside the lock.
+  const eventsPath = path.join(dir, 'events.jsonl');
+  const keptPath = eventsPath + '.kept';
+  fs.renameSync(eventsPath, keptPath);
+  fs.mkdirSync(eventsPath);
+
+  const second = publishRecord({ dir, record, deadline: new Deadline(250) });
+  assert.equal(second.ok, false);
+  assert.equal(second.reason, 'write-failed');
+
+  // The failed append must not have consumed sequence 2: the next successful
+  // record takes it, so the published sequence stays gap-free.
+  fs.rmdirSync(eventsPath);
+  fs.renameSync(keptPath, eventsPath);
+  const third = publishRecord({ dir, record, deadline: new Deadline(250) });
+  assert.equal(third.ok, true);
+  assert.equal(third.sequence, 2, 'a failed append must not consume a sequence number');
+  const lines = fs.readFileSync(eventsPath, 'utf8').split('\n').filter(Boolean);
+  assert.deepEqual(lines.map((line) => JSON.parse(line).sequence), [1, 2]);
 });

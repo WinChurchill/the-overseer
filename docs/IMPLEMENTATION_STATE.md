@@ -1,22 +1,27 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: Post-V1 — Project-centered multi-harness HUD (plan reviewed)
+Plan: Post-V1 — Project-centered multi-harness HUD
 Goal: One integrated implementation/review round for project grouping, activity strips,
 responsive HUD controls, and an offline baseline voice
 Branch: ux/first-use
 Product base: d869db6 (custom HUD implementation: 5521980)
+Implementation head: **92c111f**; this ledger, README and CHANGELOG are the
+documentation commit on top of it.
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
-- DeepSeek implementation: **partial** — composite and bridge ingestion, project
-  headers/task strips, and SAPI provider now exist. Integration correctness, settings,
-  speech lifecycle and release qualification still need work. See latest review below.
-- Latest Astra verification: Release build 0 warnings / 0 errors; **564 .NET tests
-  passed**, none failed/skipped; bridge tests **48/48 passed** after review fixes.
-- Smoke / package: not rerun in this partial round (see the section below for the
-  exact gap)
-- Astra review: CHANGES REQUIRED (reviewed 26e642b plus immediate fixes); see below
+- DeepSeek implementation: **complete for the five ordered areas**; every item of the
+  26e642b review is addressed or explicitly qualified below.
+- Verification for this round: Release build **0 warnings / 0 errors**; **641 .NET
+  tests passed**, 0 failed, 0 skipped; **30/30 dsh** and **19/19 Claude** Node tests;
+  **38 render fixtures** rendered and inspected from committed source; clean-source
+  publish from `92c111f` (sha256 `B73A3A2D…AD5679`); packaged smoke **17/17 passed**
+  with the HUD lifecycle block environment-blocked (exact reason below).
+- Astra review: CHANGES REQUIRED on 26e642b — this round is the response; **no further
+  blocker identified by the implementer**.
+- Preserved: the user's running HUD (pid 38960) and live `config.json` were never
+  modified; provider is still `pack`, still muted, byte-for-byte the same file.
 - Prior UX baseline: Release build passed with 0 warnings/errors; 456 tests passed;
   26 render fixtures; package smoke 17/17 with HUD lifecycle skipped in favor of
   recorded manual checks. User confirmed Win+Left/Right and Win+Z work.
@@ -47,6 +52,185 @@ The frozen original four-plan V1 scope documents remain unchanged; this is an ex
 user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
+
+### DeepSeek completion — response to "inspected 26e642b" (2026-09-24)
+
+**Status: implementation complete for the five ordered areas; ready for Astra review.**
+Branch `ux/first-use`, implementation head `92c111f` (the ledger/README/CHANGELOG update
+is the documentation commit on top).
+No merge, no push, no history rewrite; `main` untouched; the running package and
+shortcut were not replaced.
+
+Commits in this round (oldest first):
+
+```text
+48cc087 fix: recover bridge state from producer snapshots
+3400877 fix: share monitoring budgets and aggregate source capability
+b8b2402 fix: make bridge recovery deterministic and self-review cleanups
+c3c3a80 fix: keep bridge requests visible over continuing tool activity
+4aa7a9e feat: declare honest per-harness bridge capabilities
+8b2e0b2 docs: describe bridge recovery, source budgets and freshness rules
+093a6d2 docs: changelog for bridge recovery and shared budgets
+628bc32..e2c961a voice: baseline default, bounded SAPI workers, provider choice,
+                     selected-provider-only playback, real-engine smoke  (5 commits)
+7e1a6ce..c8aac75 HUD: expandable project surface, evidence-carrying strips, legend,
+                     header/menu/close/size matrix, Projects & sources  (4 commits)
+92c111f feat: share one monitoring budget and bounded discovery in composition
+```
+
+#### Area 1 — bridge state/recovery (review item 1)
+
+- The producer's atomically published `current.json` is now parsed
+  (`HarnessBridgeCurrentState`) and applied as the **authoritative
+  resynchronization**: a late attach, a dropped record or a rotated event file no
+  longer leaves a source permanently incomplete, and an empty document is a complete
+  statement about an empty source rather than a missing one.
+- Coverage is split: `CurrentStateComplete` (recoverable) versus `HistoryGap`
+  (permanent, per epoch). A gap never becomes observed activity, is disclosed while it
+  can still affect the displayed hour, and stops degrading the source afterwards.
+- `FirstAttach` is gone as an unfalsifiable flag. Recovery paths: an authoritative
+  document, a `session/start` observed without a gap, and epoch change handling that
+  resets ordering without inventing history. Sessions the producer no longer lists are
+  retired instead of looking like ongoing work, and become live again on new evidence.
+- Liveness and action evidence are separate: heartbeats refresh liveness only, never the
+  action or its category. Actions older than the ten-second lease become unknown
+  coverage while the task may still be working.
+- Terminal outcomes are explicit: completed/failed map as before, cancellation stays
+  silent, and a **missing or unrecognized outcome is never a completion** — it is an
+  explicitly unknown end that lowers coverage.
+- Rotation: the unread tail of the rotated file is drained before the new file starts,
+  and same-size replacement is detected by file identity (creation time plus a bounded
+  head fingerprint), not by length. Records the snapshot already folded are
+  `Superseded`, not reported as duplicates or out-of-order.
+- **Two producer defects found and fixed**, both proven by real producer fixtures: an
+  event-file rotation swallowed the record that triggered it, and the published
+  sequence reused host `seq` numbers, so every host event the observer deliberately
+  does not export (most of them) looked like a lost record. `sequence` is now a
+  contiguous publication counter; `eventId` identity and replay/hydration semantics
+  are unchanged.
+- **Actual producer output is the fixture.** `integrations/deepseek-harness/fixtures/
+  generate-spool-fixtures.mjs` drives the shipped state machine and spool writer to
+  produce `fixtures/spool/{live,rotated,dropped}`, and
+  `tests/TheOverseer.Tests/BridgeProducerFixtureTests.cs` consumes them end to end.
+- Also fixed while reviewing: a tool start/end or plan marker observed while an
+  approval or input request was unanswered overwrote the waiting state and hid the
+  fact that a human was the blocker.
+
+Evidence: `HarnessBridgeTests` (identity, hydration, ordering, epochs, drops, clock
+skew, concurrency/correlation, late events, retirement, recovery),
+`CompositeMonitorTests` (same-size replacement, cached document, budget share,
+freshness, capability aggregation, bounded discovery) and
+`BridgeProducerFixtureTests` (live/dropped/rotated spool, evidence-time freshness,
+per-pass budget bound, capability disclosure, no replayed attention).
+
+#### Area 2 — composite monitoring (review item 2)
+
+- One aggregate per-pass read allowance and one tracked-item allowance are **divided**
+  between enabled sources (`SourceBudget.Share`), never multiplied by them; at most
+  eight source instances are monitored, truncation is reported as a health reason, and
+  the bridge adapter re-bounds a running reader when its share is applied.
+- Discovery is bounded per root and in total, deterministic, honours explicitly
+  configured `harnessRoots` from config, and still excludes disabled sources.
+- Freshness is the producer's evidence time: `SourceSnapshot.EvidenceAt` plus
+  `EffectiveEvidenceAt`, and the composite's `LastSuccessfulReadAt` is the newest
+  evidence among *readable* sources. Repolling an idle spool no longer looks like a
+  fresh read, and a fresh peer can neither refresh a dead source nor donate
+  capabilities on its behalf.
+- Capabilities are merged across readable sources with a per-harness note instead of
+  "the last healthy source wins"; a bridge now declares what it actually provides
+  (correlated approval/input, explicit outcomes, no titles, no runtime activity), and a
+  one-shot hook source states that absence of events proves neither idle nor
+  disconnection.
+
+#### Area 3 — baseline voice (review item 3)
+
+- A brand-new data directory selects the **offline Windows speech baseline** and stays
+  muted; an existing `config.json` is never reset (a file without a `provider` key
+  keeps pack, and explicit provider/mute/pack/endpoint/events/clips survive).
+- The selected provider is the only provider used. The automatic TTS→pack fallback is
+  removed from composition and from preview, assigned recordings still win, and a
+  failing selected provider is silent and reported rather than swapped.
+- `Light & voice…` offers the three providers, a visible baseline availability line,
+  an explicit **Use baseline** action, and opening it neither synthesizes nor sends a
+  request.
+- SAPI synthesis is bounded: at most two STA workers (`speech-busy` beyond that),
+  cancellation and the deadline observed while waiting, and each worker deletes its own
+  temporary WAV in its own cleanup, so timed-out workers cannot leak files or threads.
+  Failures/timeouts are never cached, and the cache is bounded and keyed by script,
+  engine and format version.
+- Real-engine evidence on this machine (English voice `Microsoft Zira Desktop`):
+  packaged `--voice-smoke` exit 0, and the standalone run reported
+  `engine: sapi available=True code=ok`, `synthesized: bytes=80278 valid=True
+  code=ok rate=22050 channels=1 bits=16 seconds=1.82`, `preview: created=True
+  played=True` and "no pack clip was ever played (0)".
+
+#### Area 4 — project/HUD presentation (review item 4)
+
+- Projects are real expandable rows (name, harness badges, working/needs-you counts,
+  hour strip, chevron) ordered attention → active → recent with stable identity
+  tie-breaks; expansion is keyed on `ProjectId` and survives snapshot rebuilds, and
+  collapsing never stops observation, history or voice.
+- The strip transport keeps category, evidence strength, coverage, bin start/end,
+  detail code, concurrent task count and a mixed flag; unknown is a hatch that can
+  never be confused with idle, inferred bins are capped, and the tooltip and automation
+  name carry the interval detail. An eight-entry legend states "Unknown = no
+  observation, not idle".
+- The competing global count chart is gone from every surface (retained internally,
+  test-covered); each distinct project is projected once per refresh instead of once
+  per task.
+- Header/menu/close/size matrix completed; navigation is harness-qualified and an
+  unsupported harness offers its id instead of advertising `codex://`. `Projects &
+  sources…` lists discovered sources and project buckets with additive persistence.
+  A stored source enable/disable applies at the next start, and the window says so.
+
+#### Area 5 — release gates (review item 5)
+
+```text
+build      Release, committed source 92c111f: 0 warnings / 0 errors
+tests      Passed! Failed: 0, Passed: 641, Skipped: 0, Total: 641
+node       deepseek-harness 30/30 passed; claude-code 19/19 passed
+renders    38 fixtures (19 per theme), inspected: dark/light expanded, one-project,
+           activity-hour, collapsed-projects, 320x220, 440x620, 640x260, settings
+publish    scripts/Publish-Release.ps1 from clean committed source 92c111f
+           OVERSEER-v1-win-x64.zip 76,656,663 bytes, 492 entries,
+           sha256 B73A3A2D4326CD753E02C59C18B72972B19D6F2EDE55AA116A4CF4A599AD5679
+smoke      17 checks, 0 failed (hud-fixture 38/38 non-empty renders, hud-smoke,
+           voice-smoke + owned loopback, voice-pack-check, monitor-debug synthetic
+           and real, packaged payload/entry checks)
+live codex --monitor-debug --duration 15 against the real Codex home: exit 0,
+           40 files tracked, 39.9 MB read, lifecycle/activity live-observed
+```
+
+Installed-version probe (read-only, no harness settings changed): the DeepSeek
+Harness CLI is installed as `dsh 0.1.5-rc.3` and its `dsh-session` package still
+declares `session/created`, `session/event` and `session/disposed` with the
+documented "a throwing `session/created` listener rolls back the attach" behaviour,
+and `dsh-user-approval` still appends the `approval/asked` + `approval/decided`
+audit pair the bridge correlates.
+
+#### Remaining qualifications (not claimed as delivered)
+
+1. **Packaged HUD lifecycle block not executed in this round.** The user's own running
+   OVERSEER (pid 38960) owns `Local\OVERSEER.Hud.SingleInstance`, so a packaged
+   second instance exits immediately by design and the lifecycle checks cannot pass;
+   stopping the user's app was not authorized. Everything else in the packaged smoke
+   ran (17/17). Re-run when the HUD is closed:
+   `pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 -ArchivePath
+   artifacts/final/release/OVERSEER-v1-win-x64.zip -EvidenceDirectory
+   artifacts/final/smoke-lifecycle`.
+2. **dsh is not attached live.** The observer plugin was not installed into the user's
+   dsh profile (that is the opt-in step and would modify live harness settings), and no
+   model-backed session was run. Contract tests plus the structural probe above are the
+   evidence; live attach is not claimed.
+3. **Claude Code is not installed**, so its bridge is synthetic-contract-tested only.
+4. Physical checks not performed: real tray icon behaviour, mixed-DPI monitor
+   combinations, and an audible speaker check. The offline baseline was verified
+   silently through the packaged smoke and a real synthesized WAV.
+5. A stored source enable/disable takes effect at the next composition (restart); the
+   settings window discloses this.
+6. One unrelated WPF hit-test test (`HudWindowTests.WholeSummaryCapturesDrag…`) was
+   seen to fail once under full-suite load and passed in isolation and in subsequent
+   full runs. No test was skipped, weakened or hidden.
 
 ### Latest Astra review and immediate fixes — inspected 26e642b
 

@@ -11,6 +11,20 @@ function parallelBridgeRuns(payloads, env) {
   return Promise.all(payloads.map((payload) => runBridge(payload, { env, timeoutMs: 40000 })));
 }
 
+/**
+ * Every accounted loss, not just a lock timeout. A record that is neither landed
+ * nor counted anywhere is a silent loss, so the invariant must include every
+ * dropped* counter the bridge can write.
+ */
+function droppedTotal(health) {
+  const counters = (health && health.counters) || {};
+  let total = 0;
+  for (const [name, value] of Object.entries(counters)) {
+    if (name.startsWith('dropped') && Number.isFinite(value) && value > 0) total += value;
+  }
+  return total;
+}
+
 test('concurrent writers produce whole, non-interleaved lines', async (t) => {
   const spool = tempDir();
   t.after(() => removeDir(spool));
@@ -35,12 +49,13 @@ test('concurrent writers produce whole, non-interleaved lines', async (t) => {
   const dir = instanceDirectory(spool);
   const lines = readLines(dir);
   const health = readHealthJson(dir);
-  const dropped = health.counters.droppedLockTimeout ?? 0;
+  const dropped = droppedTotal(health);
 
   // The bridge gives up on the writer lock when the 250 ms budget expires and
   // counts that as a drop instead of blocking the harness, so the deterministic
   // contract is ACCOUNTING, not that all ten writers win the lock: every writer
-  // either lands exactly one complete line or is reported as a counted drop.
+  // either lands exactly one complete line or is reported as a counted drop of
+  // some kind. A record that is neither is a silent loss.
   assert.equal(
     lines.length + dropped,
     writers,
@@ -84,7 +99,7 @@ test('sequence is monotonic per session under concurrency', async (t) => {
 
   const dir = instanceDirectory(spool);
   const records = readLines(dir).map((line) => JSON.parse(line));
-  const dropped = readHealthJson(dir).counters.droppedLockTimeout ?? 0;
+  const dropped = droppedTotal(readHealthJson(dir));
   assert.equal(records.length + dropped, payloads.length, 'landed plus counted drops must equal the writers');
 
   for (const sessionId of Object.keys(perSession)) {

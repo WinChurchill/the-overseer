@@ -257,11 +257,10 @@ second (maximum 3,601), each holding the working and needs-human `CountValue`
 from the newest snapshot in that second. Nothing is persisted and no labels or
 conversation data are stored. Unknown samples and gaps longer than 10 seconds
 break the line, partial counts keep a distinct dashed style, and the x-axis is a
-fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. The expanded
-HUD labels the graph **Working tasks · past hour**, with a task-count scale and
-**60 min ago → Now** axis. Dashed segments show minimum known counts and gaps
-are unobserved time, not zero. The collapsed HUD focuses on the current status.
-The tooltip retains detailed sample, peak and coverage information.
+fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. The count graph
+is retained internally but is **not** rendered in the default project view: the
+project and task hour strips are the one activity display, so there are never two
+competing unexplained charts. The collapsed HUD focuses on the current status.
 
 ### Voice notifications
 
@@ -276,7 +275,7 @@ Drag the colored light itself to resize it; its cursor shows the resize directio
 The same panel lists all nine notification situations, suggested recording text,
 trigger descriptions, enable switches and clip availability. **Assign WAV…** copies
 a validated recording into `%LOCALAPPDATA%\OVERSEER\voiceclips` and takes precedence
-over the configured pack/TTS for that event. **Use pack / TTS** removes the assignment
+over the selected provider for that event. **Use pack / TTS** removes the assignment
 without deleting your recordings. **Preview** explicitly plays even while muted;
 Stop preview, closing the panel or muting stops it. Normal notifications do not
 overlap a preview, and events occurring during preview do not replay afterward.
@@ -328,16 +327,35 @@ be a validated RIFF/WAVE PCM file inside the pack root — absolute, traversal,
 UNC, alternate-stream and reparse-point paths are rejected. Variants are chosen
 round-robin per event.
 
-Close OVERSEER before editing provider, pack or endpoint settings in `config.json`,
-then restart to load them. Mute changes take effect immediately through the HUD.
+Provider, pack and endpoint can be chosen in **Light & voice…**; a provider change
+applies to the next cue without a restart. Editing `config.json` by hand still
+requires closing OVERSEER first. Mute changes take effect immediately through the HUD.
+
+### Offline baseline voice
+
+The default provider for a **new** data directory is the offline Windows speech
+baseline, still muted. It synthesizes the nine fixed catalog scripts through the
+installed English system voice into validated WAV bytes and hands them to the same
+playback path: it never speaks to the speakers directly, never downloads a model and
+never sends task text anywhere (the script is a catalog constant). Work runs on at
+most two bounded STA workers; every call observes cancellation and its deadline while
+waiting, and each worker deletes its own temporary WAV in its own cleanup, so a hung
+engine cannot leak files or threads. A machine with no English voice reports a
+specific `speech-*` code instead of guessing, and the panel shows it.
+
+An existing `config.json` is never reset: a file without a `provider` key keeps the
+previous pack behaviour, and explicit provider, mute, pack, endpoint, per-event
+switches and assigned recordings are all preserved.
 
 TTS is opt-in and only ever used when both the provider is set to `tts` and an
 endpoint is configured (https anywhere, or http on loopback). The request body is
 exactly `{"text":…,"event":…,"task":…}` with a short `Task N` alias — never a
 title, id, path, prompt, question, answer or command — and the response must be
 `audio/wav`, streamed with a 4 MiB hard cap, a linked timeout (1–15 s, default 5)
-and no redirects. A failed TTS attempt may fall back once to the matching local
-pack clip; with neither provider available the HUD stays silent and says so.
+and no redirects. There is **no automatic cross-provider fallback**: the selected
+provider is the only one used, a failing provider stays silent and is reported, and
+an assigned recording for that event still wins. Missing assigned clips fall back to
+the selected provider, never to a different provider.
 
 ```json
 "voice": {
@@ -411,10 +429,10 @@ movement across monitors with different DPI, human tray interaction, acoustic
 playback by ear, and a clean machine that has no global .NET runtime installed.
 Approval and input attention remain unsupported in the installed Codex version.
 
-## Project identity and observed activity (foundation, in progress)
+## Project identity and observed activity
 
-A project-centered round is in progress on `ux/first-use`. The foundation is committed
-and tested; the HUD does not display it yet.
+The project-centered round on `ux/first-use` is implemented and displayed: projects
+are the primary grouping in the HUD, with per-project and per-task activity strips.
 
 - **Project identity.** A task can be attributed to a project by explicit assignment,
   the longest configured root, a locally verified Git repository root, or the
@@ -463,10 +481,45 @@ explicit, reversible opt-in step:
   throws into the host and never intercepts approval/request decisions. dsh keeps its
   own compressed session storage; OVERSEER never reads or migrates it.
 
-Not yet implemented: the project-first list and activity strips that would display
-this data, the composite multi-source monitor that would consume the harness spools,
-the dsh/Claude source adapters inside the app, and the offline baseline voice.
-`docs/IMPLEMENTATION_STATE.md` lists the exact gap and next steps.
+- **Consumed by the app.** The composite monitor treats each installed spool as a
+  source: it reads only new records, consumes the producer's authoritative
+  `current.json` to resynchronize, keeps one shared per-pass read budget across every
+  source, and reports per-harness health, freshness and capabilities. Codex, dsh and
+  Claude Code tasks therefore appear in one project list with harness badges, while a
+  failing source can never erase another source's work. `Projects & sources…` lists
+  the discovered harness sources and lets you disable one; a disable takes effect the
+  next time OVERSEER starts, and the window says so.
+- **Live qualification.** Codex is monitored live on this machine. The DeepSeek
+  Harness CLI is installed (`dsh 0.1.5-rc.3`) and its session package declares the
+  exact observer seams the plugin subscribes to, but the observer has not been
+  attached to a live host: that needs the opt-in plugin install into the user's own
+  dsh profile plus a real model-backed session. Claude Code is not installed here, so
+  its bridge remains contract-tested only. Neither gap is presented as live support.
+
+## Project-first HUD
+
+Expanding a project shows its individual tasks. Each project row carries its name,
+harness badges, working/needs-you counts, a chevron and a last-hour strip; each task
+row carries the harness, state, action, turn elapsed time and its own strip.
+
+- **Grouping and order.** Projects are ordered attention → active → recent with stable
+  identity tie-breaks, so rows never jitter between snapshots and two projects with the
+  same display name stay separate. Collapsing a project hides its rows without
+  stopping observation, history, attention or voice.
+- **The strip.** One cell per minute for the last hour, now at the right. Categories
+  are Thinking, Planning, Working, Waiting, Error, Complete and Idle, and **Unknown is
+  drawn differently** (a hatch) because it means "nothing was observed", not idle.
+  Inferred activity gets a distinguishing cap. A tooltip and the row's automation name
+  give the category, interval, duration, evidence strength and coverage, so colour is
+  never the only signal, and the legend spells the same thing out.
+- **Header and menu.** The top-level menu is Always on top (checked), Theme, View,
+  Light & voice…, Projects & sources…, Hide to tray (only while a tray can restore the
+  window) and Exit. The ✕ hides to tray when a tray exists and its tooltip says so.
+  The header stays pinned while content scrolls, branding collapses before the
+  controls, and targets stay at least 24 DIP at every supported size.
+- **Navigation is harness-qualified.** A Codex task opens its validated `codex://`
+  thread; a task from another harness offers its id for copying instead of pretending
+  an unsupported route works.
 
 ## Configuration and logs
 
