@@ -80,12 +80,23 @@ internal static class HudComposition
         {
             new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
         };
-        foreach (var source in HarnessSources.Discover(dataDirectory, config.DisabledHarnessSources))
+        foreach (var source in HarnessSources.Discover(
+            dataDirectory,
+            config.DisabledHarnessSources,
+            new HarnessDiscoveryOptions(
+                MaximumSources: config.MaximumHarnessSources,
+                ConfiguredRoots: config.HarnessRoots)))
         {
             adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
         }
 
-        var monitorSource = new CompositeMonitorSource(adapters, log);
+        // One aggregate per-pass allowance is shared by every source rather than
+        // multiplied per source, and the tracked-session allowance is derived from the
+        // configured tracked-file limit so adding a harness cannot raise the bound.
+        var monitorSource = new CompositeMonitorSource(adapters, log, TimeProvider.System, new SourceBudget(
+            config.Limits.GlobalBytesPerPass,
+            Math.Max(SourceBudget.MinimumSessions, config.Limits.MaxTrackedFiles * 16),
+            "config-aggregate"));
         var executablePath = Environment.ProcessPath ?? string.Empty;
         var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
         var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));
