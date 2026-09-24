@@ -157,10 +157,15 @@ export function createObserverState(options = {}) {
     return track
   }
 
-  /** Tracked activity category: no open turn is idle; nothing else is ever invented. */
+  /**
+   * Tracked activity category: no open turn is idle, an unanswered approval is
+   * waiting, otherwise working. Plan mode is deliberately NOT folded in here:
+   * `planning` appears only on an explicit `plan/mode` record while plan mode is
+   * on, so it can never become a sustained planning duration (its state travels
+   * in `current.json` as the explicit `planMode` flag instead).
+   */
   function currentCategory(track) {
     if (track.disposed || track.openTurn === null) return 'idle'
-    if (track.planActive) return 'planning'
     if (track.pendingApprovalRequestId !== null) return 'waiting'
     return 'working'
   }
@@ -379,9 +384,9 @@ export function createObserverState(options = {}) {
         break
     }
 
-    // Planning is reported only while plan mode is actually on (plan-mode owns the
-    // boolean; the observer never derives a planning duration from it).
-    if (category === 'working' && track.planActive && track.openTurn !== null) category = 'planning'
+    // Plan mode is reported only by the `plan/mode` record that switched it on
+    // (`category: planning`, `evidence: explicit`) and is never smeared across
+    // other records as a sustained planning category.
     return buildRecord(track, {
       kind: descriptor.kind,
       sequence,

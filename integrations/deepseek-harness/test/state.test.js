@@ -228,14 +228,25 @@ test('plan/mode reports planning only while plan mode is on', () => {
   assert.equal(on.category, 'planning')
   assert.equal(on.evidence, 'explicit')
   assert.equal(state.inspect('session-plan').planActive, true)
-  assert.equal(state.inspect('session-plan').category, 'planning')
+  // Plan mode is explicit state, not a sustained activity category: only the
+  // plan/mode record that switched it on carries `planning`.
+  assert.equal(state.inspect('session-plan').category, 'working')
+  const duringPlan = state.observe({
+    sessionId: 'session-plan',
+    type: 'tool/call',
+    seq: 2,
+    time: t0,
+    data: { turn: 1, step: 1, callId: 'call-plan', name: 'SECRET_TOOL_NAME', arguments: 'y' },
+  })
+  assert.equal(duringPlan.category, 'working', 'a tool running under plan mode is not planning')
+  const beatDuringPlan = state.heartbeats().find((record) => record.sessionId === 'session-plan')
+  assert.equal(beatDuringPlan.category, 'working', 'plan mode never becomes a sustained planning duration')
 
-  const off = state.observe({ sessionId: 'session-plan', type: 'plan/mode', seq: 2, time: t0, data: { active: false } })
+  const off = state.observe({ sessionId: 'session-plan', type: 'plan/mode', seq: 3, time: t0, data: { active: false } })
   assert.equal(off.category, 'unknown')
   assert.equal(off.evidence, 'explicit')
-  assert.equal(state.inspect('session-plan').category, 'working', 'planning ends with plan mode')
-  const beat = state.heartbeats().find((record) => record.sessionId === 'session-plan')
-  assert.equal(beat.category, 'working')
+  assert.equal(state.inspect('session-plan').planActive, false)
+  assert.equal(state.inspect('session-plan').category, 'working')
 })
 
 test('approval asked/decided correlate by request id and never export the tool name', () => {

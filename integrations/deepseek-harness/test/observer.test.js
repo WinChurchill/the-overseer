@@ -178,7 +178,7 @@ test('(e) attach publishes hydration-flagged snapshots, then heartbeats', () => 
     assert.ok(KINDS.has(snapshot.kind))
   }
   const root = snapshots.find((record) => record.sessionId === 'session-live-root')
-  assert.equal(root.category, 'planning', 'plan mode was recovered from the trailing plan/mode event')
+  assert.equal(root.category, 'working', 'the recovered open turn is working; plan mode is explicit state, not a category')
   assert.equal(root.turnId, 'dsh:session-live-root:turn:7')
   assert.equal(root.projectRoot, 'C:\\fixtures\\project')
   const child = snapshots.find((record) => record.sessionId === 'session-live-child')
@@ -198,6 +198,8 @@ test('(e) attach publishes hydration-flagged snapshots, then heartbeats', () => 
   assert.equal(childEntry.planMode, false)
   const rootEntry = current.sessions.find((entry) => entry.sessionId === 'session-live-root')
   assert.equal(rootEntry.openTurnId, 'dsh:session-live-root:turn:7')
+  assert.equal(rootEntry.planMode, true, 'plan mode was recovered from the trailing plan/mode event')
+  assert.equal(rootEntry.category, 'working')
   observer.dispose()
 })
 
@@ -280,6 +282,10 @@ test('the fixtures\' message bodies, tool arguments, outputs, reasons and creden
   const unknownTurn = records.find((record) => record.sessionId === 'session-fixture-unknown-reason' && record.kind === 'turn/end')
   assert.equal(unknownTurn.evidence, 'unknown')
 
+  const planning = records.filter((record) => record.category === 'planning')
+  assert.equal(planning.length, 1, 'planning appears only on the plan/mode record that switched plan mode on')
+  assert.equal(planning[0].kind, 'plan/mode')
+  assert.equal(planning[0].evidence, 'explicit')
   const lateTool = records.find((record) => record.sessionId === 'session-fixture-child' && record.kind === 'tool/start')
   assert.equal(lateTool.category, 'unknown')
   assert.equal(lateTool.evidence, 'inferred')

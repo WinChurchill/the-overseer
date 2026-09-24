@@ -84,7 +84,7 @@ opened):
 
 | Upstream `SessionEvent` | `kind` | `category` | `outcome` | Fields read |
 |---|---|---|---|---|
-| `turn/start` | `turn/start` | `working` (or `planning` while plan mode is on) | `null` | `data.turn` |
+| `turn/start` | `turn/start` | `working` | `null` | `data.turn` |
 | `turn/end` reason `completed` | `turn/end` | `complete` | `completed` | `data.turn`, `data.reason.kind` |
 | `turn/end` reason `aborted` | `turn/end` | `idle` | `aborted` | idem |
 | `turn/end` reason `error` | `turn/end` | `error` | `error` | idem |
@@ -97,8 +97,8 @@ opened):
 | `approval/decided` | `approval/decided` | `working` \| `idle` \| `error` | `ok` \| `failed` \| `aborted` \| `error` | `data.id`, `data.outcome` |
 | `plan/mode` `active: true` | `plan/mode` | `planning` | `null` | `data.active` |
 | `plan/mode` `active: false` | `plan/mode` | `unknown` | `null` | `data.active` |
-| observer timer | `heartbeat` | tracked category | `null` | none (`evidence = inferred`) |
-| observer attach | `snapshot` | tracked category | `null` | none (`evidence = inferred`, `hydration = true`) |
+| observer timer | `heartbeat` | tracked category (`idle` \| `waiting` \| `working`) | `null` | none (`evidence = inferred`) |
+| observer attach | `snapshot` | tracked category (`idle` \| `waiting` \| `working`) | `null` | none (`evidence = inferred`, `hydration = true`) |
 | `session/created` | `session/start` | `unknown` | `null` | session header `id`/`cwd`/`createdAt`/`parentSession` |
 | `session/disposed` | `session/end` | `unknown` | `ok`, or `aborted` when a turn was open | none |
 
@@ -126,8 +126,10 @@ record and leaves the turn open.
   nothing except `heartbeat`. A heartbeat reports the tracked category (`idle` when no turn is
   open), never a fabricated turn or tool.
 - **Plan mode.** `plan/mode` is published with `evidence: explicit` and `category: planning`
-  **only while plan mode is actually on**. Switching off publishes `category: unknown`. Plan mode
-  never becomes a sustained planning duration.
+  **only while plan mode is actually on**; switching off publishes `category: unknown`. The
+  `planning` category appears on that record alone — it is never smeared across later records,
+  heartbeats, or snapshots, so plan mode can never turn into a sustained planning duration. Its
+  state travels as the explicit `planMode` boolean in `current.json`.
 - **Attach snapshot.** On attach/restart the observer publishes one `snapshot` record per known live
   session (or one source-scoped snapshot when no session is known), all with `hydration: true`, then
   a heartbeat every 30 s (configurable). At attach it reads only each session's header and the last
@@ -310,8 +312,9 @@ a worker-thread reader; `fixtures/` holds sanitized synthetic event shapes.
   event for a human question: the only input seam is the user-question waterfall, which this
   observer must not intercept. The kinds stay in the allowlist for a future emit-mode seam.
 - **`thinking` is reserved, not emitted.** Reasoning text is never read, so the observer cannot
-  distinguish "thinking" from "working" inside an open turn; an open turn reports `working`
-  (`planning` while plan mode is on, `waiting` while an approval is pending).
+  distinguish "thinking" from "working" inside an open turn: an open turn reports `working`, or
+  `waiting` while an approval is pending. `planning` is emitted only by an explicit `plan/mode`
+  record (see §4).
 - **Lineage is in `current.json`, not in a record.** The normalized key list is frozen at 19 keys;
   `parentSessionId` is exported in the current-state document.
 - **No `fsync`.** A hard power loss can lose the newest lines; the spool is a status projection.

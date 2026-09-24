@@ -318,11 +318,11 @@ export function createSpool(options = {}) {
   function writeHealth(force) {
     if (!force && now() - lastHealthWriteMs < currentMinIntervalMs) return
     if (!ensureDirectory()) return
+    // Counted before serialization so the document reports the write that carries it.
+    counters.healthWrites += 1
     const ok = writeAtomic(healthPath, `${JSON.stringify(healthDocument())}\n`)
-    if (ok) {
-      counters.healthWrites += 1
-      lastHealthWriteMs = now()
-    }
+    if (ok) lastHealthWriteMs = now()
+    else counters.healthWrites -= 1
   }
 
   function runCleanup() {
