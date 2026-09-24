@@ -92,7 +92,8 @@ public sealed record HudControllerDependencies(
     bool StartHidden,
     bool TrayEnabled,
     IHudPersistence? Persistence = null,
-    NotificationCoordinator? Notifications = null);
+    NotificationCoordinator? Notifications = null,
+    bool? TrayAvailableOverride = null);
 
 /// <summary>
 /// Composition and lifetime owner for normal HUD mode: one monitor, one window,
@@ -120,11 +121,13 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private HudWindow? _window;
     private TrayService? _tray;
+    private ShowRequestSignal? _showRequest;
     private IntPtr _handle;
     private double _dpiScale = 1.0;
     private bool _applyingGeometry;
     private HudWindowState _state;
     private bool _shuttingDown;
+    private bool _sessionEnding;
     private bool _suppressSettings;
     private bool _stateDirty;
     private int _trayFailures;
@@ -194,6 +197,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         ApplyTheme();
         CreateWindow();
         CreateTray();
+        // A second normal launch asks the running instance to restore, so the
+        // shortcut and the tray always return this same window and session.
+        _showRequest = ShowRequestSignal.TryListen(RequestShow);
         SyncStartupState();
         SubscribeSystemEvents();
         _ageTimer.Start();
@@ -341,11 +347,74 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             return;
         }
 
-        // Route every close request (system menu, Alt+F4, WM_CLOSE) through the
-        // same orderly shutdown instead of letting the window vanish first.
+        // ×, Alt+F4, the system menu and WM_CLOSE all mean "hide to tray" while a
+        // working tray exists, so an accidental close never strands the session.
+        // Explicit Exit, session ending and the no-tray case still run the
+        // unconditional orderly shutdown.
         e.Cancel = true;
+        if (ShouldHideInsteadOfExit())
+        {
+            HideToTray();
+            return;
+        }
+
         ExitRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>True while the HUD can hide and still be restored.</summary>
+    public bool CanHideToTray => TrayAvailable && _window is not null && !_shuttingDown && !_sessionEnding;
+
+    private bool ShouldHideInsteadOfExit() => CanHideToTray;
+
+    /// <summary>Hides the window and keeps the session, monitor and tray running.</summary>
+    public void HideToTray()
+    {
+        if (_window is null || _shuttingDown)
+        {
+            return;
+        }
+
+        if (!TrayAvailable)
+        {
+            ViewModel.NotifyStatus("Tray unavailable — HUD stays visible. Right-click the header for controls.");
+            return;
+        }
+
+        _window.Hide();
+        _state = CaptureState();
+        ScheduleStateSave();
+        ViewModel.NotifyStatus("Hidden to tray. Use the tray icon or the header menu to show it again.");
+    }
+
+    /// <summary>
+    /// Restores the existing window and session. Used by the tray, the header menu
+    /// and the second-launch signal; never creates a second window.
+    /// </summary>
+    public void RequestShow()
+    {
+        _dependencies.Dispatcher.Post(() =>
+        {
+            if (_shuttingDown || _window is null)
+            {
+                return;
+            }
+
+            if (!_window.IsVisible)
+            {
+                _window.Show();
+            }
+
+            ApplyGeometry(show: true);
+            _window.Activate();
+        });
+    }
+
+    /// <summary>
+    /// Windows is ending the session (logoff, shutdown, restart). Hiding to tray
+    /// would block it, so the close path switches to the orderly shutdown and the
+    /// session-ending request itself is never cancelled.
+    /// </summary>
+    public void NotifySessionEnding() => _sessionEnding = true;
 
     public void ToggleVisibility()
     {
@@ -622,6 +691,18 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private void CreateTray()
     {
+        if (_dependencies.TrayAvailableOverride is { } trayOverride)
+        {
+            // Test seam: close-to-tray behaviour is verified without a real icon.
+            TrayAvailable = trayOverride;
+            if (!trayOverride)
+            {
+                EnsureReachableWithoutTray();
+            }
+
+            return;
+        }
+
         if (!_dependencies.TrayEnabled)
         {
             TrayAvailable = false;
@@ -849,6 +930,10 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         {
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
+            if (Application.Current is { } application)
+            {
+                application.SessionEnding += OnSessionEnding;
+            }
         }
         catch (InvalidOperationException)
         {
@@ -862,11 +947,21 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         {
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            if (Application.Current is { } application)
+            {
+                application.SessionEnding -= OnSessionEnding;
+            }
         }
         catch (InvalidOperationException)
         {
         }
     }
+
+    /// <summary>
+    /// Logoff/shutdown/restart. The request itself is never cancelled and the
+    /// close intent switches away from hide-to-tray so Windows can proceed.
+    /// </summary>
+    private void OnSessionEnding(object sender, SessionEndingCancelEventArgs e) => NotifySessionEnding();
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) => NotifyDisplaySettingsChanged();
 
@@ -983,6 +1078,8 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         try
         {
+            _showRequest?.Dispose();
+            _showRequest = null;
             _tray?.Dispose();
             _tray = null;
         }
