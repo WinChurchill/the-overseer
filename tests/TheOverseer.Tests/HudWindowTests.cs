@@ -337,6 +337,51 @@ public sealed class HudWindowTests
         });
     }
 
+    [Fact]
+    public void BrandingCollapsesBeforeHeaderControlsAndNothingIsClipped()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            HudThemeManager.Apply(Application.Current, HudTheme.Dark);
+            var viewModel = new HudViewModel(HudSettings.Default with { LightPosition = "right", LightSize = 128 });
+            var window = new HudWindow { DataContext = viewModel, Width = 320, Height = 220, ShowActivated = false };
+            try
+            {
+                window.Show();
+                window.SetWindowView(true);
+                window.Width = 320;
+                window.Height = 220;
+                window.UpdateLayout();
+
+                // Branding gives way first; every control stays real and reachable.
+                var brand = (FrameworkElement)window.FindName("BrandLabel")!;
+                Assert.Equal(Visibility.Collapsed, brand.Visibility);
+                var controls = (System.Windows.Controls.WrapPanel)window.FindName("HeaderControls")!;
+                Assert.Equal(Visibility.Visible, controls.Visibility);
+                foreach (var name in new[] { "CloseButton", "MenuButton", "ExpandButton", "MaximizeButton", "MuteButton", "LightToggleButton" })
+                {
+                    var element = (FrameworkElement)window.FindName(name)!;
+                    Assert.True(element.ActualWidth >= 24, name + " must stay at least 24 DIP wide");
+                    Assert.True(element.ActualHeight >= 24, name + " must stay at least 24 DIP tall");
+                    var corner = element.TranslatePoint(new Point(element.ActualWidth, element.ActualHeight), window);
+                    Assert.InRange(corner.X, 0, window.ActualWidth + 0.5);
+                    Assert.InRange(corner.Y, 0, window.ActualHeight + 0.5);
+                }
+
+                // The light grip keeps a usable size instead of being clipped away.
+                var grip = (FrameworkElement)window.FindName("LightResizeGrip")!;
+                Assert.True(grip.ActualWidth > 0 && grip.ActualHeight > 0);
+
+                // Widening brings the branding back without touching the controls.
+                window.Width = 640;
+                window.UpdateLayout();
+                Assert.Equal(Visibility.Visible, brand.Visibility);
+                Assert.Equal(Visibility.Visible, controls.Visibility);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     private static IReadOnlyList<T> FindVisuals<T>(System.Windows.DependencyObject node) where T : System.Windows.DependencyObject
     {
         var found = new List<T>();

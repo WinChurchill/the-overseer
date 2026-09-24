@@ -975,6 +975,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private ProjectSourcesWindow? _projectSources;
 
+    /// <summary>Open project/source settings window, if any. Never creates one.</summary>
+    public ProjectSourcesWindow? ProjectSources => _projectSources;
+
     /// <summary>
     /// Bounded project/source settings surface, reachable from the header menu. It
     /// reuses the existing observation data and the existing config path; a source
