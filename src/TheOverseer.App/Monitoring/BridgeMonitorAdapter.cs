@@ -1,7 +1,5 @@
 using System.Globalization;
-using System.IO;
-using System.Text;
-using System.Text.Json;
+using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
 using TheOverseer.Core.Monitoring.Bridge;
@@ -9,162 +7,11 @@ using TheOverseer.Core.Monitoring.Bridge;
 namespace TheOverseer.App.Monitoring;
 
 /// <summary>
-/// Bounded reader for one bridge spool directory
-/// (<c>&lt;data&gt;/bridges/&lt;harness&gt;/&lt;sourceInstance&gt;</c>). It reads only
-/// what is new since the last pass, caps the bytes it will read, and treats a
-/// producer-reported drop or an unreadable record as reduced coverage rather than
-/// as evidence about the tasks.
-/// </summary>
-public sealed class BridgeSpoolReader
-{
-    private const int MaximumBytesPerPass = 1 * 1024 * 1024;
-    private const int MaximumHealthBytes = 64 * 1024;
-    private long _eventsOffset;
-    private long _eventsLength = -1;
-
-    public BridgeSpoolReader(string directory) => Directory = directory;
-
-    public string Directory { get; }
-
-    public string EventsPath => Path.Combine(Directory, "events.jsonl");
-
-    public string HealthPath => Path.Combine(Directory, "health.json");
-
-    /// <summary>Reads newly appended records. Never throws; failures are reported.</summary>
-    public IReadOnlyList<string> ReadNewLines(out string reasonCode, out int droppedByProducer)
-    {
-        reasonCode = "ok";
-        droppedByProducer = 0;
-        var lines = new List<string>();
-        try
-        {
-            droppedByProducer = ReadProducerDrops();
-            if (!File.Exists(EventsPath))
-            {
-                return lines;
-            }
-
-            var info = new FileInfo(EventsPath);
-            if (info.Length < _eventsLength || (_eventsLength < 0 && _eventsOffset > 0))
-            {
-                // Rotation or truncation: start over from the beginning of the file.
-                _eventsOffset = 0;
-            }
-
-            _eventsLength = info.Length;
-            if (info.Length <= _eventsOffset)
-            {
-                return lines;
-            }
-
-            var budget = (int)Math.Min(MaximumBytesPerPass, info.Length - _eventsOffset);
-            using var stream = new FileStream(EventsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            stream.Seek(_eventsOffset, SeekOrigin.Begin);
-            var buffer = new byte[budget];
-            var read = 0;
-            while (read < budget)
-            {
-                var next = stream.Read(buffer, read, budget - read);
-                if (next <= 0)
-                {
-                    break;
-                }
-
-                read += next;
-            }
-
-            if (read == 0) return lines;
-            var lastNewline = Array.LastIndexOf(buffer, (byte)'\n', read - 1, read);
-            if (lastNewline < 0)
-            {
-                // A partially written record is left for the next pass.
-                return lines;
-            }
-
-            var consumed = lastNewline + 1;
-            _eventsOffset += consumed;
-            var text = Encoding.UTF8.GetString(buffer, 0, consumed);
-            foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            {
-                lines.Add(line);
-            }
-
-            if (info.Length - _eventsOffset > 0 && lines.Count == 0)
-            {
-                reasonCode = "bridge-no-progress";
-            }
-
-            return lines;
-        }
-        catch (IOException)
-        {
-            reasonCode = "bridge-io";
-            return lines;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            reasonCode = "bridge-denied";
-            return lines;
-        }
-    }
-
-    /// <summary>Producer drop/overflow counters, which lower coverage when non-zero.</summary>
-    public int ReadProducerDrops()
-    {
-        try
-        {
-            if (!File.Exists(HealthPath))
-            {
-                return 0;
-            }
-
-            using var stream = new FileStream(HealthPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var budget = (int)Math.Min(MaximumHealthBytes, stream.Length);
-            var buffer = new byte[budget];
-            var read = stream.Read(buffer, 0, budget);
-            using var document = JsonDocument.Parse(Encoding.UTF8.GetString(buffer, 0, read));
-            if (!document.RootElement.TryGetProperty("counters", out var counters) || counters.ValueKind != JsonValueKind.Object)
-            {
-                return 0;
-            }
-
-            var dropped = 0;
-            foreach (var property in counters.EnumerateObject())
-            {
-                if (!property.Name.StartsWith("dropped", StringComparison.OrdinalIgnoreCase) &&
-                    !property.Name.StartsWith("overflow", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var value) && value > 0)
-                {
-                    dropped += value;
-                }
-            }
-
-            return dropped;
-        }
-        catch (JsonException)
-        {
-            return 0;
-        }
-        catch (IOException)
-        {
-            return 0;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return 0;
-        }
-    }
-}
-
-/// <summary>
 /// One external metadata source (dsh observer or Claude hook bridge) as a monitor
 /// adapter. Records are folded by <see cref="HarnessBridgeSession"/>, which owns
-/// ordering, hydration and coverage semantics; this adapter only maps that state
-/// onto the shared task contract and publishes.
+/// ordering, hydration, evidence freshness and coverage semantics; this adapter
+/// reads the bounded spool, consumes the producer's authoritative current-state
+/// document for resynchronization, and publishes the shared task contract.
 /// </summary>
 public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 {
@@ -172,6 +19,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
     private readonly ProjectResolver? _projects;
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _staleLease;
+    private readonly TimeSpan _actionLease;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -180,6 +28,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
     private Task? _loop;
     private SourceSnapshot _current;
     private DateTimeOffset _attachedAt;
+    private int _observedDrops;
 
     public BridgeMonitorAdapter(
         SourceInstance source,
@@ -187,13 +36,15 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
         ProjectResolver? projects = null,
         TimeSpan? pollInterval = null,
         TimeSpan? staleLease = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        TimeSpan? actionLease = null)
     {
         Source = source;
         _dataDirectory = dataDirectory;
         _projects = projects;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(2);
         _staleLease = staleLease ?? TimeSpan.FromMinutes(15);
+        _actionLease = actionLease ?? HarnessBridgeSession.DefaultActionLease;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _current = SourceSnapshot.Empty(source, _timeProvider.GetUtcNow(), "not-started", "bridge");
     }
@@ -204,12 +55,15 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 
     public SourceSnapshot Current => _current;
 
+    /// <summary>Safe diagnostic summary of the folding session; counts and codes only.</summary>
+    public string Describe() => _session?.Describe() ?? "bridge-not-started";
+
     public event Action<SourceSnapshot>? SnapshotAvailable;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _attachedAt = _timeProvider.GetUtcNow();
-        _session = new HarnessBridgeSession(Source, _staleLease);
+        _session = new HarnessBridgeSession(Source, _staleLease, actionLease: _actionLease);
         _reader = new BridgeSpoolReader(SpoolDirectory);
         _loop ??= Task.Run(() => RunAsync(cancellationToken), CancellationToken.None);
         return Task.CompletedTask;
@@ -217,7 +71,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 
     public void RequestReconcile() => Poll();
 
-    /// <summary>One bounded pass: read new records, fold them, publish.</summary>
+    /// <summary>One bounded pass: read new records, fold them, resynchronize, publish.</summary>
     public SourceSnapshot Poll()
     {
         if (_session is null || _reader is null)
@@ -233,6 +87,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 
         try
         {
+            var now = _timeProvider.GetUtcNow();
             var lines = _reader.ReadNewLines(out var readReason, out var droppedByProducer);
             var rejected = 0;
             var transitions = new List<AttentionEvent>();
@@ -241,14 +96,19 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
                 var parsed = HarnessBridgeParser.Parse(line);
                 if (parsed.Outcome != BridgeParseOutcome.Accepted || parsed.Record is null)
                 {
-                    rejected++;
+                    if (parsed.Outcome is BridgeParseOutcome.Malformed or BridgeParseOutcome.UnsupportedSchema)
+                    {
+                        rejected++;
+                    }
+
                     continue;
                 }
 
-                var applied = _session.Apply(parsed.Record);
+                var applied = _session.Apply(parsed.Record, now);
                 // Retained backlog is hydration, not a new notification episode.
                 if (applied.Attention is { } edge && !parsed.Record.Hydration &&
-                    edge.ObservedAt > _attachedAt && edge.ObservedAt <= _timeProvider.GetUtcNow())
+                    applied.Outcome == BridgeApplyOutcome.Applied &&
+                    edge.ObservedAt > _attachedAt && edge.ObservedAt <= now)
                 {
                     transitions.Add(new AttentionEvent(edge.Kind, edge.Key, NumberFor(edge.Key.ConversationId),
                         edge.Label, edge.State, edge.Kind switch
@@ -261,16 +121,43 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
                 }
             }
 
-            if (droppedByProducer > 0)
+            // Authoritative resynchronization: the producer's atomic current-state
+            // document restores current coverage for everything a late attach, a
+            // dropped record or a rotated file could not deliver. History gaps stay
+            // recorded on the lane; they are never rewritten as observed activity.
+            var current = _reader.ReadCurrentState(Source);
+            switch (current.Outcome)
             {
-                // The producer told us it dropped records: what we saw is knowingly
-                // incomplete, and that is visible instead of a silent gap.
-                _session.NoteProducerIncomplete("producer-dropped:" + droppedByProducer.ToString(CultureInfo.InvariantCulture));
+                case BridgeCurrentStateOutcome.Accepted when current.Document is not null:
+                    _session.ApplyCurrentState(current.Document, now);
+                    break;
+                case BridgeCurrentStateOutcome.Malformed:
+                case BridgeCurrentStateOutcome.UnsupportedSchema:
+                    // An unreadable authoritative document is exactly the case the
+                    // resynchronization exists for: current state stays unproven.
+                    rejected++;
+                    break;
+            }
+
+            // Producer-reported drops are coverage evidence recorded after the
+            // resync, so a document that already folded the lost records clears it
+            // on the next pass instead of latching forever. The producer's counters
+            // are cumulative, so only a NEW total is a new observation: re-noting the
+            // same total every poll would keep the source degraded forever. A lower
+            // total means the producer restarted and its counters began again.
+            if (droppedByProducer > _observedDrops)
+            {
+                _observedDrops = droppedByProducer;
+                _session.NoteProducerIncomplete("producer-dropped:" + droppedByProducer.ToString(CultureInfo.InvariantCulture), now);
+            }
+            else if (droppedByProducer < _observedDrops)
+            {
+                _observedDrops = droppedByProducer;
             }
 
             if (rejected > 0)
             {
-                _session.NoteProducerIncomplete("bridge-rejected:" + rejected.ToString(CultureInfo.InvariantCulture));
+                _session.NoteProducerIncomplete("bridge-rejected:" + rejected.ToString(CultureInfo.InvariantCulture), now);
             }
 
             return Publish(readReason, "bridge", transitions);
@@ -281,7 +168,10 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
         }
     }
 
-    private SourceSnapshot Publish(string readReason, string adapterCode, IReadOnlyList<AttentionEvent>? transitions = null)
+    private SourceSnapshot Publish(
+        string readReason,
+        string adapterCode,
+        IReadOnlyList<AttentionEvent>? transitions = null)
     {
         var now = _timeProvider.GetUtcNow();
         var lanes = _session?.Tasks(now) ?? Array.Empty<BridgeTaskState>();
@@ -306,15 +196,31 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             complete = false;
         }
 
-        if (tasks.Count == 0)
+        if (_session?.HistoryGap == true)
         {
-            reasons.Add("bridge-no-sessions");
-            complete = false;
+            // A history gap lowers trust in derived activity, not in current state.
+            reasons.Add("bridge-history-gap");
         }
 
-        var health = reasons.Count == 0
-            ? MonitoringHealthLevel.Healthy
-            : tasks.Count > 0 ? MonitoringHealthLevel.Degraded : MonitoringHealthLevel.Unavailable;
+        if (tasks.Count == 0)
+        {
+            // An authoritative document that lists no sessions is a complete
+            // statement about an empty source, not a missing observation.
+            if (_session?.EmptySourceAuthoritative == true && complete)
+            {
+                reasons.Remove("bridge-no-sessions");
+            }
+            else
+            {
+                reasons.Add("bridge-no-sessions");
+                complete = false;
+            }
+        }
+
+        var anyReadable = tasks.Count > 0 || _session?.EmptySourceAuthoritative == true;
+        var health = !anyReadable
+            ? MonitoringHealthLevel.Unavailable
+            : reasons.Count == 0 ? MonitoringHealthLevel.Healthy : MonitoringHealthLevel.Degraded;
 
         _current = new SourceSnapshot(
             Source,
@@ -346,7 +252,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             new AgentAction(ActionFor(lane), EvidenceFor(lane), lane.DetailCode),
             EvidenceFor(lane),
             lane.FirstObservedAt,
-            lane.LastObservedAt,
+            lane.LastActionAt != default ? lane.LastActionAt : lane.LastObservedAt,
             lane.StateSince,
             lane.TurnStartedAt,
             lane.CompletedAt,
@@ -368,7 +274,9 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
         "turn-complete" => AgentActionKind.Completed,
         "turn-error" => AgentActionKind.Error,
         "tool-failed" => AgentActionKind.RunningCommand,
-        "session-start" or "session-end" => AgentActionKind.Idle,
+        "session-start" or "session-end" or "session-unobserved" or "session-idle" => AgentActionKind.Idle,
+        "plan-active" => AgentActionKind.Thinking,
+        "turn-active" => AgentActionKind.Thinking,
         _ => lane.Category switch
         {
             "thinking" => AgentActionKind.Thinking,
@@ -382,11 +290,28 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
         },
     };
 
-    private static EvidenceKind EvidenceFor(BridgeTaskState lane) => lane.Category switch
+    /// <summary>
+    /// Evidence strength for the displayed state. An active task whose last real
+    /// action is older than the action lease falls back to unknown coverage: a host
+    /// heartbeat proves the source is alive, never that the same tool is still
+    /// running. Terminal and settled observations are historical facts and keep
+    /// their own evidence.
+    /// </summary>
+    private static EvidenceKind EvidenceFor(BridgeTaskState lane)
     {
-        "unknown" => EvidenceKind.None,
-        _ => lane.Key.HarnessId.Length > 0 ? EvidenceKind.Structured : EvidenceKind.Inferred,
-    };
+        if (lane.Category == "unknown")
+        {
+            return EvidenceKind.None;
+        }
+
+        var active = lane.State is AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval;
+        if (active && !lane.ActionEvidenceFresh)
+        {
+            return EvidenceKind.None;
+        }
+
+        return EvidenceKind.Structured;
+    }
 
     private int NumberFor(string sessionId)
     {

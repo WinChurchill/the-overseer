@@ -252,4 +252,220 @@ public sealed class HarnessBridgeTests
         Assert.True(session.CoverageIncomplete);
         Assert.Equal(1, Assert.Single(session.Tasks(Start.AddSeconds(2))).LastSequence);
     }
+
+    private static HarnessBridgeCurrentState CurrentDocument(
+        long lastSequence,
+        string sessionId = "session-1",
+        DateTimeOffset? updatedAt = null,
+        string epoch = "epoch-1",
+        string? openTurnId = "turn-1",
+        string? projectRoot = null,
+        bool disposed = false,
+        string category = "working",
+        string? pendingApproval = null,
+        long evicted = 0,
+        IReadOnlyList<string>? sessions = null)
+    {
+        var updated = (updatedAt ?? Start.AddSeconds(lastSequence)).ToString("o");
+        var entries = new List<string>();
+        foreach (var id in sessions ?? new[] { sessionId })
+        {
+            entries.Add("{" +
+                "\"sessionId\":\"" + id + "\"," +
+                "\"parentSessionId\":null," +
+                "\"projectRoot\":" + (projectRoot is null ? "null" : "\"" + projectRoot.Replace("\\", "\\\\") + "\"") + "," +
+                "\"createdAtUtc\":\"" + Start.ToString("o") + "\"," +
+                "\"firstSeenUtc\":\"" + Start.ToString("o") + "\"," +
+                "\"lastObservedUtc\":\"" + updated + "\"," +
+                "\"openTurnId\":" + (openTurnId is null ? "null" : "\"" + openTurnId + "\"") + "," +
+                "\"planMode\":false," +
+                "\"pendingApprovalRequestId\":" + (pendingApproval is null ? "null" : "\"" + pendingApproval + "\"") + "," +
+                "\"category\":\"" + category + "\"," +
+                "\"disposed\":" + (disposed ? "true" : "false") + "," +
+                "\"lastSequence\":" + lastSequence + "," +
+                "\"lastHostSeq\":" + lastSequence + "," +
+                "\"lastKind\":\"turn/start\"," +
+                "\"lastEventId\":\"dsh:" + id + ":" + lastSequence + "\"," +
+                "\"records\":" + lastSequence + "}");
+        }
+
+        var json = "{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-default\"," +
+                   "\"sourceEpoch\":\"" + epoch + "\",\"producerVersion\":\"dsh-observer/1.0.0\"," +
+                   "\"updatedAtUtc\":\"" + updated + "\",\"evictedSessions\":" + evicted + "," +
+                   "\"sessions\":[" + string.Join(",", entries) + "]}";
+        var parsed = HarnessBridgeCurrentStateParser.Parse(json, Dsh);
+        Assert.Equal(BridgeCurrentStateOutcome.Accepted, parsed.Outcome);
+        Assert.NotNull(parsed.Document);
+        return parsed.Document!;
+    }
+
+    [Fact]
+    public void HeartbeatProvesLivenessWithoutRenewingTheObservedAction()
+    {
+        var session = new HarnessBridgeSession(Dsh, staleLease: TimeSpan.FromMinutes(15), actionLease: TimeSpan.FromSeconds(10));
+        session.Apply(Parse(Line(1, "turn/start", category: "working")));
+        session.Apply(Parse(Line(2, "heartbeat", category: "working")));
+
+        var fresh = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.True(fresh.ActionEvidenceFresh);
+        Assert.Equal(Start.AddSeconds(1), fresh.LastActionAt);
+        Assert.Equal(Start.AddSeconds(2), fresh.LastHeartbeatAt);
+
+        var aged = Assert.Single(session.Tasks(Start.AddSeconds(30)));
+        Assert.False(aged.ActionEvidenceFresh);
+        // The host is still alive; only the action evidence expired.
+        Assert.False(aged.IsStale);
+        Assert.Equal(Start.AddSeconds(1), aged.LastActionAt);
+        Assert.Equal(AgentTaskState.Working, aged.State);
+    }
+
+    [Fact]
+    public void HeartbeatCategoryCannotOverwriteObservedActionEvidence()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "tool/start", category: "working")));
+        session.Apply(Parse(Line(2, "heartbeat", category: "idle")));
+
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(3)));
+        Assert.Equal("working", task.Category);
+        Assert.Equal("working-activity", task.DetailCode);
+    }
+
+    [Theory]
+    [InlineData("completed", AgentTaskState.Done, BridgeTurnOutcome.Completed, "turn-complete")]
+    [InlineData("error", AgentTaskState.Error, BridgeTurnOutcome.Error, "turn-error")]
+    [InlineData("aborted", AgentTaskState.Idle, BridgeTurnOutcome.Aborted, "turn-aborted")]
+    [InlineData(null, AgentTaskState.Idle, BridgeTurnOutcome.Unknown, "turn-outcome-unknown")]
+    [InlineData("something-new", AgentTaskState.Idle, BridgeTurnOutcome.Unknown, "turn-outcome-unknown")]
+    public void TurnEndOutcomesAreExplicitAndUnknownIsNeverACompletion(
+        string? outcome,
+        AgentTaskState expectedState,
+        BridgeTurnOutcome expectedOutcome,
+        string expectedDetail)
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start")));
+        var ended = session.Apply(Parse(Line(2, "turn/end", outcome: outcome)));
+
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(3)));
+        Assert.Equal(expectedState, task.State);
+        Assert.Equal(expectedOutcome, task.TurnOutcome);
+        Assert.Equal(expectedDetail, task.DetailCode);
+        switch (expectedOutcome)
+        {
+            case BridgeTurnOutcome.Completed:
+                Assert.Equal(AttentionEventKind.TaskCompleted, ended.Attention!.Kind);
+                break;
+            case BridgeTurnOutcome.Error:
+                Assert.Equal(AttentionEventKind.TaskError, ended.Attention!.Kind);
+                break;
+            default:
+                // Cancellation and an unobservable outcome raise nothing.
+                Assert.Null(ended.Attention);
+                break;
+        }
+
+        if (expectedOutcome == BridgeTurnOutcome.Unknown)
+        {
+            // The turn ended but its outcome is unobservable: that is reduced
+            // coverage, never a silent success.
+            Assert.True(task.CoverageIncomplete);
+            Assert.Equal("unknown", task.Category);
+        }
+    }
+
+    [Fact]
+    public void LateTurnEndForAnOlderTurnDoesNotCloseTheCurrentTurn()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start", turnId: "turn-1")));
+        session.Apply(Parse(Line(2, "turn/end", turnId: "turn-1", outcome: "completed")));
+        session.Apply(Parse(Line(3, "turn/start", turnId: "turn-2")));
+
+        var late = session.Apply(Parse(Line(4, "turn/end", turnId: "turn-1", outcome: "error")));
+
+        Assert.Equal(BridgeApplyOutcome.Applied, late.Outcome);
+        Assert.Null(late.Attention);
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.Equal(AgentTaskState.Working, task.State);
+        Assert.Equal("turn-2", task.TurnId);
+    }
+
+    [Fact]
+    public void AuthoritativeSnapshotSupersedesOlderRecordsAndRestoresCoverage()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start")));
+        Assert.True(session.CoverageIncomplete);
+
+        var resync = session.ApplyCurrentState(CurrentDocument(5), Start.AddSeconds(10));
+
+        Assert.True(resync.Accepted);
+        Assert.Equal(1, resync.Recovered);
+        Assert.False(session.CoverageIncomplete);
+        var recovered = Assert.Single(session.Tasks(Start.AddSeconds(10)));
+        Assert.Equal(AgentTaskState.Working, recovered.State);
+        Assert.Equal(5, recovered.LastSequence);
+
+        // A record the snapshot already folded is not a duplicate delivery and not
+        // an ordering violation; it must not inflate the counters or reopen anything.
+        Assert.Equal(BridgeApplyOutcome.Superseded, session.Apply(Parse(Line(3, "tool/start"))).Outcome);
+        Assert.Equal(BridgeApplyOutcome.Applied, session.Apply(Parse(Line(6, "tool/start"))).Outcome);
+    }
+
+    [Fact]
+    public void StaleSnapshotCannotUnproveNewerCoverageAndRetiresAbsentSessions()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start")));
+        Assert.True(session.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(20)), Start.AddSeconds(20)).Accepted);
+
+        Assert.Equal("snapshot-stale", session.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(10)), Start.AddSeconds(20)).ReasonCode);
+
+        // A session the producer no longer lists, in the same epoch, after our last
+        // observation of it, is not live any more: it is retired instead of being
+        // left as a permanent "working" ghost.
+        var retired = session.ApplyCurrentState(
+            CurrentDocument(9, sessionId: "other-session", updatedAt: Start.AddSeconds(30), openTurnId: null),
+            Start.AddSeconds(30));
+
+        Assert.Equal(1, retired.Retired);
+        var ghost = Assert.Single(session.Tasks(Start.AddSeconds(30)), task => task.SessionId == "session-1");
+        Assert.Equal(AgentTaskState.Idle, ghost.State);
+        Assert.Equal("session-unobserved", ghost.DetailCode);
+    }
+
+    [Fact]
+    public void UnsupportedOrForeignSnapshotCannotRestoreCoverage()
+    {
+        Assert.Equal(
+            BridgeCurrentStateOutcome.UnsupportedSchema,
+            HarnessBridgeCurrentStateParser.Parse("{\"schemaVersion\":9,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-default\",\"updatedAtUtc\":\"2026-09-24T12:00:00Z\"}", Dsh).Outcome);
+        Assert.Equal(
+            BridgeCurrentStateOutcome.WrongSource,
+            HarnessBridgeCurrentStateParser.Parse("{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"other\",\"updatedAtUtc\":\"2026-09-24T12:00:00Z\"}", Dsh).Outcome);
+        Assert.Equal(
+            BridgeCurrentStateOutcome.Malformed,
+            HarnessBridgeCurrentStateParser.Parse("{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-default\"}", Dsh).Outcome);
+    }
+
+    [Fact]
+    public void ProducerDropsLowerCoverageUntilASnapshotPublishedAfterThemArrives()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start", hydration: true)));
+        session.NoteProducerIncomplete("producer-dropped:6", Start.AddSeconds(10));
+
+        Assert.True(session.CoverageIncomplete);
+        // A document older than the observed drop cannot prove current state, even
+        // though it is a perfectly valid resynchronization for older records.
+        Assert.True(session.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(5)), Start.AddSeconds(11)).Accepted);
+        Assert.True(session.CoverageIncomplete);
+
+        // A document published after the drop restores current coverage.
+        session.ApplyCurrentState(CurrentDocument(9, updatedAt: Start.AddSeconds(20)), Start.AddSeconds(21));
+        Assert.False(session.CoverageIncomplete);
+        Assert.True(session.HistoryGap);
+    }
 }
+

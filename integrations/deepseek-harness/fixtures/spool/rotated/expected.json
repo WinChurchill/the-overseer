@@ -1,0 +1,24 @@
+{
+  "description": "Rotation happened in the middle of the stream; the tail of events.jsonl follows the rotated file.",
+  "sourceInstanceId": "dsh-fixture",
+  "sourceEpoch": "dsh-fixture-epoch-1",
+  "rotations": 9,
+  "recordsBeforeRotation": 15,
+  "rotatedFiles": [
+    "events-20260101T000001Z-1.jsonl",
+    "events-20260101T000001Z-2.jsonl",
+    "events-20260101T000001Z-3.jsonl",
+    "events-20260101T000001Z-4.jsonl",
+    "events-20260101T000001Z-5.jsonl",
+    "events-20260101T000001Z-6.jsonl",
+    "events-20260101T000001Z.jsonl",
+    "events-20260101T000002Z-1.jsonl",
+    "events-20260101T000002Z.jsonl"
+  ],
+  "sessions": [
+    "session-fixture-parent",
+    "session-fixture-child"
+  ],
+  "dropped": 0,
+  "records": 22
+}

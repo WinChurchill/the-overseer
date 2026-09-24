@@ -1,0 +1,13 @@
+{
+  "description": "The queue dropped the oldest records; current.json still reflects the full folded state.",
+  "sourceInstanceId": "dsh-fixture",
+  "sourceEpoch": "dsh-fixture-epoch-1",
+  "dropped": 6,
+  "droppedOldest": 6,
+  "written": 16,
+  "sessions": [
+    "session-fixture-parent",
+    "session-fixture-child"
+  ],
+  "lastSequence": 15
+}

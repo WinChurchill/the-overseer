@@ -14,17 +14,20 @@
  *   live sessions in creation order.
  *
  * Sequence rules (per source epoch, per session):
- * - A host event carrying `seq` publishes `sequence = seq` when that keeps the
- *   per-session sequence strictly increasing, so `eventId` is
- *   `dsh:<sessionId>:<seq>` and stays identical when the same logical event is
- *   delivered again (replay/reconnect), which is exactly when `hydration` is
+ * - `sequence` numbers PUBLISHED records contiguously: every exported record
+ *   takes `lastSequence + 1`, whether it came from a host event or from the
+ *   observer itself (session/start, session/end, heartbeat, snapshot). The host's
+ *   `seq` is NOT the published sequence: most host events are never exported, so
+ *   using it would leave holes, and a hole is precisely how the consumer detects
+ *   a LOST record. A hole must mean a lost record, not "the host did something we
+ *   deliberately do not export".
+ * - `eventId` remains `dsh:<sessionId>:<sequence>` and stays identical when the
+ *   same logical event is delivered again (replay/reconnect), because the host
+ *   seq is remembered per session; that replay is exactly when `hydration` is
  *   set to true.
- * - Observer-originated records (session/start, session/end, plan/mode? no —
- *   heartbeat, snapshot) consume the next free number, so a later host event
- *   whose number was consumed takes `lastSequence + 1`. Sequence strictly
- *   increases per session in both directions.
  * - A duplicate delivery repeats its original sequence (same `eventId`); that
  *   is the point of the duplicate rule, and distinct events never repeat one.
+ *   `lastHostSeq` in `current.json` still reports the highest host seq seen.
  *
  * @module overseer-dsh-observer/state
  */
@@ -182,7 +185,10 @@ export function createObserverState(options = {}) {
       // Duplicate delivery of the same logical event: same eventId, hydration set.
       return { sequence: known, hydration: true }
     }
-    const sequence = hostSeq > track.lastSequence ? hostSeq : track.lastSequence + 1
+    // The published sequence numbers PUBLISHED records contiguously. Using the
+    // host's seq would leave holes wherever the host event was not exported, and a
+    // hole is how the consumer detects a lost record: it must mean exactly that.
+    const sequence = track.lastSequence + 1
     track.hostSeqToSequence.set(hostSeq, sequence)
     if (track.hostSeqToSequence.size > HOST_SEQ_MEMORY) {
       const oldest = track.hostSeqToSequence.keys().next().value

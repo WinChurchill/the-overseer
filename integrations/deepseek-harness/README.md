@@ -107,12 +107,14 @@ record and leaves the turn open.
 
 ## 4. Behaviour rules
 
-- **Sequence.** A host event carrying `seq` publishes `sequence = seq` whenever that keeps the
-  per-session sequence strictly increasing (which is the normal case, and makes `eventId` equal to
-  `dsh:<sessionId>:<seq>`). Observer-originated records (`session/start`, `session/end`,
-  `heartbeat`, `snapshot`) take the next free number; a later host event whose number was consumed
-  takes `lastSequence + 1`. Sequence is strictly increasing per session in both directions, and
-  downstream validation is per source epoch **and** per session.
+- **Sequence.** `sequence` numbers **published** records contiguously: every exported record takes
+  `lastSequence + 1`, whether it came from a host event or from the observer itself (`session/start`,
+  `session/end`, `heartbeat`, `snapshot`). The host's `seq` is deliberately **not** the published
+  sequence: most host events are never exported, so using it would leave holes, and a hole is exactly
+  how a consumer detects a LOST record — a hole must mean a lost record, never "the host did something
+  we do not export". `eventId` stays `dsh:<sessionId>:<sequence>`, sequence is strictly increasing per
+  session, and downstream validation is per source epoch **and** per session. `current.json` still
+  reports the highest host seq seen as `lastHostSeq`.
 - **Duplicates and hydration.** Re-delivery of the same logical event (same host `seq`) reuses its
   original `sequence`, so the `eventId` is identical, and sets `hydration: true`. Reconnects and
   attach snapshots are therefore idempotent and voice-suppressible. The duplicate window is bounded
@@ -190,7 +192,7 @@ rotations, pruned, expired, currentWrites, healthWrites), `lastError`, `unavaila
 |---|---|---|
 | In-process queue | 512 records (env-clamped 16..8192) | drops the **oldest** record, increments `dropped`/`droppedOldest`; the callback never blocks and never touches disk |
 | Record size | 64 KiB serialized | oversized record refused, `droppedOversize` counted |
-| Event file rotation | 4 MiB | `events.jsonl` renamed to `events-<utcstamp>.jsonl`, `rotations` counted |
+| Event file rotation | 4 MiB | `events.jsonl` renamed to `events-<utcstamp>.jsonl`, `rotations` counted; the record that triggered the rotation is written to the fresh file, never swallowed |
 | Rotated-file TTL | 1 hour | expired OVERSEER-owned rotated files and stale `.tmp` files are deleted (`pruned`/`expired`) |
 | Spool soft cap | 16 MiB | oldest rotated files pruned until under the cap |
 | File cap | 4096 files | oldest rotated files pruned until under the cap |

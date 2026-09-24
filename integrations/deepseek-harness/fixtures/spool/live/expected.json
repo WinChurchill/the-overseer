@@ -1,0 +1,12 @@
+{
+  "description": "What the live fixture must contain; generated, not hand-written.",
+  "sourceInstanceId": "dsh-fixture",
+  "sourceEpoch": "dsh-fixture-epoch-1",
+  "openTurnSessions": [],
+  "sessions": [
+    "session-fixture-parent",
+    "session-fixture-child"
+  ],
+  "dropped": 0,
+  "records": 22
+}

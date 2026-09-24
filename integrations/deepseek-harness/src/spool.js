@@ -429,7 +429,10 @@ export function createSpool(options = {}) {
           const line = queue.shift()
           try {
             rotateIfNeeded()
-            if (fd === null) break
+            // A rotation closes the descriptor and renames the file: reopen the
+            // fresh events.jsonl so the record that triggered the rotation is
+            // written instead of being silently swallowed.
+            if (fd === null && !ensureTarget()) break
             const buffer = Buffer.from(`${line}\n`, 'utf8')
             fs.writeSync(fd, buffer)
             counters.written += 1
@@ -537,7 +540,8 @@ export function createSpool(options = {}) {
         const line = queue.shift()
         try {
           rotateIfNeeded()
-          if (fd === null) break
+          // See drain(): the rotated record still has to be published.
+          if (fd === null && !ensureTarget()) break
           const buffer = Buffer.from(`${line}\n`, 'utf8')
           fs.writeSync(fd, buffer)
           counters.written += 1

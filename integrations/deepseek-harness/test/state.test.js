@@ -92,12 +92,34 @@ test('(d) duplicate publication keeps the same eventId and flags hydration', () 
   assert.equal(duplicate.sequence, first.sequence)
   assert.equal(duplicate.kind, first.kind)
 
-  // A reconnect under a NEW source epoch re-sends the same host seq: same eventId.
+  // A reconnect under a NEW source epoch re-sends the same host seq after the same
+  // observed history: the same publication number and therefore the same eventId.
   const reconnected = newState('epoch-after-restart')
+  reconnected.sessionStart('session-dup', {})
   const replay = reconnected.observe({ sessionId: 'session-dup', ...delivery })
   assert.equal(replay.eventId, first.eventId)
   assert.equal(replay.sourceEpoch, 'epoch-after-restart')
-  assert.equal(replay.sequence, 4, 'the host seq is the sequence when it is available')
+  assert.equal(replay.sequence, first.sequence, 'a reconnect re-derives the same publication number')
+})
+
+test('(c2) published sequences are contiguous, so a hole can only mean a lost record', () => {
+  const state = newState()
+  state.sessionStart('session-gap', {})
+  // Host seqs 0..9 with only 1, 4 and 9 exported, plus an interleaved heartbeat:
+  // no host seq is ever skipped silently in the published sequence.
+  const exported = [
+    { type: 'turn/start', seq: 1, data: { turn: 1 } },
+    { type: 'tool/call', seq: 4, data: { turn: 1, step: 1, callId: 'call-1', name: 'x', arguments: 'y' } },
+    { type: 'assistant/message', seq: 5, data: { turn: 1, step: 1, message: { role: 'assistant', id: 'm', content: [] }, stream: [] } },
+    { type: 'tool/result', seq: 9, data: { turn: 1, step: 1, message: { role: 'tool', id: 'm2', toolCallId: 'call-1', isError: false, content: [] } } },
+  ]
+  const sequences = []
+  for (const event of exported) {
+    const record = state.observe({ sessionId: 'session-gap', time: t0, ...event })
+    if (record !== null) sequences.push(record.sequence)
+  }
+  for (const record of state.heartbeats()) sequences.push(record.sequence)
+  assert.deepEqual(sequences, sequences.map((_, index) => sequences[0] + index), 'published sequences are contiguous with no holes')
 })
 
 test('(f) a late tool-start after turn end never reopens the turn', () => {
