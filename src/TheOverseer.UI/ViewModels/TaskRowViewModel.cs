@@ -16,10 +16,13 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     private DateTimeOffset? _startedAt;
     private string _ageHint = string.Empty;
 
-    private IReadOnlyList<ActivityCategory> _projectBins = Array.Empty<ActivityCategory>();
-    private IReadOnlyList<ActivityCategory> _taskBins = Array.Empty<ActivityCategory>();
+    private IReadOnlyList<ActivityStripBin> _projectBins = Array.Empty<ActivityStripBin>();
+    private IReadOnlyList<ActivityStripBin> _taskBins = Array.Empty<ActivityStripBin>();
     private string _projectBinsSignature = string.Empty;
     private string _taskBinsSignature = string.Empty;
+    private string _projectStripText = ActivityStripText.Describe(Array.Empty<ActivityStripBin>());
+    private string _taskStripText = ActivityStripText.Describe(Array.Empty<ActivityStripBin>());
+    private bool _isProjectExpanded = true;
 
     public TaskRowViewModel(
         AgentTask task,
@@ -28,17 +31,20 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         string projectGroupKey = "",
         string projectGroupLabel = "",
         string projectGroupMeta = "",
-        ProjectId projectGroupProjectId = default)
+        ProjectId projectGroupProjectId = default,
+        bool projectExpanded = true)
     {
         ProjectGroupKey = projectGroupKey;
         ProjectGroupLabel = projectGroupLabel;
         ProjectGroupMeta = projectGroupMeta;
         ProjectGroupProjectId = projectGroupProjectId;
+        _isProjectExpanded = projectExpanded;
         Key = task.Key;
         Number = task.Number;
         Label = HudText.Label(task);
         StateText = HudText.State(task.State);
         ActionText = task.Action.Label;
+        HarnessText = HudText.Harness(task);
         MarksText = HudText.Marks(task);
         TaskState = task.State;
         NeedsHuman = task.NeedsHuman;
@@ -61,7 +67,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     /// </summary>
     public string ProjectGroupKey { get; }
 
-    /// <summary>Project display name shown in the group header (never a path).</summary>
+    /// <summary>Project display name shown in the project header (never a path).</summary>
     public string ProjectGroupLabel { get; }
 
     /// <summary>Project id for this row's group; used to look up its activity strip.</summary>
@@ -71,22 +77,66 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     public string ProjectGroupMeta { get; }
 
     /// <summary>
-    /// Last-hour project activity strip (the group header renders the first row's
-    /// bins). Unknown bins are rendered distinctly from confirmed idle.
+    /// Last-hour project activity strip. The expandable project row renders these
+    /// bins; unknown coverage is rendered distinctly from confirmed idle.
     /// </summary>
-    public IReadOnlyList<ActivityCategory> ProjectBins => _projectBins;
+    public IReadOnlyList<ActivityStripBin> ProjectBins => _projectBins;
 
     /// <summary>Last-hour activity strip for this task.</summary>
-    public IReadOnlyList<ActivityCategory> TaskBins => _taskBins;
+    public IReadOnlyList<ActivityStripBin> TaskBins => _taskBins;
 
-    /// <summary>Updates the strips only when they actually changed.</summary>
-    public void UpdateActivity(IReadOnlyList<ActivityCategory> projectBins, IReadOnlyList<ActivityCategory> taskBins)
+    /// <summary>Plain-text project strip summary (tooltip/automation fallback).</summary>
+    public string ProjectStripText
+    {
+        get => _projectStripText;
+        private set => Set(ref _projectStripText, value);
+    }
+
+    /// <summary>Plain-text task strip summary.</summary>
+    public string TaskStripText
+    {
+        get => _taskStripText;
+        private set => Set(ref _taskStripText, value);
+    }
+
+    /// <summary>
+    /// Whether this row's project is expanded. Expansion lives in the view model
+    /// keyed by ProjectId; the row only mirrors it so snapshot rebuilds keep it.
+    /// </summary>
+    public bool IsProjectExpanded
+    {
+        get => _isProjectExpanded;
+        private set
+        {
+            if (_isProjectExpanded == value)
+            {
+                return;
+            }
+
+            _isProjectExpanded = value;
+            Raise(nameof(IsProjectExpanded));
+            Raise(nameof(RowVisibility));
+        }
+    }
+
+    public System.Windows.Visibility RowVisibility =>
+        _isProjectExpanded ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+    public void SetProjectExpanded(bool expanded) => IsProjectExpanded = expanded;
+
+    /// <summary>
+    /// Updates the strips only when they actually changed. The signature covers
+    /// category, evidence, coverage, mixed and task count so an inferred or partial
+    /// bin that becomes confirmed is redrawn.
+    /// </summary>
+    public void UpdateActivity(IReadOnlyList<ActivityStripBin> projectBins, IReadOnlyList<ActivityStripBin> taskBins)
     {
         var projectSignature = Signature(projectBins);
         if (!string.Equals(projectSignature, _projectBinsSignature, StringComparison.Ordinal))
         {
             _projectBins = projectBins;
             _projectBinsSignature = projectSignature;
+            ProjectStripText = ActivityStripText.Describe(projectBins);
             Raise(nameof(ProjectBins));
         }
 
@@ -95,22 +145,30 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         {
             _taskBins = taskBins;
             _taskBinsSignature = taskSignature;
+            TaskStripText = ActivityStripText.Describe(taskBins);
             Raise(nameof(TaskBins));
+            Raise(nameof(DetailText));
         }
     }
 
-    private static string Signature(IReadOnlyList<ActivityCategory> bins)
+    private static string Signature(IReadOnlyList<ActivityStripBin> bins)
     {
         if (bins.Count == 0)
         {
             return string.Empty;
         }
 
-        // One character per bin: cheap, allocation-light change detection.
-        var buffer = new char[bins.Count];
+        // Five characters per bin: category, evidence, coverage, concurrency, mixed.
+        var buffer = new char[bins.Count * 5];
         for (var index = 0; index < bins.Count; index++)
         {
-            buffer[index] = (char)('a' + (int)bins[index]);
+            var bin = bins[index];
+            var offset = index * 5;
+            buffer[offset] = (char)('a' + (int)bin.Category);
+            buffer[offset + 1] = (char)('a' + (int)bin.Evidence);
+            buffer[offset + 2] = (char)('a' + (int)bin.Coverage);
+            buffer[offset + 3] = (char)('a' + Math.Min(bin.ConcurrentTasks, 25));
+            buffer[offset + 4] = bin.IsMixed ? 'm' : 'n';
         }
 
         return new string(buffer);
@@ -123,6 +181,9 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     public string StateText { get; private set; }
 
     public string ActionText { get; private set; }
+
+    /// <summary>Harness badge (and source instance when it differs), never a path.</summary>
+    public string HarnessText { get; private set; }
 
     public string MarksText { get; private set; }
 
@@ -140,6 +201,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
 
     public bool CanNavigate { get; }
 
+    /// <summary>Honest route wording for this task's harness.</summary>
     public string NavigationHint { get; }
 
     public string NumberText => "#" + Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -150,10 +212,10 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         : TaskState == AgentTaskState.Error ? "error"
         : TaskState == AgentTaskState.Working ? "working" : "idle";
 
-    /// <summary>State, action and marks on one compact metadata line.</summary>
+    /// <summary>Harness/provider, state, action and marks on one compact metadata line.</summary>
     public string RowSubtitle => MarksText.Length > 0
-        ? StateText + " · " + ActionText + " · " + MarksText
-        : StateText + " · " + ActionText;
+        ? HarnessText + " · " + StateText + " · " + ActionText + " · " + MarksText
+        : HarnessText + " · " + StateText + " · " + ActionText;
 
     public string AgeText
     {
@@ -185,6 +247,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         Label = HudText.Label(task);
         StateText = HudText.State(task.State);
         ActionText = task.Action.Label;
+        HarnessText = HudText.Harness(task);
         MarksText = HudText.Marks(task);
         TaskState = task.State;
         NeedsHuman = task.NeedsHuman;
@@ -195,6 +258,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         Raise(nameof(Label));
         Raise(nameof(StateText));
         Raise(nameof(ActionText));
+        Raise(nameof(HarnessText));
         Raise(nameof(MarksText));
         Raise(nameof(TaskState));
         Raise(nameof(NeedsHuman));
@@ -217,10 +281,13 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
               " Last activity: " + freshness + (IsStale ? ". Activity is stale; current work is unconfirmed." : ".")
             : "Last activity: " + freshness + ".";
         DetailText = "#" + Number.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                     " · " + HarnessText +
                      " · " + StateText +
                      " · " + ActionText +
                      " · " + AgeHint +
-                     (MarksText.Length > 0 ? " · " + MarksText : string.Empty);
+                     (MarksText.Length > 0 ? " · " + MarksText : string.Empty) +
+                     "\n" + NavigationHint +
+                     "\nThis task's hour: " + _taskStripText;
     }
 
     private void Set(ref string field, string value, [CallerMemberName] string? name = null)

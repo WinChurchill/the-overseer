@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
         xmlns:converters="clr-namespace:TheOverseer.UI.Converters"
-        xmlns:controls="clr-namespace:TheOverseer.UI.Controls"
         Title="OVERSEER"
         Width="280" Height="72"
         WindowStyle="None" AllowsTransparency="False" Background="{DynamicResource BackgroundBaseBrush}"
@@ -106,6 +105,10 @@
       <Setter Property="Padding" Value="4,0" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Focusable" Value="True" />
+      <!-- Header targets stay at least 24x24 DIP so they remain readable and
+           reachable at the minimum window size. -->
+      <Setter Property="MinWidth" Value="24" />
+      <Setter Property="MinHeight" Value="24" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
@@ -154,59 +157,205 @@
         </Setter.Value>
       </Setter>
     </Style>
-      <!-- One observed-activity bin: distinct fill/opacity per category, so unknown
-         coverage never looks like confirmed idle. Shared by project and task strips. -->
+    <Style x:Key="HudProjectHeaderButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="6,7,10,5" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Header" Background="Transparent" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Header" Property="Background" Value="{DynamicResource PanelOverlayBrush}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Header" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- One observed-activity category fill. Shared by the strip bins and the
+         legend swatches so the two can never disagree. Unknown is a hatch: it is
+         missing observation, never a confirmed idle cell. -->
+    <Style x:Key="ActivitySwatchFill" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="Opacity" Value="0.32" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Category}" Value="Idle">
+          <Setter Property="Opacity" Value="0.09" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Unknown">
+          <Setter Property="Background" Value="{DynamicResource ActivityUnknownBrush}" />
+          <Setter Property="Opacity" Value="0.85" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Thinking">
+          <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
+          <Setter Property="Opacity" Value="0.7" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Planning">
+          <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
+          <Setter Property="Opacity" Value="0.95" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Working">
+          <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="Opacity" Value="0.95" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Waiting">
+          <Setter Property="Background" Value="{DynamicResource UnavailableBrush}" />
+          <Setter Property="Opacity" Value="1" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Error">
+          <Setter Property="Background" Value="{DynamicResource UnavailableBrush}" />
+          <Setter Property="Opacity" Value="1" />
+        </DataTrigger>
+        <DataTrigger Binding="{Binding Category}" Value="Complete">
+          <Setter Property="Background" Value="{DynamicResource HealthyBrush}" />
+          <Setter Property="Opacity" Value="0.8" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <!-- One observed-activity bin. The tooltip and automation name carry category,
+         interval, duration, evidence, coverage and concurrency, so the strip is
+         readable without relying on colour. -->
     <DataTemplate x:Key="ActivityBinTemplate">
-      <Border Height="4" Margin="0.5,0">
-        <Border.Style>
-          <Style TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
-            <Setter Property="Opacity" Value="0.32" />
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding}" Value="Idle">
-                <Setter Property="Opacity" Value="0.1" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding}" Value="Thinking">
-                <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-                <Setter Property="Opacity" Value="0.7" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding}" Value="Planning">
-                <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-                <Setter Property="Opacity" Value="0.95" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding}" Value="Working">
-                <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-                <Setter Property="Opacity" Value="0.95" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding}" Value="Waiting">
-                <Setter Property="Background" Value="{DynamicResource ForegroundBrush}" />
-                <Setter Property="Opacity" Value="1" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding}" Value="Error">
-                <Setter Property="Background" Value="{DynamicResource ForegroundBrush}" />
-                <Setter Property="Opacity" Value="1" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding}" Value="Complete">
-                <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-                <Setter Property="Opacity" Value="0.45" />
-              </DataTrigger>
-            </Style.Triggers>
-          </Style>
-        </Border.Style>
-      </Border>
+      <Grid Height="10" Margin="0,0,1,0" ToolTip="{Binding Description}"
+            automation:AutomationProperties.Name="{Binding Description}">
+        <Border Style="{StaticResource ActivitySwatchFill}" />
+        <!-- Estimated segments (inferred active turn) are capped, not silently sold
+             as a structured observation. -->
+        <Border Height="2" VerticalAlignment="Top" Background="{DynamicResource ForegroundBrush}" Opacity="0.55">
+          <Border.Style>
+            <Style TargetType="Border">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Evidence}" Value="Inferred">
+                  <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+        </Border>
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ActivityLegendEntryTemplate">
+      <StackPanel Orientation="Horizontal" Margin="0,0,12,4" ToolTip="{Binding Description}"
+                  automation:AutomationProperties.Name="{Binding Description}">
+        <Border Width="14" Height="10" VerticalAlignment="Center" Style="{StaticResource ActivitySwatchFill}" />
+        <TextBlock Text="{Binding Label}" Margin="5,0,0,0" VerticalAlignment="Center"
+                   FontFamily="{DynamicResource MetadataFontFamily}"
+                   FontSize="{DynamicResource FontSizeMeta}"
+                   Foreground="{DynamicResource MutedBrush}" />
+      </StackPanel>
     </DataTemplate>
 
     <ItemsPanelTemplate x:Key="ActivityBinsPanel">
       <UniformGrid Rows="1" />
     </ItemsPanelTemplate>
 
-    <!-- Project-first grouping: rows carry a sortable project key, so one header
-         per project is rendered ahead of its tasks without a second collection. -->
-    <CollectionViewSource x:Key="GroupedTasks" Source="{Binding Tasks}">
-      <CollectionViewSource.GroupDescriptions>
-        <PropertyGroupDescription PropertyName="ProjectGroupKey" />
-      </CollectionViewSource.GroupDescriptions>
-    </CollectionViewSource>
+    <!-- One task row: harness/provider badge, useful action, turn elapsed time and
+         its own last-hour strip. An explicit click still activates the task. -->
+    <DataTemplate x:Key="TaskRowTemplate">
+      <Button Style="{StaticResource HudTaskRowButton}"
+              Command="{Binding DataContext.ActivateTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+              CommandParameter="{Binding}"
+              automation:AutomationProperties.Name="{Binding DetailText}"
+              automation:AutomationProperties.HelpText="{Binding NavigationHint}"
+              ToolTip="{Binding DetailText}">
+        <Button.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Copy task id" Click="OnCopyTaskIdClick" />
+          </ContextMenu>
+        </Button.ContextMenu>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Grid.Column="0" Text="{Binding NumberText}" Margin="0,0,8,0" VerticalAlignment="Center"
+                     FontFamily="{DynamicResource MetadataFontFamily}"
+                     FontSize="{DynamicResource FontSizeMeta}"
+                     Foreground="{DynamicResource MutedBrush}" />
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                       FontFamily="{DynamicResource PrimaryFontFamily}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource ForegroundBrush}" />
+            <TextBlock Text="{Binding RowSubtitle}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}" FontWeight="Normal"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}" />
+            <ItemsControl ItemsSource="{Binding TaskBins}"
+                          ItemsPanel="{StaticResource ActivityBinsPanel}"
+                          ItemTemplate="{StaticResource ActivityBinTemplate}"
+                          Margin="0,3,0,0" />
+          </StackPanel>
+          <TextBlock Grid.Column="2" Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" Margin="8,0,0,0" VerticalAlignment="Center"
+                     FontFamily="{DynamicResource MetadataFontFamily}"
+                     FontSize="{DynamicResource FontSizeMeta}"
+                     Foreground="{DynamicResource MutedBrush}" />
+        </Grid>
+      </Button>
+    </DataTemplate>
+
+    <!-- One expandable project row: the HUD's primary grouping. Project click
+         toggles expansion; the task rows below keep their own activate action. -->
+    <DataTemplate x:Key="ProjectRowTemplate">
+      <StackPanel>
+        <Button x:Name="ProjectHeader" Style="{StaticResource HudProjectHeaderButton}"
+                Command="{Binding DataContext.ToggleProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                CommandParameter="{Binding}"
+                ToolTip="{Binding HeaderTooltip}"
+                automation:AutomationProperties.Name="{Binding ToggleAutomationName}"
+                automation:AutomationProperties.HelpText="{Binding HeaderTooltip}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding ToggleGlyph}" Margin="0,0,6,0"
+                       VerticalAlignment="Center"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource MutedBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"
+                       FontFamily="{DynamicResource PrimaryFontFamily}"
+                       FontSize="{DynamicResource FontSizeBody}" FontWeight="SemiBold"
+                       Foreground="{DynamicResource ForegroundBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding SummaryText}" Margin="8,0,0,0"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}" />
+            <ItemsControl Grid.Row="1" Grid.ColumnSpan="3" ItemsSource="{Binding Bins}"
+                          ItemsPanel="{StaticResource ActivityBinsPanel}"
+                          ItemTemplate="{StaticResource ActivityBinTemplate}"
+                          Margin="0,5,0,0"
+                          automation:AutomationProperties.Name="{Binding StripText}"
+                          ToolTip="{Binding StripText}" />
+          </Grid>
+        </Button>
+        <ItemsControl ItemsSource="{Binding Tasks}" ItemTemplate="{StaticResource TaskRowTemplate}"
+                      Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" />
+      </StackPanel>
+    </DataTemplate>
   </Window.Resources>
 
   <Border x:Name="Shell" Background="{DynamicResource BackgroundBaseBrush}"
@@ -224,7 +373,6 @@
           <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
         </Thumb>
       </Border>
-    <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled">
     <Grid x:Name="ContentGrid">
       <Grid.RowDefinitions>
         <RowDefinition x:Name="SummaryRow" Height="72" />
@@ -242,7 +390,8 @@
         <Path Data="M 273,0 L 280,7" Stroke="{DynamicResource AccentSecondaryBrush}" StrokeThickness="1" Opacity="0.6" />
       </Canvas>
 
-      <!-- Collapsed summary: always visible, stable geometry. -->
+      <!-- Header: always pinned above the scrolling content, so it stays reachable
+           in a short layout. Branding collapses before the controls do. -->
       <Grid x:Name="DragRegion" Grid.Row="0" Margin="14,8,14,8" Background="Transparent" Cursor="SizeAll"
             PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
             PreviewMouseMove="OnDragRegionMouseMove"
@@ -264,26 +413,8 @@
                      Foreground="{DynamicResource MutedBrush}" />
           <WrapPanel x:Name="HeaderControls" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                       Background="Transparent" Cursor="Arrow" ForceCursor="True">
-            <Button x:Name="MaximizeButton" Content="□" Click="OnMaximizeClick" Style="{StaticResource HudIconButton}"
-                    ToolTip="Maximize HUD" automation:AutomationProperties.Name="Maximize HUD" Padding="5,0" Margin="0,0,3,0" />
-            <Button x:Name="LightToggleButton" Content="{Binding LightToggleText}" Command="{Binding ToggleLightCommand}"
-                    ToolTip="{Binding LightToggleTooltip}" automation:AutomationProperties.Name="{Binding LightToggleTooltip}" Margin="0,0,5,0">
-              <Button.Style>
-                <Style TargetType="Button" BasedOn="{StaticResource HudIconButton}">
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding LightVisible}" Value="True">
-                      <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
-                      <Setter Property="FontWeight" Value="SemiBold" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </Button.Style>
-            </Button>
-            <Button x:Name="MuteButton" Style="{StaticResource HudIconButton}"
-                    Content="{Binding MuteGlyph}" Command="{Binding ToggleMuteCommand}"
-                    automation:AutomationProperties.Name="{Binding MuteTooltip}"
-                    ToolTip="{Binding MuteTooltip}" Margin="0,0,2,0" />
-            <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="2,0,6,0"
+            <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="2,0,7,0" VerticalAlignment="Center"
+                     automation:AutomationProperties.Name="{Binding HealthLine}"
                      ToolTip="{Binding StatusDetails}">
               <Ellipse.Style>
                 <Style TargetType="Ellipse">
@@ -299,12 +430,33 @@
                 </Style>
               </Ellipse.Style>
             </Ellipse>
+            <Button x:Name="LightToggleButton" Content="{Binding LightToggleText}" Command="{Binding ToggleLightCommand}"
+                    ToolTip="{Binding LightToggleTooltip}" automation:AutomationProperties.Name="{Binding LightToggleTooltip}" Margin="0,0,2,0">
+              <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource HudIconButton}">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding LightVisible}" Value="True">
+                      <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+                      <Setter Property="FontWeight" Value="SemiBold" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Style>
+            </Button>
+            <Button x:Name="MuteButton" Style="{StaticResource HudIconButton}"
+                    Content="{Binding MuteGlyph}" Command="{Binding ToggleMuteCommand}"
+                    automation:AutomationProperties.Name="{Binding MuteTooltip}"
+                    ToolTip="{Binding MuteTooltip}" Margin="0,0,2,0" />
             <Button x:Name="ExpandButton" Style="{StaticResource HudIconButton}"
                     Content="{Binding ExpandGlyph}" Click="OnToggleExpandedClick"
                     automation:AutomationProperties.Name="Expand or collapse the task list"
-                    ToolTip="Expand or collapse (Escape collapses)" />
+                    ToolTip="Expand or collapse (Escape collapses)" Margin="0,0,2,0" />
+            <Button x:Name="MaximizeButton" Content="□" Click="OnMaximizeClick" Style="{StaticResource HudIconButton}"
+                    ToolTip="Maximize HUD" automation:AutomationProperties.Name="Maximize HUD" Margin="0,0,2,0" />
             <Button x:Name="MenuButton" Style="{StaticResource HudIconButton}" Content="⋯" Click="OnMenuClick"
-                    ToolTip="HUD menu" automation:AutomationProperties.Name="HUD menu" Padding="4,0" />
+                    ToolTip="HUD menu" automation:AutomationProperties.Name="HUD menu" Margin="0,0,2,0" />
+            <Button x:Name="CloseButton" Style="{StaticResource HudIconButton}" Content="✕" Click="OnCloseClick"
+                    ToolTip="Hide to tray" automation:AutomationProperties.Name="Hide to tray" />
           </WrapPanel>
         </Grid>
 
@@ -347,7 +499,7 @@
 
         <Grid Grid.Row="2">
         <Button x:Name="StatusButton" Cursor="SizeAll" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
-                HorizontalContentAlignment="Left" Padding="0" ToolTip="{Binding StatusDetails}"
+                HorizontalContentAlignment="Left" Padding="0" MinHeight="0" ToolTip="{Binding StatusDetails}"
                 automation:AutomationProperties.Name="Show current tasks">
         <TextBlock Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}"
                    FontFamily="{DynamicResource PrimaryFontFamily}"
@@ -357,8 +509,9 @@
         </Grid>
       </Grid>
 
-      <!-- Expanded list: same window tree, bounded to a concise scrolling list. -->
-      <Grid Grid.Row="1" x:Name="ExpandedPanel" Background="{DynamicResource PanelSurfaceBrush}"
+      <!-- Expanded surface: scrolled content below the pinned header. -->
+      <ScrollViewer x:Name="ContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled">
+      <Grid x:Name="ExpandedPanel" Background="{DynamicResource PanelSurfaceBrush}"
             Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
@@ -375,7 +528,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
           <StackPanel Grid.Row="0">
             <TextBlock Text="{Binding StatusHeadline}" TextWrapping="Wrap" FontSize="23" Style="{StaticResource StatusText}" ToolTip="{Binding StatusDetails}" />
@@ -384,28 +536,22 @@
                        automation:AutomationProperties.HelpText="{Binding StatusDetails}" />
           </StackPanel>
 
-          <!-- One shared 60-minute working-count line; gaps stay unobserved. -->
-          <StackPanel Grid.Row="1" Margin="0,7,0,0" ToolTip="{Binding ActivityTooltip}">
+          <!-- Common hour axis and its small legend. Unknown is spelled out as
+               missing observation so the strip never depends on colour alone. -->
+          <StackPanel Grid.Row="1" Margin="0,6,0,0" ToolTip="{Binding LegendNote}">
             <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" MaxHeight="12">
-              <TextBlock Text="Working tasks · past hour" FontSize="{DynamicResource FontSizeMeta}" FontWeight="Normal"
+              <TextBlock Text="Last hour · each cell about a minute · now at the right" FontSize="{DynamicResource FontSizeMeta}"
                          FontFamily="{DynamicResource PrimaryFontFamily}" Foreground="{DynamicResource MutedBrush}" />
             </Viewbox>
-            <Grid Margin="0,5,0,0">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <TextBlock Text="{Binding ActivityAxisMaximum}" VerticalAlignment="Top" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
-              <TextBlock Text="0" VerticalAlignment="Bottom" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
-                <controls:ActivitySparkline Grid.Column="1" x:Name="ActivityChart" Height="40"
-                                      Segments="{Binding ActivitySegments}"
-                                      LineBrush="{DynamicResource AccentPrimaryBrush}"
-                                      PartialBrush="{DynamicResource AccentSecondaryBrush}"
-                                      BaselineBrush="{DynamicResource BorderBrush}"
-                                      ToolTip="{Binding ActivityTooltip}"
-                                      automation:AutomationProperties.Name="{Binding ActivityTooltip}" />
-            </Grid>
-            <Grid Margin="24,2,0,0">
-              <TextBlock Text="60 min ago" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
-              <TextBlock Text="Now" HorizontalAlignment="Right" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
-            </Grid>
+            <ItemsControl x:Name="ActivityLegend" ItemsSource="{Binding Legend}"
+                          ItemTemplate="{StaticResource ActivityLegendEntryTemplate}"
+                          Margin="0,5,0,0"
+                          automation:AutomationProperties.Name="{Binding LegendNote}"
+                          automation:AutomationProperties.HelpText="{Binding LegendNote}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
           </StackPanel>
 
           <Grid Grid.Row="2" Margin="0,3,0,0">
@@ -413,11 +559,12 @@
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="{Binding ActivitySummaryLine}" TextTrimming="CharacterEllipsis"
+            <TextBlock Grid.Column="0" Text="{Binding MetaStripLine}" TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center"
                        FontFamily="{DynamicResource MetadataFontFamily}"
                        FontSize="{DynamicResource FontSizeMeta}"
-                       Foreground="{DynamicResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}"
+                       ToolTip="{Binding CapabilityLine}" />
             <TextBlock Grid.Column="1" Text="{Binding VoiceStatusLine}" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center" MaxWidth="150"
                        FontFamily="{DynamicResource MetadataFontFamily}"
@@ -425,12 +572,6 @@
                        Foreground="{DynamicResource MutedBrush}"
                        ToolTip="{Binding VoiceStatusLine}" />
           </Grid>
-
-          <TextBlock Grid.Row="3" Text="{Binding MetaStripLine}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
-                     FontFamily="{DynamicResource MetadataFontFamily}"
-                     FontSize="{DynamicResource FontSizeMeta}"
-                     Foreground="{DynamicResource MutedBrush}"
-                     ToolTip="{Binding CapabilityLine}" />
         </Grid>
 
         <Grid Grid.Row="1" Margin="6,0,10,5" ToolTip="{Binding TaskViewHint}">
@@ -449,93 +590,8 @@
                       PanningMode="VerticalOnly"
                       Resources="{StaticResource HudScrollBarResources}">
           <Grid>
-            <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedTasks}}" x:Name="TaskList">
-              <ItemsControl.GroupStyle>
-                <GroupStyle>
-                  <GroupStyle.HeaderTemplate>
-                    <DataTemplate>
-                      <Grid Margin="6,8,10,2" ToolTip="{Binding Items[0].ProjectGroupMeta}">
-                        <Grid.RowDefinitions>
-                          <RowDefinition Height="Auto" />
-                          <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="*" />
-                          <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Text="{Binding Items[0].ProjectGroupLabel}"
-                                   TextTrimming="CharacterEllipsis"
-                                   FontFamily="{DynamicResource PrimaryFontFamily}"
-                                   FontSize="{DynamicResource FontSizeMeta}"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource ForegroundBrush}" />
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding Items[0].ProjectGroupMeta}"
-                                   Margin="8,0,0,0"
-                                   FontFamily="{DynamicResource MetadataFontFamily}"
-                                   FontSize="{DynamicResource FontSizeMeta}"
-                                   Foreground="{DynamicResource MutedBrush}" />
-                        <!-- Last-hour project strip: distinct fill/opacity per
-                             category, unknown never looks like confirmed idle. -->
-                        <ItemsControl Grid.Row="1" Grid.ColumnSpan="2"
-                                      ItemsSource="{Binding Items[0].ProjectBins}"
-                                      ItemsPanel="{StaticResource ActivityBinsPanel}"
-                                      ItemTemplate="{StaticResource ActivityBinTemplate}"
-                                      Height="5" Margin="0,3,0,0" IsHitTestVisible="False">
-
-                        </ItemsControl>
-                      </Grid>
-                    </DataTemplate>
-                  </GroupStyle.HeaderTemplate>
-                </GroupStyle>
-              </ItemsControl.GroupStyle>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Style="{StaticResource HudTaskRowButton}"
-                          Command="{Binding DataContext.ActivateTaskCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                          CommandParameter="{Binding}"
-                          automation:AutomationProperties.Name="{Binding DetailText}"
-                          ToolTip="{Binding DetailText}">
-                    <Button.ContextMenu>
-                      <ContextMenu>
-                        <MenuItem Header="Copy task id" Click="OnCopyTaskIdClick" />
-                      </ContextMenu>
-                    </Button.ContextMenu>
-                    <Grid>
-                      <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                      </Grid.ColumnDefinitions>
-                      <TextBlock Grid.Column="0" Text="{Binding NumberText}" Margin="0,0,8,0" VerticalAlignment="Center"
-                                 FontFamily="{DynamicResource MetadataFontFamily}"
-                                 FontSize="{DynamicResource FontSizeMeta}"
-                                 Foreground="{DynamicResource MutedBrush}" />
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
-                                   FontFamily="{DynamicResource PrimaryFontFamily}"
-                                   FontSize="{DynamicResource FontSizeBody}"
-                                   Foreground="{DynamicResource ForegroundBrush}" />
-                        <TextBlock Text="{Binding RowSubtitle}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}" FontWeight="Normal"
-                                   FontFamily="{DynamicResource MetadataFontFamily}"
-                                   FontSize="{DynamicResource FontSizeMeta}" />
-                        <!-- Last-hour task strip: same bins and template as the project
-                             header, so a row explains its own observed activity. -->
-                        <ItemsControl ItemsSource="{Binding TaskBins}"
-                                      ItemsPanel="{StaticResource ActivityBinsPanel}"
-                                      ItemTemplate="{StaticResource ActivityBinTemplate}"
-                                      Height="4" Margin="0,2,0,0" IsHitTestVisible="False" />
-                      </StackPanel>
-                      <TextBlock Grid.Column="2" Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" Margin="8,0,0,0" VerticalAlignment="Center"
-                                 FontFamily="{DynamicResource MetadataFontFamily}"
-                                 FontSize="{DynamicResource FontSizeMeta}"
-                                 Foreground="{DynamicResource MutedBrush}" />
-                    </Grid>
-                  </Button>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <ItemsControl x:Name="ProjectList" ItemsSource="{Binding Projects}"
+                          ItemTemplate="{StaticResource ProjectRowTemplate}" />
             <TextBlock Text="{Binding EmptyStateText}" Margin="14,4,14,10" TextWrapping="Wrap"
                        Visibility="{Binding HasTasks, Converter={StaticResource InverseBoolToVisibility}}"
                        FontFamily="{DynamicResource PrimaryFontFamily}"
@@ -551,8 +607,8 @@
                    FontSize="{DynamicResource FontSizeMeta}"
                    Foreground="{DynamicResource MutedBrush}" />
       </Grid>
+      </ScrollViewer>
     </Grid>
-    </ScrollViewer>
     </DockPanel>
   </Border>
 </Window>

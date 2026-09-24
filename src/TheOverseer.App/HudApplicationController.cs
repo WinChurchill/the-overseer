@@ -135,11 +135,13 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     private int _trayFailures;
     private string _startupCode = "not-read";
     private string _navigationCode = "none";
+    private IReadOnlyList<string> _disabledHarnessSources = Array.Empty<string>();
 
     public HudApplicationController(HudControllerDependencies dependencies)
     {
         _dependencies = dependencies;
         _voiceSettings = dependencies.Config.Voice.Normalized();
+        _disabledHarnessSources = dependencies.Config.DisabledHarnessSources;
         _logTask = Task.Run(async () =>
         {
             await foreach (var entry in _logQueue.Reader.ReadAllAsync())
@@ -598,6 +600,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         if (e.PropertyName is nameof(HudViewModel.AlwaysOnTop) && !_shuttingDown)
         {
+            RefreshWindowMenu();
             if (_state.WindowView) return;
             if (_window is not null) _window.Topmost = ViewModel.AlwaysOnTop;
             _ = NativeMethods.SetWindowPos(
@@ -711,6 +714,20 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         var result = _dependencies.Navigator.Navigate(task, task.ProfileId);
         _navigationCode = result.Outcome.ToString();
+        var routeUnsupported = result.Outcome is TaskNavigationOutcome.UnsupportedSurface
+            or TaskNavigationOutcome.UnsupportedIdentity
+            or TaskNavigationOutcome.UnsupportedProfile
+            or TaskNavigationOutcome.InvalidIdentifier;
+        if (routeUnsupported)
+        {
+            // No adapter route exists for this harness (or this task's identity),
+            // so offer the honest fallback the row already advertises: copy the id.
+            var copied = _dependencies.Clipboard.TrySetText(row.Key.ConversationId);
+            ViewModel.NotifyStatus((copied ? "Task id copied. " : string.Empty) + result.UserMessage);
+            Log(MonitorLogLevel.Info, "hud-navigate-" + result.Outcome.ToString().ToLowerInvariant());
+            return;
+        }
+
         ViewModel.NotifyStatus(result.UserMessage);
         Log(MonitorLogLevel.Info, "hud-navigate-" + result.Outcome.ToString().ToLowerInvariant());
     }
@@ -729,7 +746,12 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         {
             // Test seam: close-to-tray behaviour is verified without a real icon.
             TrayAvailable = trayOverride;
-            if (!trayOverride)
+            if (trayOverride)
+            {
+                _window?.SetCloseBehavior(hideToTray: true);
+                RefreshWindowMenu();
+            }
+            else
             {
                 EnsureReachableWithoutTray();
             }
@@ -764,16 +786,26 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             ViewModel.NotifyStatus("Tray icon unavailable — use the HUD window to control it.");
             EnsureReachableWithoutTray();
         }
+
+        _window!.SetCloseBehavior(TrayAvailable);
+        RefreshWindowMenu();
     }
 
     private void EnsureReachableWithoutTray()
     {
         if (_window is null) return;
         _window.Show();
+        _window.SetCloseBehavior(hideToTray: false);
+        RefreshWindowMenu();
         ApplyGeometry(show: false);
         ViewModel.NotifyStatus("Tray unavailable — right-click the header for controls.");
     }
 
+    /// <summary>
+    /// Clean top-level menu: Always on top, Theme, View, Light &amp; voice…,
+    /// Projects &amp; sources…, Hide to tray, Exit. Opacity, light presets, layout and
+    /// diagnostics live in submenus instead of crowding the top level.
+    /// </summary>
     private void CreateWindowMenu()
     {
         var menu = new System.Windows.Controls.ContextMenu { Cursor = System.Windows.Input.Cursors.Arrow, ForceCursor = true };
@@ -784,40 +816,77 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             menu.Items.Add(item);
         }
 
-        Add("Compact / expanded HUD", ToggleWindowView);
-        Add("Maximize / restore", ToggleMaximize);
-        Add("Minimize", () => SystemCommands.MinimizeWindow(_window!));
-        var lightMenu = new System.Windows.Controls.MenuItem { Header = "Status light" };
+        System.Windows.Controls.MenuItem Item(string label, Action action, bool checkable = false)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = label, IsCheckable = checkable };
+            item.Click += (_, _) => action();
+            return item;
+        }
+
+        System.Windows.Controls.MenuItem Parent(string header, params object[] children)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = header };
+            foreach (var child in children)
+            {
+                item.Items.Add(child);
+            }
+
+            return item;
+        }
+
+        var pin = Item("Always on top", ToggleTopmost, checkable: true);
+        menu.Items.Add(pin);
+
+        var dark = Item("Dark", () => ViewModel.Theme = HudTheme.Dark, checkable: true);
+        var light = Item("Light", () => ViewModel.Theme = HudTheme.Light, checkable: true);
+        var theme = Parent("Theme", dark, light);
+        theme.SubmenuOpened += (_, _) =>
+        {
+            dark.IsChecked = ViewModel.Theme == HudTheme.Dark;
+            light.IsChecked = ViewModel.Theme == HudTheme.Light;
+        };
+        menu.Items.Add(theme);
+
+        var recent = new System.Windows.Controls.MenuItem { Header = "Recent interval" };
+        var hourItems = new List<System.Windows.Controls.MenuItem>();
+        foreach (var hours in new[] { 1, 2, 4, 8, 24 })
+        {
+            var value = hours;
+            var item = Item(value + (value == 1 ? " hour" : " hours"), () => ViewModel.RecentHours = value, checkable: true);
+            hourItems.Add(item);
+            recent.Items.Add(item);
+        }
+
+        var opacity = new System.Windows.Controls.MenuItem { Header = "Opacity" };
+        var opacityItems = new List<System.Windows.Controls.MenuItem>();
+        foreach (var value in new[] { 0.75, 0.85, 0.96, 1.0 })
+        {
+            var target = value;
+            var item = Item((int)Math.Round(target * 100) + "%", () => SetOpacity(target), checkable: true);
+            opacityItems.Add(item);
+            opacity.Items.Add(item);
+        }
+
+        var statusLight = new System.Windows.Controls.MenuItem { Header = "Status light" };
+        var positionItems = new List<System.Windows.Controls.MenuItem>();
         foreach (var position in new[] { "right", "left", "top", "bottom", "off" })
         {
-            var item = new System.Windows.Controls.MenuItem { Header = char.ToUpperInvariant(position[0]) + position[1..], IsCheckable = true };
-            item.Click += (_, _) => ViewModel.LightPosition = position;
-            lightMenu.SubmenuOpened += (_, _) => item.IsChecked = ViewModel.LightPosition == position;
-            lightMenu.Items.Add(item);
+            var target = position;
+            var item = Item(char.ToUpperInvariant(target[0]) + target[1..], () => ViewModel.LightPosition = target, checkable: true);
+            positionItems.Add(item);
+            statusLight.Items.Add(item);
         }
-        lightMenu.Items.Add(new System.Windows.Controls.Separator());
+
+        statusLight.Items.Add(new System.Windows.Controls.Separator());
+        var sizeItems = new List<System.Windows.Controls.MenuItem>();
         foreach (var size in new[] { 24, 32, 48, 64, 96, 128 })
         {
-            var item = new System.Windows.Controls.MenuItem { Header = $"Width {size}", IsCheckable = true };
-            item.Click += (_, _) => ViewModel.LightSize = size;
-            lightMenu.SubmenuOpened += (_, _) => item.IsChecked = ViewModel.LightSize == size;
-            lightMenu.Items.Add(item);
+            var target = size;
+            var item = Item("Width " + target, () => ViewModel.LightSize = target, checkable: true);
+            sizeItems.Add(item);
+            statusLight.Items.Add(item);
         }
-        menu.Items.Add(lightMenu);
-        Add("Light / dark", ToggleTheme);
-        var pin = new System.Windows.Controls.MenuItem { Header = "Always on top", IsCheckable = true };
-        pin.Click += (_, _) => ToggleTopmost();
-        menu.Opened += (_, _) => pin.IsChecked = _window!.Topmost;
-        menu.Items.Add(pin);
-        foreach (var opacity in new[] { 0.75, 0.85, 0.96, 1.0 })
-        {
-            var value = opacity;
-            Add("Opacity " + (int)Math.Round(value * 100) + "%", () => SetOpacity(value));
-        }
-        Add("Mute / unmute voice", ToggleMute);
-        Add("Light & voice…", OpenNotificationSettings);
-        Add("Toggle start with Windows", ToggleStartWithWindows);
-        Add("Reset position", ResetPosition);
+
         var monitoring = new System.Windows.Controls.MenuItem { Header = "Monitoring details" };
         foreach (var property in new[] { nameof(HudViewModel.MonitoringDisclosure), nameof(HudViewModel.AttentionDisclosure), nameof(HudViewModel.HealthLine) })
         {
@@ -826,9 +895,194 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                 new System.Windows.Data.Binding(property) { Source = ViewModel });
             monitoring.Items.Add(detail);
         }
-        menu.Items.Add(monitoring);
+
+        var view = Parent("View",
+            recent,
+            Item("Reset position", ResetPosition),
+            new System.Windows.Controls.Separator(),
+            opacity,
+            statusLight,
+            new System.Windows.Controls.Separator(),
+            Item("Expand all projects", () => ViewModel.SetAllProjectsExpanded(true)),
+            Item("Collapse all projects", () => ViewModel.SetAllProjectsExpanded(false)),
+            new System.Windows.Controls.Separator(),
+            Item("Compact / expanded HUD", ToggleWindowView),
+            Item("Maximize / restore", ToggleMaximize),
+            Item("Minimize", () => SystemCommands.MinimizeWindow(_window!)),
+            Item("Start with Windows", ToggleStartWithWindows, checkable: true),
+            monitoring);
+        view.SubmenuOpened += (_, _) =>
+        {
+            foreach (var item in hourItems)
+            {
+                item.IsChecked = Equals(item.Header, ViewModel.RecentHours + (ViewModel.RecentHours == 1 ? " hour" : " hours"));
+            }
+
+            foreach (var item in opacityItems)
+            {
+                item.IsChecked = Equals(item.Header, ((int)Math.Round(ViewModel.Opacity * 100)).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%");
+            }
+
+            foreach (var item in positionItems)
+            {
+                item.IsChecked = Equals(item.Header, char.ToUpperInvariant(ViewModel.LightPosition[0]) + ViewModel.LightPosition[1..]);
+            }
+
+            foreach (var item in sizeItems)
+            {
+                item.IsChecked = Equals(item.Header, "Width " + ViewModel.LightSize);
+            }
+        };
+        menu.Items.Add(view);
+
+        Add("Light & voice…", OpenNotificationSettings);
+        Add("Projects & sources…", OpenProjectSources);
+        var hide = Item("Hide to tray", HideToTray);
+        menu.Items.Add(hide);
         Add("Exit", () => ExitRequested?.Invoke(this, EventArgs.Empty));
+
+        menu.Opened += (_, _) => RefreshWindowMenu(pin, hide);
         _window!.ContextMenu = menu;
+        _windowMenuPin = pin;
+        _windowMenuHide = hide;
+        RefreshWindowMenu(pin, hide);
+    }
+
+    private System.Windows.Controls.MenuItem? _windowMenuPin;
+    private System.Windows.Controls.MenuItem? _windowMenuHide;
+
+    /// <summary>
+    /// Keeps the checkable and availability state honest without opening the menu:
+    /// "Always on top" mirrors the live pin, and "Hide to tray" is only enabled while
+    /// a working tray can restore the window.
+    /// </summary>
+    private void RefreshWindowMenu(System.Windows.Controls.MenuItem? pin = null, System.Windows.Controls.MenuItem? hide = null)
+    {
+        var pinItem = pin ?? _windowMenuPin;
+        var hideItem = hide ?? _windowMenuHide;
+        if (pinItem is not null)
+        {
+            pinItem.IsChecked = _state.WindowView ? _state.WindowPinned : ViewModel.AlwaysOnTop;
+        }
+
+        if (hideItem is not null)
+        {
+            hideItem.IsEnabled = CanHideToTray;
+        }
+    }
+
+    // ---- projects and sources ---------------------------------------------------
+
+    private ProjectSourcesWindow? _projectSources;
+
+    /// <summary>
+    /// Bounded project/source settings surface, reachable from the header menu. It
+    /// reuses the existing observation data and the existing config path; a source
+    /// list change is additive and applies when the monitor is next composed.
+    /// </summary>
+    public void OpenProjectSources()
+    {
+        if (_shuttingDown || _window is null)
+        {
+            return;
+        }
+
+        if (_projectSources is { } open)
+        {
+            open.Activate();
+            return;
+        }
+
+        var model = BuildProjectSources();
+        var window = new ProjectSourcesWindow(model) { Owner = _window, Icon = AppIcon.WindowImage };
+        _projectSources = window;
+        model.Changed += (_, _) =>
+        {
+            _disabledHarnessSources = model.DisabledHarnessSources;
+            ScheduleStateSave();
+            ViewModel.NotifyStatus("Source enablement saved — it applies after OVERSEER restarts.");
+        };
+        window.Closed += (_, _) =>
+        {
+            _projectSources = null;
+            if (model.DisabledHarnessSources.Count != _disabledHarnessSources.Count ||
+                !model.DisabledHarnessSources.SequenceEqual(_disabledHarnessSources, StringComparer.Ordinal))
+            {
+                _disabledHarnessSources = model.DisabledHarnessSources;
+                ScheduleStateSave();
+            }
+        };
+        var screens = _dependencies.Placement.CaptureLayout();
+        var screen = screens.Find(_state.WindowView ? _state.WindowMonitor : _state.MonitorDeviceName) ?? (screens.IsEmpty ? null : screens.Primary);
+        if (screen is not null)
+        {
+            var scale = _dependencies.Placement.GetDpiScale(_handle, screen);
+            window.MinWidth = Math.Min(window.MinWidth, screen.Width / scale);
+            window.MinHeight = Math.Min(window.MinHeight, screen.Height / scale);
+            window.Width = Math.Min(window.Width, screen.Width / scale);
+            window.Height = Math.Min(window.Height, screen.Height / scale);
+        }
+
+        window.Show();
+    }
+
+    /// <summary>
+    /// Rows for the settings surface. Sources come from the tasks the monitor already
+    /// published plus the persisted disabled list, so a disabled source stays visible
+    /// and can be re-enabled; project buckets come from the same grouping the HUD
+    /// renders, including Unassigned.
+    /// </summary>
+    private ProjectSourcesViewModel BuildProjectSources()
+    {
+        var sources = new List<ProjectSourceRow>();
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var order = new List<string>();
+        foreach (var task in _lastTasks)
+        {
+            var key = HarnessIds.Normalize(task.Key.HarnessId) + "/" + task.Key.SourceInstanceId;
+            if (!counts.TryGetValue(key, out var count))
+            {
+                order.Add(key);
+            }
+
+            counts[key] = count + 1;
+        }
+
+        foreach (var entry in _disabledHarnessSources)
+        {
+            if (entry.Length > 0 && !counts.ContainsKey(entry))
+            {
+                counts[entry] = 0;
+                order.Add(entry);
+            }
+        }
+
+        foreach (var key in order)
+        {
+            var separator = key.IndexOf('/');
+            var harness = separator < 0 ? key : key[..separator];
+            var instance = separator < 0 ? string.Empty : key[(separator + 1)..];
+            var observed = counts[key];
+            var disabled = _disabledHarnessSources.Contains(key, StringComparer.Ordinal);
+            var detail = observed == 0
+                ? "No task observed in this session."
+                : observed.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                  (observed == 1 ? " task observed" : " tasks observed") + " in this session.";
+            sources.Add(new ProjectSourceRow(harness, instance, detail, !disabled));
+        }
+
+        var projects = new List<ProjectBucketRow>();
+        foreach (var project in ViewModel.Projects)
+        {
+            var detail = project.Tasks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                (project.Tasks.Count == 1 ? " task · " : " tasks · ") + project.SummaryText;
+            projects.Add(new ProjectBucketRow(project.Name, detail));
+        }
+
+        return new ProjectSourcesViewModel(
+            sources.OrderBy(static source => source.Key, StringComparer.Ordinal),
+            projects,
+            "Saved with your other settings; a new source list is applied when the monitor is next composed.");
     }
 
     private void RefreshTrayState()
@@ -923,6 +1177,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                 LightSize = ViewModel.LightSize,
             },
             Voice = voice,
+            // Additive: source enablement is written with every other setting
+            // preserved, never reset.
+            DisabledHarnessSources = _disabledHarnessSources,
         };
         var writer = _dependencies.Persistence ?? new FileHudPersistence();
         var result = await Task.Run(() => writer.Save(_dependencies.Paths, state, config));
@@ -1071,6 +1328,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _chrome?.Dispose();
         _chrome = null;
         _notificationSettings?.Close();
+        _projectSources?.Close();
         StopVoicePreview();
         _ageTimer.Stop();
         _saveTimer.Stop();

@@ -278,11 +278,17 @@ public sealed class TaskActivityHistory
         }
     }
 
+    /// <summary>
+    /// Every observed project plus the Unassigned bucket, computed in one pass. A
+    /// consumer that needs the whole strip set (the HUD projects each distinct
+    /// project once per refresh) must not scan the lanes once per project.
+    /// </summary>
     public IReadOnlyList<ProjectActivityStrip> Projects(DateTimeOffset now)
     {
         lock (_gate)
         {
             var ids = new List<ProjectId>();
+            var hasUnassigned = false;
             foreach (var key in _order)
             {
                 if (!_lanes.TryGetValue(key, out var lane))
@@ -290,18 +296,32 @@ public sealed class TaskActivityHistory
                     continue;
                 }
 
-                if (!lane.ProjectId.IsUnassigned && !ids.Contains(lane.ProjectId))
+                if (lane.ProjectId.IsUnassigned)
+                {
+                    hasUnassigned = true;
+                }
+                else if (!ids.Contains(lane.ProjectId))
                 {
                     ids.Add(lane.ProjectId);
                 }
 
                 foreach (var interval in lane.Intervals)
                 {
-                    if (!interval.Project.IsUnassigned && !ids.Contains(interval.Project))
+                    if (interval.Project.IsUnassigned)
+                    {
+                        hasUnassigned = true;
+                    }
+                    else if (!ids.Contains(interval.Project))
                     {
                         ids.Add(interval.Project);
                     }
                 }
+            }
+
+            if (hasUnassigned)
+            {
+                // Unknown membership is a real bucket, not a missing row.
+                ids.Add(ProjectId.Unassigned);
             }
 
             var strips = new List<ProjectActivityStrip>(ids.Count);
@@ -713,7 +733,11 @@ public static class ActivityTimelineGeometry
                     continue;
                 }
 
-                if (Priority(interval.Category) < Priority(bin.Category))
+                // Strongest category wins. When two segments of one bin share the
+                // category, the bin reports the weakest evidence that produced it, so
+                // a partially inferred minute is never sold as fully structured.
+                if (Priority(interval.Category) < Priority(bin.Category) ||
+                    (Priority(interval.Category) == Priority(bin.Category) && (int)interval.Evidence < (int)bin.Evidence))
                 {
                     bins[index] = bin with { Category = interval.Category, Evidence = interval.Evidence, DetailCode = interval.DetailCode };
                 }

@@ -7,12 +7,18 @@ namespace TheOverseer.UI.ViewModels;
 /// Host-supplied observed activity for the visible rows. The UI never computes
 /// history: the notification coordinator owns the producer-side recording and this
 /// only projects bounded bins for the strip controls.
+///
+/// A bin carries the category plus the evidence, coverage, interval and structural
+/// detail, so a stale, partial or inferred segment can never render as a confirmed
+/// one. Implementations must serve every call for one refresh instant from one
+/// projection: the HUD asks for each distinct project once and for each task once
+/// per tick.
 /// </summary>
 public interface IActivityStripSource
 {
     /// <summary>Last-hour project bins (union of member work), at most the strip width.</summary>
-    IReadOnlyList<ActivityCategory> ProjectBins(ProjectId projectId, DateTimeOffset now);
+    IReadOnlyList<ActivityStripBin> ProjectBins(ProjectId projectId, DateTimeOffset now);
 
     /// <summary>Last-hour bins for one task.</summary>
-    IReadOnlyList<ActivityCategory> TaskBins(TaskKey key, DateTimeOffset now);
+    IReadOnlyList<ActivityStripBin> TaskBins(TaskKey key, DateTimeOffset now);
 }

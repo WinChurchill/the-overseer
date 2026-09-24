@@ -114,7 +114,7 @@ public sealed class ActivitySparklineTests
     }
 
     [Fact]
-    public void WindowShowsTheChartAndMuteControl()
+    public void TheDefaultViewHasNoCompetingCountChartButKeepsTheMuteControl()
     {
         StaTestHost.Invoke(() =>
         {
@@ -129,16 +129,14 @@ public sealed class ActivitySparklineTests
                 window.Show();
                 window.UpdateLayout();
 
-                var chart = (ActivitySparkline)window.FindName("ActivityChart")!;
-                var mute = (System.Windows.Controls.Button)window.FindName("MuteButton")!;
-                Assert.True(chart.ActualHeight > 0);
-                Assert.NotEmpty(chart.Segments!);
-                Assert.Equal("V", mute.Content);
+                // The old dominant "count of working tasks" graph is gone from every
+                // surface: the project/task strips are the only hour view.
+                Assert.Null(window.FindName("ActivityChart"));
                 Assert.Null(window.FindName("CollapsedActivityChart"));
+                Assert.Empty(FindVisuals<ActivitySparkline>(window));
 
-                viewModel.IsExpanded = false;
-                window.UpdateLayout();
-                Assert.False(chart.IsVisible);
+                var mute = (System.Windows.Controls.Button)window.FindName("MuteButton")!;
+                Assert.Equal("V", mute.Content);
 
                 viewModel.ToggleMuteCommand.Execute(null);
                 window.UpdateLayout();
@@ -149,6 +147,23 @@ public sealed class ActivitySparklineTests
                 window.Close();
             }
         });
+    }
+
+    private static IReadOnlyList<T> FindVisuals<T>(System.Windows.DependencyObject node) where T : System.Windows.DependencyObject
+    {
+        var found = new List<T>();
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); index++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(node, index);
+            if (child is T match)
+            {
+                found.Add(match);
+            }
+
+            found.AddRange(FindVisuals<T>(child));
+        }
+
+        return found;
     }
 
     [Fact]
