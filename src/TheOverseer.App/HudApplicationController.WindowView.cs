@@ -7,8 +7,50 @@ public sealed partial class HudApplicationController
 {
     private bool _restoreWindowBounds = true;
     private bool _switchingView;
+    private Desktop.HudChromeAdapter? _chrome;
+    private HudSize? _automaticHudSize;
+    private bool _nativeSizeMove;
+
+    private void BeginNativeSizeMove() => _nativeSizeMove = true;
+
+    private void EndNativeSizeMove()
+    {
+        _nativeSizeMove = false;
+        OnNativeBoundsChanged();
+        _state = CaptureState();
+        ScheduleStateSave();
+    }
 
     public bool IsWindowView => _state.WindowView;
+
+    private void PrepareNativeMaximize()
+    {
+        if (!_state.WindowView) ToggleWindowView();
+    }
+
+    public void ToggleMaximize()
+    {
+        if (_window is null) return;
+        if (_window.WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(_window);
+        else { PrepareNativeMaximize(); SystemCommands.MaximizeWindow(_window); }
+    }
+
+    private void BeginNativeResize()
+    {
+        if (_state.WindowView || _switchingView || _applyingGeometry || _window is null) return;
+        _switchingView = true;
+        try
+        {
+            _state = _state with { WindowView = true, WindowPinned = _window.Topmost };
+            _restoreWindowBounds = false;
+            _window.SetWindowView(true, preserveBounds: true);
+            var position = _dependencies.Placement.CaptureState(_handle, true,
+                _dependencies.Placement.GetDpiScale(_handle, null), _dependencies.TimeProvider.GetUtcNow());
+            _state = _state with { WindowMonitor = position.MonitorDeviceName };
+        }
+        finally { _switchingView = false; }
+        ScheduleStateSave();
+    }
 
     private void ConfigureWindowView()
     {
@@ -25,7 +67,7 @@ public sealed partial class HudApplicationController
         {
             _state = _state with { WindowView = !_state.WindowView };
             ConfigureWindowView();
-            if (!_state.WindowView) ViewModel.IsExpanded = _state.IsExpanded;
+            if (!_state.WindowView) { _state = _state with { IsExpanded = false }; ViewModel.IsExpanded = false; }
             _restoreWindowBounds = true;
         }
         finally { _switchingView = false; }
@@ -36,7 +78,13 @@ public sealed partial class HudApplicationController
 
     private void OnNativeBoundsChanged()
     {
-        if (_switchingView || _applyingGeometry || _shuttingDown || !_state.WindowView || _handle == IntPtr.Zero) return;
+        if (_nativeSizeMove || _switchingView || _applyingGeometry || _shuttingDown || _handle == IntPtr.Zero) return;
+        // Shell keyboard Snap may resize without WM_SIZING. WPF keeps DIPs stable
+        // across DPI changes, so a genuine new logical rectangle enters free sizing.
+        if (!_state.WindowView && _window is { IsLoaded: true } && _automaticHudSize is { } expected &&
+            (Math.Abs(_window.ActualWidth - expected.Width) > 2 || Math.Abs(_window.ActualHeight - expected.Height) > 2))
+            BeginNativeResize();
+        if (!_state.WindowView) return;
         // Windows/WPF own live resize, Snap, maximize and DPI transitions.
         // Saving must never feed those bounds back into a preset geometry pass.
         ScheduleStateSave();

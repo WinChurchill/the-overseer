@@ -467,3 +467,32 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   drag/control/light/edge input boundaries, and real custom-button Snap validation.
 - Planning only. Existing app, package and shortcut remain unchanged. Implementation
   awaits user instruction; the previously tested sizing/monitor foundation is retained.
+
+### Own-HUD window chrome — implementation and review
+
+- Implemented after explicit user approval. WPF WindowChrome retains the custom
+  header in compact, expanded, resized and maximized states. A small owned HWND
+  adapter provides native caption hits and the custom maximize/Snap target.
+  No dependency, monitoring, voice-policy or frozen-document changes.
+- Input boundaries: outer six DIPs resize; header background moves; controls,
+  menu and light remain client interactions. Maximize uses one pointer owner,
+  cancels on release outside/capture loss, and remains keyboard accessible.
+  Native gestures defer compact promotion until completion, preserving previous
+  larger bounds on cancellation. Menu shows the current pin preference.
+- Build: Release, zero warnings/errors. Tests: 456/456 passed, including new
+  hit-region, command-routing and compact resize commit/cancel cases. Initial
+  test invocation hit an expired fixture's file lock; cleaned up that owned test
+  process. One initial run failed the existing timing-sensitive voice suspend
+  test; the subsequent complete suite passed. No failure hidden or test removed.
+- Rendered 26 fixtures; inspected compact, narrow/tall and wide/short layouts in
+  both themes. Evidence: artifacts/custom-chrome-renders/.
+- Real interactive checks on this machine: custom button pointer maximize/restore,
+  release outside cancels, Tab/Space activation, Alt+Space system-menu maximize,
+  drag from maximized to normal, outer-edge resize and separate HUD menu passed.
+  Actual Windows Snap hover flyout observed. User confirmed both Win+Left/Right
+  and Win+Z work on the isolated custom-chrome build. These are new observations,
+  not inherited stock-title-bar evidence.
+- Review: PASS WITH NONBLOCKING NOTES. Mixed-DPI policies remain tested; physical
+  mixed-DPI transitions were qualified on the preceding sizing foundation and
+  were not repeated on this header revision. Unplug/sleep/resume and text-size-only
+  accessibility remain the previously disclosed qualifications. No merge/tag.

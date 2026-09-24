@@ -34,39 +34,82 @@ public partial class HudWindow : Window
     public HudWindow()
     {
         InitializeComponent();
+        System.Windows.Shell.WindowChrome.SetWindowChrome(this, new System.Windows.Shell.WindowChrome
+        {
+            CaptionHeight = 0, ResizeBorderThickness = new Thickness(6),
+            GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0),
+            UseAeroCaptionButtons = false,
+        });
+        WindowStyle = WindowStyle.SingleBorderWindow;
+        ResizeMode = ResizeMode.CanResize;
         PreviewKeyDown += OnPreviewKeyDown;
         SizeChanged += (_, _) => UpdateResponsiveLayout();
+        StateChanged += (_, _) => UpdateMaximizeControl();
     }
 
     /// <summary>Raised after the user drags the window, so placement can be saved.</summary>
     public event EventHandler? PlacementChangedByUser;
     public event EventHandler? WindowViewRequested;
+    public event EventHandler? MaximizeRequested;
     public bool IsWindowView { get; private set; }
 
-    private void OnWindowViewClick(object sender, RoutedEventArgs e)
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
     {
-        WindowViewRequested?.Invoke(this, EventArgs.Empty);
+        MaximizeRequested?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
-    public void SetWindowView(bool enabled)
+    private void OnMenuClick(object sender, RoutedEventArgs e)
+    {
+        if (ContextMenu is { } menu) { menu.PlacementTarget = MenuButton; menu.IsOpen = true; }
+        e.Handled = true;
+    }
+
+    public void UpdateMaximizeControl()
+    {
+        var maximized = WindowState == WindowState.Maximized;
+        MaximizeButton.Content = maximized ? "❐" : "□";
+        MaximizeButton.ToolTip = maximized ? "Restore HUD size" : "Maximize HUD";
+        System.Windows.Automation.AutomationProperties.SetName(MaximizeButton, (string)MaximizeButton.ToolTip);
+    }
+
+    public void SetMaximizeInteraction(bool over, bool pressed)
+    {
+        MaximizeButton.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty,
+            pressed && over ? "AccentPrimaryBrush" : over ? "PanelOverlayBrush" : "BackgroundBaseBrush");
+    }
+
+    /// <summary>Client-space hit regions for the native chrome adapter.</summary>
+    public int ChromeHitTest(Point point)
+    {
+        // WindowChrome owns the outer resize band. Controls/light never take it.
+        if (WindowState != WindowState.Maximized &&
+            (point.X < 6 || point.Y < 6 || point.X >= ActualWidth - 6 || point.Y >= ActualHeight - 6)) return 0;
+        for (var node = InputHitTest(point) as DependencyObject; node is not null && node != this;
+             node = node is FrameworkContentElement content ? content.Parent : VisualTreeHelper.GetParent(node))
+        {
+            if (node == MaximizeButton) return 9; // HTMAXBUTTON: real Windows Snap hover target.
+            if (node == HeaderControls || node == StatusLight || node is ButtonBase || node is System.Windows.Controls.Primitives.ScrollBar) return 1;
+            if (node == DragRegion || node == ExpandedDragRegion) return 2;
+        }
+        return 1;
+    }
+
+    public void SetWindowView(bool enabled, bool preserveBounds = false)
     {
         IsWindowView = enabled;
-        WindowState = WindowState.Normal;
-        WindowStyle = enabled ? WindowStyle.SingleBorderWindow : WindowStyle.None;
-        ResizeMode = enabled ? ResizeMode.CanResize : ResizeMode.NoResize;
-        MinWidth = enabled ? 280 : 0;
+        if (!preserveBounds) WindowState = WindowState.Normal;
+        MinWidth = 280;
         MinHeight = enabled ? 200 : 0;
-        WindowViewButton.Content = enabled ? "↙" : "↗";
-        WindowViewButton.ToolTip = enabled ? "Return to floating HUD" : "Switch to resizable Window view";
-        ExpandButton.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+        ExpandButton.ToolTip = enabled ? "Collapse to compact HUD" : "Expand task list";
+        System.Windows.Automation.AutomationProperties.SetName(ExpandButton, (string)ExpandButton.ToolTip);
         if (enabled && ViewModel is { } vm) vm.IsExpanded = true;
         UpdateResponsiveLayout();
     }
 
     public void UpdateResponsiveLayout()
     {
-        var narrow = IsWindowView && ActualWidth < 420;
+        var narrow = ActualWidth - (ViewModel?.LightExtraWidth ?? 0) < 260;
         BrandLabel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         // In a short native Snap region the complete content remains reachable.
         var shortWindow = IsWindowView && ActualHeight < 500;
@@ -103,6 +146,12 @@ public partial class HudWindow : Window
 
     private void OnToggleExpandedClick(object sender, RoutedEventArgs e)
     {
+        if (WindowViewRequested is not null)
+        {
+            WindowViewRequested.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+            return;
+        }
         if (ViewModel is { } viewModel)
         {
             viewModel.IsExpanded = !viewModel.IsExpanded;

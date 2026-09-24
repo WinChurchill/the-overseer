@@ -548,6 +548,34 @@ public sealed class HudDispatchTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CompactResizePromotesOnlyCommittedBounds(bool commit)
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var controller = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService());
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var window = controller.Window!;
+            var width = window.Width;
+            var height = window.Height;
+            void Gesture(string name) => typeof(HudApplicationController).GetMethod(name,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(controller, null);
+            Gesture("BeginNativeSizeMove");
+            window.Width = 600;
+            window.Height = 700;
+            window.UpdateLayout();
+            Assert.False(controller.IsWindowView);
+            if (!commit) { window.Width = width; window.Height = height; window.UpdateLayout(); }
+            Gesture("EndNativeSizeMove");
+            Assert.Equal(commit, controller.IsWindowView);
+            if (commit) { Assert.Equal(600, window.Width); Assert.True(controller.ViewModel.IsExpanded); }
+            StaTestHost.Complete(controller.ShutdownAsync());
+            Cleanup();
+        });
+    }
+
     [Fact]
     public void WindowViewRecoversRemovedMonitorWithoutResettingOnOrdinaryUpdates()
     {

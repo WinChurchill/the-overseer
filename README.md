@@ -459,12 +459,13 @@ were not imported.
 
 ## Next action
 
-The current UX branch also provides **Window view**: click the diagonal arrow in
-the HUD header, or choose **Floating HUD / Window view** from its context menu.
-Window view has native resize/maximize controls for Windows Snap. The opposite
-arrow restores the floating HUD; both views remember their own geometry and pin
-preference. A narrow window temporarily limits the light to keep content readable
-without changing its saved width. Short layouts and Light & voice settings scroll.
+The HUD keeps its own header at every size. Use the triangle to expand/collapse,
+the square to maximize/restore, and the ellipsis for the menu. Hover over the
+square for Windows Snap layouts, or use Win+Arrow / Win+Z. Drag the outer edges
+to resize and the plain header to move; double-click the header to maximize.
+Compact and larger layouts remember separate geometry and pin preferences.
+A narrow window temporarily limits the light to keep content readable without
+changing its saved width. Short layouts and Light & voice settings scroll.
 See `docs/WINDOW_SCALING_PLAN.md` and the latest implementation ledger entry for
 the scope and verification qualifications of this newer work.
 

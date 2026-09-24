@@ -1,7 +1,7 @@
 # OVERSEER — scaling our HUD
 
-Status: planning only. User requested this revision; do not implement until instructed.
-Inspected base: 7e0c284 on ux/first-use.
+Status: implemented on ux/first-use; validation recorded in IMPLEMENTATION_STATE.md.
+Implementation base: b804274 on ux/first-use.
 This supersedes the standard-title-bar direction of the earlier scaling plan.
 Completed implementation and evidence remain in IMPLEMENTATION_STATE.md.
 

@@ -211,8 +211,8 @@
                      Foreground="{DynamicResource MutedBrush}" />
           <WrapPanel x:Name="HeaderControls" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                       Background="Transparent" Cursor="Arrow" ForceCursor="True">
-            <Button x:Name="WindowViewButton" Content="↗" Click="OnWindowViewClick" Style="{StaticResource HudIconButton}"
-                    ToolTip="Switch to resizable Window view" automation:AutomationProperties.Name="Switch window view" Margin="0,0,4,0" />
+            <Button x:Name="MaximizeButton" Content="□" Click="OnMaximizeClick" Style="{StaticResource HudIconButton}"
+                    ToolTip="Maximize HUD" automation:AutomationProperties.Name="Maximize HUD" Padding="5,0" Margin="0,0,3,0" />
             <Button x:Name="LightToggleButton" Content="{Binding LightToggleText}" Command="{Binding ToggleLightCommand}"
                     ToolTip="{Binding LightToggleTooltip}" automation:AutomationProperties.Name="{Binding LightToggleTooltip}" Margin="0,0,5,0">
               <Button.Style>
@@ -250,6 +250,8 @@
                     Content="{Binding ExpandGlyph}" Click="OnToggleExpandedClick"
                     automation:AutomationProperties.Name="Expand or collapse the task list"
                     ToolTip="Expand or collapse (Escape collapses)" />
+            <Button x:Name="MenuButton" Style="{StaticResource HudIconButton}" Content="⋯" Click="OnMenuClick"
+                    ToolTip="HUD menu" automation:AutomationProperties.Name="HUD menu" Padding="4,0" />
           </WrapPanel>
         </Grid>
 
@@ -312,7 +314,7 @@
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="14,8,14,6" Background="Transparent" Cursor="SizeAll"
+        <Grid x:Name="ExpandedDragRegion" Grid.Row="0" Margin="14,8,14,6" Background="Transparent" Cursor="SizeAll"
               PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
               PreviewMouseMove="OnDragRegionMouseMove"
               PreviewMouseUp="OnDragRegionMouseLeftButtonUp">

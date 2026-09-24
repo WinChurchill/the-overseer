@@ -212,6 +212,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _window.Icon = AppIcon.WindowImage;
         _window.DataContext = ViewModel;
         _window.WindowViewRequested += (_, _) => ToggleWindowView();
+        _window.MaximizeRequested += (_, _) => ToggleMaximize();
         ConfigureWindowView();
         _window.SizeChanged += (_, _) => OnNativeBoundsChanged();
         _window.LocationChanged += (_, _) => OnNativeBoundsChanged();
@@ -237,6 +238,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         var helper = new WindowInteropHelper(_window);
         _handle = helper.EnsureHandle();
+        _chrome = new HudChromeAdapter(_window, PrepareNativeMaximize, BeginNativeSizeMove, EndNativeSizeMove);
         _dpiScale = _dependencies.Placement.GetDpiScale(_handle, null);
 
         // Position first, then show through WPF so IsVisible/layout are real.
@@ -269,7 +271,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     /// <summary>Recomputes size/position from state and the live monitor layout.</summary>
     private void ApplyGeometry(bool show)
     {
-        if (_window is null || _handle == IntPtr.Zero || _applyingGeometry)
+        if (_window is null || _handle == IntPtr.Zero || _applyingGeometry || _nativeSizeMove)
         {
             return;
         }
@@ -306,6 +308,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         // WPF owns the size (DIPs); the placement policy only decides where the
         // resulting window goes and keeps it reachable.
+        _automaticHudSize = size;
         window.Width = size.Width;
         window.Height = size.Height;
         window.UpdateLayout();
@@ -666,8 +669,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             menu.Items.Add(item);
         }
 
-        Add("Expand / collapse", () => ViewModel.IsExpanded = !ViewModel.IsExpanded);
-        Add("Floating HUD / Window view", ToggleWindowView);
+        Add("Compact / expanded HUD", ToggleWindowView);
+        Add("Maximize / restore", ToggleMaximize);
+        Add("Minimize", () => SystemCommands.MinimizeWindow(_window!));
         var lightMenu = new System.Windows.Controls.MenuItem { Header = "Status light" };
         foreach (var position in new[] { "right", "left", "top", "bottom", "off" })
         {
@@ -686,7 +690,10 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
         menu.Items.Add(lightMenu);
         Add("Light / dark", ToggleTheme);
-        Add("Toggle always on top", ToggleTopmost);
+        var pin = new System.Windows.Controls.MenuItem { Header = "Always on top", IsCheckable = true };
+        pin.Click += (_, _) => ToggleTopmost();
+        menu.Opened += (_, _) => pin.IsChecked = _window!.Topmost;
+        menu.Items.Add(pin);
         foreach (var opacity in new[] { 0.75, 0.85, 0.96, 1.0 })
         {
             var value = opacity;
@@ -932,6 +939,8 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         _shuttingDown = true;
+        _chrome?.Dispose();
+        _chrome = null;
         _notificationSettings?.Close();
         StopVoicePreview();
         _ageTimer.Stop();

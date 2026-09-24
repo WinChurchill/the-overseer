@@ -17,11 +17,15 @@
 
 ### Changed
 
-- Added a HUD / Window view switch. Window view uses native resize borders and
-  minimize/maximize/restore controls for Windows Snap, preserves its own bounds
-  and pin preference, and keeps the existing monitoring/voice session alive.
+- Resizing, maximize/restore and Windows Snap now retain OVERSEER's own HUD
+  header. Added a separate maximize button with real Snap hover, an explicit
+  menu button and compact/expanded control. Edges resize, header background
+  drags, and controls/light grips retain their own interactions. Compact resize
+  promotion waits for a committed gesture; canceling preserves saved larger bounds.
+  Compact and larger layouts preserve separate bounds and pin preferences while
+  keeping the existing monitoring/voice session alive.
 - Window layouts use extra height for tasks, scroll in short regions and preserve
-  readable content beside the light. Light changes no longer resize Window view.
+  readable content beside the light. Light changes no longer resize a larger HUD.
   Activity graph strokes keep their thickness as width changes; settings remain
   scrollable on smaller displays. Added scale-policy and native-window checks.
 - Added a thin black outline to the white emblem for contrast on light surfaces.

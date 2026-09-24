@@ -10,6 +10,41 @@ namespace TheOverseer.Tests;
 public sealed class HudWindowTests
 {
     [Fact]
+    public void CustomChromeSeparatesResizeCaptionControlsAndLight()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var window = new HudWindow { DataContext = new HudViewModel(HudSettings.Default), Width = 520, Height = 640 };
+            try
+            {
+                window.SetWindowView(true);
+                window.Show();
+                window.UpdateLayout();
+                var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(window);
+                Assert.NotNull(chrome);
+                Assert.False(chrome.UseAeroCaptionButtons);
+                Assert.Equal(0, chrome.CaptionHeight);
+                Assert.Equal(0, window.ChromeHitTest(new Point(2, 100)));
+                Assert.Equal(2, window.ChromeHitTest(new Point(100, 14)));
+                Point Center(string name)
+                {
+                    var element = (FrameworkElement)window.FindName(name);
+                    return element.TranslatePoint(new Point(element.ActualWidth / 2, element.ActualHeight / 2), window);
+                }
+                Assert.Equal(9, window.ChromeHitTest(Center("MaximizeButton")));
+                foreach (var name in new[] { "MenuButton", "ExpandButton", "StatusLight" })
+                    Assert.Equal(1, window.ChromeHitTest(Center(name)));
+                var clicks = 0;
+                window.MaximizeRequested += (_, _) => clicks++;
+                ((System.Windows.Controls.Button)window.FindName("MaximizeButton")).RaiseEvent(
+                    new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(1, clicks);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
     public void BothThemeDictionariesExposeTheSameKeys()
     {
         var keys = StaTestHost.Invoke(() =>
