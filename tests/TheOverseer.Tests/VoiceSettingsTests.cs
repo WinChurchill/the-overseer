@@ -1,4 +1,5 @@
 using TheOverseer.Core.Configuration;
+using TheOverseer.Core.Voice;
 using TheOverseer.Tests.Support;
 
 namespace TheOverseer.Tests;
@@ -139,5 +140,89 @@ public sealed class VoiceSettingsTests : IDisposable
         Assert.Null(loaded.Config.Voice.Endpoint);
         Assert.Equal(15, loaded.Config.Voice.TimeoutSeconds);
         Assert.True(loaded.Config.Voice.Muted);
+    }
+
+    [Fact]
+    public void TheStoredSerializationDefaultStaysPackSoExistingFilesKeepTheirMeaning()
+    {
+        // VoiceSettings.Default is what an existing config.json without a "voice"
+        // or "provider" member deserializes to; only a directory with no config file
+        // at all may take the new offline baseline default.
+        Assert.Equal(VoiceProviderKind.Pack, VoiceSettings.Default.ResolvedProvider);
+        Assert.True(VoiceSettings.Default.Muted);
+
+        Assert.Equal(VoiceProviderKind.Speech, VoiceSettings.BaselineDefault.ResolvedProvider);
+        Assert.Equal("speech", VoiceSettings.BaselineDefault.ProviderName);
+        Assert.True(VoiceSettings.BaselineDefault.Muted);
+    }
+
+    [Fact]
+    public void ABrandNewDataDirectorySelectsTheOfflineBaselineAndStaysMuted()
+    {
+        var missingPath = Path.Combine(_home.Root, "brand-new", "config.json");
+        Assert.False(File.Exists(missingPath));
+
+        var loaded = MonitorConfigStore.Load(missingPath);
+        Assert.Equal(ConfigLoadStatus.Missing, loaded.Status);
+
+        var effective = VoiceSettings.Effective(loaded.Status, loaded.Config.Voice);
+
+        Assert.Equal(VoiceProviderKind.Speech, effective.ResolvedProvider);
+        Assert.Equal("speech", effective.ProviderName);
+        Assert.True(effective.Muted);
+        Assert.Equal(VoiceSettings.DefaultPackId, effective.PackId);
+        Assert.Null(effective.Endpoint);
+        Assert.Empty(effective.Clips);
+        Assert.All(VoiceEventCatalog.All, item => Assert.Equal(item.DefaultEnabled, effective.IsEnabled(item.Kind)));
+    }
+
+    [Fact]
+    public void AnExistingConfigWithoutAProviderKeyKeepsThePackBehaviour()
+    {
+        File.WriteAllText(ConfigPath, """
+            { "codexHome": "C:\\codex" }
+            """);
+
+        var loaded = MonitorConfigStore.Load(ConfigPath);
+        Assert.Equal(ConfigLoadStatus.Loaded, loaded.Status);
+        Assert.Equal("pack", loaded.Config.Voice.ProviderName);
+
+        var effective = VoiceSettings.Effective(loaded.Status, loaded.Config.Voice);
+
+        Assert.Equal(VoiceProviderKind.Pack, effective.ResolvedProvider);
+        Assert.Equal("pack", effective.ProviderName);
+        Assert.True(effective.Muted);
+    }
+
+    [Fact]
+    public void ExplicitStoredVoicePreferencesSurviveTheBaselineDefault()
+    {
+        File.WriteAllText(ConfigPath, """
+            {
+              "voice": {
+                "muted": false,
+                "provider": "tts",
+                "packId": "my-pack_2",
+                "endpoint": "https://tts.example.com/speak",
+                "timeoutSeconds": 3,
+                "events": { "system_online": true, "task_complete": false },
+                "clips": { "task_error": "error.wav" }
+              }
+            }
+            """);
+
+        var loaded = MonitorConfigStore.Load(ConfigPath);
+        Assert.Equal(ConfigLoadStatus.Loaded, loaded.Status);
+
+        var effective = VoiceSettings.Effective(loaded.Status, loaded.Config.Voice);
+
+        Assert.False(effective.Muted);
+        Assert.Equal(VoiceProviderKind.Tts, effective.ResolvedProvider);
+        Assert.Equal("my-pack_2", effective.PackId);
+        Assert.Equal("https://tts.example.com/speak", effective.Endpoint);
+        Assert.Equal(3, effective.TimeoutSeconds);
+        Assert.True(effective.IsEnabled(VoiceEventKind.SystemOnline));
+        Assert.False(effective.IsEnabled(VoiceEventKind.TaskCompleted));
+        Assert.Equal("error.wav", effective.Clips["task_error"]);
     }
 }
