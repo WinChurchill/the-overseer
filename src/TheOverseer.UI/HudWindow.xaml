@@ -154,7 +154,53 @@
         </Setter.Value>
       </Setter>
     </Style>
-      <!-- Project-first grouping: rows carry a sortable project key, so one header
+      <!-- One observed-activity bin: distinct fill/opacity per category, so unknown
+         coverage never looks like confirmed idle. Shared by project and task strips. -->
+    <DataTemplate x:Key="ActivityBinTemplate">
+      <Border Height="4" Margin="0.5,0">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="Opacity" Value="0.32" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding}" Value="Idle">
+                <Setter Property="Opacity" Value="0.1" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding}" Value="Thinking">
+                <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
+                <Setter Property="Opacity" Value="0.7" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding}" Value="Planning">
+                <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
+                <Setter Property="Opacity" Value="0.95" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding}" Value="Working">
+                <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+                <Setter Property="Opacity" Value="0.95" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding}" Value="Waiting">
+                <Setter Property="Background" Value="{DynamicResource ForegroundBrush}" />
+                <Setter Property="Opacity" Value="1" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding}" Value="Error">
+                <Setter Property="Background" Value="{DynamicResource ForegroundBrush}" />
+                <Setter Property="Opacity" Value="1" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding}" Value="Complete">
+                <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
+                <Setter Property="Opacity" Value="0.45" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+      </Border>
+    </DataTemplate>
+
+    <ItemsPanelTemplate x:Key="ActivityBinsPanel">
+      <UniformGrid Rows="1" />
+    </ItemsPanelTemplate>
+
+    <!-- Project-first grouping: rows carry a sortable project key, so one header
          per project is rendered ahead of its tasks without a second collection. -->
     <CollectionViewSource x:Key="GroupedTasks" Source="{Binding Tasks}">
       <CollectionViewSource.GroupDescriptions>
@@ -434,53 +480,10 @@
                              category, unknown never looks like confirmed idle. -->
                         <ItemsControl Grid.Row="1" Grid.ColumnSpan="2"
                                       ItemsSource="{Binding Items[0].ProjectBins}"
+                                      ItemsPanel="{StaticResource ActivityBinsPanel}"
+                                      ItemTemplate="{StaticResource ActivityBinTemplate}"
                                       Height="5" Margin="0,3,0,0" IsHitTestVisible="False">
-                          <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                              <UniformGrid Rows="1" />
-                            </ItemsPanelTemplate>
-                          </ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                              <Border Height="5" Margin="0.5,0">
-                                <Border.Style>
-                                  <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
-                                    <Setter Property="Opacity" Value="0.32" />
-                                    <Style.Triggers>
-                                      <DataTrigger Binding="{Binding}" Value="Idle">
-                                        <Setter Property="Opacity" Value="0.1" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding}" Value="Thinking">
-                                        <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-                                        <Setter Property="Opacity" Value="0.7" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding}" Value="Planning">
-                                        <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-                                        <Setter Property="Opacity" Value="0.95" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding}" Value="Working">
-                                        <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
-                                        <Setter Property="Opacity" Value="0.95" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding}" Value="Waiting">
-                                        <Setter Property="Background" Value="{DynamicResource ForegroundBrush}" />
-                                        <Setter Property="Opacity" Value="1" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding}" Value="Error">
-                                        <Setter Property="Background" Value="{DynamicResource ForegroundBrush}" />
-                                        <Setter Property="Opacity" Value="1" />
-                                      </DataTrigger>
-                                      <DataTrigger Binding="{Binding}" Value="Complete">
-                                        <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-                                        <Setter Property="Opacity" Value="0.45" />
-                                      </DataTrigger>
-                                    </Style.Triggers>
-                                  </Style>
-                                </Border.Style>
-                              </Border>
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
+
                         </ItemsControl>
                       </Grid>
                     </DataTemplate>
@@ -517,6 +520,12 @@
                         <TextBlock Text="{Binding RowSubtitle}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}" FontWeight="Normal"
                                    FontFamily="{DynamicResource MetadataFontFamily}"
                                    FontSize="{DynamicResource FontSizeMeta}" />
+                        <!-- Last-hour task strip: same bins and template as the project
+                             header, so a row explains its own observed activity. -->
+                        <ItemsControl ItemsSource="{Binding TaskBins}"
+                                      ItemsPanel="{StaticResource ActivityBinsPanel}"
+                                      ItemTemplate="{StaticResource ActivityBinTemplate}"
+                                      Height="4" Margin="0,2,0,0" IsHitTestVisible="False" />
                       </StackPanel>
                       <TextBlock Grid.Column="2" Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" Margin="8,0,0,0" VerticalAlignment="Center"
                                  FontFamily="{DynamicResource MetadataFontFamily}"
