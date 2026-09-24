@@ -121,6 +121,13 @@ public sealed class HudWindowTests
                 Assert.False(vm.IsExpanded);
                 MouseEvent((UIElement)window.FindName("MuteButton"), UIElement.PreviewMouseDownEvent);
                 Assert.Null(System.Windows.Input.Mouse.Captured);
+                var controls = (FrameworkElement)window.FindName("HeaderControls");
+                Assert.Equal(System.Windows.Input.Cursors.Arrow, controls.Cursor);
+                Assert.True(controls.ForceCursor);
+                MouseEvent(controls, UIElement.PreviewMouseDownEvent);
+                Assert.Null(System.Windows.Input.Mouse.Captured);
+                MouseEvent((UIElement)window.FindName("HealthDot"), UIElement.PreviewMouseDownEvent);
+                Assert.Null(System.Windows.Input.Mouse.Captured);
                 MouseEvent((UIElement)window.FindName("StatusButton"), UIElement.PreviewMouseDownEvent);
                 MouseEvent(region, UIElement.PreviewMouseUpEvent);
                 Assert.True(vm.IsExpanded);

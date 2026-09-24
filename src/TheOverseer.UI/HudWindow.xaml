@@ -208,7 +208,8 @@
                      FontFamily="{DynamicResource MetadataFontFamily}"
                      FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
                      Foreground="{DynamicResource MutedBrush}" />
-          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <StackPanel x:Name="HeaderControls" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                      Background="Transparent" Cursor="Arrow" ForceCursor="True">
             <Button x:Name="LightToggleButton" Content="{Binding LightToggleText}" Command="{Binding ToggleLightCommand}"
                     ToolTip="{Binding LightToggleTooltip}" automation:AutomationProperties.Name="{Binding LightToggleTooltip}" Margin="0,0,5,0">
               <Button.Style>

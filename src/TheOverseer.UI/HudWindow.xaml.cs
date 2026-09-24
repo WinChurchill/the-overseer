@@ -92,6 +92,9 @@ public partial class HudWindow : Window
         for (var node = e.OriginalSource as DependencyObject; node is not null && node != sender;
              node = node is FrameworkContentElement content ? content.Parent : VisualTreeHelper.GetParent(node))
         {
+            // The entire controls area, including gaps and the health indicator,
+            // is reserved for interaction rather than moving the window.
+            if (node == HeaderControls) return;
             if (node is ButtonBase button)
             {
                 if (button != StatusButton) return;

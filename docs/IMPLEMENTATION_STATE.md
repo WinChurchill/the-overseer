@@ -393,3 +393,11 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   visible/topmost/taskbar, zero foreground observations in 60 samples/15 seconds.
   Shortcut target/icon verified; updated app running with existing settings.
   Evidence: `artifacts/outlined-release/`. Full smoke not repeated for asset edit.
+
+### Header controls cursor and drag — 2026-09-23
+
+- Entire upper-right controls area now forces the normal arrow cursor, including
+  gaps and health dot, and is excluded from header drag capture. Surrounding
+  summary remains draggable; popup menu also forces the arrow cursor.
+- Extended routed-input regression to cover the controls panel and health dot.
+  Changelog updated; no monitoring or voice behavior changes.

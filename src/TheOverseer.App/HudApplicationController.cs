@@ -628,7 +628,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private void CreateWindowMenu()
     {
-        var menu = new System.Windows.Controls.ContextMenu { Cursor = System.Windows.Input.Cursors.Arrow };
+        var menu = new System.Windows.Controls.ContextMenu { Cursor = System.Windows.Input.Cursors.Arrow, ForceCursor = true };
         void Add(string label, Action action)
         {
             var item = new System.Windows.Controls.MenuItem { Header = label };

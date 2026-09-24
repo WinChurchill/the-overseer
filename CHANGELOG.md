@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Upper-right controls, their gaps and health indicator now use the normal arrow
+  cursor and never start a window drag. Popup menus also enforce the arrow cursor.
 - Active-row timers now measure elapsed time for the current turn, instead of
   resetting with each action. Last-activity freshness remains in the tooltip;
   an unobserved turn start displays a dash rather than an invented duration.
