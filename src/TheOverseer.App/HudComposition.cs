@@ -11,6 +11,7 @@ using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
 using TheOverseer.Core.Voice;
 using TheOverseer.App.Voice;
+using TheOverseer.App.Voice.Speech;
 using TheOverseer.UI;
 
 namespace TheOverseer.App;
@@ -118,10 +119,15 @@ internal static class HudComposition
         VoiceSettings Settings() => coordinator?.Settings ?? normalized;
         bool Relevant(VoiceCandidate candidate) => coordinator?.IsStillRelevant(candidate) ?? false;
         var packProvider = new VoicePackProvider(dataDirectory, Settings);
-        IVoiceProvider fallback = normalized.ResolvedProvider == VoiceProviderKind.Tts
-            ? new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), Settings), packProvider, allowFallback: true, Relevant)
-            : packProvider;
-        IVoiceProvider provider = new AssignedVoiceProvider(dataDirectory, Settings, fallback);
+        // Selected provider only: no automatic cross-provider fallback in this round,
+        // so a failing baseline engine is visible instead of quietly swapping voices.
+        IVoiceProvider selected = normalized.ResolvedProvider switch
+        {
+            VoiceProviderKind.Tts => new FallbackVoiceProvider(new TtsEndpointProvider(CreateTtsClient(), Settings), packProvider, allowFallback: true, Relevant),
+            VoiceProviderKind.Speech => new WindowsSpeechVoiceProvider(new SapiSpeechSynthesisEngine(), Settings),
+            _ => packProvider,
+        };
+        IVoiceProvider provider = new AssignedVoiceProvider(dataDirectory, Settings, selected);
 
         var player = new WavPlaybackService();
         var manager = new VoiceManager(

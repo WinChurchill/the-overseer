@@ -6,6 +6,9 @@ public enum VoiceProviderKind
 {
     Pack,
     Tts,
+
+    /// <summary>Offline Windows speech synthesis of the fixed catalog scripts.</summary>
+    Speech,
 }
 
 /// <summary>
@@ -53,10 +56,18 @@ public sealed record VoiceSettings
 
     [JsonIgnore]
     public VoiceProviderKind ResolvedProvider =>
-        string.Equals(Provider, "tts", StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Tts : VoiceProviderKind.Pack;
+        string.Equals(Provider, "tts", StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Tts
+        : string.Equals(Provider, "speech", StringComparison.OrdinalIgnoreCase) ||
+          string.Equals(Provider, "baseline", StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Speech
+        : VoiceProviderKind.Pack;
 
     [JsonIgnore]
-    public string ProviderName => ResolvedProvider == VoiceProviderKind.Tts ? "tts" : "pack";
+    public string ProviderName => ResolvedProvider switch
+    {
+        VoiceProviderKind.Tts => "tts",
+        VoiceProviderKind.Speech => "speech",
+        _ => "pack",
+    };
 
     [JsonIgnore]
     public TimeSpan Timeout => TimeSpan.FromSeconds(TimeoutSeconds);
