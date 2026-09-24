@@ -167,6 +167,86 @@ public sealed class BridgeProducerFixtureTests
         Assert.Empty(received);
     }
 
+    [Fact]
+    public async Task BridgeFreshnessComesFromTheProducerNotFromThePoll()
+    {
+        using var fixture = BridgeFixture.Create("live");
+        var clock = new ManualTimeProvider(ProducerStart);
+        await using var adapter = fixture.CreateAdapter(clock);
+        await adapter.StartAsync(new CancellationToken(canceled: true));
+
+        var first = adapter.Poll();
+        var evidence = first.EffectiveEvidenceAt;
+        Assert.NotEqual(default, evidence);
+        Assert.True(evidence <= clock.GetUtcNow());
+
+        // An hour of polling an idle spool must not look like an hour of fresh reads.
+        clock.AdvanceSeconds(3600);
+        var second = adapter.Poll();
+
+        Assert.Equal(evidence, second.EffectiveEvidenceAt);
+        Assert.Equal(clock.GetUtcNow(), second.ObservedAt);
+        Assert.True(second.EffectiveEvidenceAt < second.ObservedAt);
+    }
+
+    [Fact]
+    public async Task ASharedBudgetBoundsHowMuchOneSourceReadsPerPass()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        var source = new SourceInstance(HarnessIds.Dsh, "dsh-budget", "DeepSeek Harness");
+        var clock = new ManualTimeProvider(ProducerStart);
+        await using var adapter = new BridgeMonitorAdapter(source, root, timeProvider: clock, actionLease: TimeSpan.FromHours(1));
+        Directory.CreateDirectory(adapter.SpoolDirectory);
+        try
+        {
+            var padding = new string('p', 500);
+            var lines = new List<string>();
+            for (var sequence = 0; sequence < 200; sequence++)
+            {
+                lines.Add("{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-budget\"," +
+                          "\"sourceEpoch\":\"epoch\",\"sessionId\":\"session-budget\",\"sequence\":" + sequence + "," +
+                          "\"eventId\":\"e" + sequence + "\",\"observedAtUtc\":\"" + ProducerStart.ToString("o") + "\"," +
+                          "\"kind\":\"tool/start\",\"turnId\":\"turn-1\",\"projectRoot\":\"" + padding + "\"," +
+                          "\"category\":\"working\",\"evidence\":\"explicit\",\"hydration\":false,\"producerVersion\":\"test\"}");
+            }
+
+            File.WriteAllLines(Path.Combine(adapter.SpoolDirectory, "events.jsonl"), lines);
+            adapter.ApplyBudget(new SourceBudget(SourceBudget.MinimumBytesPerPass, 64, "test-share"));
+            await adapter.StartAsync(new CancellationToken(canceled: true));
+
+            adapter.Poll();
+            var appliedInOnePass = Applied(adapter.Describe());
+            Assert.True(appliedInOnePass < lines.Count, "one pass must not read the whole spool: " + adapter.Describe());
+
+            for (var pass = 0; pass < 24 && Applied(adapter.Describe()) < lines.Count; pass++)
+            {
+                adapter.Poll();
+            }
+
+            // Bounded per pass, but it still completes: a share is a rate, not a cap
+            // on what the source can ever observe.
+            Assert.Equal(lines.Count, Applied(adapter.Describe()));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static long Applied(string description)
+    {
+        foreach (var part in description.Split(' '))
+        {
+            if (part.StartsWith("applied=", StringComparison.Ordinal) &&
+                long.TryParse(part[8..], System.Globalization.CultureInfo.InvariantCulture, out var value))
+            {
+                return value;
+            }
+        }
+
+        throw new InvalidOperationException("no applied counter in " + description);
+    }
+
     private static int SplitAtLineBoundary(byte[] stream, int target)
     {
         var index = Math.Clamp(target, 1, stream.Length - 1);

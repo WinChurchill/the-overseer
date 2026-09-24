@@ -54,6 +54,21 @@ public sealed record MonitorConfig
     /// </summary>
     [JsonPropertyName("disabledHarnessSources")]
     public IReadOnlyList<string> DisabledHarnessSources { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Extra bridge roots to scan, as { harness, path }. Only directories the user
+    /// explicitly names are read, and discovery stays bounded (see
+    /// <see cref="MaximumHarnessSources"/>).
+    /// </summary>
+    [JsonPropertyName("harnessRoots")]
+    public IReadOnlyList<HarnessRootSetting> HarnessRoots { get; init; } = Array.Empty<HarnessRootSetting>();
+
+    /// <summary>
+    /// Most bridge source instances to monitor at once. Clamped: a hostile or
+    /// accidental value can never raise the aggregate resource bound.
+    /// </summary>
+    [JsonPropertyName("maximumHarnessSources")]
+    public int MaximumHarnessSources { get; init; } = 8;
 }
 
 public sealed record MonitorLimits

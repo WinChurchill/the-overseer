@@ -45,7 +45,8 @@ public sealed class CodexMonitorAdapter : IAgentMonitorAdapter
             snapshot.Tasks,
             snapshot.Transitions,
             snapshot.Capabilities,
-            "codex-monitor");
+            "codex-monitor",
+            snapshot.Health.LastSuccessfulReadAt ?? snapshot.GeneratedAt);
         SnapshotAvailable?.Invoke(_current);
     }
 
@@ -66,6 +67,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
 {
     private readonly IReadOnlyList<IAgentMonitorAdapter> _adapters;
     private readonly IMonitorLog _log;
+    private readonly TimeProvider _timeProvider;
     private readonly object _gate = new();
     private readonly Dictionary<string, SourceSnapshot> _latest = new(StringComparer.Ordinal);
     private readonly HashSet<AttentionEvent> _seenTransitions = new();
@@ -75,18 +77,48 @@ public sealed class CompositeMonitorSource : IMonitorSource
     private MonitoringSnapshot _current;
     private int _started;
 
-    public CompositeMonitorSource(IReadOnlyList<IAgentMonitorAdapter> adapters, IMonitorLog? log = null)
+    public CompositeMonitorSource(
+        IReadOnlyList<IAgentMonitorAdapter> adapters,
+        IMonitorLog? log = null,
+        TimeProvider? timeProvider = null,
+        SourceBudget? aggregateBudget = null)
     {
-        _adapters = (adapters ?? Array.Empty<IAgentMonitorAdapter>())
-            .Where(adapter => adapter.Source.IsEnabled).ToArray();
+        ArgumentNullException.ThrowIfNull(adapters);
+        var enabled = adapters.Where(adapter => adapter.Source.IsEnabled).ToArray();
+        // The caller passes the AGGREGATE allowance; the composite divides it. Adding
+        // a source therefore never multiplies the work the machine performs per pass.
+        var aggregate = aggregateBudget ?? SourceBudget.Default;
+        Budget = SourceBudget.Share(aggregate.BytesPerPass, aggregate.MaximumSessions, enabled.Length);
+        if (enabled.Length > SourceBudget.MaximumSourceInstances)
+        {
+            // A machine with more spools than the supported source limit is bounded
+            // rather than monitored more heavily than the budget allows.
+            Array.Resize(ref enabled, SourceBudget.MaximumSourceInstances);
+            SourcesTruncated = true;
+        }
+
+        _adapters = enabled;
         _log = log ?? NullMonitorLog.Instance;
-        _current = MonitoringSnapshot.Empty(DateTimeOffset.UtcNow);
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _current = MonitoringSnapshot.Empty(_timeProvider.GetUtcNow());
         foreach (var adapter in _adapters)
         {
+            if (adapter is IBudgetedMonitorAdapter budgeted)
+            {
+                // Applied before StartAsync so the reader cannot start unbudgeted.
+                budgeted.ApplyBudget(Budget);
+            }
+
             _latest[SourceKey(adapter.Source)] = SourceSnapshot.Empty(
                 adapter.Source, DateTimeOffset.MinValue, "not-started", adapter.Source.HarnessId);
         }
     }
+
+    /// <summary>Equal share of the aggregate budget every adapter received.</summary>
+    public SourceBudget Budget { get; }
+
+    /// <summary>True when more sources were discovered than the aggregate limit allows.</summary>
+    public bool SourcesTruncated { get; }
 
     public MonitoringSnapshot Current
     {
@@ -95,6 +127,18 @@ public sealed class CompositeMonitorSource : IMonitorSource
             lock (_gate)
             {
                 return _current;
+            }
+        }
+    }
+
+    /// <summary>Latest immutable snapshot per source, for diagnostics and tests.</summary>
+    public IReadOnlyList<SourceSnapshot> SourceSnapshots
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _latest.Values.ToArray();
             }
         }
     }
@@ -125,7 +169,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
             {
                 // A source that cannot start is unavailable, never a silent zero.
                 _log.Write(MonitorLogLevel.Warning, "composite-source-start:" + adapter.Source.Describe());
-                Push(SourceSnapshot.Empty(adapter.Source, DateTimeOffset.UtcNow, "source-start-failed", adapter.Source.HarnessId));
+                Push(SourceSnapshot.Empty(adapter.Source, _timeProvider.GetUtcNow(), "source-start-failed", adapter.Source.HarnessId));
             }
         }
 
@@ -166,6 +210,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
             var key = SourceKey(snapshot.Source);
             if (!_latest.TryGetValue(key, out var previous) || snapshot.ObservedAt < previous.ObservedAt)
                 return;
+            // Only this source's entry is replaced: a fresh publication from one
+            // harness can never advance another harness's evidence time.
             _latest[key] = snapshot with { Transitions = Array.Empty<AttentionEvent>() };
             foreach (var transition in snapshot.Transitions)
             {
@@ -195,9 +241,10 @@ public sealed class CompositeMonitorSource : IMonitorSource
             var reasons = new SortedSet<string>(StringComparer.Ordinal);
             var level = MonitoringHealthLevel.Healthy;
             var coverage = true;
-            var capabilities = MonitorCapabilities.Initial;
+            var readable = new List<(SourceInstance Source, MonitorCapabilities Capabilities)>();
             var observation = LiveObservationStats.Empty;
             var anyReadable = false;
+            DateTimeOffset? lastEvidence = null;
 
             foreach (var source in sources)
             {
@@ -208,22 +255,33 @@ public sealed class CompositeMonitorSource : IMonitorSource
                     BytesRead = observation.BytesRead,
                 };
 
-                if (source.Health == MonitoringHealthLevel.Healthy)
+                var sourceReadable = source.Health != MonitoringHealthLevel.Unavailable;
+                if (sourceReadable)
                 {
                     anyReadable = true;
-                    capabilities = source.Capabilities;
+                    readable.Add((source.Source, source.Capabilities));
+                    var evidence = source.EffectiveEvidenceAt;
+                    if (lastEvidence is null || evidence > lastEvidence) lastEvidence = evidence;
                 }
-                else if (source.Health == MonitoringHealthLevel.Degraded)
+
+                switch (source.Health)
                 {
-                    anyReadable = true;
-                    if (level == MonitoringHealthLevel.Healthy)
-                    {
-                        level = MonitoringHealthLevel.Degraded;
-                    }
-                }
-                else if (level != MonitoringHealthLevel.Degraded)
-                {
-                    level = MonitoringHealthLevel.Unavailable;
+                    case MonitoringHealthLevel.Healthy:
+                        break;
+                    case MonitoringHealthLevel.Degraded:
+                        if (level == MonitoringHealthLevel.Healthy)
+                        {
+                            level = MonitoringHealthLevel.Degraded;
+                        }
+
+                        break;
+                    default:
+                        if (level != MonitoringHealthLevel.Degraded)
+                        {
+                            level = MonitoringHealthLevel.Unavailable;
+                        }
+
+                        break;
                 }
 
                 if (!source.CoverageComplete || source.Health == MonitoringHealthLevel.Unavailable)
@@ -235,6 +293,11 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 {
                     reasons.Add(source.Source.HarnessId + ":" + reason);
                 }
+            }
+
+            if (SourcesTruncated)
+            {
+                reasons.Add("sources-truncated:" + SourceBudget.MaximumSourceInstances.ToString(CultureInfo.InvariantCulture));
             }
 
             // Readable work always leaves the source set at worst degraded: a
@@ -251,20 +314,26 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 reasons.Add("no-sources");
             }
 
+            var capabilities = MonitorCapabilities.Aggregate(readable);
             var counts = ComputeCounts(tasks, coverage && anyReadable, anyReadable);
             if (tasks.Any(task => !task.IsStale && task.State == AgentTaskState.Working)) _allCompleteArmed = true;
+            var now = _timeProvider.GetUtcNow();
             if (_allCompleteArmed && coverage && anyReadable && tasks.Count > 0 &&
                 tasks.All(task => !task.IsStale && !task.IsProvisional && task.State == AgentTaskState.Done) &&
                 transitions.Any(transition => transition.Kind == AttentionEventKind.TaskCompleted))
             {
                 transitions.Add(new AttentionEvent(AttentionEventKind.AllTasksCompleted, default, 0,
                     string.Empty, AgentTaskState.Done, AgentActionKind.Completed, string.Empty,
-                    DateTimeOffset.UtcNow, "all-tasks-completed"));
+                    now, "all-tasks-completed"));
                 _allCompleteArmed = false;
             }
+
+            // LastSuccessfulReadAt is the newest EVIDENCE among readable sources, not
+            // the wall clock: a peer that keeps publishing must not make a stalled
+            // source look freshly read.
             merged = new MonitoringSnapshot(
-                DateTimeOffset.UtcNow,
-                new MonitoringHealth(level, reasons.ToArray(), coverage, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
+                now,
+                new MonitoringHealth(level, reasons.ToArray(), coverage, lastEvidence, now),
                 counts,
                 tasks,
                 DedupeTransitions(transitions, coverage),

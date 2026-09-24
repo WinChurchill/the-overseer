@@ -90,6 +90,14 @@ public static class MonitorConfigStore
         Logging = config.Logging ?? new LoggingSettings(),
         Hud = (config.Hud ?? new HudSettings()).Normalized(),
         Voice = (config.Voice ?? new VoiceSettings()).Normalized(),
+        MaximumHarnessSources = Math.Clamp(config.MaximumHarnessSources, 1, TheOverseer.Core.Models.SourceBudget.MaximumSourceInstances),
+        HarnessRoots = (config.HarnessRoots ?? Array.Empty<HarnessRootSetting>())
+            .Select(HarnessRootSetting.Normalize)
+            .Where(static setting => setting is not null)
+            .Select(static setting => setting!)
+            .Distinct()
+            .Take(8)
+            .ToArray(),
     };
 
     /// <summary>Applies configuration limits onto monitor options; bounds always win.</summary>

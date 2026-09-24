@@ -1,5 +1,6 @@
 using System.IO;
 using TheOverseer.App.Monitoring;
+using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
@@ -25,11 +26,15 @@ public sealed class CompositeMonitorTests
             StateSince = Start,
         };
 
-    private sealed class FakeAdapter : IAgentMonitorAdapter
+    private sealed class FakeAdapter : IAgentMonitorAdapter, IBudgetedMonitorAdapter
     {
         public FakeAdapter(SourceInstance source) => Source = source;
 
         public SourceInstance Source { get; }
+
+        public SourceBudget? AppliedBudget { get; private set; }
+
+        public void ApplyBudget(SourceBudget budget) => AppliedBudget = budget;
 
         public SourceSnapshot Current { get; private set; } =
             SourceSnapshot.Empty(new SourceInstance(HarnessIds.Codex, "unset", "unset"), Start, "not-started", "fake");
@@ -54,18 +59,22 @@ public sealed class CompositeMonitorTests
             MonitoringHealthLevel level,
             bool complete,
             IReadOnlyList<AgentTask> tasks,
-            IReadOnlyList<AttentionEvent>? transitions = null)
+            IReadOnlyList<AttentionEvent>? transitions = null,
+            DateTimeOffset? observedAt = null,
+            DateTimeOffset? evidenceAt = null,
+            MonitorCapabilities? capabilities = null)
         {
             Current = new SourceSnapshot(
                 Source,
-                Start,
+                observedAt ?? Start,
                 level,
                 level == MonitoringHealthLevel.Healthy ? Array.Empty<string>() : new[] { "source-degraded" },
                 complete,
                 tasks,
                 transitions ?? Array.Empty<AttentionEvent>(),
-                MonitorCapabilities.Initial,
-                "fake");
+                capabilities ?? MonitorCapabilities.Initial,
+                "fake",
+                evidenceAt ?? observedAt ?? Start);
             SnapshotAvailable?.Invoke(Current);
         }
     }
@@ -292,6 +301,201 @@ public sealed class CompositeMonitorTests
             File.AppendAllText(events, ":1}\n");
             var second = reader.ReadNewLines(out _, out _);
             Assert.Single(second);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AggregateBudgetIsDividedBetweenSourcesInsteadOfMultiplied()
+    {
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        var claude = new FakeAdapter(new SourceInstance(HarnessIds.Claude, "claude-1", "Claude Code"));
+        await using var composite = new CompositeMonitorSource(
+            new IAgentMonitorAdapter[] { codex, dsh, claude },
+            NullMonitorLog.Instance,
+            aggregateBudget: new SourceBudget(3 * 1024 * 1024, 900, "test-aggregate"));
+
+        Assert.Equal(1024 * 1024, composite.Budget.BytesPerPass);
+        Assert.Equal(300, composite.Budget.MaximumSessions);
+        Assert.Equal(composite.Budget, codex.AppliedBudget);
+        Assert.Equal(composite.Budget, dsh.AppliedBudget);
+        Assert.Equal(composite.Budget, claude.AppliedBudget);
+        // Adding sources must not raise what the machine reads per pass.
+        Assert.True(composite.Budget.BytesPerPass * 3 <= 3 * 1024 * 1024);
+    }
+
+    [Fact]
+    public void ABudgetShareIsClampedSoNeitherConfigNorCallerCanRemoveTheBound()
+    {
+        Assert.Equal(SourceBudget.MinimumBytesPerPass, SourceBudget.Share(1, 1, 64).BytesPerPass);
+        Assert.Equal(SourceBudget.DefaultAggregateBytesPerPass / 8, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 1024, 8).BytesPerPass);
+        Assert.Equal(SourceBudget.DefaultAggregateBytesPerPass, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 1024, 1).BytesPerPass);
+        Assert.Equal(SourceBudget.MinimumSessions, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 8, 8).MaximumSessions);
+    }
+
+    [Fact]
+    public async Task MoreSourcesThanTheLimitAreTruncatedWithAVisibleReason()
+    {
+        var adapters = Enumerable.Range(0, SourceBudget.MaximumSourceInstances + 3)
+            .Select(index => new FakeAdapter(new SourceInstance(HarnessIds.Dsh, "dsh-" + index, "DeepSeek Harness " + index)))
+            .ToArray();
+        await using var composite = new CompositeMonitorSource(adapters, NullMonitorLog.Instance);
+        await composite.StartAsync(CancellationToken.None);
+        adapters[0].Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>());
+
+        Assert.Equal(SourceBudget.MaximumSourceInstances, composite.Sources.Count);
+        Assert.True(composite.SourcesTruncated);
+        Assert.Contains(composite.Current.Health.Reasons, reason => reason.StartsWith("sources-truncated", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ADeadSourceIsNotRefreshedByAFreshPeer()
+    {
+        var clock = new ManualTimeProvider(Start);
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        await using var composite = new CompositeMonitorSource(
+            new IAgentMonitorAdapter[] { codex, dsh }, NullMonitorLog.Instance, timeProvider: clock);
+        await composite.StartAsync(CancellationToken.None);
+
+        dsh.Push(MonitoringHealthLevel.Unavailable, false, Array.Empty<AgentTask>(), observedAt: Start, evidenceAt: Start);
+        var dead = composite.SourceSnapshots.Single(source => source.Source.HarnessId == HarnessIds.Dsh);
+        clock.AdvanceSeconds(600);
+        codex.Push(MonitoringHealthLevel.Healthy, true, new[] { BuildTask(HarnessIds.Codex, "codex", "conv-1", AgentTaskState.Working) }, observedAt: clock.GetUtcNow(), evidenceAt: clock.GetUtcNow());
+
+        var afterPeer = composite.SourceSnapshots.Single(source => source.Source.HarnessId == HarnessIds.Dsh);
+        Assert.Equal(dead.ObservedAt, afterPeer.ObservedAt);
+        Assert.Equal(dead.EffectiveEvidenceAt, afterPeer.EffectiveEvidenceAt);
+        // The peer is readable, so the peer's work stays visible...
+        Assert.Equal(MonitoringHealthLevel.Degraded, composite.Current.Health.Level);
+        Assert.Contains(composite.Current.Health.Reasons, reason => reason.StartsWith("dsh:", StringComparison.Ordinal));
+        // ...but merged freshness is the peer's evidence, never the wall clock, and
+        // never a claim that the dead source was just read.
+        Assert.Equal(clock.GetUtcNow(), composite.Current.Health.LastSuccessfulReadAt);
+        Assert.Equal(clock.GetUtcNow(), composite.Current.Health.ObservedAt);
+    }
+
+    [Fact]
+    public async Task StalledSourcePublicationDoesNotRefreshMergedFreshness()
+    {
+        var clock = new ManualTimeProvider(Start);
+        var codex = new FakeAdapter(Codex);
+        await using var composite = new CompositeMonitorSource(
+            new IAgentMonitorAdapter[] { codex }, NullMonitorLog.Instance, timeProvider: clock);
+        await composite.StartAsync(CancellationToken.None);
+        codex.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>(), observedAt: clock.GetUtcNow(), evidenceAt: Start.AddSeconds(-30));
+
+        clock.AdvanceSeconds(120);
+        codex.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>(), observedAt: clock.GetUtcNow(), evidenceAt: Start.AddSeconds(-30));
+
+        // The adapter republished, but nothing was actually observed since -30s.
+        Assert.Equal(Start.AddSeconds(-30), composite.Current.Health.LastSuccessfulReadAt);
+        Assert.Equal(clock.GetUtcNow(), composite.Current.Health.ObservedAt);
+    }
+
+    [Fact]
+    public async Task CapabilitiesAreAggregatedFromEveryReadableSource()
+    {
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        await using var composite = new CompositeMonitorSource(new IAgentMonitorAdapter[] { codex, dsh }, NullMonitorLog.Instance);
+        await composite.StartAsync(CancellationToken.None);
+
+        var codexCapabilities = MonitorCapabilities.Initial with
+        {
+            PermissionRequests = new CapabilityStatus(CapabilitySupport.Unsupported, "permission-requests", "codex"),
+            SessionTitles = new CapabilityStatus(CapabilitySupport.LiveObserved, "session-titles", "codex titles"),
+        };
+        var dshCapabilities = MonitorCapabilities.Initial with
+        {
+            PermissionRequests = new CapabilityStatus(CapabilitySupport.Supported, "permission-requests", "dsh approvals"),
+            SessionTitles = new CapabilityStatus(CapabilitySupport.Unsupported, "session-titles", "no titles in dsh"),
+        };
+        var dead = MonitorCapabilities.Initial with
+        {
+            PermissionRequests = new CapabilityStatus(CapabilitySupport.LiveObserved, "permission-requests", "should not count"),
+        };
+        codex.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>(), capabilities: codexCapabilities);
+        dsh.Push(MonitoringHealthLevel.Degraded, false, Array.Empty<AgentTask>(), capabilities: dshCapabilities);
+
+        var merged = composite.Current.Capabilities;
+
+        // Union of readable sources, not "the last healthy source wins".
+        Assert.Equal(CapabilitySupport.Supported, merged.PermissionRequests.Support);
+        Assert.Equal(CapabilitySupport.LiveObserved, merged.SessionTitles.Support);
+        Assert.Contains("codex:", merged.PermissionRequests.Note, StringComparison.Ordinal);
+        Assert.Contains("dsh:", merged.PermissionRequests.Note, StringComparison.Ordinal);
+
+        // An unavailable source's claims never enter the aggregate.
+        codex.Push(MonitoringHealthLevel.Unavailable, false, Array.Empty<AgentTask>(), capabilities: dead);
+        Assert.Equal(CapabilitySupport.Supported, composite.Current.Capabilities.PermissionRequests.Support);
+    }
+
+    [Fact]
+    public void DiscoveryIsBoundedDeterministicAndHonoursConfiguredRoots()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        var dshRoot = Path.Combine(root, "bridges", "dsh");
+        var extraRoot = Path.Combine(root, "extra");
+        try
+        {
+            Directory.CreateDirectory(dshRoot);
+            for (var index = 0; index < 40; index++)
+            {
+                Directory.CreateDirectory(Path.Combine(dshRoot, "source-" + index.ToString("D2")));
+            }
+
+            Directory.CreateDirectory(Path.Combine(extraRoot, "configured-one"));
+            var bounded = HarnessSources.DiscoverDetailed(root, options: new HarnessDiscoveryOptions(MaximumSources: 5, MaximumEntriesPerRoot: 16));
+            Assert.Equal(5, bounded.Sources.Count);
+            Assert.True(bounded.Capped);
+
+            // A configured root is scanned even when the default root already has
+            // entries; the limit still applies across every root.
+            var other = Path.Combine(root, "second-data-directory");
+            Directory.CreateDirectory(other);
+            var configured = HarnessSources.DiscoverDetailed(
+                other,
+                options: new HarnessDiscoveryOptions(ConfiguredRoots: new[] { new HarnessRootSetting { HarnessId = HarnessIds.Dsh, Path = extraRoot } }));
+            Assert.Equal("configured-one", Assert.Single(configured.Sources).SourceInstanceId);
+
+            // Deterministic order: the same inputs give the same list twice.
+            var first = HarnessSources.Discover(root);
+            var second = HarnessSources.Discover(root);
+            Assert.Equal(first.Select(source => source.Describe()), second.Select(source => source.Describe()));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void UnknownConfiguredRootsAreIgnoredAndDisabledSourcesStayExcluded()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        var dshRoot = Path.Combine(root, "bridges", "dsh");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dshRoot, "one"));
+            Directory.CreateDirectory(Path.Combine(dshRoot, "two"));
+            var result = HarnessSources.DiscoverDetailed(
+                root,
+                disabled: new[] { "dsh/one" },
+                options: new HarnessDiscoveryOptions(
+                    ConfiguredRoots: new[]
+                    {
+                        new HarnessRootSetting { HarnessId = HarnessIds.Dsh, Path = Path.Combine(root, "does-not-exist") },
+                        new HarnessRootSetting { HarnessId = HarnessIds.Dsh, Path = "   " },
+                    }));
+
+            Assert.Equal(2, result.Sources.Count);
+            Assert.False(result.Sources.Single(source => source.SourceInstanceId == "one").IsEnabled);
+            Assert.True(result.Sources.Single(source => source.SourceInstanceId == "two").IsEnabled);
         }
         finally
         {

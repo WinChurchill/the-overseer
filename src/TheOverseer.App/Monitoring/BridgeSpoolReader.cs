@@ -24,7 +24,12 @@ namespace TheOverseer.App.Monitoring;
 /// </summary>
 public sealed class BridgeSpoolReader
 {
-    private const int MaximumBytesPerPass = 1 * 1024 * 1024;
+    /// <summary>Hard ceiling for one source's share, whatever the caller asks for.</summary>
+    public const int HardMaximumBytesPerPass = 1 * 1024 * 1024;
+
+    /// <summary>Floor that keeps a small share able to make progress.</summary>
+    public const int MinimumBytesPerPass = 64 * 1024;
+
     private const int MaximumHealthBytes = 64 * 1024;
     private const int MaximumCurrentBytes = 512 * 1024;
     private const int MaximumRotatedFilesPerPass = 4;
@@ -37,9 +42,22 @@ public sealed class BridgeSpoolReader
     private DateTime _eventsLastWriteUtc;
     private ulong _eventsHeadHash;
 
+    private int _maximumBytesPerPass = HardMaximumBytesPerPass;
+
     public BridgeSpoolReader(string directory) => Directory = directory;
 
     public string Directory { get; }
+
+    /// <summary>
+    /// This source's share of the aggregate monitoring budget. Clamped to the
+    /// documented floor and ceiling so neither a caller nor a config can remove the
+    /// bound.
+    /// </summary>
+    public int MaximumBytesPerPass
+    {
+        get => _maximumBytesPerPass;
+        set => _maximumBytesPerPass = Math.Clamp(value, MinimumBytesPerPass, HardMaximumBytesPerPass);
+    }
 
     public string EventsPath => Path.Combine(Directory, "events.jsonl");
 
@@ -92,7 +110,7 @@ public sealed class BridgeSpoolReader
                 return lines;
             }
 
-            var budget = (int)Math.Min(MaximumBytesPerPass, info.Length - _eventsOffset);
+            var budget = (int)Math.Min(_maximumBytesPerPass, info.Length - _eventsOffset);
             using var stream = new FileStream(EventsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             stream.Seek(_eventsOffset, SeekOrigin.Begin);
             var buffer = new byte[budget];
@@ -339,7 +357,7 @@ public sealed class BridgeSpoolReader
         }
 
         var recoveredAny = false;
-        var remaining = MaximumBytesPerPass;
+        var remaining = _maximumBytesPerPass;
         for (var index = 0; index < rotated.Count; index++)
         {
             var file = rotated[index];

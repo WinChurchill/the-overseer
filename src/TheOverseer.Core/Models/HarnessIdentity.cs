@@ -72,9 +72,18 @@ public sealed record SourceSnapshot(
     IReadOnlyList<AgentTask> Tasks,
     IReadOnlyList<AttentionEvent> Transitions,
     MonitorCapabilities Capabilities,
-    string AdapterCode)
+    string AdapterCode,
+    DateTimeOffset EvidenceAt = default)
 {
     public bool IsEnabled => Source.IsEnabled;
+
+    /// <summary>
+    /// When this source last actually observed something. <see cref="ObservedAt"/>
+    /// is when the adapter published, which is always "now" for a polling adapter;
+    /// freshness claims must use this value instead, so a source that keeps
+    /// publishing unchanged data cannot look freshly read.
+    /// </summary>
+    public DateTimeOffset EffectiveEvidenceAt => EvidenceAt == default ? ObservedAt : EvidenceAt;
 
     public static SourceSnapshot Empty(SourceInstance source, DateTimeOffset now, string reason, string adapterCode) => new(
         source,
@@ -85,5 +94,6 @@ public sealed record SourceSnapshot(
         Array.Empty<AgentTask>(),
         Array.Empty<AttentionEvent>(),
         MonitorCapabilities.Initial,
-        adapterCode);
+        adapterCode,
+        now);
 }

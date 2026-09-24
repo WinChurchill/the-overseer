@@ -13,7 +13,7 @@ namespace TheOverseer.App.Monitoring;
 /// reads the bounded spool, consumes the producer's authoritative current-state
 /// document for resynchronization, and publishes the shared task contract.
 /// </summary>
-public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
+public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonitorAdapter
 {
     private readonly string _dataDirectory;
     private readonly ProjectResolver? _projects;
@@ -29,6 +29,9 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
     private SourceSnapshot _current;
     private DateTimeOffset _attachedAt;
     private int _observedDrops;
+    private SourceBudget _budget = SourceBudget.Default;
+    private DateTimeOffset _lastResyncAt;
+    private int _disposed;
 
     public BridgeMonitorAdapter(
         SourceInstance source,
@@ -63,10 +66,26 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _attachedAt = _timeProvider.GetUtcNow();
-        _session = new HarnessBridgeSession(Source, _staleLease, actionLease: _actionLease);
-        _reader = new BridgeSpoolReader(SpoolDirectory);
+        _session = new HarnessBridgeSession(Source, _staleLease, _budget.MaximumSessions, _actionLease);
+        _reader = new BridgeSpoolReader(SpoolDirectory) { MaximumBytesPerPass = _budget.BytesPerPass };
         _loop ??= Task.Run(() => RunAsync(cancellationToken), CancellationToken.None);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Applies this source's share of the aggregate budget. The composite calls this
+    /// before <see cref="StartAsync"/>, so an unstarted adapter is already bounded
+    /// and a running reader is re-bounded without restarting it.
+    /// </summary>
+    public void ApplyBudget(SourceBudget budget)
+    {
+        _budget = budget ?? SourceBudget.Default;
+        if (_reader is { } reader)
+        {
+            reader.MaximumBytesPerPass = _budget.BytesPerPass;
+        }
+
+        _session?.SetSessionLimit(_budget.MaximumSessions);
     }
 
     public void RequestReconcile() => Poll();
@@ -130,6 +149,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             {
                 case BridgeCurrentStateOutcome.Accepted when current.Document is not null:
                     _session.ApplyCurrentState(current.Document, now);
+                    _lastResyncAt = current.Document.UpdatedAtUtc > now ? now : current.Document.UpdatedAtUtc;
                     break;
                 case BridgeCurrentStateOutcome.Malformed:
                 case BridgeCurrentStateOutcome.UnsupportedSchema:
@@ -222,6 +242,11 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             ? MonitoringHealthLevel.Unavailable
             : reasons.Count == 0 ? MonitoringHealthLevel.Healthy : MonitoringHealthLevel.Degraded;
 
+        // Evidence time is when the producer last observed something, not when this
+        // adapter happened to publish: an idle spool cannot look freshly read.
+        var evidenceAt = lanes.Count == 0
+            ? (_session?.EmptySourceAuthoritative == true ? _lastResyncAt : DateTimeOffset.MinValue)
+            : lanes.Max(static lane => lane.LastObservedAt);
         _current = new SourceSnapshot(
             Source,
             now,
@@ -231,7 +256,8 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             tasks,
             transitions ?? Array.Empty<AttentionEvent>(),
             MonitorCapabilities.Initial,
-            adapterCode);
+            adapterCode,
+            evidenceAt == DateTimeOffset.MinValue ? now : evidenceAt);
         SnapshotAvailable?.Invoke(_current);
         return _current;
     }
@@ -347,6 +373,11 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
         try
         {
             await _lifetime.CancelAsync().ConfigureAwait(false);

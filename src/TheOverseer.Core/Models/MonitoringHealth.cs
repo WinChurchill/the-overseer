@@ -96,6 +96,70 @@ public sealed record MonitorCapabilities(
     CapabilityStatus SessionTitles,
     CapabilityStatus AttentionLiveVerification)
 {
+    /// <summary>
+    /// Merges the capability sets of the readable sources. A capability is
+    /// advertised when at least one readable source provides it, and the note names
+    /// every source's own support so a partial capability is never presented as a
+    /// uniform one. This replaces "the last healthy source wins", which silently
+    /// dropped the other harnesses' capabilities.
+    /// </summary>
+    public static MonitorCapabilities Aggregate(
+        IReadOnlyList<(SourceInstance Source, MonitorCapabilities Capabilities)> sources)
+    {
+        if (sources.Count == 0)
+        {
+            return Initial;
+        }
+
+        CapabilityStatus Merge(Func<MonitorCapabilities, CapabilityStatus> select)
+        {
+            var best = sources[0].Capabilities;
+            var bestStatus = select(best);
+            var notes = new List<string>(sources.Count);
+            foreach (var (source, capabilities) in sources)
+            {
+                var status = select(capabilities);
+                notes.Add(source.HarnessId + ":" + StatusCode(status.Support));
+                if (Rank(status.Support) > Rank(bestStatus.Support))
+                {
+                    bestStatus = status;
+                }
+            }
+
+            var note = notes.Count == 1 ? bestStatus.Note : string.Join(' ', notes) + " | " + bestStatus.Note;
+            return bestStatus with { Note = note };
+        }
+
+        return new MonitorCapabilities(
+            Merge(static capabilities => capabilities.LifecycleEvents),
+            Merge(static capabilities => capabilities.StructuredActivity),
+            Merge(static capabilities => capabilities.PermissionRequests),
+            Merge(static capabilities => capabilities.InputRequests),
+            Merge(static capabilities => capabilities.TaskFailureEvidence),
+            Merge(static capabilities => capabilities.RuntimeActivitySource),
+            Merge(static capabilities => capabilities.SessionTitles),
+            Merge(static capabilities => capabilities.AttentionLiveVerification));
+    }
+
+    /// <summary>Strongest evidence of support wins when several sources disagree.</summary>
+    private static int Rank(CapabilitySupport support) => support switch
+    {
+        CapabilitySupport.LiveObserved => 5,
+        CapabilitySupport.Supported => 4,
+        CapabilitySupport.NotExercised => 3,
+        CapabilitySupport.Unavailable => 2,
+        _ => 1,
+    };
+
+    private static string StatusCode(CapabilitySupport support) => support switch
+    {
+        CapabilitySupport.LiveObserved => "live",
+        CapabilitySupport.Supported => "supported",
+        CapabilitySupport.NotExercised => "not-exercised",
+        CapabilitySupport.Unavailable => "unavailable",
+        _ => "unsupported",
+    };
+
     public static MonitorCapabilities Initial { get; } = new(
         new CapabilityStatus(CapabilitySupport.NotExercised, "rollout-lifecycle", "task_started/task_complete/turn_aborted from rollout records"),
         new CapabilityStatus(CapabilitySupport.NotExercised, "structured-activity", "item_completed and tool call records"),

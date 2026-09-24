@@ -99,7 +99,7 @@ public sealed class HarnessBridgeSession
     private readonly SourceInstance _source;
     private readonly TimeSpan _staleLease;
     private readonly TimeSpan _actionLease;
-    private readonly int _maximumSessions;
+    private int _maximumSessions;
     private readonly object _gate = new();
     private readonly Dictionary<string, SessionLane> _sessions = new(StringComparer.Ordinal);
     private readonly List<string> _order = new();
@@ -134,6 +134,21 @@ public sealed class HarnessBridgeSession
     }
 
     public SourceInstance Source => _source;
+
+    /// <summary>Tracked-session ceiling, bounded by the composite's shared budget.</summary>
+    public int MaximumSessions => _maximumSessions;
+
+    /// <summary>
+    /// Applies a new tracked-session ceiling. Lowering it evicts the oldest lanes on
+    /// the next observation rather than growing past the aggregate budget.
+    /// </summary>
+    public void SetSessionLimit(int maximumSessions)
+    {
+        lock (_gate)
+        {
+            _maximumSessions = Math.Clamp(maximumSessions, 16, 4096);
+        }
+    }
 
     /// <summary>Producer version last seen in a document or record, for diagnostics.</summary>
     public string ProducerVersion => _producerVersion;
