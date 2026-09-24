@@ -43,6 +43,12 @@
   fresh peer cannot refresh a dead source. Capability sets are merged across readable
   sources with a per-harness note, and a bridge declares what it actually provides
   instead of inheriting the Codex capability set.
+- **A failed Claude bridge append is no longer a silent loss.** The bridge counted it
+  with a name missing from the health allowlist, so the counter was discarded and the
+  record vanished with neither a landed line nor a drop — the intermittent "9
+  published records, found 8" the previous review saw. The name is allowlisted, a
+  failed append consumes no per-session sequence number, and the concurrency invariant
+  now counts every `dropped*` counter instead of lock timeouts alone.
 - **Generated producer fixtures.** `integrations/deepseek-harness/fixtures/spool/`
   holds live, rotated and drop-affected spools produced by the real observer state
   machine and the real spool writer; the .NET integration tests consume them, so a
@@ -103,7 +109,7 @@
 ### Integrations (external assets, opt-in)
 
 - `integrations/claude-code/`: a documented-hook bridge plus preview/backup
-  install and uninstall helpers. Contract-tested (19 Node tests) but **not**
+  install and uninstall helpers. Contract-tested (21 Node tests) but **not**
   live-qualified — Claude Code is not installed on this machine.
 - `integrations/deepseek-harness/`: a small host-native observer plugin that exports
   allowlisted status metadata from the user's existing `dsh` host. Tested in

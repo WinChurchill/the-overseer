@@ -102,12 +102,20 @@ c3c3a80 fix: keep bridge requests visible over continuing tool activity
   and same-size replacement is detected by file identity (creation time plus a bounded
   head fingerprint), not by length. Records the snapshot already folded are
   `Superseded`, not reported as duplicates or out-of-order.
-- **Two producer defects found and fixed**, both proven by real producer fixtures: an
-  event-file rotation swallowed the record that triggered it, and the published
+- **Three producer/bridge defects found and fixed**, each proven by a regression test:
+  an event-file rotation swallowed the record that triggered it; the dsh published
   sequence reused host `seq` numbers, so every host event the observer deliberately
-  does not export (most of them) looked like a lost record. `sequence` is now a
+  does not export (most of them) looked like a lost record (`sequence` is now a
   contiguous publication counter; `eventId` identity and replay/hydration semantics
-  are unchanged.
+  unchanged); and the Claude bridge counted a failed append with the name
+  `droppedWriteFailed`, which was **missing from the health allowlist**, so the counter
+  was silently discarded and the record vanished with neither a landed line nor a drop
+  — the exact "9 published records, found 8" symptom the previous review reported under
+  concurrency load. The name is allowlisted, a failed append no longer consumes a
+  per-session sequence number, the concurrency invariant now counts every `dropped*`
+  counter instead of lock timeouts only, and a structural test asserts that every
+  counter name the bridge can emit is in the allowlist. Reproduced at 1/10 runs before
+  the fix under CPU load; 30/30 green afterwards (evidence below).
 - **Actual producer output is the fixture.** `integrations/deepseek-harness/fixtures/
   generate-spool-fixtures.mjs` drives the shipped state machine and spool writer to
   produce `fixtures/spool/{live,rotated,dropped}`, and
@@ -188,7 +196,9 @@ per-pass budget bound, capability disclosure, no replayed attention).
 ```text
 build      Release, committed source 92c111f: 0 warnings / 0 errors
 tests      Passed! Failed: 0, Passed: 641, Skipped: 0, Total: 641
-node       deepseek-harness 30/30 passed; claude-code 19/19 passed
+node       deepseek-harness 30/30 passed; claude-code 21/21 passed, and 30/30
+           consecutive runs green under concurrent .NET test load (the previous
+           round saw this suite intermittently red; the cause is fixed above)
 renders    38 fixtures (19 per theme), inspected: dark/light expanded, one-project,
            activity-hour, collapsed-projects, 320x220, 440x620, 640x260, settings
 publish    scripts/Publish-Release.ps1 from clean committed source 92c111f
