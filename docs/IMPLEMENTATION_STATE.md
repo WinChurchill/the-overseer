@@ -116,10 +116,14 @@ restructuring and the harness bridges inside the desktop app did not.
    `SourceSnapshot`/`IAgentMonitorAdapter` and the bridge envelope are defined but
    unused by composition.
 3. **dsh observer and Claude hook bridges**: external integration assets are
-   delivered under `integrations/` (metadata-only, tested in isolation, no desktop
-   consumption yet). They are not consumed by OVERSEER and are not live-qualified:
-   Claude Code is **not installed** on this machine (no `claude` on PATH and no
-   `~/.claude`), and the dsh observer has not been attached inside a running host.
+   delivered under `integrations/` with provenance, per-asset READMEs and isolated
+   tests, but **no desktop consumption yet**. Verified by the implementation role:
+   `integrations/deepseek-harness` → `node --test` 29 tests / 29 pass;
+   `integrations/claude-code` → `node --test` 19 tests / 19 pass (Windows, node
+   24.15.0). Neither is live-qualified: Claude Code is **not installed** on this
+   machine (no `claude` on PATH and no `~/.claude`), so no real hook ever fired,
+   and the dsh observer was never attached inside a running host (no
+   `dsh plugin add` was performed, by design — the user's profile is untouched).
    Installed for reference: `codex` 0.155.1, `dsh` 0.1.5-rc.3
    (`DSH_HOME=%USERPROFILE%\.dsh`), node 24.15.0.
 4. **Offline baseline voice**: no `WindowsSpeechVoiceProvider`, no SAPI stream
@@ -130,9 +134,14 @@ restructuring and the harness bridges inside the desktop app did not.
    complete and tested, but it is not yet fed by the Codex pipeline.
 6. **Responsive sizing/header/menu refinement** and the close-button tooltip were not
    touched; the reviewed custom chrome and existing sizing behaviour are unchanged.
-7. **Package/smoke for this round**: not rerun (the handoff's publish/smoke step
-   belongs to a complete round). The last recorded package evidence remains the prior
-   UX round's 17 scoped checks from source `5521980`.
+7. **Package/smoke for this round**: **not executed**. The last recorded package
+   evidence remains the prior UX round's 17 scoped checks from source `5521980`.
+   `scripts/Test-PackagedRelease.ps1` was updated to the new close semantics
+   (close hides to tray; a second launch must restore; the script terminates only the
+   process it started, and no-tray close is still expected to exit), but the updated
+   script has **not been run**, because the round stopped before the publish step and
+   no clean-source package was produced. Treat the packaged smoke result for this
+   branch as unknown until it is executed.
 
 ### Known limitations introduced or carried
 - `ProjectResolver` resolves from evidence only; the Codex pipeline does not yet
