@@ -113,9 +113,18 @@ test('(h) atomic current.json replacement leaves a complete document for a concu
   assert.ok(writes > 20, `expected many replacements, wrote ${writes}`)
   assert.ok(result.reads > 20, `expected concurrent reads, saw ${result.reads}`)
   assert.equal(result.torn, 0, 'a concurrent reader must never observe a partial document')
-  const final = JSON.parse(readFileSync(spool.currentPath, 'utf8'))
+  // A rename can lose a transient race with the concurrent reader, so require
+  // that the newest staged snapshot is EVENTUALLY published instead of assuming
+  // the last flush already won. A writer that never converges still fails here.
+  let final = null
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    spool.flushSync()
+    final = JSON.parse(readFileSync(spool.currentPath, 'utf8'))
+    if (final.marker === writes - 1) break
+  }
+
   assert.deepEqual(Object.keys(final), ['marker', 'payload', 'updatedAtUtc'])
-  assert.equal(final.marker, writes - 1)
+  assert.equal(final.marker, writes - 1, 'the latest staged snapshot must be published')
   spool.close()
 })
 

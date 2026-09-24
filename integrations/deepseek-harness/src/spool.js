@@ -57,6 +57,11 @@ export const HEARTBEAT_MS_MIN = 5_000
 export const HEARTBEAT_MS_MAX = 300_000
 /** How often the bounded cleanup pass may run. */
 export const CLEANUP_INTERVAL_MS = 60_000
+/** Bounded retries for a transient Windows rename failure (file briefly open). */
+const ATOMIC_RENAME_ATTEMPTS = 5
+/** Linear backoff between rename attempts, in milliseconds. */
+const ATOMIC_RENAME_BACKOFF_MS = 2
+
 /** Minimum spacing between atomic `current.json` replacements. */
 export const CURRENT_WRITE_INTERVAL_MS = 250
 /** Maximum records written per drain tick, so one tick cannot monopolize the loop. */
@@ -267,22 +272,60 @@ export function createSpool(options = {}) {
     }
   }
 
+  /**
+   * Replace a file with a same-directory temp write plus rename.
+   *
+   * On Windows a rename over a file another process currently has open can fail
+   * transiently with EBUSY/EPERM/EACCES. Those are retried a bounded number of
+   * times with a short synchronous backoff so the latest state is eventually
+   * published instead of being silently left behind; the caller keeps the dirty
+   * flag when every attempt fails, so a later flush retries again.
+   *
+   * @param target - destination path.
+   * @param text - complete document text.
+   * @returns true when the replacement is published.
+   */
   function writeAtomic(target, text) {
     tmpCounter += 1
     // Same directory as the target, so the rename cannot cross a volume.
     const tmp = `${target}.${process.pid}.${tmpCounter}.tmp`
+    const transient = new Set(['EBUSY', 'EPERM', 'EACCES'])
+    let lastError = null
     try {
       fs.writeFileSync(tmp, text, 'utf8')
-      fs.renameSync(tmp, target)
-      return true
     } catch (error) {
-      noteError(error)
-      try {
-        fs.rmSync(tmp, { force: true })
-      } catch {
-        // Nothing further can be done about a temp file that cannot be removed.
+      lastError = error
+    }
+
+    if (lastError === null) {
+      for (let attempt = 0; attempt < ATOMIC_RENAME_ATTEMPTS; attempt += 1) {
+        try {
+          fs.renameSync(tmp, target)
+          return true
+        } catch (error) {
+          lastError = error
+          if (!transient.has(error && error.code)) break
+          sleepSync(ATOMIC_RENAME_BACKOFF_MS * (attempt + 1))
+        }
       }
-      return false
+    }
+
+    noteError(lastError)
+    try {
+      fs.rmSync(tmp, { force: true })
+    } catch {
+      // Nothing further can be done about a temp file that cannot be removed.
+    }
+    return false
+  }
+
+  /** Bounded synchronous sleep; this runs on the writer path only, never a callback. */
+  function sleepSync(milliseconds) {
+    if (milliseconds <= 0) return
+    const until = Date.now() + milliseconds
+    while (Date.now() < until) {
+      // Deliberately yield the CPU briefly rather than using Atomics.wait, which
+      // would need a SharedArrayBuffer and a worker.
     }
   }
 
