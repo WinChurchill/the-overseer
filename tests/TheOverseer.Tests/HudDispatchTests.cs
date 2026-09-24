@@ -482,6 +482,96 @@ public sealed class HudDispatchTests
 
     private static string StatePath => Path.Combine(_directory, HudStateStore.FileName);
 
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    [InlineData(1.75)]
+    [InlineData(2.0)]
+    [InlineData(2.5)]
+    [InlineData(3.0)]
+    public void WindowViewFitsLogicalWorkAreaAtEachScale(double scale)
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var placement = new FakePlacementService { DpiOverride = scale,
+                Layout = new HudScreenLayout(new[] { new HudScreen("scaled", -1280, 0, 1280, 720, scale) }) };
+            var controller = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), placement);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            controller.ToggleWindowView();
+            Assert.True(controller.Window!.Width * scale <= 1282);
+            Assert.True(controller.Window.Height * scale <= 722);
+            Assert.Equal("scaled", placement.LastPlacement!.DeviceName);
+            Assert.InRange(placement.LastPlacement.X, -1280, 0);
+            StaTestHost.Complete(controller.ShutdownAsync());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void WindowViewRetainsUserSizeAcrossLightUpdatesAndRoundTrips()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var placement = new FakePlacementService();
+            var controller = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), placement);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var window = controller.Window!;
+            var originalWidth = window.Width;
+            controller.ToggleWindowView();
+            Assert.True(controller.IsWindowView);
+            Assert.Equal(System.Windows.ResizeMode.CanResize, window.ResizeMode);
+            Assert.Equal(System.Windows.WindowStyle.SingleBorderWindow, window.WindowStyle);
+            Assert.False(window.Topmost);
+            window.Width = 610;
+            window.Height = 810;
+            controller.ViewModel.LightSize = 128;
+            controller.ViewModel.IsExpanded = false;
+            Assert.True(controller.ViewModel.IsExpanded);
+            Assert.InRange(window.Width, 609, 611);
+            Assert.InRange(window.Height, 809, 811);
+            controller.ToggleTopmost();
+            Assert.True(window.Topmost);
+            controller.ToggleWindowView();
+            Assert.False(controller.ViewModel.IsExpanded);
+            Assert.Equal(originalWidth + 96, window.Width);
+            controller.ToggleWindowView();
+            Assert.InRange(window.Width, 609, 611);
+            Assert.InRange(window.Height, 809, 811);
+            Assert.True(window.Topmost);
+            StaTestHost.Complete(controller.ShutdownAsync());
+            var saved = HudStateStore.Load(StatePath).State;
+            Assert.True(saved.WindowView);
+            Assert.InRange(saved.WindowWidth, 609, 611);
+            Assert.False(saved.IsExpanded);
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void WindowViewRecoversRemovedMonitorWithoutResettingOnOrdinaryUpdates()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var placement = new FakePlacementService();
+            var controller = CreateController(dispatcher, new FakeMonitorSource(), placement);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            controller.ToggleWindowView();
+            controller.Window!.Width = 620;
+            var before = placement.ApplyCount;
+            controller.ViewModel.LightPosition = "top";
+            Assert.Equal(before, placement.ApplyCount);
+            placement.Layout = new HudScreenLayout(new[] { new HudScreen("replacement", -1000, 0, 1000, 700, 1) });
+            controller.NotifyDisplaySettingsChanged();
+            dispatcher.DrainAll();
+            Assert.Equal("replacement", placement.LastPlacement!.DeviceName);
+            Assert.True(controller.Window.Height <= 700);
+            StaTestHost.Complete(controller.ShutdownAsync());
+            Cleanup();
+        });
+    }
+
     private static void Cleanup()
     {
         try

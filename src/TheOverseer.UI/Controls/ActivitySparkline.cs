@@ -108,7 +108,7 @@ public sealed class ActivitySparkline : FrameworkElement
             if (segment.Points.Count == 1)
             {
                 var point = segment.Points[0];
-                context.DrawEllipse(pen.Brush, null, new Point(point.X, point.Y), 1.3, 1.3);
+                context.DrawEllipse(pen.Brush, null, new Point(point.X * width / 330, point.Y * height / 30), 1.3, 1.3);
                 DrawnPointCount++;
                 DrawnSegmentCount++;
                 continue;
@@ -117,10 +117,10 @@ public sealed class ActivitySparkline : FrameworkElement
             var geometry = new StreamGeometry();
             using (var stream = geometry.Open())
             {
-                stream.BeginFigure(new Point(segment.Points[0].X, segment.Points[0].Y), isFilled: false, isClosed: false);
+                stream.BeginFigure(new Point(segment.Points[0].X * width / 330, segment.Points[0].Y * height / 30), isFilled: false, isClosed: false);
                 for (var index = 1; index < segment.Points.Count; index++)
                 {
-                    stream.LineTo(new Point(segment.Points[index].X, segment.Points[index].Y), isStroked: true, isSmoothJoin: true);
+                    stream.LineTo(new Point(segment.Points[index].X * width / 330, segment.Points[index].Y * height / 30), isStroked: true, isSmoothJoin: true);
                 }
             }
 

@@ -35,10 +35,48 @@ public partial class HudWindow : Window
     {
         InitializeComponent();
         PreviewKeyDown += OnPreviewKeyDown;
+        SizeChanged += (_, _) => UpdateResponsiveLayout();
     }
 
     /// <summary>Raised after the user drags the window, so placement can be saved.</summary>
     public event EventHandler? PlacementChangedByUser;
+    public event EventHandler? WindowViewRequested;
+    public bool IsWindowView { get; private set; }
+
+    private void OnWindowViewClick(object sender, RoutedEventArgs e)
+    {
+        WindowViewRequested?.Invoke(this, EventArgs.Empty);
+        e.Handled = true;
+    }
+
+    public void SetWindowView(bool enabled)
+    {
+        IsWindowView = enabled;
+        WindowState = WindowState.Normal;
+        WindowStyle = enabled ? WindowStyle.SingleBorderWindow : WindowStyle.None;
+        ResizeMode = enabled ? ResizeMode.CanResize : ResizeMode.NoResize;
+        MinWidth = enabled ? 280 : 0;
+        MinHeight = enabled ? 200 : 0;
+        WindowViewButton.Content = enabled ? "↙" : "↗";
+        WindowViewButton.ToolTip = enabled ? "Return to floating HUD" : "Switch to resizable Window view";
+        ExpandButton.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+        if (enabled && ViewModel is { } vm) vm.IsExpanded = true;
+        UpdateResponsiveLayout();
+    }
+
+    public void UpdateResponsiveLayout()
+    {
+        var narrow = IsWindowView && ActualWidth < 420;
+        BrandLabel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        // In a short native Snap region the complete content remains reachable.
+        var shortWindow = IsWindowView && ActualHeight < 500;
+        ContentScroll.VerticalScrollBarVisibility = shortWindow ? System.Windows.Controls.ScrollBarVisibility.Auto : System.Windows.Controls.ScrollBarVisibility.Disabled;
+        TaskScroll.Height = shortWindow ? 180 : double.NaN;
+        SummaryRow.Height = new GridLength(IsWindowView ? 86 : 72);
+        var verticalLight = ViewModel?.LightPosition is "left" or "right";
+        StatusLight.MaxWidth = IsWindowView && verticalLight ? Math.Max(6, ActualWidth - 270) : double.PositiveInfinity;
+        StatusLight.MaxHeight = IsWindowView && !verticalLight ? Math.Max(6, ActualHeight - 220) : double.PositiveInfinity;
+    }
 
     public HudViewModel? ViewModel => DataContext as HudViewModel;
 
@@ -56,7 +94,7 @@ public partial class HudWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && ViewModel is { IsExpanded: true } viewModel)
+        if (!IsWindowView && e.Key == Key.Escape && ViewModel is { IsExpanded: true } viewModel)
         {
             viewModel.IsExpanded = false;
             e.Handled = true;

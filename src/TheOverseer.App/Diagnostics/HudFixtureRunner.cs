@@ -126,6 +126,21 @@ internal static class HudFixtureRunner
             rendered.Add(settingsPath);
         }
 
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        foreach (var size in new[] { (280, 720), (480, 720), (900, 700), (640, 260), (1400, 900) })
+        {
+            HudThemeManager.Apply(Application.Current, theme);
+            var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, LightSize = 128 });
+            vm.ApplySnapshot(scenarios[0]);
+            vm.ApplyActivity(activity, voiceStatus);
+            var window = new HudWindow { DataContext = vm, ShowActivated = false, ShowInTaskbar = false,
+                Left = -4000, Top = -4000, Width = size.Item1, Height = size.Item2 };
+            window.SetWindowView(true);
+            var path = Path.Combine(outputDirectory, $"{theme.ToString().ToLowerInvariant()}-window-{size.Item1}x{size.Item2}.png");
+            RenderWindow(window, path);
+            rendered.Add(path);
+        }
+
         Console.WriteLine("hud fixture rendered " + rendered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " views:");
         foreach (var path in rendered) Console.WriteLine("  " + path);
         return 0;
@@ -279,6 +294,14 @@ internal static class HudFixtureRunner
             Application.Current?.Shutdown(0);
         };
         finish.Start();
+
+        controller.ExitRequested += async (_, _) =>
+        {
+            finish.Stop();
+            advance.Stop();
+            await controller.ShutdownAsync().ConfigureAwait(true);
+            Application.Current?.Shutdown(0);
+        };
 
         _ = controller.StartAsync(CancellationToken.None);
     }

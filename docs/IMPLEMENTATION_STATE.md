@@ -407,3 +407,35 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   taskbar and zero foreground observations in 60 samples/15 seconds. Existing
   settings preserved, app restarted and desktop shortcut updated. Evidence in
   `artifacts/header-controls-release/`; full package smoke not repeated.
+
+### Window scaling implementation — 2026-09-23
+
+- User approved `WINDOW_SCALING_PLAN.md`. Added explicit HUD / Window view via
+  header arrow and menu. Same window/controller/monitor/voice session; native
+  caption and resize controls in Window view, original borderless HUD otherwise.
+  Disabled transparent HWND creation (shell still paints the existing background)
+  so native chrome can be enabled without recreating the monitoring session.
+- Separate additive persisted Window-view bounds, maximize state and pin setting;
+  legacy version-1 state retains HUD placement. Windows owns live resizing/Snap;
+  light, model and expansion changes cannot reset Window-view geometry. Native
+  WINDOWPLACEMENT retains normal bounds while maximized. Monitor recovery clamps
+  only when outside the usable work area or when the saved monitor is absent.
+- Taller layouts expose more tasks, narrow headers omit redundant branding,
+  short layouts scroll, graph points scale without thickening strokes. Light is
+  constrained to leave usable content space without changing its stored setting.
+  Light & voice settings can shrink/scroll with Stop/Close always accessible.
+- Automated tests: 453 passed, including scale-policy cases 100/125/150/175/200/
+  250/300 percent, invalid/legacy state, view round trips, removed monitor and
+  live-update bounds preservation. These simulate geometry; they do not change
+  the machine's display scale. Twenty-six fixtures include both themes and five
+  Window-view sizes with maximum light width; narrow/tall/short renders inspected.
+- Native probe `scripts/Test-WindowScaling.ps1` passed at actual DPI 120 (125%):
+  resize styles, maximize hit target, resize retention, maximize/restore and normal
+  bounds persistence. Evidence: `artifacts/window-native-3/`. Earlier probe attempts
+  exposed probe startup timing and PowerShell DPI virtualization, corrected in the
+  test harness; final checks use PerMonitorV2 coordinates.
+- Limitations: native Snap keyboard/flyout interactions and physical mixed-DPI,
+  unplug/reconnect and sleep/resume still need hands-on qualification. Windows
+  text-size-only accessibility scaling is not wired to the explicit font resources;
+  Windows display scaling works through WPF. No separate app zoom was introduced.
+  Package review and launch evidence to follow; no merge/tag.

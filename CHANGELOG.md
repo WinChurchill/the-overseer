@@ -17,6 +17,13 @@
 
 ### Changed
 
+- Added a HUD / Window view switch. Window view uses native resize borders and
+  minimize/maximize/restore controls for Windows Snap, preserves its own bounds
+  and pin preference, and keeps the existing monitoring/voice session alive.
+- Window layouts use extra height for tasks, scroll in short regions and preserve
+  readable content beside the light. Light changes no longer resize Window view.
+  Activity graph strokes keep their thickness as width changes; settings remain
+  scrollable on smaller displays. Added scale-policy and native-window checks.
 - Added a thin black outline to the white emblem for contrast on light surfaces.
 - Replaced the app, taskbar and tray icon with the supplied white standalone
   OVERSEER emblem; preserved the original artwork and transparency.

@@ -17,6 +17,7 @@ public interface IWindowPlacementService
     void Apply(IntPtr windowHandle, HudPhysicalPlacement placement, bool topmost, bool showWithoutActivation);
 
     HudWindowState CaptureState(IntPtr windowHandle, bool isExpanded, double dpiScale, DateTimeOffset now);
+    HudWindowState? CaptureNormalBounds(IntPtr windowHandle, double dpiScale) => null;
 }
 
 /// <summary>
@@ -26,6 +27,26 @@ public interface IWindowPlacementService
 /// </summary>
 internal sealed class WindowsWindowPlacementService : IWindowPlacementService
 {
+    public HudWindowState? CaptureNormalBounds(IntPtr windowHandle, double dpiScale)
+    {
+        var placement = new NativeMethods.WindowPlacement { Length = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.WindowPlacement>() };
+        if (!NativeMethods.GetWindowPlacement(windowHandle, ref placement)) return null;
+        var rect = placement.NormalPosition;
+        if (rect.Width <= 0 || rect.Height <= 0) return null;
+        var screen = System.Windows.Forms.Screen.FromRectangle(new System.Drawing.Rectangle(rect.Left, rect.Top, rect.Width, rect.Height));
+        // WINDOWPLACEMENT normal positions use workspace coordinates for our
+        // taskbar-visible window: offset back to the monitor's work-area origin.
+        var scale = Math.Max(0.5, dpiScale);
+        return new HudWindowState
+        {
+            WindowMonitor = screen.DeviceName,
+            WindowX = (rect.Left - screen.Bounds.Left) / scale,
+            WindowY = (rect.Top - screen.Bounds.Top) / scale,
+            WindowWidth = rect.Width / scale, WindowHeight = rect.Height / scale,
+            WindowDpi = scale,
+        };
+    }
+
     public HudScreenLayout CaptureLayout()
     {
         var screens = new List<HudScreen>();

@@ -29,6 +29,20 @@ internal static class NativeMethods
     internal static extern bool GetWindowRect(IntPtr hWnd, out Rect rect);
 
     [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool GetWindowPlacement(IntPtr hWnd, ref WindowPlacement placement);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct WindowPlacement
+    {
+        internal int Length;
+        internal int Flags;
+        internal int ShowCommand;
+        internal System.Drawing.Point MinPosition;
+        internal System.Drawing.Point MaxPosition;
+        internal Rect NormalPosition;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool ShowWindow(IntPtr hWnd, int command);
 
     [DllImport("user32.dll", SetLastError = true)]

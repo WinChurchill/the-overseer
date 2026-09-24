@@ -211,9 +211,15 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _window = _dependencies.WindowFactory();
         _window.Icon = AppIcon.WindowImage;
         _window.DataContext = ViewModel;
+        _window.WindowViewRequested += (_, _) => ToggleWindowView();
+        ConfigureWindowView();
+        _window.SizeChanged += (_, _) => OnNativeBoundsChanged();
+        _window.LocationChanged += (_, _) => OnNativeBoundsChanged();
+        _window.StateChanged += (_, _) => OnNativeBoundsChanged();
         _window.PlacementChangedByUser += (_, _) =>
         {
             _dpiScale = _dependencies.Placement.GetDpiScale(_handle, null);
+            if (_state.WindowView) { ScheduleStateSave(); return; }
             _state = CaptureState();
             ApplyGeometry(show: false);
             ScheduleStateSave();
@@ -281,6 +287,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private void ApplyGeometryCore(bool show)
     {
+        if (_state.WindowView) { ApplyWindowViewGeometry(show); return; }
         var window = _window;
         if (window is null)
         {
@@ -366,6 +373,15 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     public void ResetPosition()
     {
+        if (_state.WindowView)
+        {
+            _state = _state with { WindowMonitor = string.Empty, WindowX = 40, WindowY = 40, WindowWidth = 480, WindowHeight = 720, WindowMaximized = false };
+            _restoreWindowBounds = true;
+            _window!.WindowState = WindowState.Normal;
+            ApplyGeometry(show: false);
+            ScheduleStateSave();
+            return;
+        }
         _state = new HudWindowState { IsExpanded = ViewModel.IsExpanded };
         ApplyGeometry(show: _window?.IsVisible ?? false);
         ScheduleStateSave();
@@ -448,10 +464,14 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(HudViewModel.LightPosition) or nameof(HudViewModel.LightSize) && !_shuttingDown)
+        {
+            _window?.UpdateResponsiveLayout();
             ApplyGeometry(show: false);
+        }
         if (e.PropertyName is nameof(HudViewModel.Theme) && !_shuttingDown) ApplyTheme();
         if (e.PropertyName is nameof(HudViewModel.IsExpanded))
         {
+            if (_state.WindowView && !ViewModel.IsExpanded) { ViewModel.IsExpanded = true; return; }
             if (!_shuttingDown)
             {
                 ApplyGeometry(show: _window?.IsVisible ?? false);
@@ -472,6 +492,8 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         if (e.PropertyName is nameof(HudViewModel.AlwaysOnTop) && !_shuttingDown)
         {
+            if (_state.WindowView) return;
+            if (_window is not null) _window.Topmost = ViewModel.AlwaysOnTop;
             _ = NativeMethods.SetWindowPos(
                 _handle,
                 ViewModel.AlwaysOnTop ? NativeMethods.HwndTopmost : NativeMethods.HwndNotTopmost,
@@ -554,6 +576,14 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     public void ToggleTopmost()
     {
+        if (_state.WindowView)
+        {
+            _state = _state with { WindowPinned = !_state.WindowPinned };
+            _window!.Topmost = _state.WindowPinned;
+            ScheduleStateSave();
+            RefreshTrayState();
+            return;
+        }
         ViewModel.AlwaysOnTop = !ViewModel.AlwaysOnTop;
         RefreshTrayState();
     }
@@ -637,6 +667,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         Add("Expand / collapse", () => ViewModel.IsExpanded = !ViewModel.IsExpanded);
+        Add("Floating HUD / Window view", ToggleWindowView);
         var lightMenu = new System.Windows.Controls.MenuItem { Header = "Status light" };
         foreach (var position in new[] { "right", "left", "top", "bottom", "off" })
         {
@@ -693,7 +724,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             status += " · voice on";
         }
 
-        _tray.UpdateState(_window.IsVisible, ViewModel.Theme, ViewModel.AlwaysOnTop, ViewModel.StartWithWindows, ViewModel.IsMuted, status);
+        _tray.UpdateState(_window.IsVisible, ViewModel.Theme, _state.WindowView ? _state.WindowPinned : ViewModel.AlwaysOnTop, ViewModel.StartWithWindows, ViewModel.IsMuted, status);
     }
 
     // ---- timers, persistence ----------------------------------------------------
@@ -787,7 +818,10 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             return _state;
         }
 
-        return _dependencies.Placement.CaptureState(_handle, ViewModel.IsExpanded, _dpiScale, _dependencies.TimeProvider.GetUtcNow());
+        if (_state.WindowView) return CaptureWindowViewState();
+        var captured = _dependencies.Placement.CaptureState(_handle, ViewModel.IsExpanded, _dpiScale, _dependencies.TimeProvider.GetUtcNow());
+        return _state with { IsExpanded = captured.IsExpanded, MonitorDeviceName = captured.MonitorDeviceName,
+            OffsetXDips = captured.OffsetXDips, OffsetYDips = captured.OffsetYDips, DpiScale = captured.DpiScale, SavedAtUtc = captured.SavedAtUtc };
     }
 
     private void OnViewModelSettingsChanged()
@@ -842,6 +876,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                 return;
             }
 
+            RecoverWindowViewIfNeeded();
             ApplyGeometry(show: _window?.IsVisible ?? false);
             _dependencies.Monitor.RequestReconcile();
         });
@@ -874,6 +909,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                         return;
                     }
 
+                    RecoverWindowViewIfNeeded();
                     ApplyGeometry(show: _window?.IsVisible ?? false);
                     _dependencies.Monitor.RequestReconcile();
                     Log(MonitorLogLevel.Info, "hud-resume-reconcile");

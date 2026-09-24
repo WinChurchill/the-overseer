@@ -459,6 +459,15 @@ were not imported.
 
 ## Next action
 
+The current UX branch also provides **Window view**: click the diagonal arrow in
+the HUD header, or choose **Floating HUD / Window view** from its context menu.
+Window view has native resize/maximize controls for Windows Snap. The opposite
+arrow restores the floating HUD; both views remember their own geometry and pin
+preference. A narrow window temporarily limits the light to keep content readable
+without changing its saved width. Short layouts and Light & voice settings scroll.
+See `docs/WINDOW_SCALING_PLAN.md` and the latest implementation ledger entry for
+the scope and verification qualifications of this newer work.
+
 Plan 4 passed **Astra Review 4 with nonblocking notes** after fixes on
 `impl/p4-release`. Build, 398 tests and 28 final packaged smoke checks passed.
 Use `artifacts/review4-final/OVERSEER-v1-win-x64.zip`; earlier candidates are

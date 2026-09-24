@@ -21,6 +21,16 @@ public sealed record HudWindowState
     [JsonPropertyName("version")]
     public int Version { get; init; } = CurrentVersion;
 
+    public bool WindowView { get; init; }
+    public bool WindowPinned { get; init; }
+    public bool WindowMaximized { get; init; }
+    public string WindowMonitor { get; init; } = string.Empty;
+    public double WindowX { get; init; } = 40;
+    public double WindowY { get; init; } = 40;
+    public double WindowWidth { get; init; } = 480;
+    public double WindowHeight { get; init; } = 720;
+    public double WindowDpi { get; init; } = 1;
+
     [JsonPropertyName("isExpanded")]
     public bool IsExpanded { get; init; }
 
@@ -46,6 +56,12 @@ public sealed record HudWindowState
     public HudWindowState Normalized() => this with
     {
         Version = CurrentVersion,
+        WindowMonitor = Bounded(WindowMonitor, MaximumDeviceNameChars),
+        WindowX = BoundedOffset(WindowX),
+        WindowY = BoundedOffset(WindowY),
+        WindowWidth = double.IsFinite(WindowWidth) ? Math.Clamp(WindowWidth, 280, 10000) : 480,
+        WindowHeight = double.IsFinite(WindowHeight) ? Math.Clamp(WindowHeight, 200, 10000) : 720,
+        WindowDpi = double.IsFinite(WindowDpi) ? Math.Clamp(WindowDpi, MinimumDpiScale, MaximumDpiScale) : 1,
         MonitorDeviceName = Bounded(MonitorDeviceName, MaximumDeviceNameChars),
         OffsetXDips = BoundedOffset(OffsetXDips),
         OffsetYDips = BoundedOffset(OffsetYDips),

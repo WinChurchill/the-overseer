@@ -81,6 +81,16 @@ public sealed partial class HudApplicationController
                 await UpdateRecordingStatus(row, lifetime.Token);
             }
         };
+        var screens = _dependencies.Placement.CaptureLayout();
+        var screen = screens.Find(_state.WindowView ? _state.WindowMonitor : _state.MonitorDeviceName) ?? (screens.IsEmpty ? null : screens.Primary);
+        if (screen is not null)
+        {
+            var scale = _dependencies.Placement.GetDpiScale(_handle, screen);
+            window.MinWidth = Math.Min(window.MinWidth, screen.Width / scale);
+            window.MinHeight = Math.Min(window.MinHeight, screen.Height / scale);
+            window.Width = Math.Min(window.Width, screen.Width / scale);
+            window.Height = Math.Min(window.Height, screen.Height / scale);
+        }
         window.Show();
     }
 
