@@ -384,14 +384,27 @@ if (-not $SkipHudLifecycle) {
         $second = Invoke-FiniteMode $executable 'second-instance' @('--data-directory', $liveData) $sanitized.Environment $workingDirectory $logRoot 60 @(0)
         Add-Check 'second-instance-still-alive' (-not $live.HasExited) ('first-alive=' + (-not $live.HasExited))
 
-        # Graceful close of the window this script started.
+        # Close now hides to the tray (explicit Exit is covered by unit tests and
+        # has no scriptable path), so the packaged check verifies the hide first.
         $window = [OverseerWindows]::AnyWindowOf($livePid)
         $posted = $false
         if ($window -ne [IntPtr]::Zero) { $posted = [OverseerWindows]::PostMessage($window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
-        $closed = $live.WaitForExit(45000)
-        $exitCode = if ($closed) { $live.ExitCode } else { -1 }
-        if (-not $closed) { try { $live.Kill($true) } catch { } }
-        Add-Check 'hud-live-graceful-close' ($posted -and $closed -and $exitCode -eq 0) ('posted=' + $posted + ' closed=' + $closed + ' exit=' + $exitCode)
+        Start-Sleep -Seconds 3
+        $hiddenAlive = -not $live.HasExited
+        $hiddenVisible = [OverseerWindows]::AnyVisibleWindowOf($livePid)
+        Add-Check 'hud-live-close-hides-to-tray' ($posted -and $hiddenAlive -and -not $hiddenVisible) ('posted=' + $posted + ' alive=' + $hiddenAlive + ' visible=' + $hiddenVisible)
+
+        # A second normal launch must restore the same window and session.
+        $restoreHandle = Start-PackagedProcess $executable @('--data-directory', $liveData) $sanitized.Environment $workingDirectory
+        $restore = Complete-PackagedProcess $restoreHandle 60 (Join-Path $logRoot 'restore-instance.log')
+        Start-Sleep -Seconds 3
+        $restoredVisible = [OverseerWindows]::AnyVisibleWindowOf($livePid)
+        Add-Check 'hud-live-second-launch-restores' ($restore.ExitCode -eq 0 -and -not $live.HasExited -and $restoredVisible) ('secondExit=' + $restore.ExitCode + ' firstAlive=' + (-not $live.HasExited) + ' visible=' + $restoredVisible)
+
+        # End the run: the packaged UI has no scriptable Exit, so the script
+        # terminates only the process it started.
+        if (-not $live.HasExited) { try { $live.Kill($true) } catch { } }
+        [void]$live.WaitForExit(10000)
 
         $liveStdout = ''
         try { $liveStdout = $liveHandle.Stdout.GetAwaiter().GetResult() } catch { }
@@ -434,7 +447,8 @@ if (-not $SkipHudLifecycle) {
         $stateDetail = $stateDetail + ' theme=' + $themeValue + ' muted=' + $muteValue
         Add-Check 'hud-live-persisted-state' ($validState -and $configExists -and $themeValue -eq 'light' -and $muteValue -is [bool] -and $muteValue) $stateDetail
 
-        # Tray start: hidden, alive, still no focus steal, closed gracefully.
+        # Tray start: hidden, alive, still no focus steal. Closing a hidden window
+        # keeps the process alive by design, so the script ends only what it started.
         Write-Step 'hud-tray: hidden startup'
         $trayHandle = Start-PackagedProcess $executable @('--start-in-tray', '--data-directory', $liveData) $sanitized.Environment $workingDirectory
         $tray = $trayHandle.Process
@@ -445,10 +459,11 @@ if (-not $SkipHudLifecycle) {
         $trayFocus = ($trayWindow -ne [IntPtr]::Zero) -and ($trayWindow -eq [OverseerWindows]::GetForegroundWindow())
         Add-Check 'hud-tray-hidden-startup' ($trayAlive -and -not $trayVisible -and -not $trayFocus) ('alive=' + $trayAlive + ' visible=' + $trayVisible + ' focused=' + $trayFocus)
         if ($trayWindow -ne [IntPtr]::Zero) { [void][OverseerWindows]::PostMessage($trayWindow, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
-        $trayClosed = $tray.WaitForExit(45000)
-        if (-not $trayClosed) { try { $tray.Kill($true) } catch { } }
-        $trayExit = if ($trayClosed) { $tray.ExitCode } else { -1 }
-        Add-Check 'hud-tray-graceful-close' ($trayClosed -and $trayExit -eq 0) ('closed=' + $trayClosed + ' exit=' + $trayExit)
+        Start-Sleep -Seconds 3
+        $traySurvived = -not $tray.HasExited
+        Add-Check 'hud-tray-close-keeps-session' ($traySurvived -and -not [OverseerWindows]::AnyVisibleWindowOf($tray.Id)) ('alive=' + $traySurvived)
+        if (-not $tray.HasExited) { try { $tray.Kill($true) } catch { } }
+        [void]$tray.WaitForExit(10000)
         try { [void]$trayHandle.Stdout.GetAwaiter().GetResult() } catch { }
 
         # --start-in-tray --no-tray must still present a controllable window.
