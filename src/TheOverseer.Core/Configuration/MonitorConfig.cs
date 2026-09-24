@@ -46,6 +46,14 @@ public sealed record MonitorConfig
     /// </summary>
     [JsonPropertyName("project")]
     public ProjectSettings Project { get; init; } = new();
+
+    /// <summary>
+    /// Discovered harness bridge sources to leave out, as "harness/sourceInstance".
+    /// A source that was never installed is absent by default; this only disables
+    /// one that is present, and a disabled source is excluded from monitored totals.
+    /// </summary>
+    [JsonPropertyName("disabledHarnessSources")]
+    public IReadOnlyList<string> DisabledHarnessSources { get; init; } = Array.Empty<string>();
 }
 
 public sealed record MonitorLimits

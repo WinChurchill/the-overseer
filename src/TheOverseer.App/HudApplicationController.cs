@@ -128,6 +128,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     private HudWindowState _state;
     private bool _shuttingDown;
     private bool _sessionEnding;
+    private volatile bool _showPending;
     private bool _suppressSettings;
     private bool _stateDirty;
     private int _trayFailures;
@@ -169,6 +170,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             _suppressSettings = false;
         }
 
+        // The show listener starts with the controller, before any window exists:
+        // a second launch that arrives during startup is queued, not lost.
+        _showRequest = ShowRequestSignal.TryListen(OnShowRequested, _dependencies.Paths.DataDirectory);
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ViewModel.SettingsChanged += (_, _) =>
         {
@@ -197,9 +201,13 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         ApplyTheme();
         CreateWindow();
         CreateTray();
-        // A second normal launch asks the running instance to restore, so the
-        // shortcut and the tray always return this same window and session.
-        _showRequest = ShowRequestSignal.TryListen(RequestShow, _dependencies.Paths.DataDirectory);
+        if (_showPending)
+        {
+            // A restore request arrived while the window was still being created.
+            _showPending = false;
+            RequestShow();
+        }
+
         SyncStartupState();
         SubscribeSystemEvents();
         _ageTimer.Start();
@@ -384,6 +392,26 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _state = CaptureState();
         ScheduleStateSave();
         ViewModel.NotifyStatus("Hidden to tray. Use the tray icon or the header menu to show it again.");
+    }
+
+    /// <summary>
+    /// Restore request from another launch. The window may not exist yet during
+    /// startup, so the request is remembered and honoured as soon as it does.
+    /// </summary>
+    private void OnShowRequested()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        if (_window is null)
+        {
+            _showPending = true;
+            return;
+        }
+
+        RequestShow();
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using TheOverseer.App.Monitoring;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.History;
+using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
 using TheOverseer.Core.Voice;
 using TheOverseer.App.Voice;
@@ -64,6 +65,19 @@ internal static class HudComposition
         // retained workspace root; the resolver is bounded and cached.
         var projects = new ProjectResolver(configResult.Config.Project);
         var monitor = new CodexMonitor(monitorOptions, profiles, activitySource, log, TimeProvider.System, projects);
+
+        // One HUD-facing monitor over every enabled source: Codex plus each bridge
+        // spool that is actually installed. A source failure stays local.
+        var adapters = new List<IAgentMonitorAdapter>
+        {
+            new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
+        };
+        foreach (var source in HarnessSources.Discover(dataDirectory, configResult.Config.DisabledHarnessSources))
+        {
+            adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
+        }
+
+        var monitorSource = new CompositeMonitorSource(adapters, log);
         var executablePath = Environment.ProcessPath ?? string.Empty;
         var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
         var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));
@@ -71,7 +85,7 @@ internal static class HudComposition
         var notifications = CreateNotifications(dataDirectory, configResult.Config.Voice, log);
 
         var dependencies = new HudControllerDependencies(
-            new CodexMonitorSource(monitor),
+            monitorSource,
             new WpfUiDispatcher(dispatcher),
             new WindowsWindowPlacementService(),
             navigator,
