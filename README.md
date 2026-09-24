@@ -478,9 +478,18 @@ the dsh/Claude source adapters inside the app, and the offline baseline voice.
   "additionalRoots": [],
   "limits": { "maxTrackedFiles": 64, "globalBytesPerPass": 4194304, "staleLeaseMinutes": 15 },
   "logging": { "enabled": true, "maxBytes": 1048576, "level": "info" },
-  "runtimeActivitySource": true
+  "runtimeActivitySource": true,
+  "disabledHarnessSources": [],
+  "maximumHarnessSources": 8,
+  "harnessRoots": [{ "harnessId": "dsh", "path": "D:\\shared\\overseer-spool" }]
 }
 ```
+
+`disabledHarnessSources` lists discovered bridge sources to leave out as
+`harness/sourceInstance` (a disabled source is excluded from monitored totals and
+labelled disabled rather than offline). `maximumHarnessSources` caps how many source
+instances are monitored at once, and `harnessRoots` adds explicitly configured bridge
+roots outside the data directory; discovery is bounded per root and in total.
 
 Every limit is clamped into a bounded range. A malformed file is preserved as
 `config.json.corrupt-<timestamp>` and the defaults are used. Logs are written to
@@ -510,6 +519,29 @@ answers, command lines or credentials.
 - Approval and input events are transient inside Codex and are not persisted in
   rollouts. The monitor reports those capabilities as `unsupported` rather than
   guessing, and their normalized contracts are covered by synthetic tests.
+- **Every source carries its own health, freshness and coverage.** One aggregate
+  per-pass read allowance (default 4 MiB) and one tracked-item allowance are divided
+  between the enabled sources rather than multiplied by them, at most eight source
+  instances are monitored at once, and a share is never reduced below the floor that
+  lets a source make progress.
+- **Freshness is the producer's evidence time, not the adapter's poll time.** An idle
+  spool that is polled for an hour never looks freshly read, and a healthy source
+  publishing new work can neither refresh a dead peer's evidence nor its own
+  capabilities: capability sets are merged across readable sources with a per-harness
+  note, and an unavailable source contributes nothing.
+- **An external metadata bridge recovers current state from the producer's own
+  snapshot.** Each producer atomically publishes `current.json`; when OVERSEER reads
+  it, sessions the bridge actually observed are known again even after a late attach,
+  a dropped record or a rotated event file. Coverage is split in two: recoverable
+  *current state* and a permanent *history gap*. A gap is never rewritten as observed
+  activity, and it stops degrading a source only once it is older than the displayed
+  activity window.
+- **Liveness and action evidence are separate.** A heartbeat proves the host is
+  attached; it never renews a stale action and never overwrites an observed category.
+  An action older than ten seconds becomes *unknown coverage* while the task may still
+  be working, a `turn/end` with a missing or unrecognized outcome is *not* a
+  completion, and a tool start or plan marker observed while an approval or input
+  request is unanswered does not hide the fact that a human is still the blocker.
 
 ## Upstream reuse
 
