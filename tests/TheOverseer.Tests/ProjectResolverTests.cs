@@ -9,10 +9,12 @@ public sealed class ProjectResolverTests
     private static ProjectResolverProbe Probe(
         IEnumerable<string>? directories = null,
         IReadOnlyDictionary<string, string>? files = null,
-        Action<string>? onCheck = null)
+        Action<string>? onCheck = null,
+        IEnumerable<string>? reparsePoints = null)
     {
         var directorySet = new HashSet<string>(directories ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         var fileMap = files ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var reparseSet = new HashSet<string>(reparsePoints ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         return new ProjectResolverProbe(
             path =>
             {
@@ -24,7 +26,88 @@ public sealed class ProjectResolverTests
                 onCheck?.Invoke(path);
                 return fileMap.ContainsKey(path);
             },
-            (path, _) => fileMap.TryGetValue(path, out var value) ? value : null);
+            (path, _) => fileMap.TryGetValue(path, out var value) ? value : null,
+            path => reparseSet.Contains(path));
+    }
+
+    [Fact]
+    public void PosixPathsPreserveCaseAndAreComparedCaseSensitively()
+    {
+        Assert.Equal("posix:/mnt/c/Work/App", ProjectResolver.Normalize("/mnt/c/Work/App/"));
+
+        var upper = Resolver().Resolve("/mnt/c/Work/App");
+        var lower = Resolver().Resolve("/mnt/c/work/app");
+
+        Assert.NotEqual(upper.Project.Id, lower.Project.Id);
+        Assert.Equal(ProjectResolution.WorkspaceRoot, upper.Resolution);
+    }
+
+    [Theory]
+    [InlineData("C:repo")]
+    [InlineData("C:")]
+    [InlineData(@"\?\Volume{11111111-2222-3333-4444-555555555555}\")]
+    [InlineData(@"\server")]
+    [InlineData(@"\server\")]
+    public void DriveRelativeDeviceAndIncompleteUncRootsAreRejected(string path)
+    {
+        var assignment = Resolver().Resolve(path);
+
+        Assert.Equal(ProjectResolution.Unassigned, assignment.Resolution);
+        Assert.True(assignment.Project.IsUnassigned);
+    }
+
+    [Fact]
+    public void UncRootsKeepTheServerAndShareBoundary()
+    {
+        var settings = new ProjectSettings
+        {
+            Mappings = new[] { new ProjectRootMapping { ProjectKey = "share-app", Name = "share-app", Root = @"\\server\share\work\app" } },
+        };
+        var resolver = Resolver(settings);
+
+        var inside = resolver.Resolve(@"\\server\share\work\app\src");
+        var sibling = resolver.Resolve(@"\\server\share\work\app2\src");
+
+        Assert.Equal(ProjectResolution.ConfiguredRoot, inside.Resolution);
+        Assert.Equal("share-app", inside.Project.Id.Value);
+        Assert.NotEqual(inside.Project.Id, sibling.Project.Id);
+        Assert.StartsWith(@"\\server\share", ProjectResolver.Normalize(@"\\server\share\work\app"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DotDotNeverEscapesADriveOrUncRoot()
+    {
+        Assert.Equal(@"c:\app", ProjectResolver.Normalize(@"C:\work\..\..\..\app"));
+        Assert.Equal(@"\\server\share\x", ProjectResolver.Normalize(@"\\server\share\..\..\x"));
+        Assert.Equal(@"c:\work", ProjectResolver.Normalize(@"C:\work\..\..\..\..\work"));
+    }
+
+    [Fact]
+    public void ReparsePointAncestorsStopTheGitWalkInsteadOfRedirectingIdentity()
+    {
+        var probe = Probe(
+            directories: new[] { @"c:\real\.git" },
+            reparsePoints: new[] { @"c:\link" });
+        var resolver = Resolver(probe: probe);
+
+        var throughLink = resolver.Resolve(@"C:\link\deep");
+        var real = resolver.Resolve(@"C:\real\src");
+
+        Assert.Equal(ProjectResolution.WorkspaceRoot, throughLink.Resolution);
+        Assert.Equal(ProjectResolution.GitRoot, real.Resolution);
+        Assert.NotEqual(real.Project.Id, throughLink.Project.Id);
+    }
+
+    [Fact]
+    public void UncAndPosixRootsAreNeverProbedAsLocalPaths()
+    {
+        var checks = 0;
+        var resolver = Resolver(probe: Probe(onCheck: _ => checks++));
+
+        _ = resolver.Resolve(@"\\server\share\work\app");
+        _ = resolver.Resolve("/mnt/c/work/app");
+
+        Assert.Equal(0, checks);
     }
 
     private static ProjectResolver Resolver(

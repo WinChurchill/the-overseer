@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Models;
 
@@ -8,7 +9,8 @@ namespace TheOverseer.Core.Monitoring;
 public sealed record ProjectResolverProbe(
     Func<string, bool> DirectoryExists,
     Func<string, bool> FileExists,
-    Func<string, int, string?> ReadBoundedText)
+    Func<string, int, string?> ReadBoundedText,
+    Func<string, bool>? IsReparsePoint = null)
 {
     public static ProjectResolverProbe System { get; } = new(
         Directory.Exists,
@@ -18,13 +20,25 @@ public sealed record ProjectResolverProbe(
             try
             {
                 using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                if (stream.Length > maximumBytes)
+                // Read at most the bound: the byte cap is enforced by the read
+                // itself, not by trusting a length that can change underneath.
+                var cap = Math.Clamp(maximumBytes, 1, 64 * 1024);
+                var buffer = new byte[cap];
+                var read = 0;
+                while (read < cap)
                 {
-                    return null;
+                    var next = stream.Read(buffer, read, cap - read);
+                    if (next <= 0)
+                    {
+                        break;
+                    }
+
+                    read += next;
                 }
 
-                using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
+                // Encoding is imported directly: the member named System on this
+                // record would otherwise shadow the System namespace.
+                return Encoding.UTF8.GetString(buffer, 0, read);
             }
             catch (IOException)
             {
@@ -33,6 +47,22 @@ public sealed record ProjectResolverProbe(
             catch (UnauthorizedAccessException)
             {
                 return null;
+            }
+        },
+        static path =>
+        {
+            try
+            {
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
+            catch (IOException)
+            {
+                // Uninspectable is treated as a reparse point: never traverse it.
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return true;
             }
         });
 }
@@ -124,28 +154,39 @@ public sealed class ProjectResolver
         }
 
         var isPosix = value[0] == '/';
-        if (value.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
-        {
-            value = @"\\" + value[8..];
-        }
-        else if (value.StartsWith(@"\\?\", StringComparison.Ordinal))
-        {
-            value = value[4..];
-        }
-
+        var isUnc = false;
         if (!isPosix)
         {
-            // Device namespaces and relative paths can never identify a project.
-            if (value.StartsWith(@"\\.\", StringComparison.Ordinal) ||
-                value.StartsWith(@"\.", StringComparison.Ordinal))
+            if (value.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+            {
+                value = @"\\" + value[8..];
+            }
+            else if (value.StartsWith(@"\\?\", StringComparison.Ordinal))
+            {
+                value = value[4..];
+            }
+
+            // Device namespaces are never project roots.
+            if (value.StartsWith(@"\\.\", StringComparison.Ordinal))
             {
                 return string.Empty;
             }
 
-            var isUnc = value.StartsWith(@"\\", StringComparison.Ordinal);
-            var isDrive = value.Length >= 2 && char.IsLetter(value[0]) && value[1] == ':';
-            if (!isUnc && !isDrive)
+            isUnc = value.StartsWith(@"\\", StringComparison.Ordinal);
+            if (isUnc)
             {
+                var rootParts = value[2..].Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                if (rootParts.Length < 2)
+                {
+                    // A bare server or share cannot identify a project on its own.
+                    return string.Empty;
+                }
+            }
+            else if (!(value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' &&
+                       (value[2] == '\\' || value[2] == '/')))
+            {
+                // Rejects relative paths, drive-relative paths such as C:repo, and
+                // any other form that cannot be compared by complete segments.
                 return string.Empty;
             }
         }
@@ -160,7 +201,10 @@ public sealed class ProjectResolver
 
             if (raw == "..")
             {
-                if (segments.Count > 0)
+                // Root boundaries are absolute: .. can never pop the drive root or
+                // the UNC server/share, and never escapes a POSIX root.
+                var floor = isPosix ? 0 : isUnc ? 2 : 1;
+                if (segments.Count > floor)
                 {
                     segments.RemoveAt(segments.Count - 1);
                 }
@@ -176,13 +220,37 @@ public sealed class ProjectResolver
             return string.Empty;
         }
 
-        var joined = string.Join(isPosix ? "/" : "\\", segments).ToLowerInvariant();
-        if (!isPosix && !joined.StartsWith(@"\\", StringComparison.Ordinal))
+        if (isPosix)
         {
-            joined = char.ToLowerInvariant(segments[0][0]) + joined[1..];
+            // POSIX paths preserve case, are compared case-sensitively, and live in
+            // their own namespace so they never match a Windows root.
+            return PosixNamespace + "/" + string.Join("/", segments);
         }
 
-        return isPosix ? PosixNamespace + "/" + joined : joined;
+        var joined = string.Join("\\", segments).ToLowerInvariant();
+        return isUnc ? @"\\" + joined : joined;
+    }
+
+    private bool IsReparsePoint(string normalizedPath)
+    {
+        var probe = _probe.IsReparsePoint;
+        if (probe is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return probe(normalizedPath);
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
     }
 
     /// <summary>Joins metadata file names using the separator of the namespace.</summary>
@@ -297,9 +365,25 @@ public sealed class ProjectResolver
     /// </summary>
     private ProjectDescriptor? FindRepositoryRoot(string normalized)
     {
+        // Only a local absolute Windows drive path is probed. UNC and POSIX roots
+        // never become filesystem probes, so a network or WSL path cannot block
+        // resolution and is never traversed as a local path.
+        if (normalized.StartsWith(PosixNamespace, StringComparison.Ordinal) ||
+            normalized.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         var current = normalized;
         for (var depth = 0; depth < _maximumAncestorChecks && current.Length > 0; depth++)
         {
+            if (IsReparsePoint(current))
+            {
+                // A junction or symlink must never redirect project identity, so the
+                // walk stops here instead of following the link upwards.
+                return null;
+            }
+
             var gitPath = Join(current, ".git");
             if (_probe.DirectoryExists(gitPath))
             {
