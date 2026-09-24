@@ -496,3 +496,13 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   mixed-DPI transitions were qualified on the preceding sizing foundation and
   were not repeated on this header revision. Unplug/sleep/resume and text-size-only
   accessibility remain the previously disclosed qualifications. No merge/tag.
+- Packaged source: 5521980. Self-contained archive:
+  artifacts/custom-chrome-release/OVERSEER-v1-win-x64.zip; SHA-256
+  659790C1778F2D85D33DBEA5683A18FA4289C1A8370E623007ECE98F71BD4D66.
+  Scoped packaged smoke: 17/17 passed (26 renders, finite HUD/voice/pack checks,
+  synthetic and live monitoring). Used -SkipHudLifecycle because interactive
+  validation used Computer Use instead of the PowerShell window-driving block;
+  this is not a fresh 28-check lifecycle/focus qualification. Evidence:
+  artifacts/custom-chrome-release/smoke/run-20260924T035007Z-8a3b6752/.
+  Desktop shortcut now targets artifacts/overseer-chrome-5521980/; launched with
+  existing user settings. Shortcut receipt is in artifacts/custom-chrome-release/.
