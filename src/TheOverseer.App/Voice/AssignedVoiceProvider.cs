@@ -4,24 +4,39 @@ using TheOverseer.Core.Voice;
 
 namespace TheOverseer.App.Voice;
 
-/// <summary>User-assigned local recordings override the selected pack/TTS, without uploading audio.</summary>
+/// <summary>
+/// User-assigned local recordings override the selected provider, without uploading
+/// audio. The status is the selected provider's own status until an assigned
+/// recording is actually used for an event; after that the recording outcome speaks
+/// for itself, so the HUD never claims a pack is ready while another provider is
+/// selected.
+/// </summary>
 public sealed class AssignedVoiceProvider(string dataDirectory, Func<VoiceSettings> settings, IVoiceProvider fallback) : IVoiceProvider, IDisposable
 {
+    private VoiceProviderStatus? _recording;
+
     public string Id => fallback.Id;
-    private VoiceProviderStatus _status = new("recording", false, "missing");
-    public VoiceProviderStatus Status => _status with { FallbackCount = fallback.Status.FallbackCount };
+
+    public VoiceProviderStatus Status
+    {
+        get
+        {
+            var selected = fallback.Status;
+            return _recording is null ? selected : _recording with { FallbackCount = selected.FallbackCount };
+        }
+    }
 
     public async ValueTask<VoiceClip?> TryCreateAsync(VoiceCandidate candidate, CancellationToken cancellationToken)
     {
         if (settings().Clips.TryGetValue(VoiceNotificationFormatter.EventCode(candidate.Kind), out var name))
         {
             var clip = await VoiceRecordingStore.ReadAsync(dataDirectory, name, cancellationToken).ConfigureAwait(false);
-            _status = new("recording", clip is not null, clip is null ? "recording-invalid" : "recording");
+            _recording = new VoiceProviderStatus("recording", clip is not null, clip is null ? "recording-invalid" : "recording");
             return clip;
         }
-        var result = await fallback.TryCreateAsync(candidate, cancellationToken).ConfigureAwait(false);
-        _status = fallback.Status;
-        return result;
+
+        _recording = null;
+        return await fallback.TryCreateAsync(candidate, cancellationToken).ConfigureAwait(false);
     }
 
     public void Dispose() => (fallback as IDisposable)?.Dispose();
