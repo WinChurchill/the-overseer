@@ -211,6 +211,13 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 }
             }
 
+            // Readable work always leaves the source set at worst degraded: a
+            // failed peer reduces visibility but never hides healthy tasks.
+            if (anyReadable && level == MonitoringHealthLevel.Unavailable)
+            {
+                level = MonitoringHealthLevel.Degraded;
+            }
+
             if (sources.Length == 0)
             {
                 level = MonitoringHealthLevel.Unavailable;
