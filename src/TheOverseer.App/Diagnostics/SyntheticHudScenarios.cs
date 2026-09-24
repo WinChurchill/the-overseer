@@ -120,7 +120,7 @@ public static class SyntheticHudScenarios
             Task("01a0f000-0000-0000-0000-000000000001", 1, "Aurora release checklist", AgentTaskState.NeedsApproval,
                 new AgentAction(AgentActionKind.WaitingForApproval, EvidenceKind.Explicit, "permission-requested"),
                 needsHuman: true, stale: false, provisional: false, minutesAgo: 1, attention: "permission-requested"),
-            Task("01a0f000-0000-0000-0000-000000000003", 3, "TCS data pipeline", AgentTaskState.Working,
+            Task("01a0f000-0000-0000-0000-000000000002", 2, "TCS data pipeline", AgentTaskState.Working,
                 new AgentAction(AgentActionKind.RunningTests, EvidenceKind.Structured, "test-runner"),
                 needsHuman: false, stale: false, provisional: false, minutesAgo: 0),
             Task("01a0f000-0000-0000-0000-000000000009", 9, "Failed verification", AgentTaskState.Error,
@@ -141,43 +141,62 @@ public static class SyntheticHudScenarios
     {
         var steps = new List<MonitoringSnapshot>();
 
-        AgentTask Build(int number, string label, AgentTaskState state, AgentAction action, bool needsHuman = false, bool failed = false) =>
+        // Every observation carries its own instant, so the rendered rows agree with
+        // the recorded intervals instead of claiming activity after the snapshot.
+        AgentTask At(int number, string label, AgentTaskState state, AgentAction action, DateTimeOffset at, bool needsHuman = false, bool failed = false) =>
             Task(Conversation(number), number, label, state, action, needsHuman,
                 stale: false, provisional: false, minutesAgo: 0, attention: needsHuman ? action.DetailCode : null,
-                failed: failed, anchor: end);
+                failed: failed, anchor: at);
 
-        void Observe(int minutesAgo, params AgentTask[] tasks) =>
-            steps.Add(Snapshot(tasks, MonitoringHealthLevel.Degraded, new[] { "synthetic" }, coverageComplete: false, known: true,
-                at: end.AddMinutes(-minutesAgo)));
+        AgentTask IdleTask(DateTimeOffset at) =>
+            At(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled"), at);
+
+        void Observe(int minutesAgo, Func<DateTimeOffset, AgentTask[]> build)
+        {
+            var at = end.AddMinutes(-minutesAgo);
+            steps.Add(Snapshot(build(at), MonitoringHealthLevel.Degraded, new[] { "synthetic" }, coverageComplete: false, known: true, at: at));
+        }
 
         // Aurora: an explicit plan marker, then inferred reasoning, then tool work.
-        Observe(54,
-            Build(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.EditingFiles, EvidenceKind.Explicit, "plan-mode")),
-            Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")));
+        Observe(54, at => new AgentTask[]
+        {
+            At(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.EditingFiles, EvidenceKind.Explicit, "plan-mode"), at),
+            IdleTask(at),
+        });
         for (var minute = 48; minute >= 30; minute -= 3)
         {
-            Observe(minute,
-                Build(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.Thinking, EvidenceKind.Inferred, "inferred-turn")),
-                Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")));
+            var step = minute;
+            Observe(step, at => new AgentTask[]
+            {
+                At(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.Thinking, EvidenceKind.Inferred, "inferred-turn"), at),
+                IdleTask(at),
+            });
         }
 
         for (var minute = 27; minute >= 18; minute -= 3)
         {
-            Observe(minute,
-                Build(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.RunningTests, EvidenceKind.Structured, "test-runner")),
-                Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")));
+            var step = minute;
+            Observe(step, at => new AgentTask[]
+            {
+                At(1, "Aurora release checklist", AgentTaskState.Working, new AgentAction(AgentActionKind.RunningTests, EvidenceKind.Structured, "test-runner"), at),
+                IdleTask(at),
+            });
         }
 
         // Minutes 17..7 are deliberately unobserved: unknown coverage, never idle.
-        Observe(6,
-            Build(1, "Aurora release checklist", AgentTaskState.NeedsApproval, new AgentAction(AgentActionKind.WaitingForApproval, EvidenceKind.Explicit, "permission-requested"), needsHuman: true),
-            Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")),
-            Build(5, "Webots simulation harness", AgentTaskState.Working, new AgentAction(AgentActionKind.Searching, EvidenceKind.Structured, "search-command")));
-        Observe(1,
-            Build(1, "Aurora release checklist", AgentTaskState.Error, new AgentAction(AgentActionKind.Error, EvidenceKind.Explicit, "task-error"), failed: true),
-            Build(3, "TCS data pipeline", AgentTaskState.Idle, new AgentAction(AgentActionKind.Idle, EvidenceKind.Explicit, "settled")),
-            Build(5, "Webots simulation harness", AgentTaskState.NeedsInput, new AgentAction(AgentActionKind.WaitingForInput, EvidenceKind.Explicit, "input-requested"), needsHuman: true),
-            Build(10, "Finished report", AgentTaskState.Done, new AgentAction(AgentActionKind.Completed, EvidenceKind.Explicit, "task-complete")));
+        Observe(6, at => new AgentTask[]
+        {
+            At(1, "Aurora release checklist", AgentTaskState.NeedsApproval, new AgentAction(AgentActionKind.WaitingForApproval, EvidenceKind.Explicit, "permission-requested"), at, needsHuman: true),
+            IdleTask(at),
+            At(5, "Webots simulation harness", AgentTaskState.Working, new AgentAction(AgentActionKind.Searching, EvidenceKind.Structured, "search-command"), at),
+        });
+        Observe(1, at => new AgentTask[]
+        {
+            At(1, "Aurora release checklist", AgentTaskState.Error, new AgentAction(AgentActionKind.Error, EvidenceKind.Explicit, "task-error"), at, failed: true),
+            IdleTask(at),
+            At(5, "Webots simulation harness", AgentTaskState.NeedsInput, new AgentAction(AgentActionKind.WaitingForInput, EvidenceKind.Explicit, "input-requested"), at, needsHuman: true),
+            At(10, "Finished report", AgentTaskState.Done, new AgentAction(AgentActionKind.Completed, EvidenceKind.Explicit, "task-complete"), at),
+        });
         return steps;
     }
 

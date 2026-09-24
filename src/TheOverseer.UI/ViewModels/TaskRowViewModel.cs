@@ -274,7 +274,9 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     public void UpdateAge(DateTimeOffset now, DateTimeOffset lastActivity)
     {
         var active = TaskState is AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval;
-        var freshness = HudText.Relative(now - lastActivity) + " ago";
+        var relative = HudText.Relative(now - lastActivity);
+        // "now" already carries the sense of the suffix; "now ago" is not a label.
+        var freshness = relative == "now" ? "now" : relative + " ago";
         AgeText = active ? _startedAt is { } start ? HudText.Relative(now - start) : "—" : freshness;
         AgeHint = active
             ? (_startedAt is null ? "Turn start was not observed." : "Elapsed this turn: " + AgeText + ".") +

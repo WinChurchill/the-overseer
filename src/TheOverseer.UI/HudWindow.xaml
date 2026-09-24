@@ -203,8 +203,8 @@
           <Setter Property="Opacity" Value="0.7" />
         </DataTrigger>
         <DataTrigger Binding="{Binding Category}" Value="Planning">
-          <Setter Property="Background" Value="{DynamicResource AccentSecondaryBrush}" />
-          <Setter Property="Opacity" Value="0.95" />
+          <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="Opacity" Value="0.5" />
         </DataTrigger>
         <DataTrigger Binding="{Binding Category}" Value="Working">
           <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
@@ -252,7 +252,9 @@
     <DataTemplate x:Key="ActivityLegendEntryTemplate">
       <StackPanel Orientation="Horizontal" Margin="0,0,12,4" ToolTip="{Binding Description}"
                   automation:AutomationProperties.Name="{Binding Description}">
-        <Border Width="14" Height="10" VerticalAlignment="Center" Style="{StaticResource ActivitySwatchFill}" />
+        <!-- An outline keeps the confirmed-idle slot readable as "blank", not a hole. -->
+        <Border Width="14" Height="10" VerticalAlignment="Center" BorderThickness="1"
+                BorderBrush="{DynamicResource BorderBrush}" Style="{StaticResource ActivitySwatchFill}" />
         <TextBlock Text="{Binding Label}" Margin="5,0,0,0" VerticalAlignment="Center"
                    FontFamily="{DynamicResource MetadataFontFamily}"
                    FontSize="{DynamicResource FontSizeMeta}"
