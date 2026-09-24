@@ -12,12 +12,12 @@ Product base: d869db6 (custom HUD implementation: 5521980)
 - DeepSeek implementation: **partial** — foundation merged on `ux/first-use`; the
   project-first UI, composite multi-source monitor and baseline voice are **not**
   implemented yet. Details in "Project-centered round — execution" below.
-- Build / tests: Release build 0 warnings / 0 errors; **483 tests passed, 0 failed**
-  (456 reviewed baseline + 27 new for project identity, harness-qualified keys and
-  observed activity history)
+- Latest Astra verification at b06da76: Release build 0 warnings / 0 errors;
+  **506 .NET tests passed**, none failed/skipped; combined bridge tests **47/48**
+  passed (Claude concurrent publication expected 9 records, found 8).
 - Smoke / package: not rerun in this partial round (see the section below for the
   exact gap)
-- Astra review: CHANGES REQUIRED (2026-09-24, reviewed HEAD 3038bba); see below
+- Astra review: CHANGES REQUIRED (2026-09-24, latest reviewed HEAD b06da76); see below
 - Prior UX baseline: Release build passed with 0 warnings/errors; 456 tests passed;
   26 render fixtures; package smoke 17/17 with HUD lifecycle skipped in favor of
   recorded manual checks. User confirmed Win+Left/Right and Win+Z work.
@@ -49,6 +49,60 @@ The frozen original four-plan V1 scope documents remain unchanged; this is an ex
 user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
+
+### Astra continuation review — b06da76 (2026-09-24)
+
+**CHANGES REQUIRED.** Six new commits since 3038bba, clean worktree at review start.
+The restore call is now wired in App startup; the added signal test is an in-process
+named-event test, not a packaged second-process test. Codex workspace roots/project
+attribution are now wired through composition/reducer. The path normalization fixes
+and bounded metadata read are substantive improvements. dsh atomic-current publication
+passed in this review's combined bridge run. These advances do not finish the goal.
+
+Remaining/new findings, in execution order:
+
+1. **MAJOR — recorder still disconnected, with incorrect freshness semantics.**
+   Source search finds no runtime caller of TaskActivityRecorder.Record and no runtime
+   TaskActivityHistory instance. Its Record method uses snapshot.GeneratedAt for every
+   task; a refreshed aggregate snapshot would refresh an unchanged old action. Preserve
+   source/task action observation times and record before UI coalescing. ClassifyWorking
+   returns plan updates with IsMarker=false despite its point-observation comment;
+   repeated terminal snapshots also append duplicate markers. Add tests for a healthy
+   A/stale B, repeated snapshots, one-time completion, and plan-update markers before wiring.
+2. **MAJOR — path traversal protection remains incomplete.** FindRepositoryRoot checks
+   only the current leaf for a reparse point before accessing its .git; an ancestor
+   junction can already have redirected that access. The .git file and parsed gitdir/
+   commondir targets are not checked equivalently before reads (including an absolute
+   UNC gitdir). Validate every metadata target and relevant ancestors before probing;
+   no UNC/POSIX metadata I/O. Relative gitdir is currently resolved against the .git
+   file path rather than its containing worktree directory; add a real relative-gitdir
+   fixture and verify grouping against Git's layout.
+3. **MAJOR — bridge tests still not reliably green.** Fresh combined run: dsh 29/29,
+   Claude 18/19. bridge.concurrency.test.mjs:71 expected 9 published records, found 8;
+   all helper exits were zero. This demonstrates a missing record under the test's
+   concurrency load, not proven non-monotonic sequencing. Diagnose lock/deadline/drop
+   accounting and test assumptions without masking drops. dsh retry uses a Date.now
+   busy loop on the host event loop; replace with bounded scheduled retry that preserves
+   dirty state without blocking agent execution. Test transient failure deterministically.
+4. **MAJOR — original product work remains absent.** Composite monitor/shared budgets,
+   desktop dsh/Claude ingestion, per-source health/notifications, project rows/settings,
+   activity strips, baseline voice, and visible close/header/sizing refinements remain.
+   Complete them within the same goal, not a new sequence of human-managed plans.
+5. **MAJOR — final qualification remains absent.** No new package/smoke/renders/live
+   multi-harness/voice evidence. Named-event tests use the production event name and
+   can compete with a real running HUD; isolate test event names and add the requested
+   actual startup/second-process lifecycle check, including the listener-startup race.
+
+Review evidence: fresh Release build 0 warnings/errors, .NET 506/506; bridge 47/48 as
+above; diff check passed. No package/app/shortcut/live harness settings changed.
+Git: ux/first-use at b06da76, six new commits (14 since d869db6); no configured remote.
+This review is documentation-only and adds an uncommitted ledger edit. Earlier entries
+are historical evidence; runtime recording is NOT delivered merely by adding the mapper.
+
+Continuation: fix items 1–3 and test isolation while finishing item 4; perform item 5,
+update truthful delivery claims, then return the entire goal for Astra review. Internal
+commits/batches are fine; stopping after each batch is not completion. Stop only for a
+concrete blocker, recording it and continuing independent work under the existing handoff.
 
 ### Astra review — 2026-09-24
 
@@ -271,6 +325,50 @@ restructuring and the harness bridges inside the desktop app did not.
    bounds, precedence rules and the "Use baseline" control.
 5. Render/inspect both themes across the packet's size matrix, full tests, clean
    publish and packaged smoke, then Astra review.
+
+### DeepSeek continuation 2 — response to "Astra continuation review — b06da76"
+
+Findings 1–3 and the named-event isolation part of finding 5 are closed on this branch,
+each with tests or repeated runs:
+
+1. **Recorder connected with correct freshness semantics.** `NotificationCoordinator.OnSnapshot`
+   now owns a runtime `TaskActivityHistory` and records from the same pre-UI-coalescing
+   snapshot as history and voice. Observations carry the task's own `LastActivityAt`
+   clamped to the snapshot time, so a refreshed aggregate snapshot cannot renew an
+   unchanged old action (regression: the same task republished 30 s later keeps its
+   confirmed interval end). Terminal states and plan updates are point markers with a
+   stable per-episode identity, so repeated terminal snapshots add no duplicate marker
+   and plan mode never becomes planning duration (two regressions). Healthy-A/stale-B
+   separation is covered by `TaskActivityHistoryTests.AStaleMemberShowsKnownWorkPlusPartialCoverage`.
+2. **Traversal protection is now complete.** The whole ancestor chain is checked for
+   reparse points before the first metadata access; the `.git` target and the parsed
+   `commondir` are validated and reparse-checked before any read; UNC/POSIX metadata
+   targets never reach I/O; a relative `gitdir` resolves against the directory
+   containing the `.git` file, with a fixture matching Git's worktree layout
+   (`.git/worktrees/<name>/commondir` → `../..`).
+3. **Bridge verification is green and honest.** The Claude failure was a real accounting
+   bug: every non-ok outcome that was not a lock timeout was mislabeled
+   `droppedOversizeRecord`, so a genuine write failure disappeared from the totals.
+   A `droppedWriteFailed` counter now exists, the append loop cannot spin on a
+   zero-progress write, and the concurrency tests assert landed records + counted drops
+   = writers with per-session 1..N ordering for the landed ones. dsh no longer
+   busy-waits: a transient rename failure keeps the document dirty and schedules a
+   bounded retry. Evidence: dsh 8/8 runs 29/29 pass; Claude 10/10 runs 19/19 pass.
+4. **Named events are isolated and the startup race is tested.** The event name is
+   scoped by data directory (`ShowRequestSignal.EventNameFor`), the app passes that
+   scope in both roles, tests use unique scopes, and a regression proves a signal sent
+   before any listener is not queued for a later one.
+
+**Finding 4 (product scope) and the package/live half of finding 5 remain open.** No
+composite monitor, desktop dsh/Claude ingestion, cross-source notification policy,
+project-first HUD/settings, activity strips, baseline voice, or close/header/sizing
+refinement exists yet; no package, packaged lifecycle smoke, render matrix, audible
+check or live harness qualification was produced. The running app, shortcut and live
+harness settings were not touched.
+
+Verification for this continuation: Release build **0 warnings / 0 errors**, .NET tests
+**509 passed / 0 failed / 0 skipped**, dsh 29/29 and Claude 19/19 across repeated runs,
+`git diff --check` clean.
 
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
