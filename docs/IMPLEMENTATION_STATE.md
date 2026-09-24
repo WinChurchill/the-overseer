@@ -404,19 +404,33 @@ Delivered in this session (all committed):
   constructor, and a request that arrives before the window exists is queued and
   honoured as soon as the window is created.
 
-Verification: Release build **0 warnings / 0 errors**; .NET tests **509 passed /
-0 failed / 0 skipped**. No new automated tests for the bridge/composite yet — that is
-the next executable step, and until they exist this work is unverified beyond compile
-and the existing suite.
+Verification: Release build **0 warnings / 0 errors**; .NET tests **531 passed /
+0 failed / 0 skipped**, including 22 new bridge/composite regressions:
+
+- `HarnessBridgeTests` (12): envelope acceptance and harness-qualified identity;
+  precise rejection reasons (empty, malformed JSON, non-object, missing schema,
+  unsupported schema, unknown kind, missing timestamp, oversize); privacy sentinels
+  (prompt/toolOutput/transcript keys never reach the record); hydrated attach is silent
+  and marks pre-attach coverage unknown; sequence duplicates/out-of-order are typed and a
+  gap raises coverage; aborted turn silent vs error turn raising attention; a late tool
+  start cannot reopen a completed turn; approval correlation and resolution; plan mode as
+  a point marker; producer drops lowering coverage; expired lease aging the task; a new
+  producer epoch resetting ordering and marking the gap.
+- `CompositeMonitorTests` (5): complete sources give known counts and each transition is
+  forwarded once; a failing source keeps healthy work visible, forces partial counts and
+  leaves the source set degraded (never a healthy zero); global completion is suppressed
+  while any source is incomplete and appears once every source is complete; absent bridge
+  spools are not phantom sources and a configured source can be disabled; the spool reader
+  consumes only complete new lines, defers a partial trailing record, and reports producer
+  drops as coverage evidence.
+
+Next executable step: cross-source notification verification through
+`NotificationCoordinator` with two sources (dedupe by harness-qualified key, no replay on
+hydration, no source-loss storm). Then the UI, voice and packaging work listed below.
 
 Next executable steps, in order:
-1. Tests: `HarnessBridgeSessionTests` (gap/duplicate/epoch, hydration silence, late
-   tool start, aborted vs error, producer-drop coverage) and `CompositeMonitorTests`
-   (source-local failure isolation, partial vs unknown counts, single global completion,
-   transition forwarded once, disabled source excluded).
-2. Cross-source notification verification through `NotificationCoordinator` with two
-   sources (dedupe by harness-qualified key, no replay on hydration, no source storm).
-3. Project-first HUD/settings + project/task activity strips (`ActivityStrips` is
+1. Cross-source notification verification (see above).
+2. Project-first HUD/settings + project/task activity strips (`ActivityStrips` is
    already wired into the coordinator).
 4. Offline baseline voice; visible close button/header/menu/responsive sizing.
 5. Renders, clean publish, packaged lifecycle smoke (close now hides to tray), live dsh
