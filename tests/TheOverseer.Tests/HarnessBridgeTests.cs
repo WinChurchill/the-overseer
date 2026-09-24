@@ -436,6 +436,48 @@ public sealed class HarnessBridgeTests
     }
 
     [Fact]
+    public void ConcurrentToolCallsAndRequestsStayCorrelatedByTheirOwnIds()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start")));
+        session.Apply(Parse(Line(2, "tool/start", turnId: "turn-1")) with { CallId = "call-a" });
+        session.Apply(Parse(Line(3, "approval/asked", requestId: "req-1", category: "waiting")));
+        session.Apply(Parse(Line(4, "tool/start")) with { CallId = "call-b" });
+
+        // One correlated tool finishing does not settle the other, and an
+        // unrelated request does not clear the pending approval.
+        session.Apply(Parse(Line(5, "tool/end")) with { CallId = "call-a", Outcome = "ok" });
+        var waiting = Assert.Single(session.Tasks(Start.AddSeconds(6)));
+        Assert.Equal(AgentTaskState.NeedsApproval, waiting.State);
+        Assert.True(waiting.NeedsHuman);
+
+        // The correlated decision settles exactly the request it names.
+        session.Apply(Parse(Line(6, "approval/decided", requestId: "req-1")));
+        var settled = Assert.Single(session.Tasks(Start.AddSeconds(7)));
+        Assert.False(settled.NeedsHuman);
+        Assert.Equal(AgentTaskState.Working, settled.State);
+    }
+
+    [Fact]
+    public void ClockSkewCannotCreateFutureEvidenceOrMoveItBackwards()
+    {
+        var session = new HarnessBridgeSession(Dsh, actionLease: TimeSpan.FromSeconds(10));
+        var receipt = Start.AddSeconds(2);
+        // The producer's clock is ten minutes ahead: the record is bounded by the
+        // moment the collector actually read it.
+        session.Apply(Parse(Line(1, "turn/start")) with { ObservedAtUtc = Start.AddMinutes(10) }, receipt);
+        var skewed = Assert.Single(session.Tasks(receipt));
+        Assert.Equal(receipt, skewed.LastActionAt);
+        Assert.True(skewed.ActionEvidenceFresh);
+
+        // A later-sequenced record whose timestamp went backwards does not move the
+        // evidence watermark backwards either.
+        session.Apply(Parse(Line(2, "tool/start")) with { ObservedAtUtc = Start.AddSeconds(1) }, Start.AddSeconds(5));
+        var after = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.Equal(receipt, after.LastActionAt);
+    }
+
+    [Fact]
     public void ASessionThatBecomesActiveAgainIsNoLongerRetired()
     {
         var session = new HarnessBridgeSession(Dsh);

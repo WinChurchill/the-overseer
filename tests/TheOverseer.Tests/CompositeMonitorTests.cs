@@ -4,6 +4,7 @@ using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
+using TheOverseer.Core.Monitoring.Bridge;
 using TheOverseer.Tests.Support;
 
 namespace TheOverseer.Tests;
@@ -276,6 +277,57 @@ public sealed class CompositeMonitorTests
             Assert.Equal("next", Assert.Single(reader.ReadNewLines(out _, out _)));
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void ASameSizeFileReplacementIsDetectedInsteadOfBeingSkipped()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var events = Path.Combine(root, "events.jsonl");
+            File.WriteAllText(events, "{\"a\":1}\n");
+            var reader = new BridgeSpoolReader(root);
+            Assert.Single(reader.ReadNewLines(out _, out _));
+
+            // Replace the file in place with different content of exactly the same
+            // length: a length-only check would see "nothing new" here.
+            File.WriteAllText(events, "{\"b\":2}\n");
+            var replaced = reader.ReadNewLines(out _, out _);
+
+            Assert.Equal("{\"b\":2}", Assert.Single(replaced));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AnUnchangedCurrentDocumentIsStillAppliedWithoutReparsing()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var source = new SourceInstance(HarnessIds.Dsh, "dsh-default", "DeepSeek Harness");
+            var document = "{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-default\"," +
+                           "\"sourceEpoch\":\"e\",\"updatedAtUtc\":\"2026-09-24T12:00:00Z\",\"sessions\":[]}";
+            File.WriteAllText(Path.Combine(root, "current.json"), document);
+            var reader = new BridgeSpoolReader(root);
+
+            var first = reader.ReadCurrentState(source);
+            var second = reader.ReadCurrentState(source);
+
+            Assert.Equal(BridgeCurrentStateOutcome.Accepted, first.Outcome);
+            Assert.Equal(BridgeCurrentStateOutcome.Accepted, second.Outcome);
+            Assert.Same(first.Document, second.Document);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

@@ -705,15 +705,26 @@ public sealed class HarnessBridgeSession
                     return null;
                 }
 
-                lane.State = AgentTaskState.Working;
                 lane.TurnId = turn;
-                lane.DetailCode = SafeDetail(record);
-                lane.Category = record.Category == "unknown" ? "working" : record.Category;
                 if (!string.IsNullOrWhiteSpace(record.CallId))
                 {
                     lane.OpenCalls.Add(record.CallId!);
                 }
 
+                if (lane.Approvals.Count > 0 || lane.Inputs.Count > 0)
+                {
+                    // Work continuing behind an unanswered request does not make the
+                    // task look attended to: the human is still the blocker.
+                    lane.NeedsHuman = true;
+                    lane.State = lane.Approvals.Count > 0 ? AgentTaskState.NeedsApproval : AgentTaskState.NeedsInput;
+                    lane.AttentionCode = lane.Approvals.Count > 0 ? "approval-pending" : "input-pending";
+                    lane.Category = "waiting";
+                    return null;
+                }
+
+                lane.State = AgentTaskState.Working;
+                lane.DetailCode = SafeDetail(record);
+                lane.Category = record.Category == "unknown" ? "working" : record.Category;
                 return null;
 
             case "tool/end":
@@ -723,6 +734,13 @@ public sealed class HarnessBridgeSession
                 }
 
                 // A failed tool is not a failed task.
+                if (lane.State is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput)
+                {
+                    // The request is still unanswered: keep it visible.
+                    lane.Category = "waiting";
+                    return null;
+                }
+
                 lane.DetailCode = string.Equals(record.Outcome, "failed", StringComparison.OrdinalIgnoreCase)
                     ? "tool-failed"
                     : SafeDetail(record);
@@ -780,8 +798,16 @@ public sealed class HarnessBridgeSession
                 return null;
 
             case "plan/mode":
-                // Plan mode is a point marker, never sustained planning duration.
+                // Plan mode is a point marker, never sustained planning duration, and
+                // it never hides an unanswered request either.
                 lane.DetailCode = "plan-update";
+                if (lane.Approvals.Count > 0 || lane.Inputs.Count > 0)
+                {
+                    lane.Category = "waiting";
+                    lane.State = lane.Approvals.Count > 0 ? AgentTaskState.NeedsApproval : AgentTaskState.NeedsInput;
+                    return null;
+                }
+
                 lane.Category = "planning";
                 if (lane.State == AgentTaskState.Idle)
                 {
