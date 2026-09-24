@@ -13,6 +13,7 @@ namespace TheOverseer.Core.Voice;
 public sealed class NotificationCoordinator : IAsyncDisposable
 {
     private readonly ActivityHistory _history;
+    private readonly TaskActivityHistory _activity;
     private readonly VoiceEventPolicy _policy;
     private readonly VoiceManager _manager;
     private readonly TimeProvider _timeProvider;
@@ -33,6 +34,7 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         VoiceSettings settings)
     {
         _history = history;
+        _activity = new TaskActivityHistory();
         _policy = policy;
         _manager = manager;
         _timeProvider = timeProvider;
@@ -69,6 +71,10 @@ public sealed class NotificationCoordinator : IAsyncDisposable
         {
             if (_failed) return;
             _history.Record(snapshot);
+            // Observed activity is recorded from the same pre-UI-coalescing snapshot
+            // as history and voice, using each task's own observation instant, so an
+            // aggregate refresh can never renew a stale action.
+            TaskActivityRecorder.Record(_activity, snapshot);
             var unavailable = snapshot.Health.Level == MonitoringHealthLevel.Unavailable;
             if (_monitorUnavailable && !unavailable)
                 snapshot = snapshot with { Transitions = Array.Empty<AttentionEvent>() };
@@ -147,6 +153,15 @@ public sealed class NotificationCoordinator : IAsyncDisposable
     }
 
     public ActivitySeries History(DateTimeOffset now) => _history.Snapshot(now);
+
+    /// <summary>Observed per-task activity lanes, clipped to the rolling window.</summary>
+    public IReadOnlyList<TaskActivityLane> ActivityLanes(DateTimeOffset now) => _activity.Lanes(now);
+
+    /// <summary>Union activity strip for one project.</summary>
+    public ProjectActivityStrip ActivityStrip(ProjectId projectId, DateTimeOffset now) => _activity.Project(projectId, now);
+
+    /// <summary>Union activity strips for every project with observed activity.</summary>
+    public IReadOnlyList<ProjectActivityStrip> ActivityStrips(DateTimeOffset now) => _activity.Projects(now);
 
     /// <summary>Safe bounded diagnostic summary: counts and codes only.</summary>
     public string Describe()

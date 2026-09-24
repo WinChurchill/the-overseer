@@ -226,6 +226,57 @@ public sealed class NotificationCoordinatorTests
     }
 
     [Fact]
+    public void ObservedActivityIsRecordedBeforeUiCoalescingWithoutRefreshingStaleActions()
+    {
+        var (coordinator, _, _, _) = Create();
+        var key = VoiceTestData.Key();
+        var start = Start;
+        var task = VoiceTestData.Task(key: key, state: AgentTaskState.Working) with
+        {
+            Action = new AgentAction(AgentActionKind.RunningTests, EvidenceKind.Explicit, "test-runner"),
+            Evidence = EvidenceKind.Explicit,
+            FirstSeenAt = start,
+            LastActivityAt = start,
+            StateSince = start,
+        };
+
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start, new[] { task }));
+
+        // An aggregate/composite refresh republishes the same task with a newer
+        // snapshot time but the same last-activity instant: the action must not be
+        // extended, and nothing may be invented after the freshness bound.
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start.AddSeconds(30), new[] { task }));
+
+        var lane = Assert.Single(coordinator.ActivityLanes(start.AddSeconds(30)), item => item.Key == key);
+        Assert.Equal(ActivityCategory.Working, lane.Current);
+        var confirmed = Assert.Single(lane.Intervals, interval => !interval.IsMarker && interval.Evidence == ActivityEvidence.Explicit);
+        Assert.Equal(task.LastActivityAt, confirmed.End);
+    }
+
+    [Fact]
+    public void RepeatedPublicationsOfTheSameEpisodeDoNotDuplicateMarkers()
+    {
+        var (coordinator, _, _, _) = Create();
+        var key = VoiceTestData.Key();
+        var start = Start;
+        var done = VoiceTestData.Task(key: key, state: AgentTaskState.Done) with
+        {
+            Action = new AgentAction(AgentActionKind.Completed, EvidenceKind.Explicit, "turn-complete"),
+            Evidence = EvidenceKind.Explicit,
+            FirstSeenAt = start,
+            LastActivityAt = start,
+            StateSince = start,
+        };
+
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start, new[] { done }));
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start.AddSeconds(2), new[] { done }));
+        coordinator.OnSnapshot(VoiceTestData.Snapshot(start.AddSeconds(4), new[] { done }));
+
+        var lane = Assert.Single(coordinator.ActivityLanes(start.AddSeconds(4)), item => item.Key == key);
+        Assert.Single(lane.Intervals, interval => interval.IsMarker && interval.Category == ActivityCategory.Complete);
+    }
+
+    [Fact]
     public async Task SuspendDropsPendingCuesAndKeepsLatchesSilent()
     {
         var (coordinator, player, _, _) = Create();

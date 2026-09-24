@@ -140,7 +140,8 @@ public sealed class TaskActivityHistory
         ActivityEvidence evidence,
         string detailCode,
         DateTimeOffset observedAtUtc,
-        bool isMarker = false)
+        bool isMarker = false,
+        string markerIdentity = "")
     {
         if (key.IsEmpty)
         {
@@ -164,6 +165,13 @@ public sealed class TaskActivityHistory
 
             if (isMarker)
             {
+                // The same episode republished (aggregate refresh, reconnect, filter
+                // change) must not add another marker.
+                if (markerIdentity.Length > 0 && string.Equals(lane.LastMarkerIdentity, markerIdentity, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 // A terminal marker closes the action timeline it belongs to: the
                 // confirmed work stays visible and no new open interval starts.
                 if (lane.Open is { } closing)
@@ -172,6 +180,7 @@ public sealed class TaskActivityHistory
                     lane.Open = null;
                 }
 
+                lane.LastMarkerIdentity = markerIdentity;
                 AddInterval(lane, new ActivityInterval(now, now, category, evidence, detailCode, true, projectId));
                 lane.MarkerCount++;
                 return;
@@ -639,6 +648,8 @@ public sealed class TaskActivityHistory
         public DateTimeOffset LastObservedAt { get; set; }
 
         public int MarkerCount { get; set; }
+
+        public string LastMarkerIdentity { get; set; } = string.Empty;
     }
 }
 

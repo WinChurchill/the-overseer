@@ -21,6 +21,11 @@ public sealed class TaskActivityRecorderTests
             Action = new AgentAction(action, evidence, detail),
             Evidence = evidence,
             AttentionCode = attention,
+            // Observations carry the task's own instant: align it with this test's
+            // clock so the recording is inside the freshness window.
+            FirstSeenAt = Start,
+            LastActivityAt = Start,
+            StateSince = Start,
             Project = new ProjectDescriptor(Project, "alpha", @"c:\work\alpha", ProjectResolution.ConfiguredRoot),
         };
 
@@ -122,7 +127,10 @@ public sealed class TaskActivityRecorderTests
         TaskActivityRecorder.Record(history, snapshot with { GeneratedAt = Start.AddSeconds(1) });
 
         var lane = history.Lane(task.Key, Start.AddSeconds(1))!;
-        Assert.Single(lane.Intervals, interval => !interval.IsMarker);
+
+        // Repeating the same observation adds nothing: exactly one confirmed
+        // interval (the bounded inferred belief tail is a separate, honest segment).
+        Assert.Single(lane.Intervals, interval => !interval.IsMarker && interval.Evidence == ActivityEvidence.Explicit);
         Assert.Equal(ActivityCategory.Working, lane.Current);
     }
 }
