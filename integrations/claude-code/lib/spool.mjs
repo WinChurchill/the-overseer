@@ -297,7 +297,13 @@ export function publishRecord({ dir, record, deadline }) {
       try {
         let offset = 0;
         while (offset < buffer.length) {
-          offset += fs.writeSync(fd, buffer, offset, buffer.length - offset, null);
+          const written = fs.writeSync(fd, buffer, offset, buffer.length - offset, null);
+          if (!Number.isFinite(written) || written <= 0) {
+            // A zero-progress write must never spin forever or look successful.
+            throw new Error('short append');
+          }
+
+          offset += written;
         }
         try { fs.fsyncSync(fd); } catch { /* durability is best effort */ }
       } finally {

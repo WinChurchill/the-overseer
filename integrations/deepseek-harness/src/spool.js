@@ -57,10 +57,12 @@ export const HEARTBEAT_MS_MIN = 5_000
 export const HEARTBEAT_MS_MAX = 300_000
 /** How often the bounded cleanup pass may run. */
 export const CLEANUP_INTERVAL_MS = 60_000
-/** Bounded retries for a transient Windows rename failure (file briefly open). */
-const ATOMIC_RENAME_ATTEMPTS = 5
-/** Linear backoff between rename attempts, in milliseconds. */
-const ATOMIC_RENAME_BACKOFF_MS = 2
+/** Bounded scheduled retries for a transient Windows rename failure. */
+const CURRENT_RETRY_LIMIT = 8
+/** Base backoff for the scheduled retry, in milliseconds. */
+const CURRENT_RETRY_BASE_MS = 4
+/** Cap on the scheduled retry backoff, in milliseconds. */
+const CURRENT_RETRY_MAX_MS = 64
 
 /** Minimum spacing between atomic `current.json` replacements. */
 export const CURRENT_WRITE_INTERVAL_MS = 250
@@ -147,6 +149,8 @@ export function createSpool(options = {}) {
     expired: 0,
     currentWrites: 0,
     healthWrites: 0,
+    currentRetries: 0,
+    currentRetryExhausted: 0,
   }
 
   let sourceEpochValue = String(options.sourceEpoch ?? 'epoch-unknown')
@@ -155,6 +159,7 @@ export function createSpool(options = {}) {
   let drainScheduled = false
   let pendingTimer = null
   let currentDocument = null
+  let currentRetries = 0
   let currentDirty = false
   let currentSerialized = null
   let lastCurrentWriteMs = 0
@@ -275,11 +280,10 @@ export function createSpool(options = {}) {
   /**
    * Replace a file with a same-directory temp write plus rename.
    *
-   * On Windows a rename over a file another process currently has open can fail
-   * transiently with EBUSY/EPERM/EACCES. Those are retried a bounded number of
-   * times with a short synchronous backoff so the latest state is eventually
-   * published instead of being silently left behind; the caller keeps the dirty
-   * flag when every attempt fails, so a later flush retries again.
+   * A single attempt on purpose: this runs on the host's writer path and must
+   * never block it. Transient Windows rename contention (another process holding
+   * the target open) is retried on a bounded schedule by the caller, which keeps
+   * the document dirty until it is actually published.
    *
    * @param target - destination path.
    * @param text - complete document text.
@@ -289,25 +293,13 @@ export function createSpool(options = {}) {
     tmpCounter += 1
     // Same directory as the target, so the rename cannot cross a volume.
     const tmp = `${target}.${process.pid}.${tmpCounter}.tmp`
-    const transient = new Set(['EBUSY', 'EPERM', 'EACCES'])
     let lastError = null
     try {
       fs.writeFileSync(tmp, text, 'utf8')
+      fs.renameSync(tmp, target)
+      return true
     } catch (error) {
       lastError = error
-    }
-
-    if (lastError === null) {
-      for (let attempt = 0; attempt < ATOMIC_RENAME_ATTEMPTS; attempt += 1) {
-        try {
-          fs.renameSync(tmp, target)
-          return true
-        } catch (error) {
-          lastError = error
-          if (!transient.has(error && error.code)) break
-          sleepSync(ATOMIC_RENAME_BACKOFF_MS * (attempt + 1))
-        }
-      }
     }
 
     noteError(lastError)
@@ -319,21 +311,26 @@ export function createSpool(options = {}) {
     return false
   }
 
-  /** Bounded synchronous sleep; this runs on the writer path only, never a callback. */
-  function sleepSync(milliseconds) {
-    if (milliseconds <= 0) return
-    const until = Date.now() + milliseconds
-    while (Date.now() < until) {
-      // Deliberately yield the CPU briefly rather than using Atomics.wait, which
-      // would need a SharedArrayBuffer and a worker.
-    }
-  }
-
   function writeCurrent(force) {
     if (!currentDirty || currentDocument === null || currentSerialized === null) return false
     if (!force && now() - lastCurrentWriteMs < currentMinIntervalMs) return false
     if (!ensureDirectory()) return false
-    if (!writeAtomic(currentPath, currentSerialized)) return false
+    if (!writeAtomic(currentPath, currentSerialized)) {
+      // Transient contention: stay dirty and retry on a bounded schedule. The
+      // writer never busy-waits, so the host is never blocked by our retry.
+      currentRetries += 1
+      counters.currentRetries += 1
+      if (currentRetries <= CURRENT_RETRY_LIMIT) {
+        scheduleAfter(Math.min(CURRENT_RETRY_MAX_MS, CURRENT_RETRY_BASE_MS * currentRetries))
+      } else {
+        counters.currentRetryExhausted += 1
+        currentRetries = 0
+      }
+
+      return false
+    }
+
+    currentRetries = 0
     counters.currentWrites += 1
     lastCurrentWriteMs = now()
     currentDirty = false

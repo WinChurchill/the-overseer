@@ -196,7 +196,16 @@ async function run() {
     return;
   }
 
-  counters.push(result.reason === 'lock-timeout' ? 'droppedLockTimeout' : 'droppedOversizeRecord');
+  // Every non-ok outcome is accounted for honestly: a genuine write failure is
+  // never mislabeled as an oversized record.
+  if (result.reason === 'lock-timeout') {
+    counters.push('droppedLockTimeout');
+  } else if (result.reason === 'record-too-large') {
+    counters.push('droppedOversizeRecord');
+  } else {
+    counters.push('droppedWriteFailed');
+  }
+
   bumpHealth(dir, counters, writePhase);
   debug('dropped', result.reason);
 }
