@@ -27,6 +27,18 @@ public sealed record VoiceSettings
 
     public static VoiceSettings Default { get; } = new();
 
+    /// <summary>
+    /// Default for a data directory that has no configuration file at all: the
+    /// offline Windows speech baseline is selected and voice is still muted. It is
+    /// only ever applied when no stored file exists, so a user's explicit pack,
+    /// TTS, mute, endpoint, event and clip preferences are never reset.
+    /// </summary>
+    public static VoiceSettings BaselineDefault { get; } = Default with { Provider = SpeechProviderName };
+
+    public const string PackProviderName = "pack";
+    public const string SpeechProviderName = "speech";
+    public const string TtsProviderName = "tts";
+
     [JsonPropertyName("muted")]
     public bool Muted { get; init; } = true;
 
@@ -56,17 +68,17 @@ public sealed record VoiceSettings
 
     [JsonIgnore]
     public VoiceProviderKind ResolvedProvider =>
-        string.Equals(Provider, "tts", StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Tts
-        : string.Equals(Provider, "speech", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Provider, TtsProviderName, StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Tts
+        : string.Equals(Provider, SpeechProviderName, StringComparison.OrdinalIgnoreCase) ||
           string.Equals(Provider, "baseline", StringComparison.OrdinalIgnoreCase) ? VoiceProviderKind.Speech
         : VoiceProviderKind.Pack;
 
     [JsonIgnore]
     public string ProviderName => ResolvedProvider switch
     {
-        VoiceProviderKind.Tts => "tts",
-        VoiceProviderKind.Speech => "speech",
-        _ => "pack",
+        VoiceProviderKind.Tts => TtsProviderName,
+        VoiceProviderKind.Speech => SpeechProviderName,
+        _ => PackProviderName,
     };
 
     [JsonIgnore]
@@ -74,6 +86,15 @@ public sealed record VoiceSettings
 
     [JsonIgnore]
     public bool HasUsableEndpoint => Endpoint is not null;
+
+    /// <summary>
+    /// Effective voice settings for one loaded configuration. Only a completely
+    /// missing configuration file takes the agreed baseline default; an existing
+    /// file is used exactly as written, so an absent "provider" key continues to
+    /// mean the current pack behaviour instead of silently resetting a choice.
+    /// </summary>
+    public static VoiceSettings Effective(ConfigLoadStatus configStatus, VoiceSettings? configured) =>
+        (configStatus == ConfigLoadStatus.Missing ? BaselineDefault : configured ?? Default).Normalized();
 
     public VoiceSettings Normalized() => this with
     {
