@@ -232,6 +232,38 @@ public sealed class ProjectResolver
     }
 
     /// <summary>
+    /// True when any component of the path (leaf included) is a reparse point.
+    /// Checked before the first filesystem call so a junction can never redirect
+    /// project identity to a different repository.
+    /// </summary>
+    private bool HasReparsePointAncestor(string normalizedPath)
+    {
+        if (_probe.IsReparsePoint is null)
+        {
+            return false;
+        }
+
+        var current = normalizedPath;
+        for (var depth = 0; depth < _maximumAncestorChecks && current.Length > 0; depth++)
+        {
+            if (IsReparsePoint(current))
+            {
+                return true;
+            }
+
+            var separator = current.LastIndexOfAny(new[] { '/', '\\' });
+            if (separator <= 0)
+            {
+                break;
+            }
+
+            current = current[..separator];
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Only a bounded absolute local drive path may be probed. This runs before any
     /// filesystem call, so UNC, POSIX, relative and oversized metadata targets can
     /// never reach I/O.
@@ -396,16 +428,17 @@ public sealed class ProjectResolver
             return null;
         }
 
+        // The COMPLETE ancestor chain is validated before any metadata is touched:
+        // a junction anywhere above the leaf would already have redirected a probe
+        // of the leaf itself, so a per-step check is not sufficient.
+        if (HasReparsePointAncestor(normalized))
+        {
+            return null;
+        }
+
         var current = normalized;
         for (var depth = 0; depth < _maximumAncestorChecks && current.Length > 0; depth++)
         {
-            if (IsReparsePoint(current))
-            {
-                // A junction or symlink must never redirect project identity, so the
-                // walk stops here instead of following the link upwards.
-                return null;
-            }
-
             var gitPath = Join(current, ".git");
             if (!IsProbeableMetadataPath(gitPath))
             {

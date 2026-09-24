@@ -44,6 +44,26 @@ public sealed class ShowRequestSignalTests
     }
 
     [Fact]
+    public async Task ASignalBeforeAnyListenerIsNotQueuedForALaterOne()
+    {
+        var scope = "test-" + Guid.NewGuid().ToString("N");
+
+        // No listener exists yet: the request must report no receiver instead of
+        // being parked and delivered to a listener that starts later.
+        _ = ShowRequestSignal.TrySignal(scope);
+
+        var delivered = 0;
+        using var listener = ShowRequestSignal.TryListen(() => Interlocked.Increment(ref delivered), scope);
+        Assert.NotNull(listener);
+        await Task.Delay(300);
+        Assert.Equal(0, Volatile.Read(ref delivered));
+
+        // A fresh request after the listener starts is delivered normally.
+        Assert.True(ShowRequestSignal.TrySignal(scope));
+        Assert.True(await WaitForAsync(() => Volatile.Read(ref delivered) >= 1), "post-start request was not delivered");
+    }
+
+    [Fact]
     public async Task ADisposedListenerStopsDeliveringAndSignallingStaysSafe()
     {
         var delivered = 0;
