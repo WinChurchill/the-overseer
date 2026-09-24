@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using TheOverseer.Core.History;
 using TheOverseer.Core.Models;
 
 namespace TheOverseer.UI.ViewModels;
@@ -15,17 +16,24 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     private DateTimeOffset? _startedAt;
     private string _ageHint = string.Empty;
 
+    private IReadOnlyList<ActivityCategory> _projectBins = Array.Empty<ActivityCategory>();
+    private IReadOnlyList<ActivityCategory> _taskBins = Array.Empty<ActivityCategory>();
+    private string _projectBinsSignature = string.Empty;
+    private string _taskBinsSignature = string.Empty;
+
     public TaskRowViewModel(
         AgentTask task,
         bool canNavigate,
         string navigationHint,
         string projectGroupKey = "",
         string projectGroupLabel = "",
-        string projectGroupMeta = "")
+        string projectGroupMeta = "",
+        ProjectId projectGroupProjectId = default)
     {
         ProjectGroupKey = projectGroupKey;
         ProjectGroupLabel = projectGroupLabel;
         ProjectGroupMeta = projectGroupMeta;
+        ProjectGroupProjectId = projectGroupProjectId;
         Key = task.Key;
         Number = task.Number;
         Label = HudText.Label(task);
@@ -56,8 +64,57 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     /// <summary>Project display name shown in the group header (never a path).</summary>
     public string ProjectGroupLabel { get; }
 
+    /// <summary>Project id for this row's group; used to look up its activity strip.</summary>
+    public ProjectId ProjectGroupProjectId { get; }
+
     /// <summary>Bounded group summary: counts and harness badges, plus coverage.</summary>
     public string ProjectGroupMeta { get; }
+
+    /// <summary>
+    /// Last-hour project activity strip (the group header renders the first row's
+    /// bins). Unknown bins are rendered distinctly from confirmed idle.
+    /// </summary>
+    public IReadOnlyList<ActivityCategory> ProjectBins => _projectBins;
+
+    /// <summary>Last-hour activity strip for this task.</summary>
+    public IReadOnlyList<ActivityCategory> TaskBins => _taskBins;
+
+    /// <summary>Updates the strips only when they actually changed.</summary>
+    public void UpdateActivity(IReadOnlyList<ActivityCategory> projectBins, IReadOnlyList<ActivityCategory> taskBins)
+    {
+        var projectSignature = Signature(projectBins);
+        if (!string.Equals(projectSignature, _projectBinsSignature, StringComparison.Ordinal))
+        {
+            _projectBins = projectBins;
+            _projectBinsSignature = projectSignature;
+            Raise(nameof(ProjectBins));
+        }
+
+        var taskSignature = Signature(taskBins);
+        if (!string.Equals(taskSignature, _taskBinsSignature, StringComparison.Ordinal))
+        {
+            _taskBins = taskBins;
+            _taskBinsSignature = taskSignature;
+            Raise(nameof(TaskBins));
+        }
+    }
+
+    private static string Signature(IReadOnlyList<ActivityCategory> bins)
+    {
+        if (bins.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        // One character per bin: cheap, allocation-light change detection.
+        var buffer = new char[bins.Count];
+        for (var index = 0; index < bins.Count; index++)
+        {
+            buffer[index] = (char)('a' + (int)bins[index]);
+        }
+
+        return new string(buffer);
+    }
 
     public int Number { get; }
 

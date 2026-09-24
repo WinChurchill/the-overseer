@@ -404,12 +404,30 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             {
                 task.UpdateAge(now, _lastActivity[index]);
             }
+
+            if (_activity is not null)
+            {
+                // Producer-side observed activity, already recorded before UI
+                // coalescing; the view only projects the bins.
+                var projectBins = _activity.ProjectBins(task.ProjectGroupProjectId, now);
+                var taskBins = _activity.TaskBins(task.Key, now);
+                task.UpdateActivity(projectBins, taskBins);
+            }
         }
 
         UpdatedLine = "updated " + (HasAppliedSnapshot ? HudText.Freshness(_generatedAt, now) : "never");
         Raise(nameof(CollapsedStatusLine));
         Raise(nameof(MetaStripLine));
     }
+
+    private IActivityStripSource? _activity;
+
+    /// <summary>
+    /// Observed-activity source supplied by the host (the notification coordinator
+    /// owns the producer-side history). Null until the host provides one, in which
+    /// case rows simply carry no strip.
+    /// </summary>
+    public void UseActivitySource(IActivityStripSource? activity) => _activity = activity;
 
     private readonly List<DateTimeOffset> _lastActivity = new();
     private DateTimeOffset _generatedAt;

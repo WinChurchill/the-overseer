@@ -8,6 +8,7 @@ using System.Threading.Channels;
 using Microsoft.Win32;
 using TheOverseer.App.Desktop;
 using TheOverseer.App.Diagnostics;
+using TheOverseer.App.Monitoring;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
@@ -147,6 +148,11 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _state = (dependencies.WindowState ?? HudWindowState.Default).Normalized();
         ViewModel = new HudViewModel(dependencies.Config.Hud, OnActivateTask, OnCopyTaskId,
             dependencies.TimeProvider.GetUtcNow());
+        if (dependencies.Notifications is { } notifications)
+        {
+            // Strips render producer-side observed activity; the UI only projects bins.
+            ViewModel.UseActivitySource(new CoordinatorActivityStripSource(notifications, dependencies.TimeProvider));
+        }
         _pump = new SnapshotPump(dependencies.Dispatcher, ApplySnapshot);
         _ageTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher.CurrentDispatcher)
         {

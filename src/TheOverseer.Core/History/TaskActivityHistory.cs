@@ -665,6 +665,14 @@ public static class ActivityTimelineGeometry
         ProjectActivityStrip strip,
         DateTimeOffset now,
         TimeSpan window,
+        int maximumBins = MaximumBins) =>
+        Bin(strip.Intervals, now, window, maximumBins);
+
+    /// <summary>Bins any interval sequence, so a single task lane renders the same way.</summary>
+    public static IReadOnlyList<ActivityInterval> Bin(
+        IReadOnlyList<ActivityInterval> intervals,
+        DateTimeOffset now,
+        TimeSpan window,
         int maximumBins = MaximumBins)
     {
         var bins = new List<ActivityInterval>();
@@ -686,7 +694,7 @@ public static class ActivityTimelineGeometry
             bins.Add(new ActivityInterval(start, end > now ? now : end, ActivityCategory.Unknown, ActivityEvidence.Unknown, "empty", false));
         }
 
-        foreach (var interval in strip.Intervals)
+        foreach (var interval in intervals)
         {
             if (interval.End <= windowStart || interval.Start >= now)
             {
