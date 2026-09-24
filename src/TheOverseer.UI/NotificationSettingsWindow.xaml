@@ -36,10 +36,10 @@
         <TextBlock Text="{Binding LightSize, StringFormat={}{0} px}" Margin="8,0,0,0" VerticalAlignment="Center" />
       </WrapPanel>
       <TextBlock Text="Green: working · Red: needs attention / offline · Amber: uncertain · Neutral: idle" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,16" />
-      <DockPanel>
+      <WrapPanel>
         <TextBlock Text="VOICE RECORDINGS" FontWeight="SemiBold" VerticalAlignment="Center" />
-        <CheckBox x:Name="MuteBox" Content="Mute notifications" IsChecked="{Binding IsMuted}" HorizontalAlignment="Right" />
-      </DockPanel>
+        <CheckBox x:Name="MuteBox" Content="Mute notifications" IsChecked="{Binding IsMuted}" Margin="12,0,0,0" />
+      </WrapPanel>
       <TextBlock Text="Nine situations. Assign a WAV or use your configured pack/TTS. Opening tasks, changing settings, cancellations and immediate work resumption stay silent." Margin="0,8,0,4" Foreground="{DynamicResource MutedBrush}" />
       <TextBlock Text="WAV · up to 15 seconds / 4 MiB · recommended: mono, 16-bit PCM, 44.1 kHz" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,12" />
     </StackPanel>
