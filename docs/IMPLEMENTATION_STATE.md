@@ -547,6 +547,39 @@ button/header/menu/responsive sizing, and finally the clean publish plus package
 lifecycle smoke. Still absent: activity strips, the baseline settings control, the
 close/header/sizing refinement, and all package/smoke evidence for this round.
 
+### DeepSeek session checkpoint 7 — project activity strips implemented (2026-09-24)
+
+The project strip is implemented and wired end to end; render verification is still
+outstanding and is stated as such.
+
+- `ActivityTimelineGeometry` gained a binning overload for arbitrary interval
+  sequences, so a single task lane renders with the same geometry as a project union.
+- `App/Monitoring/CoordinatorActivityStripSource.cs` implements the new UI contract
+  `IActivityStripSource` over `NotificationCoordinator.ActivityStrips`/`ActivityLanes`:
+  one hour of history, at most 56 bins, recorded producer-side before UI coalescing.
+- `HudApplicationController` supplies the source to the view model (only when a
+  coordinator exists), and `HudViewModel` projects bins per row on the existing 1 s
+  tick; `TaskRowViewModel.UpdateActivity` uses a per-bin signature so a strip only
+  raises a change when it actually changed.
+- `HudWindow.xaml` draws the project strip in the group header: one cell per bin with
+  distinct brush/opacity per category (thinking, planning, working, waiting, error,
+  complete, idle) and a muted low-opacity fill for unknown, which is deliberately never
+  identical to confirmed idle.
+
+Verification so far: Release build **0 warnings / 0 errors**; .NET tests **550 passed /
+0 failed / 0 skipped**; fixture renders regenerated from this source. NOT yet verified:
+no automated test covers the strip source or the bin projection, and the fixture render
+path (`--hud-fixture`) does not construct a notification coordinator, so the rendered
+PNGs cannot show a populated strip. The strip is exercised only through production
+composition, so its visual result is unproven until either the fixture path builds a
+coordinator or a live HUD run is inspected.
+
+Next executable step: give the fixture render path the same coordinator the production
+composition uses (so fixtures show strips), add strip tests (`CoordinatorActivityStripSource`
+bins for a project and a task, empty history, unknown-vs-idle distinction), inspect a
+render, then add the task-row strip, the "Use baseline" settings control, and the
+close/header/sizing refinement before the publish + packaged smoke pass.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
