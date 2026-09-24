@@ -519,6 +519,34 @@ sizing, and finally the clean publish plus packaged lifecycle smoke. Still absen
 evidence, activity strips, the baseline settings control, the close/header/sizing
 refinement, and all package/smoke evidence for this round.
 
+### DeepSeek session checkpoint 6 — project headers rendered and refined (2026-09-24)
+
+Render evidence and the follow-up fix from it:
+
+- Synthetic fixtures are now project- and harness-bearing (`SyntheticHudScenarios` assigns
+  Aurora / TCS pipeline / Webots harness / Unassigned projects and a dsh harness badge to
+  two tasks), so a fixture render actually exercises grouping.
+- `--hud-fixture` produced 26 renders (light/dark × collapsed, expanded, Now/Recent/
+  Session, settings, light edges, unavailable, empty, and window sizes 280×720, 480×720,
+  640×260, 900×700, 1400×900). Inspected `artifacts/ux-project/fixtures/dark-expanded.png`:
+  project headers render above their tasks with counts ("Aurora 0 working · 2 needs you ·
+  Codex", "TCS pipeline 2 working · 0 needs you · Codex") and a multi-harness group with
+  the partial-coverage disclosure ("1 working · 1 needs you · dsh · partial"), with no
+  clipping of rows or headers.
+- Fix from that inspection: the header summary truncated at the minimum width
+  ("partial covera…"), so the summary now uses short harness badges (Codex/dsh/Claude) and
+  "partial"; the full text stays in the group tooltip.
+
+Verification: Release build **0 warnings / 0 errors**; .NET tests **550 passed / 0 failed /
+0 skipped** after the summary change; fixtures re-rendered from the same source.
+
+Next executable step: the hourly activity strips on project and task rows from
+`NotificationCoordinator.ActivityStrips` (the coordinator already records and exposes
+them), then the "Use baseline" control in the voice settings surface, the visible close
+button/header/menu/responsive sizing, and finally the clean publish plus packaged
+lifecycle smoke. Still absent: activity strips, the baseline settings control, the
+close/header/sizing refinement, and all package/smoke evidence for this round.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
