@@ -38,7 +38,11 @@ public sealed record BridgeTaskState(
     bool IsStale,
     bool CoverageIncomplete,
     string ProjectRoot,
-    long LastSequence);
+    long LastSequence,
+    DateTimeOffset FirstObservedAt = default,
+    DateTimeOffset StateSince = default,
+    DateTimeOffset? TurnStartedAt = null,
+    DateTimeOffset? CompletedAt = null);
 
 /// <summary>
 /// Folds one bridge source's metadata records into task state. It never reads
@@ -103,7 +107,8 @@ public sealed class HarnessBridgeSession
 
         lock (_gate)
         {
-            if (!string.Equals(record.SourceInstanceId, _source.SourceInstanceId, StringComparison.Ordinal))
+            if (!string.Equals(record.SourceInstanceId, _source.SourceInstanceId, StringComparison.Ordinal) ||
+                !string.Equals(record.HarnessId, _source.HarnessId, StringComparison.Ordinal))
             {
                 return new BridgeApplyResult(BridgeApplyOutcome.Rejected, null, "wrong-source");
             }
@@ -146,7 +151,18 @@ public sealed class HarnessBridgeSession
                 lane.ProjectRoot = record.ProjectRoot!;
             }
 
+            if (lane.FirstObservedAt == default) lane.FirstObservedAt = record.ObservedAtUtc;
+            var previousState = lane.State;
+            var previousTurn = lane.TurnId;
             var edge = Fold(lane, record);
+            if (lane.StateSince == default || previousState != lane.State) lane.StateSince = record.ObservedAtUtc;
+            if (record.Kind == "turn/start" && (lane.TurnStartedAt is null || previousTurn != lane.TurnId))
+            {
+                lane.TurnStartedAt = record.ObservedAtUtc;
+                lane.CompletedAt = null;
+            }
+            if (record.Kind == "turn/end" && lane.State == AgentTaskState.Done && lane.CompletedAt is null)
+                lane.CompletedAt = record.ObservedAtUtc;
             _applied++;
             return new BridgeApplyResult(BridgeApplyOutcome.Applied, edge, "ok");
         }
@@ -178,7 +194,11 @@ public sealed class HarnessBridgeSession
                     stale,
                     lane.CoverageIncomplete || _producerIncomplete || lane.FirstAttach,
                     lane.ProjectRoot,
-                    lane.LastSequence));
+                    lane.LastSequence,
+                    lane.FirstObservedAt,
+                    lane.StateSince,
+                    lane.TurnStartedAt,
+                    lane.CompletedAt));
             }
 
             return tasks;
@@ -443,6 +463,10 @@ public sealed class HarnessBridgeSession
         public bool CoverageIncomplete;
         public string ProjectRoot = string.Empty;
         public DateTimeOffset LastObservedAt;
+        public DateTimeOffset FirstObservedAt;
+        public DateTimeOffset StateSince;
+        public DateTimeOffset? TurnStartedAt;
+        public DateTimeOffset? CompletedAt;
         public readonly HashSet<string> Approvals = new(StringComparer.Ordinal);
         public readonly HashSet<string> Inputs = new(StringComparer.Ordinal);
         public readonly HashSet<string> OpenCalls = new(StringComparer.Ordinal);

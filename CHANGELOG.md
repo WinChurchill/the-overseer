@@ -2,6 +2,17 @@
 
 ## Unreleased — 2026-09-24 (project-centered round, partial)
 
+### Astra integration review fixes
+
+- Prevent disabled/unreported sources from producing misleading complete counts;
+  forward transitions once and derive all-complete across every monitored source.
+- Find Claude's default spool, forward fresh bridge attention without replaying attach
+  backlog, preserve bridge turn clocks, and treat stale/incomplete lanes as partial.
+- Preserve reader byte offsets on malformed UTF-8; guard bridge source identities,
+  task-number hashing, Codex navigation, and concurrent project-cache access.
+- Full multi-harness recovery, settings, speech lifecycle and release validation
+  remain unfinished; see the latest implementation-state review.
+
 ### Added
 
 - Project identity and a deterministic project resolver (explicit mapping, configured

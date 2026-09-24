@@ -65,6 +65,34 @@ public sealed class HarnessBridgeTests
         Assert.Equal("turn-1", record.TurnId);
     }
 
+    [Fact]
+    public void OtherHarnessCannotWriteIntoASourceWithTheSameInstanceId()
+    {
+        var session = new HarnessBridgeSession(Dsh, TimeSpan.FromSeconds(10));
+        var record = Parse(Line(1, "turn/start")) with { HarnessId = HarnessIds.Claude };
+        Assert.Equal(BridgeApplyOutcome.Rejected, session.Apply(record).Outcome);
+        Assert.Empty(session.Tasks(Start));
+    }
+
+    [Fact]
+    public void ActionChangesAndLaterRecordsDoNotResetTurnOrCompletionClocks()
+    {
+        var session = new HarnessBridgeSession(Dsh, TimeSpan.FromMinutes(15));
+        session.Apply(Parse(Line(1, "turn/start")));
+        session.Apply(Parse(Line(2, "tool/start")));
+        var working = Assert.Single(session.Tasks(Start.AddSeconds(2)));
+        Assert.Equal(Start.AddSeconds(1), working.FirstObservedAt);
+        Assert.Equal(Start.AddSeconds(1), working.TurnStartedAt);
+        Assert.Equal(Start.AddSeconds(1), working.StateSince);
+        session.Apply(Parse(Line(3, "turn/end", outcome: "completed")));
+        session.Apply(Parse(Line(4, "heartbeat")));
+        Assert.Equal(Start.AddSeconds(3), Assert.Single(session.Tasks(Start.AddSeconds(4))).CompletedAt);
+        session.Apply(Parse(Line(5, "turn/start", turnId: "turn-2")));
+        var next = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.Equal(Start.AddSeconds(5), next.TurnStartedAt);
+        Assert.Null(next.CompletedAt);
+    }
+
     [Theory]
     [InlineData("", BridgeParseOutcome.Ignored, "empty")]
     [InlineData("not json", BridgeParseOutcome.Malformed, "malformed-json")]

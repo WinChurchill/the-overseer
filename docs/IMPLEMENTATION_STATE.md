@@ -9,15 +9,14 @@ Product base: d869db6 (custom HUD implementation: 5521980)
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
-- DeepSeek implementation: **partial** — foundation merged on `ux/first-use`; the
-  project-first UI, composite multi-source monitor and baseline voice are **not**
-  implemented yet. Details in "Project-centered round — execution" below.
-- Latest Astra verification at b06da76: Release build 0 warnings / 0 errors;
-  **506 .NET tests passed**, none failed/skipped; combined bridge tests **47/48**
-  passed (Claude concurrent publication expected 9 records, found 8).
+- DeepSeek implementation: **partial** — composite and bridge ingestion, project
+  headers/task strips, and SAPI provider now exist. Integration correctness, settings,
+  speech lifecycle and release qualification still need work. See latest review below.
+- Latest Astra verification: Release build 0 warnings / 0 errors; **564 .NET tests
+  passed**, none failed/skipped; bridge tests **48/48 passed** after review fixes.
 - Smoke / package: not rerun in this partial round (see the section below for the
   exact gap)
-- Astra review: CHANGES REQUIRED (2026-09-24, latest reviewed HEAD b06da76); see below
+- Astra review: CHANGES REQUIRED (reviewed 26e642b plus immediate fixes); see below
 - Prior UX baseline: Release build passed with 0 warnings/errors; 456 tests passed;
   26 render fixtures; package smoke 17/17 with HUD lifecycle skipped in favor of
   recorded manual checks. User confirmed Win+Left/Right and Win+Z work.
@@ -42,13 +41,86 @@ and close behavior, script parameters, and current branch/head. No remaining pla
 blocker identified; actual installed-version and live harness qualification remain gates.
 Documentation diff check passed; no product build/test run is claimed for this review.
 
-Next action: instruct DeepSeek to execute the final prompt in `.agent/HANDOFF.md`
-as one complete implementation goal, then conduct Astra review. No product code, running
-application, desktop shortcut, or live harness configuration changed during planning.
+Next action: continue in a fresh DeepSeek conversation using the current handoff and
+latest review below. Implementation is already authorized. Do not restart planning.
 The frozen original four-plan V1 scope documents remain unchanged; this is an explicit
 user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
+
+### Latest Astra review and immediate fixes — inspected 26e642b
+
+Scope: **no significant feature creep**. Four .NET projects/dependencies and frozen
+documents are unchanged. Twenty commits since 37fd4fc implement the agreed monitor,
+voice and project/strip work. Significant acceptance gaps remain; repeated session
+checkpoints do not constitute completion. The older Current summary was stale and
+has been corrected. No merge or new plan is warranted.
+
+Immediate fixes made and tested by Astra:
+- Composite excludes disabled adapters, accounts for enabled-but-unreported sources,
+  rejects older source publications, serializes delivery, and stops replaying cached
+  transitions on peer updates/reconcile. Transition retention is bounded. Global
+  completion is derived from the full task set and a fresh completion, never forwarded
+  from one source while another works.
+- Claude discovery/reader now use its shipped `spool/claude/<id>` default; dsh keeps
+  `bridges/dsh/<id>`. This corrects the incompatible default directory, not custom
+  spool configuration (still pending settings work).
+- Bridge forwards fresh attention edges (previously discarded); retained events at
+  attach remain silent. Stale/incomplete lanes lower coverage. UTF-8 corruption no
+  longer changes byte offsets, and task-number hashing cannot throw on int.MinValue.
+  Poll delay now observes disposal cancellation.
+- Bridge task first-seen/state/turn/completion clocks remain stable across action
+  changes. Source matching includes harness ID. Non-Codex tasks cannot open Codex URIs.
+- Shared project-resolver cache access is synchronized across adapter polling threads.
+
+Evidence: baseline build and 555 .NET tests passed; final build 0 warnings/errors,
+**564/564** .NET tests (nine new regressions, existing composite assertions corrected
+to count actual deliveries), **48/48** producer bridge tests, diff check passed.
+Inspected existing `artifacts/ux-strips6/fixtures/dark-expanded.png`; it shows project
+headers and row strips but also the old dominant count graph, no strip legend/interval
+detail, and a Codex-only footer. This is prior render evidence, not a new live smoke.
+Running app/shortcut and live harness settings were not changed or repackaged.
+
+Remaining ordered work for the fresh DeepSeek session:
+1. **Bridge state/recovery correctness (MAJOR).** Consume and qualify real producer
+   current-state snapshots, including source-only records; current.json is not read.
+   FirstAttach never clears, so complete coverage cannot recover. Do not fix by simply
+   clearing flags: define authoritative resynchronization and epoch/drop recovery.
+   Preserve task/action evidence separately from host heartbeat (heartbeats currently
+   refresh LastObservedAt and category). Unknown turn-end outcomes must not default to
+   completed. Verify correlated late events, concurrent calls/requests, replay/rotation,
+   clock skew and same-size file replacement using actual producer outputs as fixtures.
+   Current timestamp cutoff is a conservative attach guard, not a full replay protocol.
+2. **Composite/source budgets (MAJOR).** Shared aggregate I/O/source limits are not
+   implemented; discovery is unbounded and happens only at startup. Source freshness
+   and capabilities need explicit aggregation (currently last healthy capability set
+   wins and composite health timestamps are fresh wall time). No fresh peer may make
+   a dead producer healthy. Add bounded discovery/configured roots/enablement and
+   injectable clock/behavioral tests; retain the fixes above.
+3. **Voice lifecycle and settings (MAJOR).** Baseline provider exists, but default is
+   still pack and settings/preview do not fully select/use speech. Preserve existing
+   preferences while giving new configs the agreed baseline default. SAPI Speak is
+   synchronous, cancellation is checked only after joining, and timed-out workers/temp
+   WAVs can survive; bound worker count, cancellation and worker-owned cleanup. Test
+   engine hangs, repeated cancellation and real offline preview. Remove unrequested
+   cross-provider fallback: composition still wraps TTS in pack fallback despite the
+   handoff's selected-provider rule. Keep custom recordings and mute semantics.
+4. **Complete the project/HUD presentation.** Current project headers are not yet the
+   expandable project surface/settings requested. Strip transport retains only Category,
+   losing inferred/partial/mixed evidence and interval detail. Preserve those properties
+   through bins/tooltips/keyboard semantics; add legend and remove the competing dominant
+   count graph per handoff. Avoid recalculating whole-history projections per task on
+   every UI tick. Complete close button/header/menu and size/scale matrix; fix the
+   Codex-only footer/navigation wording without pretending unsupported routes work.
+5. **Release gates.** New renders across required themes/sizes, baseline voice and
+   actual available harness qualification, clean-source publish, packaged lifecycle/
+   second-process/Snap/focus smoke. Diagnose unavailable environments explicitly and
+   finish independent work; do not present synthetic-only coverage as live support.
+
+Continue the original goal, fixing these before polishing fixture palettes. Full
+completion is not certified by passing unit tests. README/CHANGELOG/ledger must reflect
+the delivered state. Commit logical changes, no merge/push/history rewrite. The repo
+had a clean worktree at review start, no remote; `.agent/HANDOFF.md` remains ignored.
 
 ### Astra continuation review — b06da76 (2026-09-24)
 

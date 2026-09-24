@@ -10,12 +10,17 @@ namespace TheOverseer.App.Monitoring;
 /// </summary>
 public static class HarnessSources
 {
+    // Match each shipped producer's default; they currently use different roots.
+    public static string SpoolDirectory(string dataDirectory, SourceInstance source) =>
+        Path.Combine(dataDirectory, source.HarnessId == HarnessIds.Claude ? "spool" : "bridges",
+            source.HarnessId, source.SourceInstanceId);
+
     public static IReadOnlyList<SourceInstance> Discover(string dataDirectory, IReadOnlyList<string>? disabled = null)
     {
         var sources = new List<SourceInstance>();
         foreach (var harnessId in new[] { HarnessIds.Dsh, HarnessIds.Claude })
         {
-            var harnessRoot = Path.Combine(dataDirectory, "bridges", harnessId);
+            var harnessRoot = Path.GetDirectoryName(SpoolDirectory(dataDirectory, new SourceInstance(harnessId, "instance", "")))!;
             if (!Directory.Exists(harnessRoot))
             {
                 continue;

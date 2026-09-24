@@ -93,6 +93,10 @@ public sealed class CodexTaskNavigator
     /// <summary>Validates and builds the route, or explains why it is unsupported.</summary>
     public static TaskNavigationResult BuildUri(AgentTask task, string profileId)
     {
+        if (task.Key.HarnessId != HarnessIds.Codex)
+            return new TaskNavigationResult(TaskNavigationOutcome.UnsupportedSurface,
+                "Open this task in its coding application — this harness has no supported route.", null);
+
         if (task.Surface != ClientSurface.Desktop)
         {
             return new TaskNavigationResult(

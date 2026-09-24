@@ -73,8 +73,8 @@ public sealed class BridgeSpoolReader
                 read += next;
             }
 
-            var text = Encoding.UTF8.GetString(buffer, 0, read);
-            var lastNewline = text.LastIndexOf('\n');
+            if (read == 0) return lines;
+            var lastNewline = Array.LastIndexOf(buffer, (byte)'\n', read - 1, read);
             if (lastNewline < 0)
             {
                 // A partially written record is left for the next pass.
@@ -82,8 +82,9 @@ public sealed class BridgeSpoolReader
             }
 
             var consumed = lastNewline + 1;
-            _eventsOffset += Encoding.UTF8.GetByteCount(text[..consumed]);
-            foreach (var line in text[..consumed].Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            _eventsOffset += consumed;
+            var text = Encoding.UTF8.GetString(buffer, 0, consumed);
+            foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
                 lines.Add(line);
             }
@@ -178,7 +179,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
     private BridgeSpoolReader? _reader;
     private Task? _loop;
     private SourceSnapshot _current;
-    private int _numberSeed;
+    private DateTimeOffset _attachedAt;
 
     public BridgeMonitorAdapter(
         SourceInstance source,
@@ -199,7 +200,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 
     public SourceInstance Source { get; }
 
-    public string SpoolDirectory => Path.Combine(_dataDirectory, "bridges", Source.HarnessId, Source.SourceInstanceId);
+    public string SpoolDirectory => HarnessSources.SpoolDirectory(_dataDirectory, Source);
 
     public SourceSnapshot Current => _current;
 
@@ -207,6 +208,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        _attachedAt = _timeProvider.GetUtcNow();
         _session = new HarnessBridgeSession(Source, _staleLease);
         _reader = new BridgeSpoolReader(SpoolDirectory);
         _loop ??= Task.Run(() => RunAsync(cancellationToken), CancellationToken.None);
@@ -233,6 +235,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
         {
             var lines = _reader.ReadNewLines(out var readReason, out var droppedByProducer);
             var rejected = 0;
+            var transitions = new List<AttentionEvent>();
             foreach (var line in lines)
             {
                 var parsed = HarnessBridgeParser.Parse(line);
@@ -242,7 +245,20 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
                     continue;
                 }
 
-                _session.Apply(parsed.Record);
+                var applied = _session.Apply(parsed.Record);
+                // Retained backlog is hydration, not a new notification episode.
+                if (applied.Attention is { } edge && !parsed.Record.Hydration &&
+                    edge.ObservedAt > _attachedAt && edge.ObservedAt <= _timeProvider.GetUtcNow())
+                {
+                    transitions.Add(new AttentionEvent(edge.Kind, edge.Key, NumberFor(edge.Key.ConversationId),
+                        edge.Label, edge.State, edge.Kind switch
+                        {
+                            AttentionEventKind.PermissionRequired => AgentActionKind.WaitingForApproval,
+                            AttentionEventKind.InputRequired => AgentActionKind.WaitingForInput,
+                            AttentionEventKind.TaskError => AgentActionKind.Error,
+                            _ => AgentActionKind.Completed,
+                        }, edge.TurnId, edge.ObservedAt, edge.Code));
+                }
             }
 
             if (droppedByProducer > 0)
@@ -257,7 +273,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
                 _session.NoteProducerIncomplete("bridge-rejected:" + rejected.ToString(CultureInfo.InvariantCulture));
             }
 
-            return Publish(readReason, "bridge");
+            return Publish(readReason, "bridge", transitions);
         }
         finally
         {
@@ -265,19 +281,19 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
         }
     }
 
-    private SourceSnapshot Publish(string readReason, string adapterCode)
+    private SourceSnapshot Publish(string readReason, string adapterCode, IReadOnlyList<AttentionEvent>? transitions = null)
     {
         var now = _timeProvider.GetUtcNow();
         var lanes = _session?.Tasks(now) ?? Array.Empty<BridgeTaskState>();
         var tasks = new List<AgentTask>(lanes.Count);
-        var transitions = new List<AttentionEvent>();
         foreach (var lane in lanes)
         {
             tasks.Add(ToTask(lane));
         }
 
         var reasons = new List<string>();
-        var complete = true;
+        var complete = !lanes.Any(lane => lane.IsStale || lane.CoverageIncomplete);
+        if (!complete) reasons.Add("bridge-stale-or-incomplete");
         if (!string.Equals(readReason, "ok", StringComparison.Ordinal))
         {
             reasons.Add(readReason);
@@ -307,7 +323,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             reasons,
             complete,
             tasks,
-            transitions,
+            transitions ?? Array.Empty<AttentionEvent>(),
             MonitorCapabilities.Initial,
             adapterCode);
         SnapshotAvailable?.Invoke(_current);
@@ -329,11 +345,11 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             lane.State,
             new AgentAction(ActionFor(lane), EvidenceFor(lane), lane.DetailCode),
             EvidenceFor(lane),
+            lane.FirstObservedAt,
             lane.LastObservedAt,
-            lane.LastObservedAt,
-            lane.LastObservedAt,
-            lane.TurnId.Length > 0 ? lane.LastObservedAt : null,
-            lane.State is AgentTaskState.Done ? lane.LastObservedAt : null,
+            lane.StateSince,
+            lane.TurnStartedAt,
+            lane.CompletedAt,
             lane.IsStale,
             false,
             lane.NeedsHuman,
@@ -382,17 +398,18 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter
             hash = unchecked((hash * 31) + character);
         }
 
-        return (Math.Abs(hash) % 9000) + 1000 + (++_numberSeed % 1);
+        return (int)((uint)hash % 9000) + 1000;
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         try
         {
-            while (!cancellationToken.IsCancellationRequested && !_lifetime.IsCancellationRequested)
+            while (!linked.IsCancellationRequested)
             {
                 Poll();
-                await Task.Delay(_pollInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_pollInterval, _timeProvider, linked.Token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)

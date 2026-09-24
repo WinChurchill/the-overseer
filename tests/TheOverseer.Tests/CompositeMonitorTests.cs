@@ -78,6 +78,9 @@ public sealed class CompositeMonitorTests
         await using var composite = new CompositeMonitorSource(new IAgentMonitorAdapter[] { codex, dsh }, NullMonitorLog.Instance);
         await composite.StartAsync(CancellationToken.None);
 
+        var received = new List<AttentionEvent>();
+        composite.SnapshotAvailable += publication => received.AddRange(publication.Transitions);
+
         var key = TaskKey.For(HarnessIds.Codex, "codex", "conv-1");
         var transition = VoiceTestData.Event(AttentionEventKind.PermissionRequired, key: key, observedAt: Start);
         codex.Push(MonitoringHealthLevel.Healthy, true, new[] { BuildTask(HarnessIds.Codex, "codex", "conv-1", AgentTaskState.Working) }, new[] { transition });
@@ -90,7 +93,10 @@ public sealed class CompositeMonitorTests
         Assert.Equal(CountValue.Known(1), snapshot.Counts.Working);
         Assert.Equal(CountValue.Known(2), snapshot.Counts.Total);
         Assert.True(snapshot.Health.CoverageComplete);
-        Assert.Single(snapshot.Transitions);
+        Assert.Empty(snapshot.Transitions);
+        Assert.Single(received);
+        composite.RequestReconcile();
+        Assert.Single(received);
     }
 
     [Fact]
@@ -130,9 +136,64 @@ public sealed class CompositeMonitorTests
 
         Assert.DoesNotContain(composite.Current.Transitions, transition => transition.Kind == AttentionEventKind.AllTasksCompleted);
 
-        dsh.Push(MonitoringHealthLevel.Healthy, true, new[] { BuildTask(HarnessIds.Dsh, "dsh-default", "conv-2", AgentTaskState.Done) });
+        dsh.Push(MonitoringHealthLevel.Healthy, true,
+            new[] { BuildTask(HarnessIds.Dsh, "dsh-default", "conv-2", AgentTaskState.Done) },
+            new[] { VoiceTestData.Event(AttentionEventKind.TaskCompleted,
+                key: TaskKey.For(HarnessIds.Dsh, "dsh-default", "conv-2"), observedAt: Start, state: AgentTaskState.Done) });
 
         Assert.Contains(composite.Current.Transitions, transition => transition.Kind == AttentionEventKind.AllTasksCompleted);
+    }
+
+    [Fact]
+    public async Task UnreportedEnabledPeerPreventsCompleteCounts()
+    {
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        await using var composite = new CompositeMonitorSource(new[] { codex, dsh });
+        await composite.StartAsync(CancellationToken.None);
+        codex.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>());
+        Assert.False(composite.Current.Health.CoverageComplete);
+        Assert.False(composite.Current.Counts.Total.IsComplete);
+    }
+
+    [Fact]
+    public async Task DisabledPeerIsNotStartedAndDoesNotAffectCoverage()
+    {
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh with { IsEnabled = false });
+        await using var composite = new CompositeMonitorSource(new[] { codex, dsh });
+        await composite.StartAsync(CancellationToken.None);
+        codex.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>());
+        Assert.False(dsh.Started);
+        Assert.True(composite.Current.Health.CoverageComplete);
+    }
+
+    [Fact]
+    public async Task SourceLocalCompletionCannotAnnounceWhileAnotherHealthySourceWorks()
+    {
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        await using var composite = new CompositeMonitorSource(new[] { codex, dsh });
+        await composite.StartAsync(CancellationToken.None);
+        dsh.Push(MonitoringHealthLevel.Healthy, true, new[] { BuildTask(HarnessIds.Dsh, "dsh-default", "work", AgentTaskState.Working) });
+        codex.Push(MonitoringHealthLevel.Healthy, true, new[] { BuildTask(HarnessIds.Codex, "codex", "done", AgentTaskState.Done) },
+            new[] { VoiceTestData.Event(AttentionEventKind.AllTasksCompleted, observedAt: Start) });
+        Assert.DoesNotContain(composite.Current.Transitions, item => item.Kind == AttentionEventKind.AllTasksCompleted);
+    }
+
+    [Fact]
+    public void ClaudeDiscoveryAndReaderUseTheShippedProducerSpoolLayout()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(root, "spool", "claude", "claude-test");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var source = Assert.Single(HarnessSources.Discover(root));
+            Assert.Equal(HarnessIds.Claude, source.HarnessId);
+            Assert.Equal(directory, new BridgeMonitorAdapter(source, root).SpoolDirectory);
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     [Fact]
@@ -152,6 +213,60 @@ public sealed class CompositeMonitorTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task BridgeHydratesBacklogSilentlyThenForwardsFreshAttentionOnce()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        var clock = new ManualTimeProvider(Start);
+        var adapter = new BridgeMonitorAdapter(Dsh, root, timeProvider: clock);
+        Directory.CreateDirectory(adapter.SpoolDirectory);
+        string Record(long sequence, DateTimeOffset observed) => System.Text.Json.JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1, harnessId = "dsh", sourceInstanceId = "dsh-default",
+            sourceEpoch = "epoch", sessionId = "session", sequence, eventId = "event-" + sequence,
+            observedAtUtc = observed, kind = "approval/asked", requestId = "request-" + sequence,
+            category = "waiting", evidence = "explicit", hydration = false,
+        }) + "\n";
+        var received = new List<AttentionEvent>();
+        adapter.SnapshotAvailable += snapshot => received.AddRange(snapshot.Transitions);
+        try
+        {
+            File.WriteAllText(Path.Combine(adapter.SpoolDirectory, "events.jsonl"), Record(1, Start.AddSeconds(-1)));
+            // Cancellation prevents the background loop; explicit Poll uses the same reader.
+            await adapter.StartAsync(new CancellationToken(canceled: true));
+            adapter.Poll();
+            Assert.Empty(received);
+            clock.AdvanceSeconds(1);
+            File.AppendAllText(Path.Combine(adapter.SpoolDirectory, "events.jsonl"), Record(2, clock.GetUtcNow()));
+            adapter.Poll();
+            adapter.Poll();
+            Assert.Equal(AttentionEventKind.PermissionRequired, Assert.Single(received).Kind);
+            Assert.False(adapter.Current.CoverageComplete); // Attach has not proved complete membership.
+        }
+        finally
+        {
+            await adapter.DisposeAsync();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void InvalidUtf8DoesNotMoveTheReaderPastTheNextRecord()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var path = Path.Combine(root, "events.jsonl");
+            File.WriteAllBytes(path, new byte[] { 0xff, (byte)'\n' });
+            var reader = new BridgeSpoolReader(root);
+            Assert.Single(reader.ReadNewLines(out _, out _));
+            File.AppendAllText(path, "next\n");
+            Assert.Equal("next", Assert.Single(reader.ReadNewLines(out _, out _)));
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     [Fact]

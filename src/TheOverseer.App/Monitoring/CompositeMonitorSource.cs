@@ -68,14 +68,24 @@ public sealed class CompositeMonitorSource : IMonitorSource
     private readonly IMonitorLog _log;
     private readonly object _gate = new();
     private readonly Dictionary<string, SourceSnapshot> _latest = new(StringComparer.Ordinal);
+    private readonly HashSet<AttentionEvent> _seenTransitions = new();
+    private readonly Queue<AttentionEvent> _transitionOrder = new();
+    private readonly List<AttentionEvent> _pendingTransitions = new();
+    private bool _allCompleteArmed;
     private MonitoringSnapshot _current;
     private int _started;
 
     public CompositeMonitorSource(IReadOnlyList<IAgentMonitorAdapter> adapters, IMonitorLog? log = null)
     {
-        _adapters = adapters ?? Array.Empty<IAgentMonitorAdapter>();
+        _adapters = (adapters ?? Array.Empty<IAgentMonitorAdapter>())
+            .Where(adapter => adapter.Source.IsEnabled).ToArray();
         _log = log ?? NullMonitorLog.Instance;
         _current = MonitoringSnapshot.Empty(DateTimeOffset.UtcNow);
+        foreach (var adapter in _adapters)
+        {
+            _latest[SourceKey(adapter.Source)] = SourceSnapshot.Empty(
+                adapter.Source, DateTimeOffset.MinValue, "not-started", adapter.Source.HarnessId);
+        }
     }
 
     public MonitoringSnapshot Current
@@ -140,15 +150,31 @@ public sealed class CompositeMonitorSource : IMonitorSource
 
     private void OnSourceSnapshot(SourceSnapshot snapshot)
     {
-        Push(snapshot);
-        Publish();
+        lock (_gate)
+        {
+            Push(snapshot);
+            Publish();
+        }
     }
+
+    private static string SourceKey(SourceInstance source) => source.SourceInstanceId + "@" + source.HarnessId;
 
     private void Push(SourceSnapshot snapshot)
     {
         lock (_gate)
         {
-            _latest[snapshot.Source.SourceInstanceId + "@" + snapshot.Source.HarnessId] = snapshot;
+            var key = SourceKey(snapshot.Source);
+            if (!_latest.TryGetValue(key, out var previous) || snapshot.ObservedAt < previous.ObservedAt)
+                return;
+            _latest[key] = snapshot with { Transitions = Array.Empty<AttentionEvent>() };
+            foreach (var transition in snapshot.Transitions)
+            {
+                // Source-local all-complete is never a global completion edge.
+                if (transition.Kind == AttentionEventKind.AllTasksCompleted || !_seenTransitions.Add(transition)) continue;
+                _pendingTransitions.Add(transition);
+                _transitionOrder.Enqueue(transition);
+                while (_transitionOrder.Count > 8192) _seenTransitions.Remove(_transitionOrder.Dequeue());
+            }
         }
     }
 
@@ -164,7 +190,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
         {
             var sources = _latest.Values.ToArray();
             var tasks = new List<AgentTask>();
-            var transitions = new List<AttentionEvent>();
+            var transitions = new List<AttentionEvent>(_pendingTransitions);
+            _pendingTransitions.Clear();
             var reasons = new SortedSet<string>(StringComparer.Ordinal);
             var level = MonitoringHealthLevel.Healthy;
             var coverage = true;
@@ -175,7 +202,6 @@ public sealed class CompositeMonitorSource : IMonitorSource
             foreach (var source in sources)
             {
                 tasks.AddRange(source.Tasks);
-                transitions.AddRange(source.Transitions);
                 observation = observation with
                 {
                     FilesTracked = observation.FilesTracked + source.Tasks.Count,
@@ -200,7 +226,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
                     level = MonitoringHealthLevel.Unavailable;
                 }
 
-                if (!source.CoverageComplete)
+                if (!source.CoverageComplete || source.Health == MonitoringHealthLevel.Unavailable)
                 {
                     coverage = false;
                 }
@@ -226,6 +252,16 @@ public sealed class CompositeMonitorSource : IMonitorSource
             }
 
             var counts = ComputeCounts(tasks, coverage && anyReadable, anyReadable);
+            if (tasks.Any(task => !task.IsStale && task.State == AgentTaskState.Working)) _allCompleteArmed = true;
+            if (_allCompleteArmed && coverage && anyReadable && tasks.Count > 0 &&
+                tasks.All(task => !task.IsStale && !task.IsProvisional && task.State == AgentTaskState.Done) &&
+                transitions.Any(transition => transition.Kind == AttentionEventKind.TaskCompleted))
+            {
+                transitions.Add(new AttentionEvent(AttentionEventKind.AllTasksCompleted, default, 0,
+                    string.Empty, AgentTaskState.Done, AgentActionKind.Completed, string.Empty,
+                    DateTimeOffset.UtcNow, "all-tasks-completed"));
+                _allCompleteArmed = false;
+            }
             merged = new MonitoringSnapshot(
                 DateTimeOffset.UtcNow,
                 new MonitoringHealth(level, reasons.ToArray(), coverage, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow),
@@ -235,9 +271,10 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 capabilities,
                 observation);
             _current = merged;
+            // Deliver in the same serialized order as source replacement. Subscribers
+            // enqueue UI work; they must not block waiting for another publication.
+            SnapshotAvailable?.Invoke(merged);
         }
-
-        SnapshotAvailable?.Invoke(merged);
     }
 
     private static MonitoringCounts ComputeCounts(IReadOnlyList<AgentTask> tasks, bool complete, bool anyReadable)

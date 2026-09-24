@@ -85,6 +85,7 @@ public sealed class ProjectResolver
     private readonly ProjectSettings _settings;
     private readonly ProjectResolverProbe _probe;
     private readonly Dictionary<string, ProjectAssignment> _cache = new(StringComparer.Ordinal);
+    private readonly object _gate = new();
     private readonly List<(string Alias, string Canonical)> _aliases = new();
     private readonly List<(string Root, ProjectDescriptor Project)> _mappings = new();
     private readonly int _maximumAncestorChecks;
@@ -100,10 +101,16 @@ public sealed class ProjectResolver
         BuildMappings();
     }
 
-    public int CacheCount => _cache.Count;
+    public int CacheCount { get { lock (_gate) return _cache.Count; } }
 
     /// <summary>Resolves one task workspace root. Never throws and never guesses.</summary>
     public ProjectAssignment Resolve(string? workspaceRoot, string? explicitProjectKey = null)
+    {
+        // Composition shares this resolver across independently polling adapters.
+        lock (_gate) return ResolveCore(workspaceRoot, explicitProjectKey);
+    }
+
+    private ProjectAssignment ResolveCore(string? workspaceRoot, string? explicitProjectKey)
     {
         if (!string.IsNullOrWhiteSpace(explicitProjectKey))
         {

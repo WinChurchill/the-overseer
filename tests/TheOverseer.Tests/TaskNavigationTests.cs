@@ -43,6 +43,13 @@ public sealed class TaskNavigationTests
         Assert.Equal("codex://threads/01a0d000-0000-0000-0000-000000000001", result.Uri);
     }
 
+    [Fact]
+    public void NonCodexTaskCannotUseCodexRouteEvenWithMatchingProfileAndSurface()
+    {
+        var task = Task() with { Key = TaskKey.For(HarnessIds.Claude, "codex", "01a0d000-0000-0000-0000-000000000001") };
+        Assert.Null(CodexTaskNavigator.BuildUri(task, "codex").Uri);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
