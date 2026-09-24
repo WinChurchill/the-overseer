@@ -634,6 +634,31 @@ Next executable step: a fixture that feeds staggered snapshots so several catego
 visible in one render, then the task-row strip, the "Use baseline" settings control, and
 the close/header/sizing refinement before the publish + packaged smoke pass.
 
+### DeepSeek session checkpoint 10 — task-row strips (2026-09-24)
+
+- The per-bin visual is now shared: `ActivityBinTemplate` and `ActivityBinsPanel` live in
+  the window resources, and both the project header strip and the row strip use them, so
+  the two cannot drift apart. The header's previous inline copy was removed (not left
+  duplicated).
+- `HudWindow.xaml` renders a last-hour strip inside each task row's subtitle column bound
+  to `TaskRowViewModel.TaskBins`, which the 1 s tick already fills from the producer-side
+  recording; row identity, turn timers and the task template's structure are unchanged.
+- Inspected `artifacts/ux-strips6/fixtures/dark-expanded.png`: project header strips and
+  task-row strips both render, the waiting and working observations appear as brighter
+  known cells while unobserved time stays muted unknown, and nothing is clipped.
+
+Verification: Release build **0 warnings / 0 errors**; .NET tests **555 passed / 0 failed /
+0 skipped**; fixtures re-rendered from this source.
+
+Still open for strips: the fixture records only a couple of known instants, so the
+per-category palette is only partially exercised visually (a staggered-snapshot fixture is
+the next step).
+
+Next executable step: staggered-snapshot fixture for palette coverage, then the "Use
+baseline" control in the voice settings surface, the visible close button/header/menu and
+responsive sizing, and finally the clean publish + packaged lifecycle smoke +
+README/CHANGELOG/ledger pass.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
