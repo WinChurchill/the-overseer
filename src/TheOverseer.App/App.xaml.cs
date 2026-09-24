@@ -75,7 +75,9 @@ public partial class App : Application
         _instanceGuard = SingleInstanceGuard.TryAcquire();
         if (!_instanceGuard.IsOwner)
         {
-            // A HUD is already running: leave its monitor and tray alone.
+            // A HUD is already running: ask it to restore its window, then exit
+            // quietly without touching its monitor, tray or session.
+            ShowRequestSignal.TrySignal();
             Shutdown(0);
             return;
         }

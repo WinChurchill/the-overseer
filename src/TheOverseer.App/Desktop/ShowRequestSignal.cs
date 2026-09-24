@@ -6,7 +6,7 @@ namespace TheOverseer.App.Desktop;
 /// the tray both return the same window and session. Bounded and local-only: one
 /// named event, one waiter thread, no IPC payload.
 /// </summary>
-internal sealed class ShowRequestSignal : IDisposable
+public sealed class ShowRequestSignal : IDisposable
 {
     private const string EventName = "Local\\OVERSEER.Hud.ShowRequest";
     private const int WaitMilliseconds = 500;
