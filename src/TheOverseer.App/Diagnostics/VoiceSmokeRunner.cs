@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
 using TheOverseer.App.Voice;
+using TheOverseer.App.Voice.Speech;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.History;
 using TheOverseer.Core.Models;
@@ -11,9 +13,11 @@ namespace TheOverseer.App.Diagnostics;
 
 /// <summary>
 /// Finite Plan 3 voice smoke. Silent by default: it proves the pack, policy,
-/// aggregation, mute and TTS contracts with synthetic tones and an owned
-/// loopback server. With --audible it additionally plays through the real sound
-/// device and reports what was actually heard separately from API success.
+/// aggregation and mute contracts with synthetic tones, synthesizes one real
+/// offline baseline script and validates it, and exercises TTS against an owned
+/// loopback server. Every provider is used exactly as selected: there is no
+/// cross-provider fallback. With --audible it additionally plays through the real
+/// sound device and reports what was actually heard separately from API success.
 /// </summary>
 internal static class VoiceSmokeRunner
 {
@@ -34,7 +38,8 @@ internal static class VoiceSmokeRunner
         Console.WriteLine("pack: " + manifest + " (synthetic PCM tones prove audio mechanics, not spoken voice)");
 
         failures += RunPackSmoke(dataDirectory, arguments.Audible);
-        failures += RunTtsSmoke(dataDirectory, arguments.Audible);
+        failures += RunSpeechSmoke(dataDirectory, arguments.Audible);
+        failures += RunTtsSmoke(arguments.Audible);
         if (arguments.Audible) failures += RunNativeCancellationSmoke();
 
         Console.WriteLine(failures == 0 ? "voice smoke: PASS" : "voice smoke: FAIL (" + failures + ")");
@@ -211,10 +216,74 @@ internal static class VoiceSmokeRunner
         return failures;
     }
 
-    private static int RunTtsSmoke(string dataDirectory, bool audible)
+    /// <summary>Real offline synthesis of one fixed catalog script, validated and never faked.</summary>
+    private static int RunSpeechSmoke(string dataDirectory, bool audible)
     {
         Console.WriteLine(string.Empty);
-        Console.WriteLine("--- tts mode (owned loopback endpoint) ---");
+        Console.WriteLine("--- windows speech baseline (offline; silent unless --audible) ---");
+        var engine = new SapiSpeechSynthesisEngine();
+        Console.WriteLine("engine: " + engine.Id + " available=" + engine.IsAvailable + " code=" + engine.UnavailableCode);
+        if (!engine.IsAvailable)
+        {
+            Console.WriteLine("FAIL no usable English offline voice on this machine (" + engine.UnavailableCode + "); the baseline cannot announce anything");
+            return 1;
+        }
+
+        var failures = 0;
+        var settings = new VoiceSettings { Muted = false, Provider = VoiceSettings.SpeechProviderName };
+        using var provider = new WindowsSpeechVoiceProvider(engine, () => settings, TimeSpan.FromSeconds(15));
+        var candidate = Candidate(VoiceEventKind.TaskCompleted);
+        var clip = provider.TryCreateAsync(candidate, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        if (clip is null)
+        {
+            Console.WriteLine("FAIL baseline synthesis returned no clip: " + provider.Status.LastCode);
+            return 1;
+        }
+
+        var validation = VoicePackValidator.ValidateWav(clip.Wav);
+        Console.WriteLine("synthesized: bytes=" + clip.Wav.Length +
+                          " valid=" + validation.IsValid +
+                          " code=" + validation.ReasonCode +
+                          " rate=" + validation.SampleRate +
+                          " channels=" + validation.Channels +
+                          " bits=" + validation.BitsPerSample +
+                          " seconds=" + validation.Duration.TotalSeconds.ToString("0.00", CultureInfo.InvariantCulture) +
+                          " source=" + clip.SourceCode);
+        if (!validation.IsValid)
+        {
+            Console.WriteLine("FAIL synthesized audio did not pass WAV validation: " + validation.ReasonCode);
+            return 1;
+        }
+
+        using var counter = new CountingPlayer(audible);
+        var manager = new VoiceManager(
+            provider,
+            counter,
+            VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
+            TimeProvider.System,
+            muted: false);
+        manager.Start();
+        manager.Enqueue(new[] { candidate });
+        failures += Expect("baseline cue reaches the playback path", 1, () => counter.Played.Count, 20000);
+        failures += Expect("played clip came from the offline engine", 1, () => counter.Played.Count(item => item.SourceCode.StartsWith("speech:", StringComparison.Ordinal)), 1500);
+        Console.WriteLine("speech " + provider.Describe());
+        ShowPlayerReport(counter);
+        manager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        // The explicit preview path itself, on the real engine, through a silent player.
+        using var previewPlayer = new CountingPlayer(audible);
+        var previewService = new VoicePreviewService(dataDirectory, () => settings, previewPlayer);
+        var outcome = previewService.PreviewAsync(VoiceEventKind.TaskCompleted, CancellationToken.None).GetAwaiter().GetResult();
+        Console.WriteLine("preview: created=" + outcome.ClipCreated + " played=" + outcome.Played + " code=" + outcome.Code + " bytes=" + outcome.ByteCount);
+        failures += Expect("real offline preview plays the selected baseline", 1, () => previewPlayer.Played.Count, 20000);
+        failures += Expect("preview audio came from the offline engine", 1, () => previewPlayer.Played.Count(item => item.SourceCode.StartsWith("speech:", StringComparison.Ordinal)), 1500);
+        return failures;
+    }
+
+    private static int RunTtsSmoke(bool audible)
+    {
+        Console.WriteLine(string.Empty);
+        Console.WriteLine("--- tts mode (owned loopback endpoint, selected provider only) ---");
         var failures = 0;
         var tone = VoicePackValidator.CreateTone(520, 0.1);
         var corrupt = new byte[256];
@@ -242,13 +311,13 @@ internal static class VoiceSmokeRunner
             Timeout = Timeout.InfiniteTimeSpan,
         };
         var tts = new TtsEndpointProvider(client, () => settings);
-        var pack = new VoicePackProvider(dataDirectory, () => settings);
         var policy = new VoiceEventPolicy();
         bool Relevant(VoiceCandidate candidate) => policy.IsRelevant(candidate, DateTimeOffset.UtcNow);
-        var router = new FallbackVoiceProvider(tts, pack, allowFallback: true, Relevant);
+        // The selected provider only: a failing endpoint must stay silent instead of
+        // quietly speaking the local pack.
         using var counter = new CountingPlayer(audible);
         var manager = new VoiceManager(
-            router,
+            tts,
             counter,
             VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
             TimeProvider.System,
@@ -263,25 +332,31 @@ internal static class VoiceSmokeRunner
         failures += Expect("one request reached the loopback endpoint", 1, () => server.RequestCount, 1000);
         failures += CheckPayloadContract(server);
 
-        // 2. HTTP 500 falls back once to the local pack clip.
+        // 2. HTTP 500: the selected provider failed, so nothing is spoken at all
+        //    and the failure is visible with the provider's own code.
         coordinator.OnSnapshot(SimpleSnapshot(VoiceEventKind.TaskError, 6));
-        failures += Expect("500 falls back to local audio", 2, () => counter.Played.Count, 4000);
-        failures += Expect("fallback used the local pack source", 1, () => counter.Played.Count(clip => clip.SourceCode.StartsWith("pack:", StringComparison.Ordinal)), 1500);
+        failures += ExpectUnchanged("500 stays silent (no cross-provider fallback)", 1, () => counter.Played.Count, 3000);
+        failures += ExpectCode("500 is reported", "http-500", () => tts.Status.LastCode, 2000);
 
-        // 3. Timeout (endpoint delay > configured timeout) also falls back.
+        // 3. Endpoint timeout (delay > configured timeout): still silent, distinct code.
         coordinator.OnSnapshot(SimpleSnapshot(VoiceEventKind.InputRequired, 7));
-        failures += Expect("timeout falls back to local audio", 3, () => counter.Played.Count, 6000);
+        failures += ExpectUnchanged("timeout stays silent", 1, () => counter.Played.Count, 4000);
+        failures += ExpectCode("timeout is reported", "timeout", () => tts.Status.LastCode, 2000);
 
-        // 4. Wrong MIME type falls back.
+        // 4. Wrong MIME type is refused, not replaced. Completion cues are only
+        //    flushed by the UI pump, exactly as the HUD timer does in production.
         coordinator.OnSnapshot(SimpleSnapshot(VoiceEventKind.TaskCompleted, 8));
-        failures += Expect("wrong content type falls back", 4, () => counter.Played.Count, 6000, coordinator.Pump);
+        failures += ExpectCode("wrong content type is reported", "content-type", () => tts.Status.LastCode, 8000, coordinator.Pump);
+        failures += ExpectUnchanged("wrong content type stays silent", 1, () => counter.Played.Count, 1000, coordinator.Pump);
 
-        // 5. Corrupt audio falls back.
+        // 5. Corrupt audio is refused, not replaced.
         coordinator.OnSnapshot(SimpleSnapshot(VoiceEventKind.AllTasksCompleted, 9, aggregate: true));
-        failures += Expect("corrupt audio falls back", 5, () => counter.Played.Count, 6000, coordinator.Pump);
+        failures += ExpectCode("corrupt audio is reported", "wav-header", () => tts.Status.LastCode, 8000, coordinator.Pump);
+        failures += ExpectUnchanged("corrupt audio stays silent", 1, () => counter.Played.Count, 1000, coordinator.Pump);
 
+        failures += Expect("no pack clip was ever played", 0, () => counter.Played.Count(clip => clip.SourceCode.StartsWith("pack:", StringComparison.Ordinal)), 500);
         Console.WriteLine("loopback requests served: " + server.RequestCount);
-        Console.WriteLine("tts last code: " + tts.Status.LastCode + " · fallbacks: " + router.FallbackCount);
+        Console.WriteLine("tts last code: " + tts.Status.LastCode);
         ShowPlayerReport(counter);
         coordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
         return failures;
@@ -354,6 +429,48 @@ internal static class VoiceSmokeRunner
         {
             // Completion aggregation only flushes on the pump, exactly like the
             // HUD timer does in production.
+            pump?.Invoke();
+            Thread.Sleep(25);
+            value = actual();
+        }
+
+        if (value == expected)
+        {
+            Console.WriteLine("ok   " + label + " (" + value + ")");
+            return 0;
+        }
+
+        Console.WriteLine("FAIL " + label + ": expected " + expected + ", saw " + value);
+        return 1;
+    }
+
+    /// <summary>Waits a settle window and then requires the value to be unchanged.</summary>
+    private static int ExpectUnchanged(string label, int expected, Func<int> actual, int settleMs, Action? pump = null)
+    {
+        var started = Environment.TickCount64;
+        while (Environment.TickCount64 - started < settleMs)
+        {
+            pump?.Invoke();
+            Thread.Sleep(25);
+        }
+
+        var value = actual();
+        if (value == expected)
+        {
+            Console.WriteLine("ok   " + label + " (" + value + ")");
+            return 0;
+        }
+
+        Console.WriteLine("FAIL " + label + ": expected " + expected + ", saw " + value);
+        return 1;
+    }
+
+    private static int ExpectCode(string label, string expected, Func<string> actual, int timeoutMs, Action? pump = null)
+    {
+        var started = Environment.TickCount64;
+        var value = actual();
+        while (value != expected && Environment.TickCount64 - started < timeoutMs)
+        {
             pump?.Invoke();
             Thread.Sleep(25);
             value = actual();
