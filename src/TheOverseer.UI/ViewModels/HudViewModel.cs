@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using TheOverseer.Core.Configuration;
+using TheOverseer.Core.History;
 using TheOverseer.Core.Models;
 
 namespace TheOverseer.UI.ViewModels;
@@ -59,6 +60,9 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         ActivateTaskCommand = new RelayCommand<TaskRowViewModel>(task => _activateTask?.Invoke(task));
         CopyTaskIdCommand = new RelayCommand<TaskRowViewModel>(task => _copyTaskId?.Invoke(task));
         ToggleExpandedCommand = new RelayCommand(() => IsExpanded = !IsExpanded);
+        ToggleProjectCommand = new RelayCommand<ProjectRowViewModel>(ToggleProject);
+        ExpandAllProjectsCommand = new RelayCommand(() => SetAllProjectsExpanded(true));
+        CollapseAllProjectsCommand = new RelayCommand(() => SetAllProjectsExpanded(false));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -71,11 +75,48 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
     public ObservableCollection<TaskRowViewModel> Tasks { get; } = new();
 
+    /// <summary>
+    /// Expandable project rows, ordered attention -> active -> recent with a stable
+    /// identity tie-break. This is the HUD's primary grouping; <see cref="Tasks"/>
+    /// stays the flat ordered list the rows are shared with.
+    /// </summary>
+    public ObservableCollection<ProjectRowViewModel> Projects { get; } = new();
+
     public ICommand ActivateTaskCommand { get; }
 
     public ICommand CopyTaskIdCommand { get; }
 
     public ICommand ToggleExpandedCommand { get; }
+
+    /// <summary>Project click: expands or collapses that project's task rows.</summary>
+    public ICommand ToggleProjectCommand { get; }
+
+    public ICommand ExpandAllProjectsCommand { get; }
+
+    public ICommand CollapseAllProjectsCommand { get; }
+
+    /// <summary>
+    /// Small legend for the shared hour axis. The strip is never colour-only: the
+    /// legend states each category, and unknown is spelled out as missing
+    /// observation rather than idle.
+    /// </summary>
+    public IReadOnlyList<ActivityLegendEntry> Legend { get; } = new[]
+    {
+        new ActivityLegendEntry(ActivityCategory.Thinking, "Thinking", "Structured reasoning. An inferred active turn is marked estimated."),
+        new ActivityLegendEntry(ActivityCategory.Planning, "Planning", "Explicit ongoing plan action only; a plan update is a marker, not duration."),
+        new ActivityLegendEntry(ActivityCategory.Working, "Working", "Tool work: reading, editing, commands, tests or search."),
+        new ActivityLegendEntry(ActivityCategory.Waiting, "Waiting", "Explicit approval or input request. Not working duration."),
+        new ActivityLegendEntry(ActivityCategory.Error, "Error", "Explicit task failure marker."),
+        new ActivityLegendEntry(ActivityCategory.Complete, "Complete", "Explicit task completion marker."),
+        new ActivityLegendEntry(ActivityCategory.Idle, "Idle", "Blank: observation confirmed settled inactivity."),
+        new ActivityLegendEntry(ActivityCategory.Unknown, "Unknown = no observation, not idle", "Hatched: stale, restart, sleep or disabled source. Never a claim of inactivity."),
+    };
+
+    /// <summary>Plain-text legend note for tooltips and screen readers.</summary>
+    public string LegendNote =>
+        "Last hour, now at the right. Each cell is about a minute. " +
+        "Unknown (hatched) is missing observation, never confirmed idle. " +
+        "Hover a cell for its category, interval, duration, evidence and coverage.";
 
     public HudTheme Theme
     {
@@ -170,11 +211,34 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     /// <summary>Compact metadata strip where Plan 3 will draw the activity chart.</summary>
     public string MetaStripLine => TaskCountLine + " · " + UpdatedLine;
 
+    /// <summary>
+    /// Footer/navigation wording. It only promises a route the visible tasks can
+    /// actually take, so a dsh/Claude-only view never advertises a Codex-only link.
+    /// </summary>
     public string FooterHint => StatusMessage.Length > 0
         ? StatusMessage
         : HasTasks
-            ? "Click a task to open it in Codex · right-click to copy its id"
+            ? HasNavigableRows
+                ? "Click a Codex task to open it · right-click to copy a task id"
+                : "Right-click a task to copy its id · no supported open route for these tasks"
             : EmptyStateText;
+
+    /// <summary>True when at least one visible row has a supported open route.</summary>
+    public bool HasNavigableRows
+    {
+        get
+        {
+            foreach (var row in Tasks)
+            {
+                if (row.CanNavigate)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 
     public string WorkingCountText
     {
@@ -333,6 +397,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         MonitoringDetail = "monitor stopped · " + code;
         HealthLine = MonitoringTitle + " · " + MonitoringDetail;
         Tasks.Clear();
+        Projects.Clear();
         _lastActivity.Clear();
         HasTasks = false;
         TaskCountLine = "task state unknown";
@@ -397,6 +462,16 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             SyncRows(snapshot, now);
             UpdateVisualStatus(snapshot, now);
         }
+        // Producer-side observed activity, already recorded before UI coalescing.
+        // Each distinct project is projected exactly once per refresh and every
+        // task lane is resolved once, so the strip can never become O(rows*lanes)
+        // work on the one-second tick.
+        Dictionary<ProjectId, IReadOnlyList<ActivityStripBin>>? projectBins = null;
+        if (_activity is not null)
+        {
+            projectBins = new Dictionary<ProjectId, IReadOnlyList<ActivityStripBin>>();
+        }
+
         for (var index = 0; index < Tasks.Count; index++)
         {
             var task = Tasks[index];
@@ -405,13 +480,34 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 task.UpdateAge(now, _lastActivity[index]);
             }
 
-            if (_activity is not null)
+            if (_activity is null || projectBins is null)
             {
-                // Producer-side observed activity, already recorded before UI
-                // coalescing; the view only projects the bins.
-                var projectBins = _activity.ProjectBins(task.ProjectGroupProjectId, now);
-                var taskBins = _activity.TaskBins(task.Key, now);
-                task.UpdateActivity(projectBins, taskBins);
+                continue;
+            }
+
+            var projectId = task.ProjectGroupProjectId;
+            if (!projectBins.TryGetValue(projectId, out var bins))
+            {
+                bins = _activity.ProjectBins(projectId, now);
+                projectBins[projectId] = bins;
+            }
+
+            task.UpdateActivity(bins, _activity.TaskBins(task.Key, now));
+        }
+
+        if (projectBins is not null)
+        {
+            // Every project row is backed by at least one visible task row, so this
+            // only ever reads the cache filled above.
+            foreach (var project in Projects)
+            {
+                if (!projectBins.TryGetValue(project.ProjectId, out var bins))
+                {
+                    bins = _activity!.ProjectBins(project.ProjectId, now);
+                    projectBins[project.ProjectId] = bins;
+                }
+
+                project.UpdateBins(bins);
             }
         }
 
@@ -434,10 +530,13 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
     private void SyncRows(MonitoringSnapshot snapshot, DateTimeOffset now)
     {
-        var ordered = Order(SelectTasks(snapshot.Tasks, now));
-        if (IsRecentView) ordered = ordered.OrderByDescending(task => task.LastActivityAt).ThenBy(task => task.Number).ToArray();
         _generatedAt = snapshot.GeneratedAt;
-        TaskCountLine = ordered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " shown · " +
+        // Select first (Now/Recent/This session), then group, then order the projects
+        // attention -> active -> recent. Rows of one project stay contiguous so the
+        // project order is the group order and cannot jitter between ticks.
+        var entries = GroupRows(SelectTasks(snapshot.Tasks, now), snapshot.Tasks);
+        SortRows(entries, IsRecentView);
+        TaskCountLine = entries.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + " shown · " +
             snapshot.Tasks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " tracked";
         if (snapshot.Tasks.Count > 0 && snapshot.Health.Level != MonitoringHealthLevel.Unavailable)
             EmptyStateText = TaskView switch
@@ -447,44 +546,35 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 _ => "No current tasks. Try Recent for earlier work.",
             };
 
-        var groups = ProjectGroups(ordered, snapshot.Tasks);
-        if (!SequenceEqual(ordered, groups))
+        if (!SequenceEqual(entries))
         {
-            Tasks.Clear();
-            _lastActivity.Clear();
-            for (var index = 0; index < ordered.Count; index++)
-            {
-                var task = ordered[index];
-                var group = groups[index];
-                Tasks.Add(new TaskRowViewModel(task, CanNavigate(task), NavigationHint(task), group.Key, group.Label, group.Meta));
-                _lastActivity.Add(task.LastActivityAt);
-            }
-
-            HasTasks = Tasks.Count > 0;
+            RebuildRows(entries);
+            Raise(nameof(HasNavigableRows));
+            Raise(nameof(FooterHint));
             return;
         }
 
-        for (var index = 0; index < ordered.Count; index++)
+        for (var index = 0; index < entries.Length; index++)
         {
-            Tasks[index].Update(ordered[index]);
-            _lastActivity[index] = ordered[index].LastActivityAt;
+            Tasks[index].Update(entries[index].Task);
+            _lastActivity[index] = entries[index].Task.LastActivityAt;
         }
 
         HasTasks = Tasks.Count > 0;
     }
 
-    private bool SequenceEqual(IReadOnlyList<AgentTask> ordered, (string Key, string Label, string Meta)[] groups)
+    private bool SequenceEqual((AgentTask Task, ProjectGroup Group)[] entries)
     {
-        if (ordered.Count != Tasks.Count)
+        if (entries.Length != Tasks.Count)
         {
             return false;
         }
 
-        for (var index = 0; index < ordered.Count; index++)
+        for (var index = 0; index < entries.Length; index++)
         {
-            if (!Tasks[index].Key.Equals(ordered[index].Key) ||
-                !string.Equals(Tasks[index].ProjectGroupKey, groups[index].Key, StringComparison.Ordinal) ||
-                !string.Equals(Tasks[index].ProjectGroupMeta, groups[index].Meta, StringComparison.Ordinal))
+            if (!Tasks[index].Key.Equals(entries[index].Task.Key) ||
+                !string.Equals(Tasks[index].ProjectGroupKey, entries[index].Group.Key, StringComparison.Ordinal) ||
+                !string.Equals(Tasks[index].ProjectGroupMeta, entries[index].Group.Meta, StringComparison.Ordinal))
             {
                 return false;
             }
@@ -494,14 +584,107 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Project grouping for the visible rows. The group key is sortable so the
-    /// groups themselves order attention first, then active work, then recent
-    /// history, with Unassigned last; ties break on the display name so rows never
+    /// Rebuilds the flat task rows and the expandable project rows together, so the
+    /// two views can never disagree about order or membership. Expansion is restored
+    /// from the project-keyed set, which is why a snapshot rebuild cannot lose it.
+    /// </summary>
+    private void RebuildRows((AgentTask Task, ProjectGroup Group)[] entries)
+    {
+        Tasks.Clear();
+        Projects.Clear();
+        _lastActivity.Clear();
+        for (var index = 0; index < entries.Length; index++)
+        {
+            var (task, group) = entries[index];
+            var row = new TaskRowViewModel(task, CanNavigate(task), NavigationHint(task), group.Key, group.Label, group.Meta,
+                group.ProjectId, !IsProjectCollapsed(group.ProjectId));
+            Tasks.Add(row);
+            _lastActivity.Add(task.LastActivityAt);
+        }
+
+        var start = 0;
+        while (start < entries.Length)
+        {
+            var key = entries[start].Group.Key;
+            var end = start;
+            while (end < entries.Length && string.Equals(entries[end].Group.Key, key, StringComparison.Ordinal))
+            {
+                end++;
+            }
+
+            var rows = new TaskRowViewModel[end - start];
+            for (var index = start; index < end; index++)
+            {
+                rows[index - start] = Tasks[index];
+            }
+
+            var group = entries[start].Group;
+            var project = new ProjectRowViewModel(group.Project, group.Key, rows, group.Working, group.NeedsHuman, group.Partial, group.Harnesses);
+            project.SetExpanded(!IsProjectCollapsed(group.ProjectId));
+            Projects.Add(project);
+            start = end;
+        }
+
+        HasTasks = Tasks.Count > 0;
+    }
+
+    private static (AgentTask Task, ProjectGroup Group)[] GroupRows(IReadOnlyList<AgentTask> tasks, IReadOnlyList<AgentTask> allTasks)
+    {
+        var groups = ProjectGroups(tasks, allTasks);
+        var entries = new (AgentTask, ProjectGroup)[tasks.Count];
+        for (var index = 0; index < tasks.Count; index++)
+        {
+            entries[index] = (tasks[index], groups[index]);
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Deterministic order: by project group key, then the selected within-project
+    /// order (attention rank and task number, or recency in the Recent view). Age
+    /// never participates in the default order, so rows cannot shuffle every tick.
+    /// </summary>
+    private static void SortRows((AgentTask Task, ProjectGroup Group)[] entries, bool recent)
+    {
+        Array.Sort(entries, (left, right) =>
+        {
+            var byGroup = string.CompareOrdinal(left.Group.Key, right.Group.Key);
+            if (byGroup != 0)
+            {
+                return byGroup;
+            }
+
+            if (recent)
+            {
+                var byActivity = right.Task.LastActivityAt.CompareTo(left.Task.LastActivityAt);
+                if (byActivity != 0)
+                {
+                    return byActivity;
+                }
+            }
+
+            var byRank = TaskRowViewModel.Rank(left.Task).CompareTo(TaskRowViewModel.Rank(right.Task));
+            if (byRank != 0)
+            {
+                return byRank;
+            }
+
+            var byNumber = left.Task.Number.CompareTo(right.Task.Number);
+            return byNumber != 0
+                ? byNumber
+                : string.CompareOrdinal(left.Task.Key.ConversationId, right.Task.Key.ConversationId);
+        });
+    }
+
+    /// <summary>
+    /// Project grouping for the visible rows. The key is sortable so the projects
+    /// themselves order attention first, then active work, then recent history, with
+    /// Unassigned last. The opaque project identity is the final tie-break, so two
+    /// distinct projects that share a display name stay separate and rows never
     /// shuffle between ticks. Labels and summaries never contain a root path.
     /// </summary>
-    private static (string Key, string Label, string Meta)[] ProjectGroups(
-        IReadOnlyList<AgentTask> ordered,
-        IReadOnlyList<AgentTask> allTasks)
+    private static ProjectGroup[] ProjectGroups(IReadOnlyList<AgentTask> ordered, IReadOnlyList<AgentTask> allTasks)
     {
         // Counts and coverage describe the project's monitored members, not only the
         // rows the current filter shows, so a filtered view cannot claim full health.
@@ -511,7 +694,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             var project = task.AssignedProject;
             if (!stats.TryGetValue(project.Id, out var entry))
             {
-                entry = new ProjectStats(project.DisplayName);
+                entry = new ProjectStats();
                 stats[project.Id] = entry;
             }
 
@@ -532,36 +715,32 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             }
 
             // Short badge labels: the header must stay readable at the minimum width
-            // (the full name remains available through the group tooltip).
+            // (the full name remains available through the header tooltip).
             entry.Harnesses.Add(ShortHarness(task.Key.HarnessId));
         }
 
-        var ranks = new Dictionary<ProjectId, int>();
-        foreach (var pair in stats)
-        {
-            ranks[pair.Key] = pair.Key.IsUnassigned ? 9
-                : pair.Value.NeedsHuman > 0 ? 0
-                : pair.Value.Working > 0 ? 1
-                : 2;
-        }
-
-        var result = new (string Key, string Label, string Meta)[ordered.Count];
+        var result = new ProjectGroup[ordered.Count];
         for (var index = 0; index < ordered.Count; index++)
         {
             var project = ordered[index].AssignedProject;
             var entry = stats[project.Id];
-            var rank = ranks[project.Id];
-            var key = rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
-                      (project.IsUnassigned ? "~unassigned" : project.DisplayName);
-            var meta = entry.Working.ToString(System.Globalization.CultureInfo.InvariantCulture) + " working · " +
-                       entry.NeedsHuman.ToString(System.Globalization.CultureInfo.InvariantCulture) + " needs you · " +
-                       string.Join(", ", entry.Harnesses.OrderBy(static item => item, StringComparer.Ordinal));
-            if (entry.Partial)
-            {
-                meta += " · partial";
-            }
-
-            result[index] = (key, project.IsUnassigned ? "Unassigned" : project.DisplayName, meta);
+            var rank = project.IsUnassigned ? 9
+                : entry.NeedsHuman > 0 ? 0
+                : entry.Working > 0 ? 1
+                : 2;
+            var key = project.IsUnassigned
+                ? "9|~unassigned"
+                : rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + project.DisplayName + "|" + project.Id;
+            var harnesses = entry.Harnesses.OrderBy(static item => item, StringComparer.Ordinal).ToArray();
+            result[index] = new ProjectGroup(
+                key,
+                project.IsUnassigned ? "Unassigned" : project.DisplayName,
+                project.Id,
+                project,
+                entry.Working,
+                entry.NeedsHuman,
+                entry.Partial,
+                harnesses);
         }
 
         return result;
@@ -575,12 +754,24 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         var other => other,
     };
 
+    private sealed record ProjectGroup(
+        string Key,
+        string Label,
+        ProjectId ProjectId,
+        ProjectDescriptor Project,
+        int Working,
+        int NeedsHuman,
+        bool Partial,
+        IReadOnlyList<string> Harnesses)
+    {
+        public string Meta =>
+            Working.ToString(System.Globalization.CultureInfo.InvariantCulture) + " working · " +
+            NeedsHuman.ToString(System.Globalization.CultureInfo.InvariantCulture) + " needs you · " +
+            string.Join(", ", Harnesses) + (Partial ? " · partial" : string.Empty);
+    }
+
     private sealed class ProjectStats
     {
-        public ProjectStats(string displayName) => DisplayName = displayName;
-
-        public string DisplayName { get; }
-
         public int Working;
 
         public int NeedsHuman;
@@ -593,31 +784,114 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Deterministic row order: attention-bearing states first, then by stable
-    /// task number. Age never participates, so rows cannot shuffle every tick.
+    /// Navigation availability is decided from normalized identity only, and it is
+    /// harness-qualified: the codex:// route is a Codex adapter capability, so no
+    /// other harness is ever offered it.
     /// </summary>
-    public static IReadOnlyList<AgentTask> Order(IReadOnlyList<AgentTask> tasks)
-    {
-        var ordered = new List<AgentTask>(tasks);
-        ordered.Sort(static (left, right) =>
-        {
-            var rank = TaskRowViewModel.Rank(left).CompareTo(TaskRowViewModel.Rank(right));
-            return rank != 0 ? rank : left.Number.CompareTo(right.Number);
-        });
-        return ordered;
-    }
-
-    /// <summary>Navigation availability is decided from normalized identity only.</summary>
     public static bool CanNavigate(AgentTask task) =>
+        HarnessIds.Normalize(task.Key.HarnessId) == HarnessIds.Codex &&
         task.Surface == ClientSurface.Desktop &&
         !task.IsProvisional &&
         task.State != AgentTaskState.Idle &&
         task.Key.ConversationId.Length > 0;
 
-    public static string NavigationHint(AgentTask task) =>
-        CanNavigate(task)
-            ? "Open this task in Codex"
-            : "Open this task in Codex manually — no supported route for this task";
+    /// <summary>Honest action wording for this task; never promises an unsupported route.</summary>
+    public static string NavigationHint(AgentTask task)
+    {
+        var harness = HarnessIds.Normalize(task.Key.HarnessId);
+        if (harness == HarnessIds.Codex)
+        {
+            return CanNavigate(task)
+                ? "Open this task in Codex"
+                : "No supported Codex route for this task — click to copy its id";
+        }
+
+        return "No supported open route for " + ShortHarness(harness) + " tasks — click to copy this task's id";
+    }
+
+    // ---- project expansion -------------------------------------------------------
+
+    private readonly HashSet<ProjectId> _collapsedProjects = new();
+    private bool _allCollapsed;
+
+    /// <summary>True while at least one project is collapsed.</summary>
+    public bool AnyProjectCollapsed => _allCollapsed || _collapsedProjects.Count > 0;
+
+    public bool AllProjectsExpanded => Projects.Count > 0 && !AnyProjectCollapsed;
+
+    /// <summary>Project click toggles that project's task rows; observation is untouched.</summary>
+    public void ToggleProject(ProjectRowViewModel? project)
+    {
+        if (project is null)
+        {
+            return;
+        }
+
+        SetProjectExpanded(project.ProjectId, !project.IsExpanded);
+    }
+
+    /// <summary>
+    /// Expansion is remembered per ProjectId, not per row instance, so it survives
+    /// every snapshot rebuild and never restarts monitoring, history or voice.
+    /// </summary>
+    public void SetProjectExpanded(ProjectId projectId, bool expanded)
+    {
+        if (expanded)
+        {
+            if (_allCollapsed)
+            {
+                _allCollapsed = false;
+                foreach (var project in Projects)
+                {
+                    if (!project.ProjectId.Equals(projectId))
+                    {
+                        _collapsedProjects.Add(project.ProjectId);
+                    }
+                }
+            }
+
+            _collapsedProjects.Remove(projectId);
+        }
+        else
+        {
+            _collapsedProjects.Add(projectId);
+        }
+
+        ApplyProjectExpansion();
+    }
+
+    public void SetAllProjectsExpanded(bool expanded)
+    {
+        _allCollapsed = !expanded;
+        _collapsedProjects.Clear();
+        if (!expanded)
+        {
+            foreach (var project in Projects)
+            {
+                _collapsedProjects.Add(project.ProjectId);
+            }
+        }
+
+        ApplyProjectExpansion();
+    }
+
+    private bool IsProjectCollapsed(ProjectId projectId) => _allCollapsed || _collapsedProjects.Contains(projectId);
+
+    private void ApplyProjectExpansion()
+    {
+        foreach (var project in Projects)
+        {
+            project.SetExpanded(!IsProjectCollapsed(project.ProjectId));
+        }
+
+        foreach (var row in Tasks)
+        {
+            row.SetProjectExpanded(!IsProjectCollapsed(row.ProjectGroupProjectId));
+        }
+
+        Raise(nameof(AnyProjectCollapsed));
+        Raise(nameof(AllProjectsExpanded));
+    }
 
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {

@@ -121,6 +121,27 @@ public static class HudText
             ? "Task #" + task.Number.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : task.DisplayLabel;
 
+    /// <summary>
+    /// Short harness badge plus the source instance when it differs, so a task row
+    /// names the harness that produced it. Never a path, profile root or provider
+    /// guess: the badge is the normalized harness id.
+    /// </summary>
+    public static string Harness(AgentTask task)
+    {
+        var harness = HarnessIds.Normalize(task.Key.HarnessId);
+        var badge = harness switch
+        {
+            HarnessIds.Codex => "Codex",
+            HarnessIds.Dsh => "dsh",
+            HarnessIds.Claude => "Claude",
+            _ => harness,
+        };
+        var instance = task.ProfileId ?? string.Empty;
+        return instance.Length > 0 && !string.Equals(instance, harness, StringComparison.OrdinalIgnoreCase)
+            ? badge + "/" + instance
+            : badge;
+    }
+
     public static string CapabilityDisclosure(MonitorCapabilities capabilities)
     {
         var permission = Support(capabilities.PermissionRequests.Support);

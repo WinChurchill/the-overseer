@@ -1,6 +1,7 @@
 using TheOverseer.App.Diagnostics;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Models;
+using TheOverseer.Tests.Support;
 using TheOverseer.UI.ViewModels;
 
 namespace TheOverseer.Tests;
@@ -233,7 +234,31 @@ public sealed class HudViewModelTests
         Assert.Equal("▾", viewModel.ExpandGlyph);
         viewModel.IsExpanded = true;
         Assert.Equal("▴", viewModel.ExpandGlyph);
-        Assert.Contains("Click a task", viewModel.FooterHint, StringComparison.Ordinal);
+        Assert.Contains("Click a Codex task", viewModel.FooterHint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FooterAndRowHintsNeverAdvertiseAnUnsupportedRoute()
+    {
+        var codex = new TaskKey("codex", "01a0d000-0000-0000-0000-0000000000c1") { HarnessId = HarnessIds.Codex };
+        var dsh = TaskKey.For(HarnessIds.Dsh, "dsh-default", "01a0d000-0000-0000-0000-0000000000d1");
+        var viewModel = CreateViewModel();
+        viewModel.ApplySnapshot(CompleteSnapshot(2, 0, VoiceTestData.Task(key: codex), VoiceTestData.Task(key: dsh, number: 2)));
+
+        // A mixed view offers the Codex route for Codex rows only.
+        Assert.True(viewModel.Tasks.Single(row => row.Key.HarnessId == HarnessIds.Codex).CanNavigate);
+        var dshRow = viewModel.Tasks.Single(row => row.Key.HarnessId == HarnessIds.Dsh);
+        Assert.False(dshRow.CanNavigate);
+        Assert.Contains("no supported open route", dshRow.NavigationHint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("copy", dshRow.NavigationHint, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Codex", dshRow.NavigationHint, StringComparison.Ordinal);
+
+        // A view with no routable task never claims a Codex link at all.
+        var dshOnly = CreateViewModel();
+        dshOnly.ApplySnapshot(CompleteSnapshot(1, 0, VoiceTestData.Task(key: dsh, number: 2)));
+        Assert.False(dshOnly.HasNavigableRows);
+        Assert.DoesNotContain("Codex", dshOnly.FooterHint, StringComparison.Ordinal);
+        Assert.Contains("no supported open route", dshOnly.FooterHint, StringComparison.OrdinalIgnoreCase);
     }
 
     private const double HudSettingsMaximumOpacity = 1.0;

@@ -136,8 +136,8 @@ public sealed partial class HudApplicationController
         var scale = _dependencies.Placement.GetDpiScale(_handle, screen);
         var width = Math.Min(_state.WindowWidth, screen.Width / scale);
         var height = Math.Min(_state.WindowHeight, screen.Height / scale);
-        _window.MinWidth = Math.Min(280, width);
-        _window.MinHeight = Math.Min(200, height);
+        _window.MinWidth = Math.Min(320, width);
+        _window.MinHeight = Math.Min(220, height);
         _window.Width = width;
         _window.Height = height;
         var position = new HudWindowState { MonitorDeviceName = screen.DeviceName,

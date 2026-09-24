@@ -65,6 +65,28 @@ public partial class HudWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>
+    /// The visible close control. It routes through the same close intent as ×,
+    /// Alt+F4 and the system menu: hide to tray while a working tray exists, and an
+    /// unconditional orderly shutdown otherwise. It never bypasses the controller.
+    /// </summary>
+    private void OnCloseClick(object sender, RoutedEventArgs e)
+    {
+        Close();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Honest close wording: the tooltip only promises hide-to-tray when the session
+    /// can actually be restored from a tray icon.
+    /// </summary>
+    public void SetCloseBehavior(bool hideToTray)
+    {
+        var text = hideToTray ? "Hide to tray" : "Close OVERSEER";
+        CloseButton.ToolTip = text;
+        System.Windows.Automation.AutomationProperties.SetName(CloseButton, text);
+    }
+
     public void UpdateMaximizeControl()
     {
         var maximized = WindowState == WindowState.Maximized;
@@ -99,22 +121,33 @@ public partial class HudWindow : Window
     {
         IsWindowView = enabled;
         if (!preserveBounds) WindowState = WindowState.Normal;
-        MinWidth = 280;
-        MinHeight = enabled ? 200 : 0;
+        // Minimum outer size from the handoff's size matrix: below it the header
+        // controls stop being comfortably reachable.
+        MinWidth = enabled ? 320 : 280;
+        MinHeight = enabled ? 220 : 0;
         ExpandButton.ToolTip = enabled ? "Collapse to compact HUD" : "Expand task list";
         System.Windows.Automation.AutomationProperties.SetName(ExpandButton, (string)ExpandButton.ToolTip);
         if (enabled && ViewModel is { } vm) vm.IsExpanded = true;
         UpdateResponsiveLayout();
     }
 
+    /// <summary>
+    /// One shared Light/Dark layout reflowed against the live content width. The
+    /// branding collapses first, then the strip/legend block, so the controls and the
+    /// attention summary stay readable; the header row itself is never scrolled away.
+    /// </summary>
     public void UpdateResponsiveLayout()
     {
-        var narrow = ActualWidth - (ViewModel?.LightExtraWidth ?? 0) < 260;
-        BrandLabel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        // In a short native Snap region the complete content remains reachable.
+        var contentWidth = ActualWidth - (ViewModel?.LightExtraWidth ?? 0);
+        BrandLabel.Visibility = contentWidth < 260 ? Visibility.Collapsed : Visibility.Visible;
+        // In a short native Snap region the content scrolls below the pinned header.
         var shortWindow = IsWindowView && ActualHeight < 500;
         ContentScroll.VerticalScrollBarVisibility = shortWindow ? System.Windows.Controls.ScrollBarVisibility.Auto : System.Windows.Controls.ScrollBarVisibility.Disabled;
+        ContentScroll.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled;
         TaskScroll.Height = shortWindow ? 180 : double.NaN;
+        // The legend is the first thing to give way at the narrowest widths; its
+        // text stays in the tooltip and in every bin's automation name.
+        ActivityLegend.Visibility = contentWidth < 300 ? Visibility.Collapsed : Visibility.Visible;
         SummaryRow.Height = new GridLength(IsWindowView ? 86 : 72);
         var verticalLight = ViewModel?.LightPosition is "left" or "right";
         StatusLight.MaxWidth = IsWindowView && verticalLight ? Math.Max(6, ActualWidth - 270) : double.PositiveInfinity;

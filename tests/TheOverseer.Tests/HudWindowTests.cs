@@ -185,9 +185,9 @@ public sealed class HudWindowTests
             {
                 window.Show();
                 window.UpdateLayout();
-                var list = (System.Windows.Controls.ItemsControl)window.FindName("TaskList");
-                var container = list.ItemContainerGenerator.ContainerFromIndex(0);
-                var button = FindButton(container)!;
+                var list = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList");
+                var button = FindVisuals<System.Windows.Controls.Button>(list)
+                    .First(candidate => candidate.DataContext is TaskRowViewModel row && row.Key.Equals(vm.Tasks[0].Key));
                 var menu = button.ContextMenu;
                 menu.PlacementTarget = button;
                 menu.IsOpen = true;
@@ -209,6 +209,149 @@ public sealed class HudWindowTests
             if (found is not null) return found;
         }
         return null;
+    }
+
+    [Fact]
+    public void ProjectRowsRenderExpandableHeadersWithStripsAndLegend()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            HudThemeManager.Apply(Application.Current, HudTheme.Dark);
+            var viewModel = new HudViewModel(HudSettings.Default);
+            viewModel.ApplySnapshot(SyntheticHudScenarios.Mixed());
+            viewModel.IsExpanded = true;
+            var window = new HudWindow { DataContext = viewModel, Width = 440, Height = 640 };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                var list = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList")!;
+                Assert.Equal(viewModel.Projects.Count, list.Items.Count);
+                Assert.True(viewModel.Projects.Count > 1, "the synthetic scenario must exercise several projects");
+
+                // One expandable project row per project, each with an affordance and
+                // a real task list underneath.
+                var headers = FindVisuals<System.Windows.Controls.Button>(list)
+                    .Where(button => button.CommandParameter is ProjectRowViewModel).ToArray();
+                Assert.Equal(viewModel.Projects.Count, headers.Length);
+                Assert.All(headers, header => Assert.Contains("project", header.ToolTip!.ToString()!, StringComparison.OrdinalIgnoreCase));
+
+                var legend = (System.Windows.Controls.ItemsControl)window.FindName("ActivityLegend")!;
+                Assert.Equal(viewModel.Legend.Count, legend.Items.Count);
+                Assert.True(legend.ActualWidth > 0);
+                Assert.Equal(Visibility.Visible, legend.Visibility);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
+    public void CollapsingAProjectHidesOnlyItsTaskRows()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            HudThemeManager.Apply(Application.Current, HudTheme.Dark);
+            var viewModel = new HudViewModel(HudSettings.Default);
+            viewModel.ApplySnapshot(SyntheticHudScenarios.Mixed());
+            viewModel.IsExpanded = true;
+            var window = new HudWindow { DataContext = viewModel, Width = 440, Height = 640 };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var list = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList")!;
+                var first = viewModel.Projects[0];
+                var rows = FindVisuals<System.Windows.Controls.Button>(list)
+                    .Where(button => button.DataContext is TaskRowViewModel).ToArray();
+                var mine = rows.Where(button => ((TaskRowViewModel)button.DataContext).ProjectGroupKey == first.Key).ToArray();
+                Assert.NotEmpty(mine);
+                Assert.All(mine, button => Assert.True(button.IsVisible));
+
+                viewModel.ToggleProject(first);
+                window.UpdateLayout();
+
+                Assert.All(mine, button => Assert.False(button.IsVisible));
+                Assert.All(viewModel.Projects.Where(project => project.Key != first.Key),
+                    project => Assert.True(project.IsExpanded));
+                Assert.Equal(viewModel.Projects.Sum(project => project.Tasks.Count), viewModel.Tasks.Count);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
+    public void CloseControlMatchesTrayAvailability()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var window = new HudWindow { DataContext = new HudViewModel(HudSettings.Default) };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var close = (System.Windows.Controls.Button)window.FindName("CloseButton")!;
+                Assert.Equal("Hide to tray", close.ToolTip);
+                Assert.Equal("Hide to tray", System.Windows.Automation.AutomationProperties.GetName(close));
+
+                window.SetCloseBehavior(hideToTray: false);
+                Assert.Equal("Close OVERSEER", close.ToolTip);
+                Assert.Equal("Close OVERSEER", System.Windows.Automation.AutomationProperties.GetName(close));
+
+                window.SetCloseBehavior(hideToTray: true);
+                Assert.Equal("Hide to tray", close.ToolTip);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Fact]
+    public void HeaderStaysPinnedWhileTheExpandedContentScrolls()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            HudThemeManager.Apply(Application.Current, HudTheme.Dark);
+            var viewModel = new HudViewModel(HudSettings.Default);
+            viewModel.ApplySnapshot(SyntheticHudScenarios.Mixed());
+            var window = new HudWindow { DataContext = viewModel, ShowActivated = false };
+            try
+            {
+                window.Show();
+                window.SetWindowView(true);
+                window.Height = 240;
+                window.UpdateLayout();
+
+                var header = (FrameworkElement)window.FindName("DragRegion")!;
+                var scroller = (System.Windows.Controls.ScrollViewer)window.FindName("ContentScroll")!;
+                var panel = (FrameworkElement)window.FindName("ExpandedPanel")!;
+
+                // The header is outside the scroller, so a short layout cannot scroll
+                // the controls or the attention summary out of reach.
+                Assert.False(scroller.IsAncestorOf(header));
+                Assert.True(scroller.IsAncestorOf(panel));
+                Assert.Equal(Visibility.Visible, header.Visibility);
+                Assert.Equal(System.Windows.Controls.ScrollBarVisibility.Auto, scroller.VerticalScrollBarVisibility);
+                Assert.True(header.ActualHeight > 0);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    private static IReadOnlyList<T> FindVisuals<T>(System.Windows.DependencyObject node) where T : System.Windows.DependencyObject
+    {
+        var found = new List<T>();
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); index++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(node, index);
+            if (child is T match)
+            {
+                found.Add(match);
+            }
+
+            found.AddRange(FindVisuals<T>(child));
+        }
+
+        return found;
     }
 
     [Fact]

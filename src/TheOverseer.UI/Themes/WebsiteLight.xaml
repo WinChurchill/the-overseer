@@ -16,6 +16,24 @@
   <SolidColorBrush x:Key="UnavailableBrush" Color="#9C3B2E" />
   <SolidColorBrush x:Key="StaleBrush" Color="#7A7F78" />
   <SolidColorBrush x:Key="PanelOverlayBrush" Color="#0F000000" />
+  <!-- Unknown coverage is a hatch, never a flat idle-looking fill. -->
+  <DrawingBrush x:Key="ActivityUnknownBrush" TileMode="Tile" Viewport="0,0,3,3" ViewportUnits="Absolute"
+                Viewbox="0,0,3,3" ViewboxUnits="Absolute" Stretch="Fill">
+    <DrawingBrush.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Brush="#14666B65">
+          <GeometryDrawing.Geometry>
+            <RectangleGeometry Rect="0,0,3,3" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+        <GeometryDrawing Geometry="M 0,3 L 3,0">
+          <GeometryDrawing.Pen>
+            <Pen Brush="#B3666B65" Thickness="1" />
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+      </DrawingGroup>
+    </DrawingBrush.Drawing>
+  </DrawingBrush>
 
   <FontFamily x:Key="PrimaryFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
   <FontFamily x:Key="MetadataFontFamily">Cascadia Mono, Consolas</FontFamily>
