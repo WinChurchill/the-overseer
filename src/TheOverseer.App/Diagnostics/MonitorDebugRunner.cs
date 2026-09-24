@@ -76,7 +76,8 @@ internal static class MonitorDebugRunner
             ? new WindowsSessionActivitySource()
             : NullRuntimeActivitySource.Instance;
 
-        await using var monitor = new CodexMonitor(monitorOptions, profiles, activitySource, monitorLog, TimeProvider.System);
+        var projects = new ProjectResolver(configResult.Config.Project);
+        await using var monitor = new CodexMonitor(monitorOptions, profiles, activitySource, monitorLog, TimeProvider.System, projects);
 
         Write("OVERSEER monitor debug (finite run; no window)");
         Write("console: " + (consoleAvailable ? "attached" : "unavailable"));

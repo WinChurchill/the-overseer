@@ -49,13 +49,30 @@ public sealed class AgentStateReducer
         ClientSurface surface,
         string label,
         bool identityResolved,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string workspaceRoot = "",
+        ProjectDescriptor? project = null)
     {
         var key = new TaskKey(profileId, conversationId);
         var task = GetOrCreate(key, now);
         if (surface != ClientSurface.Unknown && task.Surface == ClientSurface.Unknown)
         {
             task.Surface = surface;
+        }
+
+        if (workspaceRoot.Length > 0)
+        {
+            // The first resolved root wins for the session: an incidental shell cd
+            // must not silently move a whole session between projects.
+            if (task.WorkspaceRoot.Length == 0)
+            {
+                task.WorkspaceRoot = workspaceRoot;
+            }
+        }
+
+        if (project is not null && task.Project is null)
+        {
+            task.Project = project;
         }
 
         if (label.Length > 0 && task.Label.Length == 0)
@@ -226,6 +243,7 @@ public sealed class AgentStateReducer
         {
             Key = key, Number = old.Number, ProfileId = old.ProfileId, ConversationId = old.ConversationId,
             Label = old.Label, Surface = old.Surface, IdentityResolved = old.IdentityResolved,
+            WorkspaceRoot = old.WorkspaceRoot, Project = old.Project,
             FirstSeenAt = old.FirstSeenAt, StateSince = _timeProvider.GetUtcNow(),
             State = AgentTaskState.Idle, TurnLimit = _options.MaxTurnHistoryPerTask,
             RequestLimit = _options.MaxCorrelatedRequestsPerTask, SeenMarkerLimit = _options.MaxSeenRecordMarkers,
@@ -829,7 +847,9 @@ public sealed class AgentStateReducer
         task.CancellationObserved,
         task.FailureCode is not null,
         task.AttentionCode,
-        task.SourceFiles.Count);
+        task.SourceFiles.Count,
+        task.WorkspaceRoot,
+        task.Project);
 
     private sealed class MutableTask
     {
@@ -840,6 +860,8 @@ public sealed class AgentStateReducer
         public ClientSurface Surface = ClientSurface.Unknown;
         public string Label = string.Empty;
         public bool IdentityResolved;
+        public string WorkspaceRoot = string.Empty;
+        public ProjectDescriptor? Project;
         public string TurnId = string.Empty;
         public DateTimeOffset TurnStartedAt;
         public DateTimeOffset TurnLastActivityAt;

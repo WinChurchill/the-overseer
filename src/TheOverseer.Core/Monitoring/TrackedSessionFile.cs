@@ -22,6 +22,9 @@ internal sealed class TrackedSessionFile
 
     public string WorkspaceLeaf { get; set; } = string.Empty;
 
+    /// <summary>Normalized local workspace root. Local metadata; never logged.</summary>
+    public string WorkspaceRoot { get; set; } = string.Empty;
+
     public bool IdentityResolved { get; set; }
 
     public bool IdentityProvisional { get; set; }

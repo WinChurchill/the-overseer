@@ -85,8 +85,16 @@ public sealed record AgentTask(
     bool CancellationObserved,
     bool TerminalFailureObserved,
     string? AttentionCode,
-    int SourceFileCount)
+    int SourceFileCount,
+    string WorkspaceRoot = "",
+    ProjectDescriptor? Project = null)
 {
+    /// <summary>
+    /// Project attribution. Unassigned is a real answer, not a missing one.
+    /// The root is local metadata and never reaches logs, voice or exports.
+    /// </summary>
+    public ProjectDescriptor AssignedProject => Project ?? ProjectDescriptor.UnassignedProject;
+
     public bool IsTerminal => State is AgentTaskState.Done or AgentTaskState.Error;
 
     /// <summary>True when this task counts as work in progress.</summary>

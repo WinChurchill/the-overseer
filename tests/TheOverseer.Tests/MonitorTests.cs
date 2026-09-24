@@ -428,6 +428,46 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
+    public void WorkspaceRootIsRetainedAndMappedToAProject()
+    {
+        var id = "01a0c730-0000-0000-0000-000000000030";
+        _home.WriteRollout(id, new[] { Records.SessionMeta(id, cwd: @"D:\work\app\src"), Records.TaskStarted("turn-1") });
+        var settings = new ProjectSettings
+        {
+            Mappings = new[] { new ProjectRootMapping { ProjectKey = "app", Name = "app", Root = @"D:\work\app" } },
+        };
+
+        using var monitor = new CodexMonitor(
+            MonitorOptions.Default,
+            new[] { Profile },
+            null,
+            null,
+            _clock,
+            new ProjectResolver(settings));
+
+        var task = Single(monitor.Refresh());
+
+        // The normalized local root is retained for attribution; the display leaf
+        // stays the fallback label and no root becomes a diagnostic.
+        Assert.Equal(@"d:\work\app\src", task.WorkspaceRoot);
+        Assert.Equal("app", task.AssignedProject.DisplayName);
+        Assert.Equal(ProjectResolution.ConfiguredRoot, task.AssignedProject.Resolution);
+    }
+
+    [Fact]
+    public void AnUnresolvableWorkspaceStaysHonestlyUnassigned()
+    {
+        var id = "01a0c731-0000-0000-0000-000000000031";
+        _home.WriteRollout(id, new[] { Records.SessionMeta(id, cwd: "relative-workspace"), Records.TaskStarted("turn-1") });
+
+        using var monitor = Create();
+        var task = Single(monitor.Refresh());
+
+        Assert.Equal(string.Empty, task.WorkspaceRoot);
+        Assert.True(task.AssignedProject.IsUnassigned);
+    }
+
+    [Fact]
     public void ObservationCountersReflectActualRecords()
     {
         var id = "01a0c70f-0000-0000-0000-000000000010";

@@ -60,7 +60,10 @@ internal static class HudComposition
             ? new WindowsSessionActivitySource()
             : NullRuntimeActivitySource.Instance;
 
-        var monitor = new CodexMonitor(monitorOptions, profiles, activitySource, log, TimeProvider.System);
+        // Project attribution is resolved by the monitor from each session's
+        // retained workspace root; the resolver is bounded and cached.
+        var projects = new ProjectResolver(configResult.Config.Project);
+        var monitor = new CodexMonitor(monitorOptions, profiles, activitySource, log, TimeProvider.System, projects);
         var executablePath = Environment.ProcessPath ?? string.Empty;
         var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
         var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));

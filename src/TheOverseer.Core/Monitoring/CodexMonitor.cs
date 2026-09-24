@@ -37,6 +37,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     private int _nextFileId;
     private long _bytesRead;
     private DateTimeOffset _lastReconcileAt;
+    private readonly ProjectResolver? _projects;
     private DateTimeOffset? _lastSuccessfulReadAt;
     private RuntimeActivityAvailability _runtimeAvailability = RuntimeActivityAvailability.NotConfigured;
     private bool _anyLiveAttention;
@@ -48,12 +49,14 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         IReadOnlyList<SessionProfile> profiles,
         IRuntimeActivitySource? activitySource = null,
         IMonitorLog? log = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ProjectResolver? projectResolver = null)
     {
         _options = (options ?? MonitorOptions.Default).Clamped();
         _activitySource = activitySource ?? NullRuntimeActivitySource.Instance;
         _log = log ?? NullMonitorLog.Instance;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _projects = projectResolver;
         _reducer = new AgentStateReducer(_options, _timeProvider);
         _attention = new AttentionDetector(_options);
 
@@ -629,6 +632,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 ConversationId = conversationId,
                 Surface = identity.Surface,
                 WorkspaceLeaf = identity.WorkspaceLeaf,
+                WorkspaceRoot = identity.WorkspaceRoot,
                 IdentityResolved = identity.Found,
                 IdentityProvisional = provisional,
                 Length = candidate.Length,
@@ -649,13 +653,24 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             }
             _tracked[candidate.FullName] = file;
 
+            // Project attribution uses the retained workspace root. Resolution is
+            // bounded and cached; an explicit configuration mapping outranks the
+            // filesystem evidence, and an unresolved task stays Unassigned.
+            ProjectAssignment? assignment = null;
+            if (_projects is not null && identity.WorkspaceRoot.Length > 0)
+            {
+                assignment = _projects.Resolve(identity.WorkspaceRoot);
+            }
+
             var task = _reducer.RegisterConversation(
                 state.Profile.Id,
                 conversationId,
                 identity.Surface,
                 identity.WorkspaceLeaf,
                 identity.Found,
-                now);
+                now,
+                identity.WorkspaceRoot,
+                assignment?.Project);
 
             var title = state.Titles.GetTitle(conversationId);
             if (title.Length > 0)

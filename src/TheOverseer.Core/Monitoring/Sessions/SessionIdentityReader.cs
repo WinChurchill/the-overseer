@@ -12,6 +12,7 @@ public sealed record SessionIdentity(
     bool Found,
     string ConversationId,
     string WorkspaceLeaf,
+    string WorkspaceRoot,
     ClientSurface Surface,
     string ThreadSourceCode,
     string HistoryModeCode,
@@ -22,7 +23,7 @@ public sealed record SessionIdentity(
     string DiagnosticCode)
 {
     public static SessionIdentity Empty(string diagnostic) => new(
-        false, string.Empty, string.Empty, ClientSurface.Unknown, string.Empty, string.Empty, string.Empty,
+        false, string.Empty, string.Empty, string.Empty, ClientSurface.Unknown, string.Empty, string.Empty, string.Empty,
         false, false, false, diagnostic);
 }
 
@@ -168,7 +169,12 @@ public static class SessionIdentityReader
             var threadSource = Sanitize(GetString(payload, "thread_source", 64), 64);
             var historyMode = Sanitize(GetString(payload, "history_mode", 32), 32);
             var cliVersion = Sanitize(GetString(payload, "cli_version", 32), 32);
-            var workspaceLeaf = PortableLeaf(GetString(payload, "cwd", 512));
+            // The workspace root is retained locally for project attribution; the
+            // leaf stays the display fallback. Roots never reach logs, voice or
+            // exports, and normalization rejects relative/device paths.
+            var workspace = GetString(payload, "cwd", 512);
+            var workspaceLeaf = PortableLeaf(workspace);
+            var workspaceRoot = ProjectResolver.Normalize(workspace);
             var isInternal = subagentSource ||
                              (threadSource.Length > 0 && InternalThreadSources.Contains(threadSource));
 
@@ -176,6 +182,7 @@ public static class SessionIdentityReader
                 id.Length > 0,
                 id,
                 workspaceLeaf,
+                workspaceRoot,
                 GetClientSurface(originator, sourceName),
                 threadSource,
                 historyMode,

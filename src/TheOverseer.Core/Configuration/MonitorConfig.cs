@@ -38,6 +38,14 @@ public sealed record MonitorConfig
     /// </summary>
     [JsonPropertyName("voice")]
     public VoiceSettings Voice { get; init; } = new();
+
+    /// <summary>
+    /// Additive project settings: root mappings, path aliases and cache bounds.
+    /// Absent settings leave every task resolvable by repository/workspace evidence
+    /// alone, and roots are never written to logs or exports.
+    /// </summary>
+    [JsonPropertyName("project")]
+    public ProjectSettings Project { get; init; } = new();
 }
 
 public sealed record MonitorLimits
