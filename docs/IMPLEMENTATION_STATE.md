@@ -370,6 +370,61 @@ Verification for this continuation: Release build **0 warnings / 0 errors**, .NE
 **509 passed / 0 failed / 0 skipped**, dsh 29/29 and Claude 19/19 across repeated runs,
 `git diff --check` clean.
 
+### DeepSeek session checkpoint 3 — composite monitoring wired (2026-09-24)
+
+**Session checkpoint, not a project blocker.** Product work resumed at `37fd4fc` and the
+first two items of the packet are now implemented and wired into composition.
+
+Delivered in this session (all committed):
+
+- `Core/Monitoring/Bridge/HarnessBridgeRecord.cs` — the frozen bridge envelope parser
+  (schema 1, exact keys, bounded sizes, unknown/malformed/unsupported outcomes).
+- `Core/Monitoring/Bridge/HarnessBridgeSession.cs` — per-source folding with
+  per-session sequence/epoch validation, hydration silence, correlated approvals/inputs,
+  late-tool-start rejection after turn end, aborted-turn silence, error vs tool failure,
+  plan mode as a point marker, and honest coverage: sequence gaps, producer drops and
+  first-attach (pre-attach history unknown) all mark coverage incomplete instead of
+  looking like healthy work.
+- `App/Monitoring/BridgeMonitorAdapter.cs` — bounded incremental spool reader
+  (`<data>/bridges/<harness>/<instance>/events.jsonl`, 1 MiB/pass, partial trailing
+  line left for the next pass, rotation detected) plus producer health drops
+  (`dropped*`/`overflow*` counters) converted into reduced coverage, and task
+  projection onto the shared contract with project resolution.
+- `App/Monitoring/CompositeMonitorSource.cs` — `CodexMonitorAdapter` over the existing
+  Codex monitor and `CompositeMonitorSource` merging every source's latest snapshot:
+  source-local health/reasons (`harness:reason`), counts that are only complete when
+  every contributing source is complete (partial lower bounds otherwise, unknown when
+  nothing is readable), transitions forwarded once, and global completion suppressed
+  while any source's coverage is incomplete. A failing source can neither erase another
+  source's tasks nor refresh its evidence.
+- `App/Monitoring/HarnessSources.cs` + `HudComposition` — the HUD monitor is now the
+  composite; a bridge source exists only when its spool directory exists (installed =
+  present, never a disabled phantom), and `"disabledHarnessSources"` can exclude one.
+- Startup race resolved (not merely tested): the show listener starts in the controller
+  constructor, and a request that arrives before the window exists is queued and
+  honoured as soon as the window is created.
+
+Verification: Release build **0 warnings / 0 errors**; .NET tests **509 passed /
+0 failed / 0 skipped**. No new automated tests for the bridge/composite yet — that is
+the next executable step, and until they exist this work is unverified beyond compile
+and the existing suite.
+
+Next executable steps, in order:
+1. Tests: `HarnessBridgeSessionTests` (gap/duplicate/epoch, hydration silence, late
+   tool start, aborted vs error, producer-drop coverage) and `CompositeMonitorTests`
+   (source-local failure isolation, partial vs unknown counts, single global completion,
+   transition forwarded once, disabled source excluded).
+2. Cross-source notification verification through `NotificationCoordinator` with two
+   sources (dedupe by harness-qualified key, no replay on hydration, no source storm).
+3. Project-first HUD/settings + project/task activity strips (`ActivityStrips` is
+   already wired into the coordinator).
+4. Offline baseline voice; visible close button/header/menu/responsive sizing.
+5. Renders, clean publish, packaged lifecycle smoke (close now hides to tray), live dsh
+   qualification and honest Claude absence disclosure.
+
+Still absent: the UI work, baseline voice, renders, any package/smoke evidence for this
+round, and live multi-harness qualification.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
