@@ -237,7 +237,21 @@ audit pair the bridge correlates.
    dsh profile (that is the opt-in step and would modify live harness settings), and no
    model-backed session was run. Contract tests plus the structural probe above are the
    evidence; live attach is not claimed.
-3. **Claude Code is not installed**, so its bridge is synthetic-contract-tested only.
+3. **Claude Code CLI is not installed** (no `claude` on PATH, no
+   `~/.claude/settings.json`, no npm-global package, no CLI binary in the installed
+   package), so the bridge is synthetic-contract-tested only. Correcting an earlier
+   over-broad claim: Claude **is** installed and running as the **desktop app
+   2.9939.2.0** (MSIX `Claude_pzs8sxrjxfjjc`, "Cowork"; config under
+   `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\`).
+   Its bundle contains a Hooks surface with the same nine event names our mapping uses
+   (PreToolUse, PostToolUse, Notification, UserPromptSubmit, SessionStart, SessionEnd,
+   Stop, SubagentStop, PreCompact), but no configuration file of that app contains a
+   `hooks` section and the documented Claude Code payload fields
+   (`hook_event_name`, `transcript_path`) do not appear anywhere in its bundle, so
+   its hook payload is not verified to match the bridge contract. The documented
+   opt-in installer targets a Claude Code settings file (15 events, marker
+   `overseer-claude-bridge`, preview-only unless `--apply`) and was exercised in
+   preview mode against a temporary path; nothing in the live app was modified.
 4. Physical checks not performed: real tray icon behaviour, mixed-DPI monitor
    combinations, and an audible speaker check. The offline baseline was verified
    silently through the packaged smoke and a real synthesized WAV.

@@ -130,8 +130,13 @@
   opt-in plugin install into the user's own dsh profile and a real model-backed
   session. Structural compatibility with the installed `dsh 0.1.5-rc.3` seam
   declarations is verified; live attach is not claimed.
-- Claude Code is not installed on this machine, so its bridge remains contract-tested
-  with a synthetic hook payload only.
+- The Claude Code **CLI** is not installed, so the bridge remains contract-tested with
+  synthetic hook payloads only. The Claude desktop app (2.9939.2.0, MSIX, "Cowork") is
+  installed and running and bundles a Hooks surface with the same nine event names, but
+  it exposes no hooks section in any of its configuration files, and the documented
+  Claude Code payload fields are absent from its bundle, so its payload is not verified
+  to match the bridge contract. Live qualification needs the CLI or a hook registered
+  through the app's own Hooks settings.
 - The packaged **HUD lifecycle** block of the release smoke was not executed in this
   round because the user's own running OVERSEER owns the single-instance guard;
   stopping it was not authorized. The rest of the packaged smoke ran.

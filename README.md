@@ -473,8 +473,18 @@ explicit, reversible opt-in step:
   event into `<spool>/claude/<sourceInstanceId>/events.jsonl` with a single locked
   append, always exits 0 with empty stdout, and never returns a permission decision.
   The installer previews by default, backs up the settings file before writing and
-  removes only OVERSEER-owned entries. Claude Code is **not installed** on this
-  machine, so the bridge is contract-tested only and has never received a live hook.
+  removes only OVERSEER-owned entries. The **Claude Code CLI is not installed** on
+  this machine: there is no `claude` on PATH, no `~/.claude/settings.json`, no
+  npm-global package and no CLI binary inside the installed package. The **Claude
+  desktop app (2.9939.2.0, MSIX, "Cowork") is installed and running**, and its bundle
+  contains a Hooks surface listing the same nine event names (PreToolUse, PostToolUse,
+  Notification, UserPromptSubmit, SessionStart, SessionEnd, Stop, SubagentStop,
+  PreCompact) — but none of its JSON configuration files contains a hooks section, and
+  the documented Claude Code payload fields (`hook_event_name`, `transcript_path`)
+  do not appear in its bundle at all. Its hook payload is therefore **not verified** to
+  match the contract this bridge implements, so the bridge stays contract-tested and
+  has never received a live hook. Qualifying it live needs either the Claude Code CLI
+  or the bridge registered through the desktop app's own Hooks settings.
 - `integrations/deepseek-harness/` — a small host-native observer plugin for the
   official DeepSeek Harness. It runs inside the user's existing `dsh` host, exports
   only allowlisted status metadata to `<spool>/dsh/<sourceInstanceId>/`, never
