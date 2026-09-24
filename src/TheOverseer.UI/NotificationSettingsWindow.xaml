@@ -1,7 +1,7 @@
 <Window x:Class="TheOverseer.UI.NotificationSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="OVERSEER — Light &amp; voice" Width="650" Height="700" MinWidth="280" MinHeight="200"
+        Title="OVERSEER — Light &amp; voice" Width="650" Height="740" MinWidth="280" MinHeight="200"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource BackgroundBaseBrush}"
         Foreground="{DynamicResource ForegroundBrush}" FontSize="13">
   <Window.Resources>
@@ -36,11 +36,23 @@
         <TextBlock Text="{Binding LightSize, StringFormat={}{0} px}" Margin="8,0,0,0" VerticalAlignment="Center" />
       </WrapPanel>
       <TextBlock Text="Green: working · Red: needs attention / offline · Amber: uncertain · Neutral: idle" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,16" />
+      <TextBlock Text="VOICE PROVIDER" FontWeight="SemiBold" />
+      <WrapPanel Margin="0,8,0,4">
+        <TextBlock Text="Provider" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <ComboBox x:Name="ProviderBox" Width="250" SelectedValuePath="Tag" SelectionChanged="OnProviderChanged">
+          <ComboBoxItem Content="Voice pack (local recordings)" Tag="pack" />
+          <ComboBoxItem Content="Windows speech baseline (offline)" Tag="speech" />
+          <ComboBoxItem Content="TTS endpoint" Tag="tts" />
+        </ComboBox>
+        <Button x:Name="UseBaselineButton" Content="Use baseline" Click="OnUseBaseline" Margin="8,0,0,0" />
+      </WrapPanel>
+      <TextBlock x:Name="BaselineStatusText" Text="Windows speech baseline (offline): checking…" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,4" />
+      <TextBlock Text="The selected provider is used for enabled situations only. Opening this panel is silent and sends no request." FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,16" />
       <WrapPanel>
         <TextBlock Text="VOICE RECORDINGS" FontWeight="SemiBold" VerticalAlignment="Center" />
         <CheckBox x:Name="MuteBox" Content="Mute notifications" IsChecked="{Binding IsMuted}" Margin="12,0,0,0" />
       </WrapPanel>
-      <TextBlock Text="Nine situations. Assign a WAV or use your configured pack/TTS. Opening tasks, changing settings, cancellations and immediate work resumption stay silent." Margin="0,8,0,4" Foreground="{DynamicResource MutedBrush}" />
+      <TextBlock Text="Nine situations. An assigned WAV always wins; otherwise the selected provider speaks. Opening tasks, changing settings, cancellations and immediate work resumption stay silent." Margin="0,8,0,4" Foreground="{DynamicResource MutedBrush}" />
       <TextBlock Text="WAV · up to 15 seconds / 4 MiB · recommended: mono, 16-bit PCM, 44.1 kHz" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,12" />
     </StackPanel>
       <ItemsControl x:Name="Rows">
@@ -53,7 +65,7 @@
                 <TextBlock Text="{Binding Definition.Script}" Margin="20,5,0,0" />
                 <TextBlock Text="{Binding Status}" Margin="20,4,0,8" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
                 <WrapPanel Margin="20,0,0,0">
-                  <Button Content="Assign WAV…" Click="OnAssign" /><Button Content="Preview" Click="OnPreview" /><Button Content="Use pack / TTS" Click="OnClear" />
+                  <Button Content="Assign WAV…" Click="OnAssign" /><Button Content="Preview" Click="OnPreview" /><Button Content="Use selected provider" Click="OnClear" />
                 </WrapPanel>
               </StackPanel>
             </Border>
