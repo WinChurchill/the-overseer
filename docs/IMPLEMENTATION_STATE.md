@@ -17,7 +17,7 @@ Product base: d869db6 (custom HUD implementation: 5521980)
   observed activity history)
 - Smoke / package: not rerun in this partial round (see the section below for the
   exact gap)
-- Astra review: pending implementation completion
+- Astra review: CHANGES REQUIRED (2026-09-24, reviewed HEAD 3038bba); see below
 - Prior UX baseline: Release build passed with 0 warnings/errors; 456 tests passed;
   26 render fixtures; package smoke 17/17 with HUD lifecycle skipped in favor of
   recorded manual checks. User confirmed Win+Left/Right and Win+Z work.
@@ -49,6 +49,111 @@ The frozen original four-plan V1 scope documents remain unchanged; this is an ex
 user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
+
+### Astra review — 2026-09-24
+
+Verdict: **CHANGES REQUIRED**. This is an incomplete implementation, not a release
+candidate. Review compared the packet with `d869db6..3038bba`, inspected changed
+composition/lifecycle, resolver and bridge paths, and reran build/tests. The broader
+`main..HEAD` contains prior UX work; this partial review does not certify that full
+52-commit history or live harness integration.
+
+- **MAJOR — essential features are disconnected or absent.** No composite monitor,
+  desktop bridge consumers, retained Codex workspace root, project-first UI/activity
+  strips, offline voice, or visible close/header refinement. New resolver/history/
+  adapter contracts are not consumed by the runtime. Complete the original packet.
+- **MAJOR — second-launch restore is not wired.** `App.xaml.cs` exits immediately
+  when the instance guard is not owned; it never calls `ShowRequestSignal.TrySignal`.
+  The test invokes `RequestShow` directly and cannot validate the real startup path.
+  Wire the signal and add a real isolated second-process regression (including startup
+  timing), then run the packaged lifecycle check. The earlier delivered claim is wrong.
+- **MAJOR — project path normalization can merge or misresolve projects.**
+  `ProjectResolver.Normalize` lowercases POSIX paths, accepts drive-relative `C:repo`,
+  loses the leading UNC prefix during segment joining, and can pop the drive/root
+  segment for `..`. Preserve POSIX case, reject drive-relative/device paths, preserve
+  root boundaries, and never probe UNC/POSIX as local Windows filesystem paths.
+  The real filesystem probe also follows reparse points and uses ReadToEnd after a
+  length check; enforce the promised traversal and actual read-byte bounds. Add tests
+  that assert probe calls as well as resulting project IDs before runtime integration.
+- **MAJOR — bridge verification is not green.** Combined Node suite: 47/48 passed.
+  dsh atomic-current test failed at spool.test.js:118: final marker 85, expected 97.
+  Isolated rerun passed 1/1, so the failure is intermittent, not resolved. The reader
+  observed no torn document; do not describe this as proven data corruption. Inspect
+  transient replacement failure/retry and the test's flush-success assumption; preserve
+  dirty state, prove eventual latest snapshot publication, and make the test deterministic.
+- **MAJOR — no release evidence for this round.** No new clean-source package,
+  packaged lifecycle smoke, new render matrix, audible baseline or live multi-harness
+  qualification. Existing baseline results cannot qualify this implementation.
+
+Fresh review evidence: Release build **0 warnings / 0 errors**; .NET tests
+**486 passed / 0 failed / 0 skipped** (the earlier 483 count is stale). Initial
+sandbox build could not write intermediates; the permitted rerun passed. Claude
+bridge tests 19/19; dsh 28/29 in the combined 48-test run, followed by the one isolated
+passing rerun described above. `git diff --check` passed. No product code was changed
+by this review; no package or live harness setup was attempted.
+
+Version control at review start: clean `ux/first-use`, HEAD `3038bba`, eight commits
+since `d869db6`. `main` remains `663caf5`, an ancestor 52 commits behind HEAD. No remote
+or tracking upstream is configured, so these commits are local, not remotely backed up.
+Frozen documents are unchanged from this round's base. The handoff is intentionally
+ignored and is not carried by Git. Review documentation is a new uncommitted edit.
+
+### DeepSeek continuation — 2026-09-24 (response to review)
+
+Findings addressed on the same branch, each with behavioral tests:
+
+- **Second-launch restore (MAJOR, was a wrong claim).** `App.xaml.cs` now calls
+  `ShowRequestSignal.TrySignal()` before exiting a non-owner launch. The type is
+  public and `ShowRequestSignalTests` exercises the real named-event round trip
+  (repeated delivery, disposal). The packaged second-instance lifecycle check is
+  still pending a package run.
+- **Path-resolution regressions (MAJOR, fixed).** POSIX paths keep their case and
+  compare case-sensitively; drive-relative (`C:repo`), bare/incomplete UNC and
+  device paths are rejected; UNC server/share boundaries are preserved; `..`
+  can no longer pop a drive or share root. The filesystem probe now enforces the
+  byte bound in the read itself, refuses reparse-point ancestors instead of
+  following them, and is never called for UNC or POSIX roots. New tests assert
+  both probe calls and resulting project ids (12 cases).
+- **Intermittent bridge test (MAJOR, fixed).** `writeAtomic` now retries a
+  transient Windows rename failure (EBUSY/EPERM/EACCES) with a bounded backoff and
+  keeps the dirty flag when every attempt fails, so the newest staged snapshot is
+  eventually published instead of being silently skipped. The atomic-current test
+  now proves eventual latest publication rather than assuming one flush won.
+  Evidence: 12 consecutive `node --test` runs in
+  `integrations/deepseek-harness` → 29/29 pass, 0 failed runs (previously one
+  intermittent failure in a combined run).
+- **Disconnected features (MAJOR, partially addressed).** The runtime now retains
+  `session_meta.cwd` as a normalized workspace root through
+  `SessionIdentityReader` → `TrackedSessionFile` → `AgentStateReducer` →
+  `AgentTask.WorkspaceRoot`, resolves the project with `ProjectResolver` at
+  admission (explicit/mapping/git/workspace/Unassigned), and exposes
+  `AgentTask.AssignedProject`. `HudComposition` and the monitor debug harness
+  construct the resolver from the new additive `project` config section
+  (`ProjectSettings`), and `TaskActivityRecorder` records producer-side activity
+  intervals (working/thinking/planning/waiting/unknown/markers) from normalized
+  snapshots with the snapshot timestamp. Still missing: the composite source,
+  desktop bridge ingestion, the project-first UI/strips and the baseline voice.
+- **Release evidence (MAJOR, unchanged).** No package, packaged smoke, render
+  matrix, audible check or live harness qualification was produced in this
+  continuation. The branch has no release evidence for this round.
+
+Verification in this continuation: Release build **0 warnings / 0 errors**,
+.NET tests **506 passed / 0 failed / 0 skipped**, `git diff --check` clean.
+Committed as `4dde05f`, `95bb482`, `132dbaa`, `77ff661`, and the activity-recorder
+commit that follows this entry.
+
+Ordered continuation prompt for DeepSeek (same goal/branch, no new micro-plan):
+1. Read the reviewed handoff and this review; preserve all existing commits/work.
+2. Fix startup restore and path-resolution regressions with behavioral tests; diagnose
+   the intermittent snapshot test without hiding it through retries.
+3. Finish workspace propagation, composite source ownership/budgets, desktop bridge
+   ingestion and notification freshness/dedupe; then wire project/history UI and settings.
+4. Finish offline voice and header/close/sizing work; characterize the outstanding
+   suspend test race. Keep user configuration and unavailable live integrations honest.
+5. Run full .NET/bridge tests, render review and real lifecycle checks; commit source,
+   publish clean, run package smoke, record exact hashes and live qualifications.
+6. Correct README/CHANGELOG/ledger claims and leave one coherent review-ready branch.
+   Do not merge, push, rewrite history or claim completion with these gates missing.
 
 Scope executed by DeepSeek on `ux/first-use` (product base `d869db6`). This is an
 honest partial delivery of the reviewed packet: the identity, resolution and activity

@@ -35,6 +35,14 @@
   isolation; not yet attached to a running host, and OVERSEER does not consume the
   spool yet.
 
+- The Codex pipeline retains each session's normalized workspace root and resolves
+  its project at admission (`AgentTask.WorkspaceRoot` / `AssignedProject`), with an
+  additive `project` config section for root mappings, path aliases and cache bounds.
+- `TaskActivityRecorder` records producer-side activity intervals (working,
+  thinking, planning, waiting, unknown, plus completion/error markers) from
+  normalized snapshots; a terminal marker closes the action timeline without erasing
+  the confirmed work.
+
 ### Not yet implemented
 
 - Project-first HUD rows, activity strips, responsive header/menu refinement, the

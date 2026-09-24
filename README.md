@@ -432,9 +432,17 @@ and tested; the HUD does not display it yet.
   reported: confirmed action intervals, a bounded ten-second belief window marked as
   inferred, and explicit **unknown coverage** where nothing was observed. Idle is
   shown only when inactivity was confirmed, the last action is never extended
-  indefinitely, completion/error markers do not erase the underlying interval,
-  project activity is the union of overlapping intervals rather than a sum, and
+  indefinitely, completion/error markers close the action timeline without erasing
+  it, project activity is the union of overlapping intervals rather than a sum, and
   capacity is bounded (512 histories, 2,048 intervals per task, 100,000 total).
+  `TaskActivityRecorder` fills the history from normalized snapshots on the
+  producer side (before UI coalescing), so an active turn with no structured action
+  is *inferred* thinking, an explicit plan detail is planning, attention is waiting,
+  and stale or unhydrated tasks stay unknown instead of idle.
+- **Wired into the runtime.** The Codex pipeline retains each session's normalized
+  workspace root and resolves its project at admission; `AgentTask` now carries both
+  the local root and the assigned project, and the additive `project` config section
+  supports root mappings, path aliases and cache bounds.
 
 ### Harness integrations (external assets)
 
@@ -455,10 +463,10 @@ explicit, reversible opt-in step:
   throws into the host and never intercepts approval/request decisions. dsh keeps its
   own compressed session storage; OVERSEER never reads or migrates it.
 
-Not yet implemented: the project-first list and activity strips, the composite
-multi-source monitor that would consume these spools, the dsh/Claude source adapters
-inside the app, and the offline baseline voice. `docs/IMPLEMENTATION_STATE.md` lists
-the exact gap and next steps.
+Not yet implemented: the project-first list and activity strips that would display
+this data, the composite multi-source monitor that would consume the harness spools,
+the dsh/Claude source adapters inside the app, and the offline baseline voice.
+`docs/IMPLEMENTATION_STATE.md` lists the exact gap and next steps.
 
 ## Configuration and logs
 
