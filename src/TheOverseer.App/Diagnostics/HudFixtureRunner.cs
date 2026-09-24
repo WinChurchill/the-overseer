@@ -4,6 +4,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using TheOverseer.App.Desktop;
+using TheOverseer.App.Monitoring;
+using TheOverseer.App.Voice;
+using TheOverseer.Core.History;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Voice;
 using TheOverseer.UI;
@@ -52,6 +55,31 @@ internal static class HudFixtureRunner
         }));
     }
 
+    /// <summary>
+    /// Muted coordinator plus strip source for fixture renders. Muted keeps audio
+    /// out of the fixture entirely; only the observed-activity recording is used.
+    /// </summary>
+    private static (NotificationCoordinator Coordinator, CoordinatorActivityStripSource Source) CreateFixtureActivity()
+    {
+        var settings = new VoiceSettings { Muted = true, Provider = "pack" };
+        var dataDirectory = Path.Combine(Path.GetTempPath(), "overseer-fixture-voice");
+        var provider = new VoicePackProvider(dataDirectory, () => settings);
+        var manager = new VoiceManager(
+            provider,
+            new WavPlaybackService(),
+            VoiceManagerOptions.Default with { MinimumStartSpacing = TimeSpan.Zero },
+            TimeProvider.System,
+            muted: true);
+        var coordinator = new NotificationCoordinator(
+            new ActivityHistory(),
+            new VoiceEventPolicy(),
+            manager,
+            TimeProvider.System,
+            settings);
+        coordinator.Start();
+        return (coordinator, new CoordinatorActivityStripSource(coordinator, TimeProvider.System));
+    }
+
     private static int RenderFixture(string outputDirectory)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -60,11 +88,19 @@ internal static class HudFixtureRunner
         var voiceStatus = new VoiceStatus(false, "pack", "ok", 0, 2, 0, 0, 0, false, "Spoken 2.");
         var rendered = new List<string>();
 
+        // Fixtures use the same production composition path for observed activity: a
+        // muted coordinator records the synthetic snapshot producer-side and the strip
+        // source projects it, so a render proves the real strip wiring. The fixture is a
+        // finite process, so the muted coordinator lives for the whole render pass.
+        var fixtureActivity = CreateFixtureActivity();
+        fixtureActivity.Coordinator.OnSnapshot(scenarios[0]);
+
         foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
         {
             foreach (var expanded in new[] { false, true })
             {
                 var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+                viewModel.UseActivitySource(fixtureActivity.Source);
                 viewModel.ApplySnapshot(scenarios[0]);
                 viewModel.ApplyActivity(activity, theme == HudTheme.Light && expanded ? VoiceStatus.Initial : voiceStatus);
                 viewModel.IsExpanded = expanded;
