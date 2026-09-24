@@ -8,7 +8,7 @@ namespace TheOverseer.App.Desktop;
 /// </summary>
 public sealed class ShowRequestSignal : IDisposable
 {
-    private const string EventName = "Local\\OVERSEER.Hud.ShowRequest";
+    private const string EventNamePrefix = "Local\\OVERSEER.Hud.ShowRequest";
     private const int WaitMilliseconds = 500;
 
     private readonly EventWaitHandle? _handle;
@@ -32,12 +32,37 @@ public sealed class ShowRequestSignal : IDisposable
         _waiter.Start();
     }
 
+    /// <summary>
+    /// Stable event name for one data directory. A scoped name keeps an isolated
+    /// run (and every test) from signalling the user's real HUD, and keeps two
+    /// independent instances from stealing each other's restore requests.
+    /// </summary>
+    public static string EventNameFor(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return EventNamePrefix;
+        }
+
+        // FNV-1a over the scope: stable, bounded and never a path in the name.
+        const ulong offset = 14695981039346656037;
+        const ulong prime = 1099511628211;
+        var hash = offset;
+        foreach (var character in scope!)
+        {
+            hash ^= character;
+            hash *= prime;
+        }
+
+        return EventNamePrefix + "." + hash.ToString("x16", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Running instance: listen for show requests. Null when unavailable.</summary>
-    public static ShowRequestSignal? TryListen(Action onRequest)
+    public static ShowRequestSignal? TryListen(Action onRequest, string? scope = null)
     {
         try
         {
-            var handle = new EventWaitHandle(false, EventResetMode.AutoReset, EventName);
+            var handle = new EventWaitHandle(false, EventResetMode.AutoReset, EventNameFor(scope));
             return new ShowRequestSignal(handle, onRequest);
         }
         catch (UnauthorizedAccessException)
@@ -55,11 +80,11 @@ public sealed class ShowRequestSignal : IDisposable
     }
 
     /// <summary>Second instance: ask the running HUD to restore. Never throws.</summary>
-    public static bool TrySignal()
+    public static bool TrySignal(string? scope = null)
     {
         try
         {
-            if (EventWaitHandle.TryOpenExisting(EventName, out var handle))
+            if (EventWaitHandle.TryOpenExisting(EventNameFor(scope), out var handle))
             {
                 using (handle)
                 {

@@ -77,7 +77,7 @@ public partial class App : Application
         {
             // A HUD is already running: ask it to restore its window, then exit
             // quietly without touching its monitor, tray or session.
-            ShowRequestSignal.TrySignal();
+            ShowRequestSignal.TrySignal(DataDirectoryResolver.Resolve(arguments.DataDirectory));
             Shutdown(0);
             return;
         }

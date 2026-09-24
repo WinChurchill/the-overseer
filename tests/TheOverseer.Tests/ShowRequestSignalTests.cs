@@ -30,14 +30,16 @@ public sealed class ShowRequestSignalTests
     public async Task RepeatedSignalsReachTheListeningInstance()
     {
         var delivered = 0;
-        using var listener = ShowRequestSignal.TryListen(() => Interlocked.Increment(ref delivered));
+        // A unique scope isolates this test from any HUD that happens to be running.
+        var scope = "test-" + Guid.NewGuid().ToString("N");
+        using var listener = ShowRequestSignal.TryListen(() => Interlocked.Increment(ref delivered), scope);
         Assert.NotNull(listener);
 
-        Assert.True(ShowRequestSignal.TrySignal());
+        Assert.True(ShowRequestSignal.TrySignal(scope));
         Assert.True(await WaitForAsync(() => Volatile.Read(ref delivered) >= 1), "first show request was not delivered");
 
         // Auto-reset semantics: a later launch must be able to restore again.
-        Assert.True(ShowRequestSignal.TrySignal());
+        Assert.True(ShowRequestSignal.TrySignal(scope));
         Assert.True(await WaitForAsync(() => Volatile.Read(ref delivered) >= 2), "second show request was not delivered");
     }
 
@@ -45,13 +47,14 @@ public sealed class ShowRequestSignalTests
     public async Task ADisposedListenerStopsDeliveringAndSignallingStaysSafe()
     {
         var delivered = 0;
-        var listener = ShowRequestSignal.TryListen(() => Interlocked.Increment(ref delivered));
+        var scope = "test-" + Guid.NewGuid().ToString("N");
+        var listener = ShowRequestSignal.TryListen(() => Interlocked.Increment(ref delivered), scope);
         Assert.NotNull(listener);
         listener!.Dispose();
         listener.Dispose();
 
         // Never throws, whether or not a stale kernel object is still visible.
-        _ = ShowRequestSignal.TrySignal();
+        _ = ShowRequestSignal.TrySignal(scope);
         await Task.Delay(300);
         Assert.Equal(0, Volatile.Read(ref delivered));
     }

@@ -199,7 +199,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         CreateTray();
         // A second normal launch asks the running instance to restore, so the
         // shortcut and the tray always return this same window and session.
-        _showRequest = ShowRequestSignal.TryListen(RequestShow);
+        _showRequest = ShowRequestSignal.TryListen(RequestShow, _dependencies.Paths.DataDirectory);
         SyncStartupState();
         SubscribeSystemEvents();
         _ageTimer.Start();

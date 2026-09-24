@@ -231,6 +231,28 @@ public sealed class ProjectResolver
         return isUnc ? @"\\" + joined : joined;
     }
 
+    /// <summary>
+    /// Only a bounded absolute local drive path may be probed. This runs before any
+    /// filesystem call, so UNC, POSIX, relative and oversized metadata targets can
+    /// never reach I/O.
+    /// </summary>
+    private static bool IsProbeableMetadataPath(string normalizedPath)
+    {
+        if (normalizedPath.Length is 0 or > 512)
+        {
+            return false;
+        }
+
+        if (normalizedPath.StartsWith(PosixNamespace, StringComparison.Ordinal) ||
+            normalizedPath.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return normalizedPath.Length >= 3 && char.IsLetter(normalizedPath[0]) && normalizedPath[1] == ':' &&
+               normalizedPath[2] == '\\';
+    }
+
     private bool IsReparsePoint(string normalizedPath)
     {
         var probe = _probe.IsReparsePoint;
@@ -385,6 +407,17 @@ public sealed class ProjectResolver
             }
 
             var gitPath = Join(current, ".git");
+            if (!IsProbeableMetadataPath(gitPath))
+            {
+                return null;
+            }
+
+            if (IsReparsePoint(gitPath))
+            {
+                // A redirected .git file or directory is not trusted metadata.
+                return null;
+            }
+
             if (_probe.DirectoryExists(gitPath))
             {
                 return new ProjectDescriptor(ProjectId.FromRoot(current), DisplayNameFor(Leaf(current)), current, ProjectResolution.GitRoot);
@@ -397,7 +430,10 @@ public sealed class ProjectResolver
                 if (gitDir.Length > 0)
                 {
                     var common = gitDir;
-                    var commonFile = _probe.ReadBoundedText(Join(gitDir, "commondir"), 4096);
+                    var commonPath = Join(gitDir, "commondir");
+                    var commonFile = IsProbeableMetadataPath(commonPath) && !IsReparsePoint(commonPath)
+                        ? _probe.ReadBoundedText(commonPath, 4096)
+                        : null;
                     if (!string.IsNullOrWhiteSpace(commonFile))
                     {
                         var resolved = ResolveRelativePath(gitDir, commonFile!.Trim());
@@ -455,7 +491,9 @@ public sealed class ProjectResolver
             return string.Empty;
         }
 
-        return ResolveRelativePath(Join(worktreeRoot, ".git"), target);
+        // A relative gitdir is relative to the directory that CONTAINS the .git
+        // file (the worktree root), not to the .git file itself.
+        return ResolveRelativePath(worktreeRoot, target);
     }
 
     private static string ResolveRelativePath(string basePath, string target)
