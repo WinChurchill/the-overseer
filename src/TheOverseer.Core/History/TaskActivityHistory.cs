@@ -164,6 +164,14 @@ public sealed class TaskActivityHistory
 
             if (isMarker)
             {
+                // A terminal marker closes the action timeline it belongs to: the
+                // confirmed work stays visible and no new open interval starts.
+                if (lane.Open is { } closing)
+                {
+                    AddInterval(lane, closing);
+                    lane.Open = null;
+                }
+
                 AddInterval(lane, new ActivityInterval(now, now, category, evidence, detailCode, true, projectId));
                 lane.MarkerCount++;
                 return;
