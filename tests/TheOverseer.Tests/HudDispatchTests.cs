@@ -436,6 +436,91 @@ public sealed class HudDispatchTests
         });
     }
 
+    [Fact]
+    public void CloseHidesToTrayWhileShutdownStillQuits()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var controller = CreateController(dispatcher, new FakeMonitorSource(), new FakePlacementService(), trayAvailable: true);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            dispatcher.DrainAll();
+
+            var exitRequests = 0;
+            controller.ExitRequested += (_, _) => exitRequests++;
+            var window = controller.Window!;
+            Assert.True(controller.CanHideToTray);
+
+            // x, Alt+F4, the system menu and WM_CLOSE all hide while the tray works.
+            window.Close();
+            Assert.False(window.IsVisible);
+            Assert.Equal(0, exitRequests);
+            Assert.False(controller.IsShuttingDown);
+            Assert.Same(window, controller.Window);
+
+            // The explicit Exit path still runs the unconditional orderly shutdown.
+            StaTestHost.Complete(controller.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(4)));
+            Assert.True(controller.IsShuttingDown);
+            Assert.Null(controller.Window);
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void SessionEndingAndAMissingTrayNeverHideTheWindow()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var ending = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService(), trayAvailable: true);
+            ending.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var endingExits = 0;
+            ending.ExitRequested += (_, _) => endingExits++;
+            ending.NotifySessionEnding();
+            Assert.False(ending.CanHideToTray);
+            ending.Window!.Close();
+            Assert.Equal(1, endingExits);
+            StaTestHost.Complete(ending.DisposeAsync().AsTask());
+            Cleanup();
+
+            var noTray = CreateController(new QueuedUiDispatcher(), new FakeMonitorSource(), new FakePlacementService(), trayAvailable: false);
+            noTray.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var noTrayExits = 0;
+            noTray.ExitRequested += (_, _) => noTrayExits++;
+            Assert.False(noTray.CanHideToTray);
+            noTray.Window!.Close();
+            Assert.Equal(1, noTrayExits);
+            StaTestHost.Complete(noTray.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
+    [Fact]
+    public void ShowRequestRestoresTheSameHiddenWindowAndSession()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var controller = CreateController(dispatcher, new FakeMonitorSource(), new FakePlacementService(), trayAvailable: true);
+            controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            dispatcher.DrainAll();
+            var window = controller.Window!;
+
+            controller.HideToTray();
+            Assert.False(window.IsVisible);
+
+            // The second-launch signal restores the existing window, never a new one.
+            controller.RequestShow();
+            dispatcher.DrainAll();
+            Assert.True(window.IsVisible);
+            Assert.Same(window, controller.Window);
+
+            StaTestHost.Complete(controller.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(4)));
+            StaTestHost.Complete(controller.DisposeAsync().AsTask());
+            Cleanup();
+        });
+    }
+
     private static bool SpinUntil(Func<bool> condition, int timeoutMs = 2000)
     {
         var started = Environment.TickCount64;
@@ -623,7 +708,8 @@ public sealed class HudDispatchTests
         IClipboardWriter? clipboard = null,
         bool startHidden = false,
         IHudPersistence? persistence = null,
-        NotificationCoordinator? notifications = null)
+        NotificationCoordinator? notifications = null,
+        bool? trayAvailable = null)
     {
         _directory = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_directory);
@@ -651,7 +737,8 @@ public sealed class HudDispatchTests
             StartHidden: startHidden,
             TrayEnabled: false,
             Persistence: persistence,
-            Notifications: notifications);
+            Notifications: notifications,
+            TrayAvailableOverride: trayAvailable);
         return new HudApplicationController(dependencies);
     }
 
