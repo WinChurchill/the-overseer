@@ -15,8 +15,17 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     private DateTimeOffset? _startedAt;
     private string _ageHint = string.Empty;
 
-    public TaskRowViewModel(AgentTask task, bool canNavigate, string navigationHint)
+    public TaskRowViewModel(
+        AgentTask task,
+        bool canNavigate,
+        string navigationHint,
+        string projectGroupKey = "",
+        string projectGroupLabel = "",
+        string projectGroupMeta = "")
     {
+        ProjectGroupKey = projectGroupKey;
+        ProjectGroupLabel = projectGroupLabel;
+        ProjectGroupMeta = projectGroupMeta;
         Key = task.Key;
         Number = task.Number;
         Label = HudText.Label(task);
@@ -37,6 +46,18 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public TaskKey Key { get; }
+
+    /// <summary>
+    /// Sortable project grouping key for this row. Empty means the row is not part
+    /// of a project group (used by tests and by views that do not group).
+    /// </summary>
+    public string ProjectGroupKey { get; }
+
+    /// <summary>Project display name shown in the group header (never a path).</summary>
+    public string ProjectGroupLabel { get; }
+
+    /// <summary>Bounded group summary: counts and harness badges, plus coverage.</summary>
+    public string ProjectGroupMeta { get; }
 
     public int Number { get; }
 

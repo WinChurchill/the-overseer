@@ -429,13 +429,16 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 _ => "No current tasks. Try Recent for earlier work.",
             };
 
-        if (!SequenceEqual(ordered))
+        var groups = ProjectGroups(ordered, snapshot.Tasks);
+        if (!SequenceEqual(ordered, groups))
         {
             Tasks.Clear();
             _lastActivity.Clear();
-            foreach (var task in ordered)
+            for (var index = 0; index < ordered.Count; index++)
             {
-                Tasks.Add(new TaskRowViewModel(task, CanNavigate(task), NavigationHint(task)));
+                var task = ordered[index];
+                var group = groups[index];
+                Tasks.Add(new TaskRowViewModel(task, CanNavigate(task), NavigationHint(task), group.Key, group.Label, group.Meta));
                 _lastActivity.Add(task.LastActivityAt);
             }
 
@@ -452,7 +455,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         HasTasks = Tasks.Count > 0;
     }
 
-    private bool SequenceEqual(IReadOnlyList<AgentTask> ordered)
+    private bool SequenceEqual(IReadOnlyList<AgentTask> ordered, (string Key, string Label, string Meta)[] groups)
     {
         if (ordered.Count != Tasks.Count)
         {
@@ -461,13 +464,104 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
         for (var index = 0; index < ordered.Count; index++)
         {
-            if (!Tasks[index].Key.Equals(ordered[index].Key))
+            if (!Tasks[index].Key.Equals(ordered[index].Key) ||
+                !string.Equals(Tasks[index].ProjectGroupKey, groups[index].Key, StringComparison.Ordinal) ||
+                !string.Equals(Tasks[index].ProjectGroupMeta, groups[index].Meta, StringComparison.Ordinal))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Project grouping for the visible rows. The group key is sortable so the
+    /// groups themselves order attention first, then active work, then recent
+    /// history, with Unassigned last; ties break on the display name so rows never
+    /// shuffle between ticks. Labels and summaries never contain a root path.
+    /// </summary>
+    private static (string Key, string Label, string Meta)[] ProjectGroups(
+        IReadOnlyList<AgentTask> ordered,
+        IReadOnlyList<AgentTask> allTasks)
+    {
+        // Counts and coverage describe the project's monitored members, not only the
+        // rows the current filter shows, so a filtered view cannot claim full health.
+        var stats = new Dictionary<ProjectId, ProjectStats>();
+        foreach (var task in allTasks)
+        {
+            var project = task.AssignedProject;
+            if (!stats.TryGetValue(project.Id, out var entry))
+            {
+                entry = new ProjectStats(project.DisplayName);
+                stats[project.Id] = entry;
+            }
+
+            entry.Total++;
+            if (task.State == AgentTaskState.Working && !task.IsStale)
+            {
+                entry.Working++;
+            }
+
+            if (task.NeedsHuman)
+            {
+                entry.NeedsHuman++;
+            }
+
+            if (task.IsStale || task.IsProvisional)
+            {
+                entry.Partial = true;
+            }
+
+            entry.Harnesses.Add(HarnessIds.DisplayName(task.Key.HarnessId));
+        }
+
+        var ranks = new Dictionary<ProjectId, int>();
+        foreach (var pair in stats)
+        {
+            ranks[pair.Key] = pair.Key.IsUnassigned ? 9
+                : pair.Value.NeedsHuman > 0 ? 0
+                : pair.Value.Working > 0 ? 1
+                : 2;
+        }
+
+        var result = new (string Key, string Label, string Meta)[ordered.Count];
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var project = ordered[index].AssignedProject;
+            var entry = stats[project.Id];
+            var rank = ranks[project.Id];
+            var key = rank.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" +
+                      (project.IsUnassigned ? "~unassigned" : project.DisplayName);
+            var meta = entry.Working.ToString(System.Globalization.CultureInfo.InvariantCulture) + " working · " +
+                       entry.NeedsHuman.ToString(System.Globalization.CultureInfo.InvariantCulture) + " needs you · " +
+                       string.Join(", ", entry.Harnesses.OrderBy(static item => item, StringComparer.Ordinal));
+            if (entry.Partial)
+            {
+                meta += " · partial coverage";
+            }
+
+            result[index] = (key, project.IsUnassigned ? "Unassigned" : project.DisplayName, meta);
+        }
+
+        return result;
+    }
+
+    private sealed class ProjectStats
+    {
+        public ProjectStats(string displayName) => DisplayName = displayName;
+
+        public string DisplayName { get; }
+
+        public int Working;
+
+        public int NeedsHuman;
+
+        public int Total;
+
+        public bool Partial;
+
+        public HashSet<string> Harnesses { get; } = new(StringComparer.Ordinal);
     }
 
     /// <summary>

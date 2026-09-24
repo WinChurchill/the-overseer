@@ -154,6 +154,13 @@
         </Setter.Value>
       </Setter>
     </Style>
+      <!-- Project-first grouping: rows carry a sortable project key, so one header
+         per project is rendered ahead of its tasks without a second collection. -->
+    <CollectionViewSource x:Key="GroupedTasks" Source="{Binding Tasks}">
+      <CollectionViewSource.GroupDescriptions>
+        <PropertyGroupDescription PropertyName="ProjectGroupKey" />
+      </CollectionViewSource.GroupDescriptions>
+    </CollectionViewSource>
   </Window.Resources>
 
   <Border x:Name="Shell" Background="{DynamicResource BackgroundBaseBrush}"
@@ -396,7 +403,34 @@
                       PanningMode="VerticalOnly"
                       Resources="{StaticResource HudScrollBarResources}">
           <Grid>
-            <ItemsControl ItemsSource="{Binding Tasks}" x:Name="TaskList">
+            <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedTasks}}" x:Name="TaskList">
+              <ItemsControl.GroupStyle>
+                <GroupStyle>
+                  <GroupStyle.HeaderTemplate>
+                    <DataTemplate>
+                      <Grid Margin="6,8,10,2" ToolTip="{Binding Items[0].ProjectGroupMeta}">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Items[0].ProjectGroupLabel}"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontFamily="{DynamicResource PrimaryFontFamily}"
+                                   FontSize="{DynamicResource FontSizeMeta}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ForegroundBrush}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Items[0].ProjectGroupMeta}"
+                                   Margin="8,0,0,0"
+                                   FontFamily="{DynamicResource MetadataFontFamily}"
+                                   FontSize="{DynamicResource FontSizeMeta}"
+                                   Foreground="{DynamicResource MutedBrush}" />
+                      </Grid>
+                    </DataTemplate>
+                  </GroupStyle.HeaderTemplate>
+                </GroupStyle>
+              </ItemsControl.GroupStyle>
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
                   <Button Style="{StaticResource HudTaskRowButton}"
