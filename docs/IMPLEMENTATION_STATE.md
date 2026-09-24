@@ -1,13 +1,171 @@
 # OVERSEER Implementation State
 
 ## Current
+Plan: Post-V1 — Project-centered multi-harness HUD (plan reviewed)
+Goal: One integrated implementation/review round for project grouping, activity strips,
+responsive HUD controls, and an offline baseline voice
+Branch: ux/first-use
+Product base: d869db6 (custom HUD implementation: 5521980)
+
+## Current Plan Status
+- Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
+- DeepSeek implementation: **partial** — foundation merged on `ux/first-use`; the
+  project-first UI, composite multi-source monitor and baseline voice are **not**
+  implemented yet. Details in "Project-centered round — execution" below.
+- Build / tests: Release build 0 warnings / 0 errors; **483 tests passed, 0 failed**
+  (456 reviewed baseline + 27 new for project identity, harness-qualified keys and
+  observed activity history)
+- Smoke / package: not rerun in this partial round (see the section below for the
+  exact gap)
+- Astra review: pending implementation completion
+- Prior UX baseline: Release build passed with 0 warnings/errors; 456 tests passed;
+  26 render fixtures; package smoke 17/17 with HUD lifecycle skipped in favor of
+  recorded manual checks. User confirmed Win+Left/Right and Win+Z work.
+
+Confirmed scope: Codex, official DeepSeek Harness (`dsh`), and Claude Code; visible
+close hides to tray by default with explicit Exit available; offline English system
+voice with custom recordings preserved. The reviewed plan specifies project-root identity,
+external metadata-only harness bridges, bounded per-task/project activity intervals,
+and shared monitoring budgets. Unknown activity remains distinct from blank idle.
+
+Planning inspected official dsh source at
+`46a7f68b0922371ce7144b668b90e377d8e799f4`; installed-version compatibility and live
+integration are execution gates, not yet demonstrated. Its compressed session logs
+motivate an observer plugin instead of importing its storage stack. Claude one-shot
+hooks provide event-driven evidence, not continuous heartbeat or complete history.
+
+Plan review (2026-09-24): corrected dsh session-created exception isolation, per-session
+event ordering and silent replay hydration, bounded concurrent bridge publication,
+partial-coverage project timelines, explicit voice-provider fallback behavior, and
+commit-before-publish ordering. Cross-checked pinned dsh callbacks, local voice/config
+and close behavior, script parameters, and current branch/head. No remaining plan
+blocker identified; actual installed-version and live harness qualification remain gates.
+Documentation diff check passed; no product build/test run is claimed for this review.
+
+Next action: instruct DeepSeek to execute the final prompt in `.agent/HANDOFF.md`
+as one complete implementation goal, then conduct Astra review. No product code, running
+application, desktop shortcut, or live harness configuration changed during planning.
+The frozen original four-plan V1 scope documents remain unchanged; this is an explicit
+user-requested post-V1 extension.
+
+## Project-centered round — execution (2026-09-24, partial)
+
+Scope executed by DeepSeek on `ux/first-use` (product base `d869db6`). This is an
+honest partial delivery of the reviewed packet: the identity, resolution and activity
+foundation landed with tests, and two user-facing behaviours changed; the UI
+restructuring and the harness bridges inside the desktop app did not.
+
+### Commits
+- `4e99ea0` feat: hide the HUD to tray on close and restore the same session
+- `d4ac577` feat: add project identity, harness-qualified keys and observed activity history
+
+### Delivered (implemented and covered by tests)
+- **Project identity and resolution** (`Core/Models/ProjectIdentity.cs`,
+  `Core/Monitoring/ProjectResolver.cs`, `Core/Configuration/ProjectSettings.cs`):
+  opaque hashed `ProjectId`, display name and local root; precedence explicit →
+  longest configured root → locally verified Git root → normalized workspace root →
+  Unassigned. Complete-segment comparison (so `C:/work/app2` is never inside
+  `C:/work/app`), duplicate leaf folders stay distinct, case/separator/dot-segment
+  normalization, linked worktrees grouped through `gitdir`/`commondir` verified
+  metadata with a checkout label, independent clones separate, WSL/POSIX roots in a
+  separate namespace joined only through an explicit alias, device/relative/missing
+  paths never resolve against the process working directory, bounded ancestor checks
+  (default 32) and a bounded resolution cache. `Describe()` emits name + hash only,
+  never a root (asserted).
+- **Harness-qualified task identity** (`Core/Models/AgentTask.cs`): `TaskKey`
+  carries `HarnessId` and treats `ProfileId` as the stable source-instance id;
+  `HarnessIds` fixes `codex`/`dsh`/`claude` and display names. Two-argument
+  construction keeps the Codex default (deterministic migration) and equal
+  conversation ids in different harnesses no longer compare equal (asserted).
+- **Internal adapter contract** (`Core/Monitoring/IAgentMonitorAdapter.cs`): stable
+  source identity, immutable `SourceSnapshot` with per-source health, reasons,
+  coverage, tasks, transitions and capabilities. Compiled-in, not a runtime loader.
+- **Bounded observed activity history** (`Core/History/TaskActivityHistory.cs`):
+  producer-side intervals with confirmed/inferred/unknown separation, a bounded
+  ten-second belief window (the last action is never extended indefinitely), explicit
+  Unknown coverage tails instead of idle, explicit-only idle, completion/error markers
+  that do not erase the underlying interval, per-interval project attribution so a
+  reassignment affects future intervals only, project union computed by one-second
+  segmentation (overlap, never a sum, attention outranks tool work, brief attention
+  survives), rolling 60-minute clipping, capacity bounds
+  (512 histories / 2048 per task / 100k total) and bounded 720-bin geometry.
+- **Close-to-tray and restore** (`App/HudApplicationController.cs`,
+  `App/Desktop/ShowRequestSignal.cs`, `App.xaml.cs`): ×/Alt+F4/system-menu/WM_CLOSE
+  hide the window while a tray exists; explicit Exit, session ending (logoff/shutdown
+  is never cancelled) and the no-tray case keep the unconditional orderly shutdown;
+  a second normal launch signals the running instance to restore the same window and
+  session through one local named event (bounded waiter thread, no payload).
+
+### New tests (27)
+- `ProjectResolverTests` (12): segment boundaries, duplicate leaves, normalization,
+  relative/device rejection, Git root precedence, worktree grouping and label,
+  clone separation, mapping/explicit precedence, POSIX namespace and alias join,
+  bounded ancestor checks and cache, no path in the diagnostic summary.
+- `TaskActivityHistoryTests` (15): interval extension, split at the observed instant,
+  unknown tail rather than idle, idle only when observed, inferred evidence and
+  markers, union overlap vs sum, attention priority, stale member partial coverage,
+  window clipping without backfill, capacity eviction, reassignment attribution,
+  geometry bounds and brief attention retention, harness-qualified key separation.
+
+### NOT implemented in this round (explicit gaps)
+1. **Project-first HUD**: no project rows, harness badges, project/task strips,
+   project settings surface or Unassigned row. The existing Now/Recent/Session task
+   list is unchanged. No render evidence was produced for this round.
+2. **Composite monitor**: `CompositeMonitorSource` and the desktop-side bridge
+   readers/adapters do not exist, so the running HUD still observes Codex only.
+   `SourceSnapshot`/`IAgentMonitorAdapter` and the bridge envelope are defined but
+   unused by composition.
+3. **dsh observer and Claude hook bridges**: external integration assets are
+   delivered under `integrations/` (metadata-only, tested in isolation, no desktop
+   consumption yet). They are not consumed by OVERSEER and are not live-qualified:
+   Claude Code is **not installed** on this machine (no `claude` on PATH and no
+   `~/.claude`), and the dsh observer has not been attached inside a running host.
+   Installed for reference: `codex` 0.155.1, `dsh` 0.1.5-rc.3
+   (`DSH_HOME=%USERPROFILE%\.dsh`), node 24.15.0.
+4. **Offline baseline voice**: no `WindowsSpeechVoiceProvider`, no SAPI stream
+   synthesis, no baseline selection control, no voice cache. Voice behaviour is
+   unchanged from the reviewed baseline.
+5. **Workspace root retention**: the parser still reduces `session_meta.cwd` to
+   `WorkspaceLeaf`, so no task carries a resolvable project root yet. The resolver is
+   complete and tested, but it is not yet fed by the Codex pipeline.
+6. **Responsive sizing/header/menu refinement** and the close-button tooltip were not
+   touched; the reviewed custom chrome and existing sizing behaviour are unchanged.
+7. **Package/smoke for this round**: not rerun (the handoff's publish/smoke step
+   belongs to a complete round). The last recorded package evidence remains the prior
+   UX round's 17 scoped checks from source `5521980`.
+
+### Known limitations introduced or carried
+- `ProjectResolver` resolves from evidence only; the Codex pipeline does not yet
+  supply a workspace root, so nothing is grouped in the running product.
+- Physical checks (mixed DPI, Snap/Win+Arrow, human tray interaction, audible voice)
+  were not performed in this round.
+- `SuspendDropsQueuedCuesAndCountsThemWithoutMuting`, flagged in the packet's known
+  test risk, passed on every full-suite run in this round (three consecutive runs,
+  483/483 each). The fake-player cancellation race is still not deterministically
+  characterized; that remains open.
+
+### Next steps for completion
+1. Retain `session_meta.cwd` as a normalized workspace root through
+   `SessionIdentityReader` → `TrackedSessionFile` → `AgentStateReducer` →
+   `AgentTask`, then assign projects with `ProjectResolver` in the monitor.
+2. Implement `CompositeMonitorSource` over `IAgentMonitorAdapter` with shared
+   budgets, source-local health/freshness and single-evaluation global completion;
+   wrap `CodexMonitor` and consume the `integrations/` spools for dsh and Claude.
+3. Project-first view model + XAML (`ProjectRowViewModel`, strips from
+   `TaskActivityHistory`/`ActivityTimelineGeometry`), header/menu refinement.
+4. `WindowsSpeechVoiceProvider` with the injectable SAPI engine boundary, cache
+   bounds, precedence rules and the "Use baseline" control.
+5. Render/inspect both themes across the packet's size matrix, full tests, clean
+   publish and packaged smoke, then Astra review.
+
+## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
 Branch: impl/p4-release
 
 ## Plan Status
-- Astra handoff: originally completed in planning; local ignored file now contains
-  only `pp` and was preserved. Review used the recorded handoff and frozen spec.
+- Astra handoff: originally completed in planning; at Review 4 the local ignored file
+  contained only `pp`. Review used the recorded handoff and frozen spec.
 - DeepSeek implementation: complete, with Astra Review 4 fixes
 - Build: passed, Release, 0 warnings / 0 errors, SDK 10.0.401
 - Tests: passed, 398 / 398, 0 failed/skipped

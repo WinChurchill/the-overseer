@@ -111,6 +111,7 @@ Controls:
 | `Enter`/`Space` on a focused row | Same as clicking it. |
 | Right-click the HUD header | Display settings, expansion, startup, reset position, Monitoring details and Exit; available even without a tray. |
 | Tray icon | Show/Hide, Light/Dark, Always on top, opacity presets, Start with Windows, Reset position, monitoring status, Exit. |
+| Close (×/Alt+F4/system menu) | Hides to the tray and keeps the session running; use Exit to quit completely. |
 
 The visible HUD appears in the Windows taskbar and Alt+Tab. Now is the default
 task view: live work and attention, plus completions/errors from the last ten
@@ -138,8 +139,13 @@ Windows icon contains transparent 16, 24, 32, 48, 64, 128 and 256 pixel frames.
 
 The HUD never activates itself: it is shown with `ShowActivated=false` and the
 window is positioned without activation, so monitoring updates, theme changes and
-completion events never steal focus. A second normal launch exits quietly and
-leaves the running instance's monitor and tray untouched.
+completion events never steal focus. Closing the window (×, Alt+F4 or the system
+menu) **hides it to the tray** while a working tray exists, so the HUD is never lost
+by accident; **Exit** in the header or tray menu runs the full orderly shutdown,
+Windows logoff/shutdown is never cancelled, and without a tray the close runs the
+same orderly shutdown instead of hiding an unreachable process. A second normal
+launch asks the running instance to restore its window and session, then exits
+quietly without touching its monitor, tray or settings.
 
 ### Settings and state
 
@@ -404,6 +410,55 @@ Not covered by that script and still listed as unverified in
 movement across monitors with different DPI, human tray interaction, acoustic
 playback by ear, and a clean machine that has no global .NET runtime installed.
 Approval and input attention remain unsupported in the installed Codex version.
+
+## Project identity and observed activity (foundation, in progress)
+
+A project-centered round is in progress on `ux/first-use`. The foundation is committed
+and tested; the HUD does not display it yet.
+
+- **Project identity.** A task can be attributed to a project by explicit assignment,
+  the longest configured root, a locally verified Git repository root, or the
+  normalized workspace root, otherwise *Unassigned*. Comparison uses complete path
+  segments, so a sibling folder is never merged into a project, two folders with the
+  same leaf name stay distinct, and relative or device paths never resolve against
+  the process working directory. Linked worktrees of one repository group through
+  verified Git metadata while independent clones stay separate, and WSL/POSIX roots
+  join Windows projects only through an explicit alias. Roots stay local: summaries
+  emit a name and a stable hash, never a path.
+- **Harness-qualified identity.** A task key carries the harness (`codex`, `dsh`,
+  `claude`) plus a stable source-instance id, so identical conversation ids from
+  different harnesses can never collapse into one task.
+- **Observed activity.** A bounded in-memory history records what a source actually
+  reported: confirmed action intervals, a bounded ten-second belief window marked as
+  inferred, and explicit **unknown coverage** where nothing was observed. Idle is
+  shown only when inactivity was confirmed, the last action is never extended
+  indefinitely, completion/error markers do not erase the underlying interval,
+  project activity is the union of overlapping intervals rather than a sum, and
+  capacity is bounded (512 histories, 2,048 intervals per task, 100,000 total).
+
+### Harness integrations (external assets)
+
+Two metadata-only bridges live outside the desktop app and are installed only by an
+explicit, reversible opt-in step:
+
+- `integrations/claude-code/` — a Node hook bridge plus `install.mjs`/`uninstall.mjs`
+  for the documented Claude Code hook events. The helper reads at most 1 MiB of hook
+  stdin with a hard two-second deadline, writes one bounded normalized record per
+  event into `<spool>/claude/<sourceInstanceId>/events.jsonl` with a single locked
+  append, always exits 0 with empty stdout, and never returns a permission decision.
+  The installer previews by default, backs up the settings file before writing and
+  removes only OVERSEER-owned entries. Claude Code is **not installed** on this
+  machine, so the bridge is contract-tested only and has never received a live hook.
+- `integrations/deepseek-harness/` — a small host-native observer plugin for the
+  official DeepSeek Harness. It runs inside the user's existing `dsh` host, exports
+  only allowlisted status metadata to `<spool>/dsh/<sourceInstanceId>/`, never
+  throws into the host and never intercepts approval/request decisions. dsh keeps its
+  own compressed session storage; OVERSEER never reads or migrates it.
+
+Not yet implemented: the project-first list and activity strips, the composite
+multi-source monitor that would consume these spools, the dsh/Claude source adapters
+inside the app, and the offline baseline voice. `docs/IMPLEMENTATION_STATE.md` lists
+the exact gap and next steps.
 
 ## Configuration and logs
 

@@ -1,5 +1,46 @@
 # OVERSEER changelog
 
+## Unreleased — 2026-09-24 (project-centered round, partial)
+
+### Added
+
+- Project identity and a deterministic project resolver (explicit mapping, configured
+  root, verified Git root with worktree grouping, workspace root, otherwise
+  Unassigned) with complete-segment path comparison, bounded ancestor checks and a
+  bounded cache. Roots stay local metadata: diagnostics emit a name and stable hash.
+- Harness-qualified task keys (harness + stable source instance + conversation), so
+  equal conversation ids in different harnesses remain separate tasks.
+- A compiled internal `IAgentMonitorAdapter`/`SourceSnapshot` contract with
+  per-source health, coverage and capabilities.
+- Bounded observed activity history per task and project: confirmed/inferred/unknown
+  separation, explicit unknown coverage instead of idle, markers that keep the
+  underlying interval, per-interval project attribution, union-based project strips
+  and bounded 720-bin geometry. 27 new tests cover these boundaries.
+
+### Changed
+
+- Closing the HUD window (×, Alt+F4, system menu) now hides it to the tray while a
+  working tray exists. **Exit** still quits, Windows logoff/shutdown is never
+  cancelled, and a missing tray keeps the window reachable instead of hiding it.
+- A second normal launch now asks the running instance to restore its window and
+  session before exiting quietly.
+
+### Integrations (external assets, opt-in)
+
+- `integrations/claude-code/`: a documented-hook bridge plus preview/backup
+  install and uninstall helpers. Contract-tested (19 Node tests) but **not**
+  live-qualified — Claude Code is not installed on this machine.
+- `integrations/deepseek-harness/`: a small host-native observer plugin that exports
+  allowlisted status metadata from the user's existing `dsh` host. Tested in
+  isolation; not yet attached to a running host, and OVERSEER does not consume the
+  spool yet.
+
+### Not yet implemented
+
+- Project-first HUD rows, activity strips, responsive header/menu refinement, the
+  composite multi-source monitor, the dsh/Claude adapters inside the app, and the
+  offline baseline voice. Details and next steps: `docs/IMPLEMENTATION_STATE.md`.
+
 ## Unreleased — 2026-09-23
 
 ### Fixed
