@@ -580,6 +580,31 @@ bins for a project and a task, empty history, unknown-vs-idle distinction), insp
 render, then add the task-row strip, the "Use baseline" settings control, and the
 close/header/sizing refinement before the publish + packaged smoke pass.
 
+### DeepSeek session checkpoint 8 — strips rendered in fixtures (2026-09-24)
+
+- `--hud-fixture` now builds the same muted `NotificationCoordinator` the production
+  composition uses, records the synthetic snapshot producer-side and hands the view model
+  the real `CoordinatorActivityStripSource`, so a fixture render exercises the strip
+  wiring rather than a stub.
+- Inspected `artifacts/ux-strips5/fixtures/dark-expanded.png`: every project header now
+  carries a last-hour strip beneath its label/summary ("Aurora 0 working · 2 needs you ·
+  Codex" and "Webots harness 1 working · 1 needs you · dsh · partial"), the strip spans the
+  header width without clipping, and unobserved time renders as the muted low-opacity
+  unknown fill — visibly distinct from the brighter known cells.
+
+Verification: Release build **0 warnings / 0 errors**; .NET tests **550 passed / 0 failed /
+0 skipped**; fixtures re-rendered from this source.
+
+Stated gaps for this increment: the fixture only records a couple of known instants, so the
+per-category palette is only partially exercised in the render; there is still no automated
+test for `CoordinatorActivityStripSource` or `TaskRowViewModel.UpdateActivity`; and the
+task-row strip is not implemented yet (only the project header strip).
+
+Next executable step: automated strip tests (project and task bins, empty history,
+unknown-versus-idle), a fixture that feeds staggered snapshots so several categories are
+visible, then the task-row strip, the "Use baseline" settings control, and the
+close/header/sizing refinement before the publish + packaged smoke pass.
+
 ## Archived P4 Status
 Plan: P4 — Hardening and Release
 Goal: G4 — Harden, package, smoke-test, and release V1
