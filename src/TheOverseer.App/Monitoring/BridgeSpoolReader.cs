@@ -36,6 +36,7 @@ public sealed class BridgeSpoolReader
     private const int HeadFingerprintBytes = 64;
 
     private (long Length, DateTime LastWrite) _currentStamp = (-1, DateTime.MinValue);
+    private BridgeCurrentStateParseResult? _currentCache;
     private long _eventsOffset;
     private long _eventsLength = -1;
     private DateTime _eventsCreationUtc;
@@ -177,12 +178,13 @@ public sealed class BridgeSpoolReader
 
                 var stamp = new FileInfo(CurrentPath);
                 var identity = (stamp.Length, stamp.LastWriteTimeUtc);
-                if (identity == _currentStamp)
+                if (identity == _currentStamp && _currentCache is not null)
                 {
                     // The atomically replaced document is byte-identical to the one
-                    // already applied: re-parsing it every poll would cost bounded
-                    // but pointless work.
-                    return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Ignored, null, "snapshot-unchanged");
+                    // already parsed. The cached document is returned instead of
+                    // re-parsing, so the consumer can still re-apply it (and clear a
+                    // producer-drop note) without paying for a parse every poll.
+                    return _currentCache;
                 }
 
                 _currentStamp = identity;
@@ -220,6 +222,7 @@ public sealed class BridgeSpoolReader
             var parsed = HarnessBridgeCurrentStateParser.Parse(text, source);
             if (parsed.Outcome != BridgeCurrentStateOutcome.Malformed || attempt == 1)
             {
+                _currentCache = parsed;
                 return parsed;
             }
 

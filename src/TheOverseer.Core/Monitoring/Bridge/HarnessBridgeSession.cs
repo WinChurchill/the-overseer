@@ -120,6 +120,7 @@ public sealed class HarnessBridgeSession
     private DateTimeOffset _lastSnapshotAtUtc = DateTimeOffset.MinValue;
     private bool _emptyAuthoritative;
     private bool _producerGap;
+    private DateTimeOffset _lastGapAt;
 
     public HarnessBridgeSession(
         SourceInstance source,
@@ -181,6 +182,28 @@ public sealed class HarnessBridgeSession
         }
     }
 
+    /// <summary>
+    /// When the most recent history gap happened. A gap older than the activity
+    /// window no longer affects anything the HUD can display, so callers can stop
+    /// disclosing it without pretending it never happened.
+    /// </summary>
+    public DateTimeOffset LastHistoryGapAt
+    {
+        get
+        {
+            lock (_gate)
+            {
+                var latest = _lastGapAt;
+                foreach (var lane in _sessions.Values)
+                {
+                    if (lane.HistoryGap && lane.LastGapAt > latest) latest = lane.LastGapAt;
+                }
+
+                return latest;
+            }
+        }
+    }
+
     /// <summary>Whether the last authoritative resynchronization proved an empty source.</summary>
     public bool EmptySourceAuthoritative
     {
@@ -204,10 +227,12 @@ public sealed class HarnessBridgeSession
         {
             _producerIncomplete = true;
             _producerReason = reasonCode;
-            _producerIncompleteAt = atUtc ?? DateTimeOffset.UtcNow;
+            var stamp = atUtc ?? DateTimeOffset.UtcNow;
+            _producerIncompleteAt = stamp;
             // The lost records are history that was never observed: current state can
             // be recovered from a later snapshot, the history hole cannot.
             _producerGap = true;
+            if (stamp > _lastGapAt) _lastGapAt = stamp;
         }
     }
 
@@ -238,6 +263,8 @@ public sealed class HarnessBridgeSession
                 // but the records between the epochs were never observed and the
                 // previous epoch's ordering watermark no longer applies.
                 lane.HistoryGap = true;
+                lane.LastGapAt = record.ObservedAtUtc;
+                if (record.ObservedAtUtc > _lastGapAt) _lastGapAt = record.ObservedAtUtc;
                 lane.CurrentStateComplete = false;
                 lane.LastSequence = -1;
                 lane.SnapshotWatermark = -1;
@@ -271,6 +298,8 @@ public sealed class HarnessBridgeSession
                 // A sequence gap means records were lost: coverage drops, and the
                 // gap is visible instead of being smoothed over.
                 lane.HistoryGap = true;
+                lane.LastGapAt = record.ObservedAtUtc;
+                if (record.ObservedAtUtc > _lastGapAt) _lastGapAt = record.ObservedAtUtc;
                 lane.CurrentStateComplete = false;
                 _gaps++;
             }
@@ -283,6 +312,8 @@ public sealed class HarnessBridgeSession
             }
 
             var stamp = Stamp(lane, record.ObservedAtUtc, receiptAtUtc);
+            // New evidence makes a previously retired session live again.
+            lane.Retired = false;
             var observedAction = !IsLivenessOnly(record.Kind);
             lane.LastObservedAt = Later(lane.LastObservedAt, stamp);
             if (observedAction)
@@ -342,6 +373,7 @@ public sealed class HarnessBridgeSession
                 return new BridgeResyncResult(0, 0, 0, 0, false, false, "snapshot-stale");
             }
 
+            var hadDropNote = _producerIncomplete;
             _lastSnapshotAtUtc = document.UpdatedAtUtc;
             _resyncs++;
             _lastResyncReason = "snapshot-applied";
@@ -372,6 +404,7 @@ public sealed class HarnessBridgeSession
                 }
 
                 var before = lane.CurrentStateComplete;
+                lane.Retired = false;
                 var stamp = Bound(document.UpdatedAtUtc, receiptAtUtc);
                 var sessionObserved = entry.LastObservedUtc is { } last && last <= stamp ? last : stamp;
                 lane.Epoch = document.SourceEpoch;
@@ -468,7 +501,12 @@ public sealed class HarnessBridgeSession
                 // may no longer be summarized anywhere. Current state may still be
                 // complete for the remaining sessions, but history is not.
                 _evictedSessions = document.EvictedSessions;
-                foreach (var lane in _sessions.Values) lane.HistoryGap = true;
+                if (document.UpdatedAtUtc > _lastGapAt) _lastGapAt = document.UpdatedAtUtc;
+                foreach (var lane in _sessions.Values)
+                {
+                    lane.HistoryGap = true;
+                    lane.LastGapAt = document.UpdatedAtUtc;
+                }
             }
             else
             {
@@ -476,18 +514,24 @@ public sealed class HarnessBridgeSession
             }
 
             _emptyAuthoritative = document.Sessions.Count == 0;
-            if (_producerIncomplete && document.UpdatedAtUtc >= _producerIncompleteAt)
+            // A document applied AFTER a drop was noted is the producer's complete
+            // statement of current state, so the lost records no longer make current
+            // state unknown. The producer stages this document on every emit, drops
+            // included, and the caller notes drops after applying the document, so at
+            // least one honest pass always reports the drop before it clears. The lost
+            // records stay lost: this restores current state, never history.
+            if (hadDropNote)
             {
-                // The document was published after the drop was observed, so the
-                // current state it states is not affected by the lost records. The
-                // lost records stay lost: this restores current state, not history.
-                _producerIncomplete = false;
-                _producerReason = string.Empty;
+                // A session the document does not mention could have been affected by
+                // the lost records, so its current state stays unproven.
+                foreach (var lane in _sessions.Values)
+                {
+                    if (!changed.Contains(lane.SessionId) && !lane.Retired) lane.CurrentStateComplete = false;
+                }
             }
-            else if (_producerIncomplete)
-            {
-                foreach (var lane in _sessions.Values) lane.CurrentStateComplete = false;
-            }
+
+            _producerIncomplete = false;
+            _producerReason = string.Empty;
 
             return new BridgeResyncResult(applied, recovered, retired, superseded, false, _emptyAuthoritative, "ok");
         }
@@ -872,6 +916,7 @@ public sealed class HarnessBridgeSession
         public bool Retired;
         public bool CurrentStateComplete;
         public bool HistoryGap;
+        public DateTimeOffset LastGapAt;
         public bool OutcomeUnknown;
         public BridgeTurnOutcome TurnOutcome = BridgeTurnOutcome.None;
         public string ProjectRoot = string.Empty;

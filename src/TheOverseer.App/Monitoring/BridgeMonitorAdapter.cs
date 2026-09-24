@@ -33,6 +33,9 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
     private DateTimeOffset _lastResyncAt;
     private int _disposed;
 
+    /// <summary>The HUD's activity window: a gap older than this cannot be displayed.</summary>
+    private static readonly TimeSpan HistoryWindow = TimeSpan.FromMinutes(60);
+
     public BridgeMonitorAdapter(
         SourceInstance source,
         string dataDirectory,
@@ -216,9 +219,12 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             complete = false;
         }
 
-        if (_session?.HistoryGap == true)
+        if (_session?.HistoryGap == true && now - _session.LastHistoryGapAt <= HistoryWindow)
         {
-            // A history gap lowers trust in derived activity, not in current state.
+            // A history gap lowers trust in derived activity, not in current state,
+            // and only while it can still affect the displayed activity window. An
+            // older hole is kept on the lanes rather than degrading the source
+            // forever.
             reasons.Add("bridge-history-gap");
         }
 

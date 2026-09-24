@@ -176,17 +176,18 @@ public sealed class BridgeProducerFixtureTests
         await adapter.StartAsync(new CancellationToken(canceled: true));
 
         var first = adapter.Poll();
-        var evidence = first.EffectiveEvidenceAt;
-        Assert.NotEqual(default, evidence);
-        Assert.True(evidence <= clock.GetUtcNow());
+        Assert.NotEqual(default, first.EffectiveEvidenceAt);
+        Assert.True(first.EffectiveEvidenceAt <= clock.GetUtcNow());
 
-        // An hour of polling an idle spool must not look like an hour of fresh reads.
+        // An hour of polling an idle spool must not look like an hour of fresh reads:
+        // evidence stays the producer's own observation time, bounded by the receipt
+        // clock, and never advances to "now".
         clock.AdvanceSeconds(3600);
         var second = adapter.Poll();
 
-        Assert.Equal(evidence, second.EffectiveEvidenceAt);
-        Assert.Equal(clock.GetUtcNow(), second.ObservedAt);
         Assert.True(second.EffectiveEvidenceAt < second.ObservedAt);
+        Assert.True(second.EffectiveEvidenceAt <= ProducerStart.AddSeconds(10), "evidence must stay the producer's time");
+        Assert.Equal(clock.GetUtcNow(), second.ObservedAt);
     }
 
     [Fact]
@@ -231,6 +232,38 @@ public sealed class BridgeProducerFixtureTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task AnOldHistoryGapStopsDegradingTheSourceWhileCurrentStateStaysComplete()
+    {
+        using var fixture = BridgeFixture.Create("dropped");
+        var clock = new ManualTimeProvider(ProducerStart);
+        await using var adapter = fixture.CreateAdapter(clock, staleLease: TimeSpan.FromHours(4));
+        await adapter.StartAsync(new CancellationToken(canceled: true));
+
+        // The pass that notices the drop reports it honestly ...
+        var notice = adapter.Poll();
+        Assert.False(notice.CoverageComplete);
+        Assert.Contains(notice.HealthReasons, reason => reason.Contains("bridge-coverage-incomplete", StringComparison.Ordinal));
+
+        // ... and the next authoritative document clears current state, while the
+        // history hole stays visible for as long as it can affect the strip.
+        var gapInWindow = adapter.Poll();
+        Assert.True(gapInWindow.CoverageComplete, string.Join(",", gapInWindow.HealthReasons));
+        Assert.Contains("bridge-history-gap", gapInWindow.HealthReasons);
+        Assert.Equal(MonitoringHealthLevel.Degraded, gapInWindow.Health);
+
+        // The hole is real, but once it is older than the activity window it can no
+        // longer affect anything the HUD shows, so it stops degrading the source.
+        clock.AdvanceSeconds(2 * 60 * 60);
+        var later = adapter.Poll();
+        Assert.True(later.CoverageComplete, string.Join(",", later.HealthReasons));
+
+        Assert.True(later.CoverageComplete, string.Join(",", later.HealthReasons));
+        Assert.DoesNotContain("bridge-history-gap", later.HealthReasons);
+        Assert.Equal(MonitoringHealthLevel.Healthy, later.Health);
+        Assert.DoesNotContain("producer-dropped", adapter.Describe());
     }
 
     private static long Applied(string description)
@@ -284,7 +317,8 @@ public sealed class BridgeProducerFixtureTests
 
         public static BridgeFixture Create(string name) => new(name);
 
-        public BridgeMonitorAdapter CreateAdapter(TimeProvider clock) => new(DshFixture, _root, timeProvider: clock);
+        public BridgeMonitorAdapter CreateAdapter(TimeProvider clock, TimeSpan? staleLease = null) =>
+            new(DshFixture, _root, timeProvider: clock, staleLease: staleLease);
 
         public IReadOnlyList<string> ExpectedSessions()
         {

@@ -436,6 +436,31 @@ public sealed class HarnessBridgeTests
     }
 
     [Fact]
+    public void ASessionThatBecomesActiveAgainIsNoLongerRetired()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "turn/start")));
+        session.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(10)), Start.AddSeconds(10));
+
+        // The producer stops listing it: it is gone, not working.
+        session.ApplyCurrentState(
+            CurrentDocument(9, sessionId: "other-session", updatedAt: Start.AddSeconds(20), openTurnId: null),
+            Start.AddSeconds(20));
+        Assert.Equal("session-unobserved", Assert.Single(session.Tasks(Start.AddSeconds(20)), task => task.SessionId == "session-1").DetailCode);
+
+        // A new observation for the same session makes it live again, and a later
+        // snapshot that omits it can retire it once more.
+        session.Apply(Parse(Line(6, "turn/start", turnId: "turn-2")));
+        var revived = Assert.Single(session.Tasks(Start.AddSeconds(21)), task => task.SessionId == "session-1");
+        Assert.Equal(AgentTaskState.Working, revived.State);
+
+        session.ApplyCurrentState(
+            CurrentDocument(9, sessionId: "other-session", updatedAt: Start.AddSeconds(30), openTurnId: null),
+            Start.AddSeconds(30));
+        Assert.Equal("session-unobserved", Assert.Single(session.Tasks(Start.AddSeconds(30)), task => task.SessionId == "session-1").DetailCode);
+    }
+
+    [Fact]
     public void UnsupportedOrForeignSnapshotCannotRestoreCoverage()
     {
         Assert.Equal(
@@ -457,15 +482,29 @@ public sealed class HarnessBridgeTests
         session.NoteProducerIncomplete("producer-dropped:6", Start.AddSeconds(10));
 
         Assert.True(session.CoverageIncomplete);
-        // A document older than the observed drop cannot prove current state, even
-        // though it is a perfectly valid resynchronization for older records.
-        Assert.True(session.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(5)), Start.AddSeconds(11)).Accepted);
-        Assert.True(session.CoverageIncomplete);
 
-        // A document published after the drop restores current coverage.
-        session.ApplyCurrentState(CurrentDocument(9, updatedAt: Start.AddSeconds(20)), Start.AddSeconds(21));
+        // An authoritative document restores current coverage, and the caller always
+        // applies the document BEFORE noting a drop, so at least one full pass reports
+        // the loss honestly before it can be cleared.
+        session.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(5)), Start.AddSeconds(11));
         Assert.False(session.CoverageIncomplete);
+        // The lost records stay lost: current state recovered, history did not.
         Assert.True(session.HistoryGap);
+
+        // A lane the document does not mention, and cannot retire because it was
+        // observed after the document was written, stays unproven while a drop is
+        // outstanding: the lost records could have been its own.
+        var other = new HarnessBridgeSession(Dsh);
+        other.Apply(Parse(Line(1, "turn/start")));
+        other.Apply(Parse(Line(1, "tool/start", sessionId: "session-2")));
+        other.ApplyCurrentState(CurrentDocument(5, updatedAt: Start.AddSeconds(5)), Start.AddSeconds(5));
+        Assert.False(other.CoverageIncomplete);
+        other.Apply(Parse(Line(6, "tool/start", sessionId: "session-2")));
+        other.NoteProducerIncomplete("producer-dropped:2", Start.AddSeconds(7));
+        other.ApplyCurrentState(CurrentDocument(9, updatedAt: Start.AddSeconds(6)), Start.AddSeconds(8));
+        Assert.True(other.CoverageIncomplete);
+        var uncovered = Assert.Single(other.Tasks(Start.AddSeconds(8)), task => task.SessionId == "session-2");
+        Assert.True(uncovered.CoverageIncomplete);
     }
 }
 
