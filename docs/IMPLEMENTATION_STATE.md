@@ -458,3 +458,12 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   and work-area reachability. Resize, maximize/restore, native maximize hit target
   and persisted normal bounds all passed on the final package. Evidence:
   `artifacts/window-scaling-final/native-monitor-check/window-scaling-evidence.json`.
+
+### Own-HUD window chrome — planning revision
+
+- User clarified that resizing/Snap should retain OVERSEER's own HUD rather than
+  switch to a stock Windows title bar. Replaced WINDOW_SCALING_PLAN.md with the
+  next implementation plan: custom chrome, native behavior underneath, explicit
+  drag/control/light/edge input boundaries, and real custom-button Snap validation.
+- Planning only. Existing app, package and shortcut remain unchanged. Implementation
+  awaits user instruction; the previously tested sizing/monitor foundation is retained.

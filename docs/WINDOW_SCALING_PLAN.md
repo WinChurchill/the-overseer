@@ -1,125 +1,176 @@
-# OVERSEER window scaling — draft for discussion
+# OVERSEER — scaling our HUD
 
-Status: user approved implementation; see IMPLEMENTATION_STATE.md for verification.
-Inspected base: `f3c9499`, branch `ux/first-use`.
-This is a proposed post-V1 UX extension, not a rewrite of the frozen four plans.
+Status: planning only. User requested this revision; do not implement until instructed.
+Inspected base: 7e0c284 on ux/first-use.
+This supersedes the standard-title-bar direction of the earlier scaling plan.
+Completed implementation and evidence remain in IMPLEMENTATION_STATE.md.
 
 ## Goal
 
-OVERSEER remains readable and controllable as a small floating HUD or a resized,
-snapped side window, across Windows display scales and monitor changes. Resizing
-changes available content space; it must not simply magnify the whole interface.
+One recognizable OVERSEER HUD at every size: compact, expanded, freely resized,
+snapped or maximized. No stock Windows title bar and no separate-looking Window
+view. Windows supplies window management underneath OVERSEER's own presentation.
 
-## Observed foundation and gaps
+## Keep the work already completed
 
-- App manifest already declares PerMonitorV2. Placement service and tests cover
-  mixed DPI, monitor-relative positions, work-area clamping and removed displays.
-- HudWindow uses WindowStyle=None, AllowsTransparency=True, ResizeMode=NoResize.
-  Summary row is fixed at 72 DIPs; several labels and chart dimensions are fixed.
-- HudApplicationController.ApplyGeometryCore reapplies preset width/height on
-  placement, DPI and several settings changes. Enabling resizing alone would
-  let this path undo the user's chosen bounds.
-- HudWindowState stores monitor/position/DPI/expansion, but no user-sized bounds.
-- Activity chart currently stretches a 330x30 drawing. Larger windows need
-  geometry calculated for actual content width, without distorted stroke widths.
-- Existing automated geometry tests are a foundation, not proof of native Snap
-  or real mixed-monitor operation.
+- Shared controller, window, monitoring and voice session.
+- Tested native resizing/restore bounds and independent saved floating geometry.
+- PerMonitorV2; real 125% to 100% monitor transitions passed.
+- Adaptive task list, short-window scrolling, light constraints, graph rendering.
+- Existing settings migration, privacy rules, focus behavior and voice anti-spam.
+- Baseline: 453 passing tests; 28 package smoke checks on the preceding candidate,
+  with final candidate scoped checks documented separately.
 
-## Proposed user behavior
+The current SetWindowView method uses SingleBorderWindow for the larger view.
+Replace that presentation decision; do not discard the underlying sizing work.
 
-| Situation | Proposed behavior |
-| --- | --- |
-| Floating HUD | Keep current compact/expanded use, always-on-top preference and quiet non-activating updates. |
-| Resizable window | Explicit Window view gives resize edges and standard minimize/maximize/restore behavior; starts expanded. |
-| Side-screen use | Window view supports native Windows Snap and keyboard placement. Fill the assigned area; never snap back to HUD presets. |
-| Return to HUD | Restore previous floating bounds and expansion state. Preserve filters, selected task, monitoring session and voice state. |
-| More height | Show more task rows; keep summary and controls reachable. Scroll the task list. |
-| More width | Give task titles/details more room; keep status typography restrained. Do not add unrelated dashboard panels. |
-| Narrow/short space | Reflow controls and secondary metadata before clipping; preserve status and action access. Use a measured minimum width, targeting 320 DIPs or less for Window view. |
-| Light strip | Keep its independent size setting. In Window view, resizing/toggling the light redistributes internal space instead of resizing or unsnapping the outer window. |
-| Display scale change | Follow Windows DPI with one conversion between logical and physical sizes; no extra automatic app zoom. |
+## User-facing behavior
 
-Recommended defaults: floating HUD retains its current topmost preference;
-Window view starts non-topmost, with an independent remembered pin preference.
-Switching view is explicit. Double-clicking a suitable Window-view title area
-maximizes/restores; menus, buttons and resize grips never initiate window dragging.
-The user approved this two-view behavior and these pin defaults before coding.
+- The existing OVERSEER header is the only title area. No additional native title
+  strip, duplicate branding or second visual style appears when resizing.
+- A dedicated expand/collapse control changes content density. A separate custom
+  maximize/restore control changes window state. Their glyphs, tooltips and
+  accessible names must distinguish these actions.
+- Expanded/free-sized HUD supports edge/corner resizing and Windows Snap directly;
+  no preliminary switch to "Window view" is required.
+- Compact remains a deliberate small summary. Collapsing saves the larger normal
+  bounds and restores compact placement; expanding restores those larger bounds.
+  Collapsing from maximized/snapped state first leaves that state deliberately.
+- Compact supports maximize via the custom control (expands first). Resizing a
+  compact HUD enters expanded sizing after a real resize gesture, not a DPI-only
+  or programmatic size change. Preserve the previous expanded bounds until that
+  gesture is committed.
+- Keep the top-right area compact: existing light/mute controls plus an accessible
+  menu, expand/collapse and maximize/restore. Minimize and Exit remain available
+  through the menu/system menu; avoid crowding in redundant caption buttons.
+- Keep the current pin preferences: compact starts with the existing HUD preference,
+  larger presentation uses the previously saved larger-view preference (default
+  off). Resizing/Snap must not silently change pin state. Expose the active setting
+  clearly in the menu.
+- More space shows more information rather than uniformly enlarging text.
+  Narrow layouts reflow controls/metadata; short layouts scroll. Neither state
+  nor menu actions may become inaccessible.
+- Light width remains independent and constrained for readability. Adjusting it
+  reallocates internal space without resizing/unsnapping a user-sized HUD.
 
-## Implementation sequence after agreement
+## Pointer and keyboard contract
 
-One cohesive implementation goal and one review, with internal milestones:
+Priority order for hit testing:
+1. A thin outer edge/corner band resizes the whole window, with directional cursor.
+2. Explicit controls and menus behave as controls, never window drag regions.
+3. The light's interior grip changes light width only; reserve the outermost edge
+   for window resizing so the two operations never compete.
+4. Empty header and designated upper-summary background move the window.
+5. Task rows, scrollbars, links and status actions retain their existing meaning.
 
-1. Establish native window behavior first. Prototype WPF WindowChrome/standard
-   non-client behavior for resizable Window view, preserving the existing visual
-   identity. Check whether changing from the transparent HUD requires recreating
-   only the window host; keep the controller, view model and notification session
-   alive. No extra process or framework. Verify Win+Arrow, drag-to-edge, maximize,
-   restore and Windows 11 Snap menu before committing to custom caption controls.
-2. Separate automatic HUD sizing from user/OS-owned Window-view bounds. Define
-   sizing ownership for every path: DPI, expansion, light, theme, task updates,
-   display topology, startup and reset. Never overwrite native snapped bounds on
-   ordinary model updates. Respect taskbar work areas on maximize.
-3. Adapt the shared content layout. Derive breakpoints from measured content
-   requirements, not physical resolution. Keep one Light/Dark layout; reflow
-   rather than shrink essential text. Bound graph height and redraw at actual
-   width. Keep menus/settings reachable with keyboard and pointer at every size.
-4. Persist view mode, normal restore bounds in DIPs, owning monitor and pin
-   preferences; migrate existing state without losing settings. Do not store
-   maximized bounds as normal restore bounds. Let Windows own live Snap placement;
-   do not promise restoration of an entire Windows Snap group after restart.
-5. Harden mixed-DPI and disconnected-monitor transitions, including negative
-   screen coordinates. Clamp only when needed for reachability. Do not fight the
-   user's ongoing move/resize gesture or repeatedly apply stale DPI geometry.
-6. Build, test, package and review the complete change. Update changelog and
-   implementation ledger with tested configurations and remaining limitations.
+- Normal pointer on the upper-right controls and gaps; move cursor only over
+  actual draggable background. Maximized windows have no active resize edge.
+- Double-click plain header background maximizes/restores; do not intercept
+  double-clicks on controls or the clickable task-status action.
+- Dragging a maximized window restores/moves through the native window operation.
+- Tab/Enter/Space, accessible button names, Alt+Space and system commands remain
+  usable. Escape never unexpectedly collapses a snapped/maximized window.
+- Background monitoring, voice and settings changes never activate the HUD.
+  Explicit user interactions may activate it normally.
 
-## Code map
+## Technical approach and early acceptance gate
 
-- UI: `src/TheOverseer.UI/HudWindow.xaml`, `.xaml.cs`, theme resources and
-  `Controls/ActivitySparkline` rendering.
-- Orchestration: `src/TheOverseer.App/HudApplicationController.cs`.
-- Native placement: `src/TheOverseer.App/Desktop/WindowPlacementService.cs`,
-  `NativeMethods.cs`, `app.manifest`.
-- State/policy: `src/TheOverseer.Core/Configuration/HudWindowState.cs`,
-  `HudPlacement.cs`, state persistence/migration.
-- Tests: `WindowPlacementTests`, `HudSettingsTests`, `HudDispatchTests`,
-  `HudWindowTests`, `ActivitySparklineTests`, packaged fixture/smoke scripts.
-- Preserve monitoring reducers, task meaning, voice dedupe/cooldown and frozen
-  specifications. No agent-provider integration or project grouping in this work.
+Use built-in WPF WindowChrome with our content extending into the title area,
+retaining the already opaque HWND (AllowsTransparency=false). Keep the existing
+painted background, palettes, icon and shell. Do not add a UI framework or dependency.
 
-## Acceptance and validation
+Preserve native resize/maximize capabilities even though no stock caption is drawn.
+Use a small owned-window interop adapter only for behavior WindowChrome does not
+supply. Register/dispose its HwndSource hook with the window lifecycle.
 
-- Automated state tests: resize survives updates; independent restore bounds;
-  state migration; invalid bounds recovery; view switching does not restart voice
-  lifecycle; light size cannot unsnap the window; no resize/DPI feedback loops.
-- Render matrix: Light/Dark; compact, narrow/tall, half-screen, wide/short and
-  maximized; long task names, large counts, empty, attention and unknown states;
-  light off and on every edge, including its maximum size.
-- Windows scale matrix: 100%, 125%, 150%, 175%, 200%, with 250–300% stress cases.
-  Use representative laptop, 1440p, 4K and portrait work areas, not every possible
-  Cartesian combination. Separate larger Windows text-size behavior from DPI;
-  characterize WPF support and handle it deliberately rather than claim it works.
-- Real native checks: Win+Left/Right, Win+Z where available, Snap menu hover,
-  drag-to-edge, maximize/restore, monitor-to-monitor moves at different scales,
-  unplug/reconnect, sleep/resume and restart. Record actual available hardware;
-  simulated placement tests cannot substitute for real mixed-DPI checks.
-- Pass: readable essentials, reachable controls, correct pointer/resize cursors,
-  no clipped actions/overlap, no unexpected size resets/jumps, preserved filters,
-  no background focus theft, no extra notifications caused by view changes.
-- If a layout cannot fit physically, provide scrolling/reachable recovery rather
-  than silently reducing text below its readable baseline.
+For the custom maximize button, implement appropriate non-client hit testing
+(HTMAXBUTTON at its actual screen-space bounds) and mouse/command routing.
+A non-client hit changes event routing: explicitly test hover, leave, pressed,
+release-inside, release-outside and keyboard invocation; invoke maximize only once.
+Do not both handle a WPF click and issue the same native command.
 
-## Decisions deferred from this change
+Convert physical cursor coordinates using the live HWND DPI/PointFromScreen.
+Support negative monitor coordinates; recompute after layout, DPI and state changes.
+Do not use fixed physical-pixel button rectangles.
 
-Independent in-app zoom can be added after DPI, text-size and reflow behavior are
-verified. No custom Snap manager, reserved desktop docking/AppBar, multi-column
-dashboard, multiple simultaneous OVERSEER windows, or new agent integrations.
+FIRST prove with our actual header:
+- the custom maximize button works by pointer and keyboard;
+- hover opens the real Windows 11 Snap layout flyout when enabled;
+- Win+Arrow, Win+Z, drag-to-edge and drag-from-maximized work;
+- invisible native caption controls do not intercept our header;
+- the upper-right menu and light grip never start a window drag.
 
-## Platform references
+HTMAXBUTTON alone is not proof of the complete Snap experience. If the prototype
+cannot meet this gate, investigate within WPF/Win32 and report the exact obstacle.
+Do not silently return to a stock title bar or build a fake Snap flyout.
 
-- Microsoft: [Snap layouts for desktop apps](https://learn.microsoft.com/windows/apps/desktop/modernize/apply-snap-layout-menu).
-  Custom caption controls must preserve native maximize hit testing; a resizable
-  border alone does not establish Snap menu support.
-- Microsoft: [WM_DPICHANGED](https://learn.microsoft.com/windows/win32/hidpi/wm-dpichanged).
-  Monitor transitions include an updated DPI and suggested window rectangle;
-  verify WPF's handling before adding overlapping manual compensation.
+## Ordered implementation
+
+One implementation goal and one review; these are internal milestones.
+
+1. Inspect current shell, WindowView controller, placement service and input tests.
+   Prototype custom chrome against the acceptance gate above before polishing.
+2. Define the input map and implement custom header controls, native resize edges,
+   system menu and maximize/restore commands. Consolidate existing DragMove logic
+   so native caption handling and WPF mouse capture never compete.
+3. Reconcile compact/expanded presentation with native normal/snapped/maximized
+   states. Keep persisted old WindowView fields readable; migrate their values to
+   the corresponding larger HUD state without losing geometry or pin preferences.
+   Separate user resize gestures from automatic DPI/layout adjustments.
+4. Preserve OS ownership of live bounds. Model, theme, light and task updates must
+   not restore a preset size. Preserve normal restore bounds while maximized.
+   Use monitor work area on maximize and recovery; do not cover the taskbar.
+5. Retune header reflow at the measured minimum width (target <=320 DIPs).
+   Keep the existing styles, readable essentials, light behavior and graph limits.
+6. Add targeted state/input tests, render all relevant layouts, run native checks,
+   build/test/package, review, then record results and qualifications.
+
+## Relevant files
+
+- src/TheOverseer.UI/HudWindow.xaml and HudWindow.xaml.cs
+- src/TheOverseer.App/HudApplicationController.cs and .WindowView.cs
+- src/TheOverseer.App/Desktop/NativeMethods.cs and WindowPlacementService.cs
+- src/TheOverseer.Core/Configuration/HudWindowState.cs and HudPlacement.cs
+- Existing theme resources and Diagnostics/HudFixtureRunner.cs
+- HudWindowTests, HudDispatchTests, WindowViewStateTests, WindowPlacementTests
+- scripts/Test-WindowScaling.ps1 and scripts/Test-PackagedRelease.ps1
+
+Likely one small native-chrome adapter in App/Desktop; no new project.
+Leave frozen AGENTS.md/specification, monitoring reducers and voice policy untouched.
+Do not overwrite the existing agent handoff during this planning-only revision.
+
+## Completion criteria
+
+- Compact, expanded, snapped and maximized all retain our HUD appearance; no stock
+  title strip or invisible clickable caption controls remain.
+- Our maximize/restore button and the actual Windows Snap flyout work together.
+- Header/controls/light/resize edges have distinct, tested behavior and cursors.
+- No input action fires twice, no drag traps/capture leaks, no background focus theft.
+- Maximize respects the taskbar; restore recovers expected normal bounds; updates
+  and light changes preserve user/OS dimensions.
+- Existing state migrates; filters, pin settings, monitoring and voice continuity
+  survive collapse/expand/resize/maximize/restore and restart.
+- Tests and final package evidence match the actual custom-header implementation.
+  Prior native-title-bar tests are not evidence that the new header works.
+
+Validation matrix:
+- Light/Dark; compact; narrow/tall; wide/short; half/third/quarter-screen; maximized;
+  long labels, large counts, empty/uncertain/attention states; all light positions.
+- Policy tests at 100/125/150/175/200/250/300%; physical 125% <-> 100% monitors
+  including the left portrait display and negative coordinates.
+- Native custom-control hit testing and real Snap interactions, resize/restore,
+  restart, taskbar work area, monitor removal and sleep/resume where available.
+- Windows accessibility text-size-only support remains a separately disclosed gap;
+  no new in-app zoom or unrelated visual redesign in this change.
+- A missing environment prevents a particular check, not a claim that it passed.
+  Snap hover/keyboard testing is a release gate for this custom-header change.
+
+## References
+
+- [WPF WindowChrome](https://learn.microsoft.com/en-us/dotnet/api/system.windows.shell.windowchrome?view=windowsdesktop-10.0)
+  separates client-drawn presentation from window-management behavior.
+- [Windows Snap layouts](https://learn.microsoft.com/windows/apps/desktop/modernize/apply-snap-layout-menu)
+  documents custom maximize-button hit testing.
+- [Custom window frames](https://learn.microsoft.com/windows/win32/dwm/customframe)
+  explains non-client input handling.
+
