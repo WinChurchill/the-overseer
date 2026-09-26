@@ -335,6 +335,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         private set => Set(ref _isPartial, value);
     }
 
+    /// <summary>
+    /// Monotonic count of applied snapshots. Diagnostics and tests use it to prove
+    /// the monitor-to-UI pipeline is still delivering instead of merely surviving.
+    /// </summary>
+    public int AppliedSnapshots { get; private set; }
+
     /// <summary>True once a real snapshot has been applied.</summary>
     public bool HasAppliedSnapshot
     {
@@ -424,6 +430,8 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     public void ApplySnapshot(MonitoringSnapshot snapshot)
     {
         HasAppliedSnapshot = true;
+        AppliedSnapshots++;
+        Raise(nameof(AppliedSnapshots));
         var now = snapshot.GeneratedAt;
         _latestSnapshot = snapshot;
         _viewNow = now;

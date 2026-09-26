@@ -60,6 +60,14 @@ public partial class App : Application
                 return;
             }
 
+            if (arguments.HudIntegrationCheck)
+            {
+                // Finite production-path check: real readers, composite and controller
+                // over invented producer files, asserting the applied HUD state.
+                Shutdown(await HudIntegrationCheckRunner.RunAsync(arguments, Dispatcher));
+                return;
+            }
+
             if (arguments.HudFixture)
             {
                 HudFixtureRunner.StartFixture(arguments, Dispatcher);

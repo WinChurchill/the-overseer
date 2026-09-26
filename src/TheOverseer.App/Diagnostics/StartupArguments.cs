@@ -19,6 +19,12 @@ public sealed class StartupArguments
     /// <summary>Explicit, reversible live check of the owned startup entry.</summary>
     public bool HudStartupCheck { get; private init; }
 
+    /// <summary>
+    /// Finite production-path check: invented Codex and bridge producer files through
+    /// the real readers, composite and controller, asserting the applied HUD state.
+    /// </summary>
+    public bool HudIntegrationCheck { get; private init; }
+
     /// <summary>Finite Plan 3 voice smoke (silent unless --audible is given).</summary>
     public bool VoiceSmoke { get; private init; }
 
@@ -42,7 +48,8 @@ public sealed class StartupArguments
 
     public string? OutputDirectory { get; private init; }
 
-    public bool IsFixtureInvocation => HudFixture || HudSmoke || HudStartupCheck || VoiceSmoke || VoicePackCheck;
+    public bool IsFixtureInvocation =>
+        HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || VoiceSmoke || VoicePackCheck;
 
     public static bool TryParse(IReadOnlyList<string> args, out StartupArguments result, out string error)
     {
@@ -51,6 +58,7 @@ public sealed class StartupArguments
         var fixture = false;
         var smoke = false;
         var startupCheck = false;
+        var integrationCheck = false;
         var voiceSmoke = false;
         var voicePackCheck = false;
         var audible = false;
@@ -74,6 +82,9 @@ public sealed class StartupArguments
                     break;
                 case "--hud-startup-check":
                     startupCheck = true;
+                    break;
+                case "--hud-integration-check":
+                    integrationCheck = true;
                     break;
                 case "--voice-smoke":
                     voiceSmoke = true;
@@ -146,6 +157,7 @@ public sealed class StartupArguments
             HudFixture = fixture,
             HudSmoke = smoke,
             HudStartupCheck = startupCheck,
+            HudIntegrationCheck = integrationCheck,
             VoiceSmoke = voiceSmoke,
             VoicePackCheck = voicePackCheck,
             Audible = audible,
@@ -165,6 +177,7 @@ public sealed class StartupArguments
        TheOverseer.App --hud-smoke [--duration SECONDS] [--data-directory PATH] [--no-tray]
        TheOverseer.App --hud-fixture --output-directory DIR [--data-directory PATH]
        TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)
+       TheOverseer.App --hud-integration-check [--output-directory DIR]   (invented producers through the real monitor and HUD)
        TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]
        TheOverseer.App --voice-pack-check [--data-directory PATH]";
 }
