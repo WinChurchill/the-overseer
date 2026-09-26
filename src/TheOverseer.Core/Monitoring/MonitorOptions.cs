@@ -47,6 +47,13 @@ public sealed record MonitorOptions
     public TimeSpan FailureBackoffMax { get; init; } = TimeSpan.FromMinutes(1);
 
     /// <summary>
+    /// How long a tracked file may be absent from disk before it is released. A file
+    /// that disappears (rotation, cleanup, a move) must not keep the source degraded
+    /// and its task unobservable forever; if it reappears it is admitted again.
+    /// </summary>
+    public TimeSpan MissingFileRetention { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
     /// Number release cooldown. A released number is reused for the same
     /// conversation when the conversation reappears.
     /// </summary>
@@ -82,6 +89,7 @@ public sealed record MonitorOptions
         StaleLease = Clamp(StaleLease, TimeSpan.FromMinutes(1), TimeSpan.FromHours(24)),
         FailureBackoffInitial = Clamp(FailureBackoffInitial, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5)),
         FailureBackoffMax = Clamp(FailureBackoffMax, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(30)),
+        MissingFileRetention = Clamp(MissingFileRetention, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(30)),
         NumberReleaseCooldown = Clamp(NumberReleaseCooldown, TimeSpan.Zero, TimeSpan.FromMinutes(30)),
     };
 

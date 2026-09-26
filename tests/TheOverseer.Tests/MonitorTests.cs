@@ -384,6 +384,42 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
+    public void ARemovedRolloutIsReleasedAndItsSourceStopsReportingFailure()
+    {
+        var id = "01a0c70f-0000-0000-0000-000000000010";
+        var path = _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });
+        using var monitor = Create(MonitorOptions.Default with { MissingFileRetention = TimeSpan.FromSeconds(10) });
+
+        var first = monitor.Refresh();
+        Assert.Equal(AgentTaskState.Working, Single(first).State);
+        Assert.DoesNotContain(HealthReasons.ReadFailure, first.Health.Reasons);
+
+        File.Delete(path);
+
+        // While the file is inside its retention the source honestly reports the gap.
+        _clock.Advance(TimeSpan.FromSeconds(2));
+        var missing = monitor.Refresh();
+        Assert.Contains(missing.Health.Reasons, reason =>
+            reason is HealthReasons.FileMissing or HealthReasons.ReadFailure);
+        Assert.False(missing.Health.CoverageComplete);
+
+        // Past the retention the file is released: it must not degrade the source (or
+        // hide its task) forever, because the file is gone rather than unreadable.
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        var released = monitor.Refresh();
+        Assert.DoesNotContain(HealthReasons.ReadFailure, released.Health.Reasons);
+        Assert.DoesNotContain(HealthReasons.FileMissing, released.Health.Reasons);
+
+        // A file that comes back is admitted and hydrated again: recovery is real.
+        var reappeared = Path.Combine(Path.GetDirectoryName(path)!, "rollout-2026-01-02T03-04-06-" + id + ".jsonl");
+        File.WriteAllLines(reappeared, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-2") });
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        var recovered = monitor.Refresh();
+        Assert.Equal(AgentTaskState.Working, Single(recovered).State);
+        Assert.DoesNotContain(HealthReasons.ReadFailure, recovered.Health.Reasons);
+    }
+
+    [Fact]
     public void RootAppearingLaterIsRecoveredWithCompleteCounts()
     {
         var missingSessions = Path.Combine(_home.Root, "late-sessions");

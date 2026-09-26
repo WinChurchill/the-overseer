@@ -831,6 +831,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         file.ReadBlocked = false;
         file.ConsecutiveFailures = 0;
         file.FailureCode = null;
+        file.MissingSinceAt = null;
         _lastSuccessfulReadAt = now;
         if (file.Hydrated) _counters.FilesHydrated++;
         if (!file.Hydrated || file.HydrationLimited)
@@ -933,6 +934,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         file.LastWriteUtc = info.LastWriteTimeUtc;
         file.ConsecutiveFailures = 0;
         file.FailureCode = null;
+        file.MissingSinceAt = null;
         file.ReadBlocked = false;
         _lastSuccessfulReadAt = now;
         if (read.BudgetExhausted)
@@ -1098,6 +1100,30 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         ref bool coverageComplete,
         DateTimeOffset now)
     {
+        // A file that is gone is not merely unreadable. Retaining it forever degraded
+        // the whole source (and kept its task unobservable) even after the session had
+        // moved on; after a bounded retention it is released instead. A file that comes
+        // back is simply admitted and hydrated again.
+        var absent = reasonCode == HealthReasons.FileMissing ||
+            (reasonCode != HealthReasons.FileLocked && !File.Exists(file.Path));
+        if (absent)
+        {
+            file.MissingSinceAt ??= now;
+            if (now - file.MissingSinceAt.Value >= _options.MissingFileRetention)
+            {
+                _tracked.Remove(file.Path);
+                if (!_tracked.Values.Any(item => item.Key == file.Key)) _reducer.Forget(file.Key);
+                _log.Write(MonitorLogLevel.Info, "monitor-file-released", reasonCode);
+                return;
+            }
+
+            reasonCode = HealthReasons.FileMissing;
+        }
+        else
+        {
+            file.MissingSinceAt = null;
+        }
+
         file.ConsecutiveFailures++;
         file.FailureCode = reasonCode;
         var backoff = TimeSpan.FromTicks(Math.Min(

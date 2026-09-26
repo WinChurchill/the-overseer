@@ -61,6 +61,12 @@ internal sealed class TrackedSessionFile
 
     public string? FailureCode { get; set; }
 
+    /// <summary>
+    /// When this file was first observed to be absent from disk. Null while the file
+    /// is present (or was never missing), so a reappearing file restarts the retention.
+    /// </summary>
+    public DateTimeOffset? MissingSinceAt { get; set; }
+
     public bool ReadBlocked { get; set; }
 
     public DateTimeOffset LastProcessedAt { get; set; }

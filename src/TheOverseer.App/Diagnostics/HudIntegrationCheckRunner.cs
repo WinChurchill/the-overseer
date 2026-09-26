@@ -66,6 +66,9 @@ internal static class HudIntegrationCheckRunner
             ReconcileInterval = TimeSpan.FromSeconds(1),
             DebounceInterval = TimeSpan.FromMilliseconds(100),
             StaleLease = TimeSpan.FromMinutes(10),
+            // A shorter retention than the 60-second default, so one finite run can
+            // observe a removed file being released and the source recovering.
+            MissingFileRetention = TimeSpan.FromSeconds(12),
         };
 
         var projects = new ProjectResolver(new ProjectSettings());
@@ -160,6 +163,7 @@ internal static class HudIntegrationCheckRunner
             var reported = await WaitAsync(() => viewModel.HealthDetails.Any(static row =>
                 row.Source.Contains("Codex", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(row.State, "reporting", StringComparison.Ordinal)), 45);
+            codex.RemoveFile();
             var peerSurvived = viewModel.Tasks.Any(static row => row.Key.HarnessId == HarnessIds.Dsh);
             Check("codex-degradation-is-disclosed", reported, Summarize(viewModel));
             Check("peer-source-survives-failure", peerSurvived, Summarize(viewModel));
@@ -176,7 +180,7 @@ internal static class HudIntegrationCheckRunner
             // observed fresh without restarting the HUD.
             codex.RestoreFile();
             var recovered = await WaitAsync(() => viewModel.Tasks.Any(static row =>
-                row.Key.HarnessId == HarnessIds.Codex && row.TaskState == AgentTaskState.Working), 45);
+                row.Key.HarnessId == HarnessIds.Codex && row.TaskState == AgentTaskState.Working), 60);
             Check("codex-recovers-after-clean-data", recovered, Summarize(viewModel));
 
             // Freshness advances means the pipeline keeps delivering, not that the
@@ -187,7 +191,17 @@ internal static class HudIntegrationCheckRunner
             await Task.Delay(3000).ConfigureAwait(true);
             var after = viewModel.AppliedSnapshots;
             Check("freshness-advances", viewModel.HasAppliedSnapshot && after > before,
-                "applied " + before.ToString(CultureInfo.InvariantCulture) + " -> " + after.ToString(CultureInfo.InvariantCulture));
+                "applied " + before.ToString(CultureInfo.InvariantCulture) + " -> " + after.ToString(CultureInfo.InvariantCulture) +
+                " " + Summarize(viewModel));
+
+            // Does a reason recorded while a tracked file was unreadable clear once the
+            // source is healthy again? A latched reason would leave the HUD at limited
+            // coverage forever, so this is asserted rather than assumed.
+            await Task.Delay(8000).ConfigureAwait(true);
+            var clearedHealth = !viewModel.HealthDetails.Any(static row =>
+                row.Source.Contains("Codex", StringComparison.OrdinalIgnoreCase) &&
+                row.State.Contains("read-failure", StringComparison.OrdinalIgnoreCase));
+            Check("source-health-clears-after-recovery", clearedHealth, Summarize(viewModel));
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
@@ -265,7 +279,7 @@ internal static class HudIntegrationCheckRunner
     private sealed class SyntheticCodexProducer
     {
         private const string ConversationId = "01a0c900-0000-0000-0000-0000000000c9";
-        private readonly string _path;
+        private string _path;
 
         public SyntheticCodexProducer(string codexHome)
         {
@@ -323,10 +337,25 @@ internal static class HudIntegrationCheckRunner
         /// </summary>
         public void BreakFile() => File.WriteAllText(_path, "{\"type\": \"event_msg\", \"payload\": {", Utf8NoBom);
 
-        /// <summary>Writes a clean rollout again so the source can be observed fresh.</summary>
+        /// <summary>Removes the rollout: the session is gone from the source's view.</summary>
+        public void RemoveFile()
+        {
+            if (File.Exists(_path))
+            {
+                File.Delete(_path);
+            }
+        }
+
+        /// <summary>
+        /// Writes a clean rollout under a new file name - what a producer does when it
+        /// rotates - so the source can be observed fresh without depending on how a
+        /// reader resumes a file that was rewritten underneath it.
+        /// </summary>
         public void RestoreFile()
         {
             var now = DateTimeOffset.UtcNow;
+            var suffix = now.ToString("HHmmss", CultureInfo.InvariantCulture);
+            _path = Path.Combine(Path.GetDirectoryName(_path)!, "rollout-" + suffix + "-" + ConversationId + "_recovered.jsonl");
             var lines = new List<string>
             {
                 JsonSerializer.Serialize(new
