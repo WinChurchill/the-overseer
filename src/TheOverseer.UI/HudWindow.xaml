@@ -512,7 +512,8 @@
       </Grid>
 
       <!-- Expanded surface: scrolled content below the pinned header. -->
-      <ScrollViewer x:Name="ContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="ContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                    PanningMode="VerticalOnly" Resources="{StaticResource HudScrollBarResources}">
       <Grid x:Name="ExpandedPanel" Background="{DynamicResource PanelSurfaceBrush}"
             Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
         <Grid.RowDefinitions>
@@ -588,9 +589,7 @@
                   ToolTip="Change time window: 1, 2, 4, 8 or 24 hours" automation:AutomationProperties.Name="Change recent time window" />
         </Grid>
 
-        <ScrollViewer x:Name="TaskScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                      PanningMode="VerticalOnly"
-                      Resources="{StaticResource HudScrollBarResources}">
+        <Grid Grid.Row="2">
           <Grid>
             <ItemsControl x:Name="ProjectList" ItemsSource="{Binding Projects}"
                           ItemTemplate="{StaticResource ProjectRowTemplate}" />
@@ -600,7 +599,7 @@
                        FontSize="{DynamicResource FontSizeBody}"
                        Foreground="{DynamicResource MutedBrush}" />
           </Grid>
-        </ScrollViewer>
+        </Grid>
 
         <TextBlock Grid.Row="3" Margin="14,6,14,8" TextTrimming="CharacterEllipsis"
                    Text="{Binding FooterHint}"

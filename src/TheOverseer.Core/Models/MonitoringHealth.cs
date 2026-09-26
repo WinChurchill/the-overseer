@@ -188,7 +188,7 @@ public sealed record MonitorCapabilities(
         new CapabilityStatus(CapabilitySupport.NotExercised, "rollout-lifecycle", "task_started/task_complete/turn_aborted from rollout records"),
         new CapabilityStatus(CapabilitySupport.NotExercised, "structured-activity", "item_completed and tool call records"),
         new CapabilityStatus(CapabilitySupport.Unsupported, "permission-requests", "approval events are transient in Codex, not rollout-persisted"),
-        new CapabilityStatus(CapabilitySupport.Unsupported, "input-requests", "request_user_input events are transient in Codex, not rollout-persisted"),
+        new CapabilityStatus(CapabilitySupport.Supported, "input-requests", "input tool-call metadata supported; transient event-only requests may be unavailable"),
         new CapabilityStatus(CapabilitySupport.Unsupported, "task-failure", "no explicit task-level failure record observed"),
         new CapabilityStatus(CapabilitySupport.Unavailable, "runtime-activity-source", "optional read-only state store enrichment not read yet"),
         new CapabilityStatus(CapabilitySupport.Unavailable, "session-titles", "official session index not read yet"),

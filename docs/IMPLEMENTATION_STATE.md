@@ -55,6 +55,27 @@ user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
 
+### Follow-up — missed input prompts and scrolling, 2026-09-25
+
+Base 79345b2. Current desktop metadata was observed to persist input requests as
+`response_item/function_call` named `request_user_input_async`, with a call ID but
+without a turn ID. The old parser treated this as opaque activity and incorrectly
+described all Codex input requests as unobservable. Both synchronous and async input
+tool names now produce input attention from structural metadata only. Synchronous
+tool responses clear matching blocking requests; async acknowledgements do not.
+Question/options/answer content is never inspected. Explicit async answer correlation
+is still limited to observable resolution events or the existing turn boundary.
+
+Removed the nested task scroller used in short windows: all expanded content shares
+one vertical scroller, with header controls/summary pinned. Wheel events route through
+the same surface over project/task rows. No change to voice mute/provider settings.
+
+Verification: Release build 0 warnings/errors, **667/667 .NET tests**; 38 fixture
+renders, representative short/dark and tall/light images inspected; diff check clean.
+The running process was observed at artifacts/overseer-chrome-5521980, older than
+these changes. It was not replaced during source testing. Updated package preparation
+is recorded separately; live input-alert and scrolling confirmation remain desirable.
+
 ### Astra implementation cleanup and adversarial review — 2026-09-25
 
 Reviewed base: e5a6a0f on ux/first-use. User explicitly authorized direct cleanup and

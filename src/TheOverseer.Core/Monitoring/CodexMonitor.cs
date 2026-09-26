@@ -1150,7 +1150,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
 
         var input = observation.InputRequestRecords > 0
             ? new CapabilityStatus(CapabilitySupport.LiveObserved, "input-requests", "structured input request observed live")
-            : new CapabilityStatus(CapabilitySupport.Unsupported, "input-requests", "Codex keeps request_user_input transient; no durable record exists to observe");
+            : new CapabilityStatus(CapabilitySupport.Supported, "input-requests", "input tool-call metadata supported; transient event-only requests may be unavailable");
 
         var failure = _counters.TaskFailed > 0
             ? new CapabilityStatus(CapabilitySupport.LiveObserved, "task-failure", "explicit terminal failure records observed")

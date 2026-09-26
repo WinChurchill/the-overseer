@@ -569,6 +569,17 @@ public sealed class AgentStateReducer
                 return PromoteToWorking(task, codexEvent);
 
             case RawCodexEventKind.ToolCallCompleted:
+                // A synchronous input tool returns when the question is resolved.
+                // Async input returns only an acknowledgement, so its matching
+                // output must not clear the outstanding question.
+                if (codexEvent.CallId is { } inputCall &&
+                    task.Requests.TryGetValue(inputCall, out var inputRequest) &&
+                    !inputRequest.IsPermission && inputRequest.IsBlocking)
+                {
+                    task.Requests.Remove(inputCall);
+                    RecomputeAttentionState(task);
+                    return TaskTransitionKind.AttentionCleared;
+                }
                 CompleteTool(task, codexEvent);
                 RecordActivity(task, codexEvent);
                 return PromoteToWorking(task, codexEvent);

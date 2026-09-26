@@ -293,7 +293,7 @@ internal static class MonitorDebugRunner
         Write(string.Empty);
         Write("--- limitations (as reported by this run) ---");
         Write("  approval/input attention: " + StatusText(snapshot.Capabilities.PermissionRequests.Support) +
-              " — Codex persists lifecycle and item records, but approval and request_user_input events are transient inside the owning runtime.");
+              " — Codex input tool-call metadata is supported; approval and event-only input requests may remain transient inside the owning runtime.");
         Write("  live attention verification: " + StatusText(snapshot.Capabilities.AttentionLiveVerification.Support) +
               " — normalized attention contracts are covered by synthetic tests only.");
         Write("  runtime activity source: " + StatusText(snapshot.Capabilities.RuntimeActivitySource.Support) +

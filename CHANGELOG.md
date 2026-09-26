@@ -1,5 +1,20 @@
 # OVERSEER changelog
 
+## Unreleased — 2026-09-25 (input prompts and scrolling)
+
+- Recognize persisted Codex `request_user_input` and `request_user_input_async`
+  tool calls as input requests using only tool identity and call correlation.
+  Questions, options and answers are not inspected or retained. Blocking requests
+  enter NeedsInput; asynchronous requests flag NeedsHuman while work continues.
+- Clear a blocking request on its matching tool response. Do not mistake an async
+  tool's immediate acknowledgement for an answered question. Async resolution still
+  depends on an explicit correlated event or the existing turn boundary.
+- Use one scroll surface below the pinned HUD controls at every window size,
+  removing the nested short-window task scroller and its fixed 180-pixel height.
+- Release build: 0 warnings/errors; 667 .NET tests passed, including input lifecycle,
+  privacy, wheel routing and last-row reachability at short/tall sizes. Rendered 38
+  synthetic fixtures and inspected representative short/dark and tall/light layouts.
+
 ## Unreleased — 2026-09-25 (Astra review and cleanup)
 
 - Start all harness adapters without waiting for the Codex monitor to shut down.

@@ -183,6 +183,16 @@ public static class CodexEventParser
     {
         var name = NormalizeToolName(GetString(payload, "name", 64));
 
+        // Desktop persists the tool call even when the separate input-request
+        // event is transient. Tool identity is sufficient; never inspect questions
+        // or options in arguments. Async input needs attention without blocking work.
+        if (name is "requestuserinput" or "functionsrequestuserinput" or
+            "requestuserinputasync" or "functionsrequestuserinputasync")
+        {
+            return Build(RawCodexEventKind.InputRequested, in context, payload,
+                detailCode: "input-tool-call", isBlocking: !name.EndsWith("async", StringComparison.Ordinal));
+        }
+
         // An opaque wrapper's payload is never evaluated or searched. Known
         // wrapper names map to the generic command label; anything else stays
         // unclassified so the classifier can fall back to turn state.

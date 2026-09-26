@@ -140,11 +140,10 @@ public partial class HudWindow : Window
     {
         var contentWidth = ActualWidth - (ViewModel?.LightExtraWidth ?? 0);
         BrandLabel.Visibility = contentWidth < 260 ? Visibility.Collapsed : Visibility.Visible;
-        // In a short native Snap region the content scrolls below the pinned header.
-        var shortWindow = IsWindowView && ActualHeight < 500;
-        ContentScroll.VerticalScrollBarVisibility = shortWindow ? System.Windows.Controls.ScrollBarVisibility.Auto : System.Windows.Controls.ScrollBarVisibility.Disabled;
+        // One scroll surface at every size: wheel/touch input never gets trapped
+        // inside a short nested task list. The controls remain outside this surface.
+        ContentScroll.VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;
         ContentScroll.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled;
-        TaskScroll.Height = shortWindow ? 180 : double.NaN;
         // The legend is the first thing to give way at the narrowest widths; its
         // text stays in the tooltip and in every bin's automation name.
         ActivityLegend.Visibility = contentWidth < 300 ? Visibility.Collapsed : Visibility.Visible;

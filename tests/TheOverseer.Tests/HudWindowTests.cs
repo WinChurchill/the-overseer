@@ -337,6 +337,46 @@ public sealed class HudWindowTests
         });
     }
 
+    [Theory]
+    [InlineData(240)]
+    [InlineData(640)]
+    public void ExpandedHudHasOneScrollSurfaceAndCanReachTheLastProject(double height)
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var vm = new HudViewModel(HudSettings.Default) { IsExpanded = true };
+            var fixture = SyntheticHudScenarios.Mixed();
+            vm.ApplySnapshot(fixture with { Tasks = fixture.Tasks.SelectMany(task => Enumerable.Range(0, 6)
+                .Select(index => task with { Key = task.Key with { ConversationId = task.ConversationId + "-" + index },
+                    ConversationId = task.ConversationId + "-" + index })).ToArray() });
+            var window = new HudWindow { DataContext = vm, Width = 440, Height = height, ShowActivated = false };
+            try
+            {
+                window.Show();
+                window.SetWindowView(true);
+                window.Height = height;
+                window.UpdateLayout();
+                var scroller = (System.Windows.Controls.ScrollViewer)window.FindName("ContentScroll")!;
+                var projectList = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList")!;
+                Assert.Empty(FindVisuals<System.Windows.Controls.ScrollViewer>(scroller));
+                Assert.True(scroller.ScrollableHeight > 0);
+                projectList.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(
+                    System.Windows.Input.Mouse.PrimaryDevice, Environment.TickCount, -120)
+                    { RoutedEvent = System.Windows.Input.Mouse.MouseWheelEvent });
+                window.UpdateLayout();
+                Assert.True(scroller.VerticalOffset > 0);
+                scroller.ScrollToEnd();
+                window.UpdateLayout();
+                Assert.Equal(scroller.ScrollableHeight, scroller.VerticalOffset, precision: 1);
+                var lastRow = FindVisuals<System.Windows.Controls.Button>(projectList)
+                    .Last(button => button.DataContext is TaskRowViewModel);
+                var bottom = lastRow.TransformToAncestor(scroller).Transform(new Point(0, lastRow.ActualHeight));
+                Assert.InRange(bottom.Y, 0, scroller.ActualHeight);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [Fact]
     public void BrandingCollapsesBeforeHeaderControlsAndNothingIsClipped()
     {
