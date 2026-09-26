@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using TheOverseer.App;
 using TheOverseer.App.Desktop;
 using TheOverseer.App.Diagnostics;
+using TheOverseer.App.Monitoring;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.History;
@@ -14,6 +15,43 @@ namespace TheOverseer.Tests;
 
 public sealed class HudDispatchTests
 {
+    [Fact]
+    public void CompositeStartupDoesNotMarkHudOfflineAndLaterSnapshotsStillApply()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var dispatcher = new QueuedUiDispatcher();
+            var source = new FakeMonitorSource();
+            var composite = new CompositeMonitorSource(new[] { new CodexMonitorAdapter(source) });
+            var controller = CreateController(dispatcher, composite, new FakePlacementService());
+            try
+            {
+                controller.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+                dispatcher.DrainAll();
+                Assert.False(composite.Completion.IsCompleted);
+                source.Push(SyntheticHudScenarios.Mixed());
+                dispatcher.DrainAll();
+                Assert.False(controller.ViewModel.MonitoringUnavailable);
+                Assert.NotEmpty(controller.ViewModel.Tasks);
+                source.Push(SyntheticHudScenarios.HealthyEmpty());
+                dispatcher.DrainAll();
+                Assert.False(controller.ViewModel.MonitoringUnavailable);
+                Assert.Empty(controller.ViewModel.Tasks);
+                source.Lifetime.SetException(new InvalidOperationException("synthetic source fault"));
+                dispatcher.DrainAll();
+                Assert.True(controller.ViewModel.MonitoringUnavailable);
+                Assert.Contains("source-faulted", controller.ViewModel.MonitoringDetail);
+                Assert.False(composite.Completion.IsCompleted);
+            }
+            finally
+            {
+                StaTestHost.Complete(controller.DisposeAsync().AsTask());
+                Assert.True(composite.Completion.IsCompleted);
+                Cleanup();
+            }
+        });
+    }
+
     [Fact]
     public void ProducerFloodCoalescesIntoOneDeliveryWithTheNewestSnapshot()
     {

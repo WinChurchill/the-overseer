@@ -24,6 +24,7 @@ public sealed class FakeMonitorSource : IMonitorSource
 
     public int StartCount { get; private set; }
     public TaskCompletionSource Lifetime { get; } = new();
+    public Task Completion => Lifetime.Task;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -34,7 +35,7 @@ public sealed class FakeMonitorSource : IMonitorSource
             throw new InvalidOperationException("synthetic start failure");
         }
 
-        return Lifetime.Task;
+        return Task.CompletedTask;
     }
 
     public void RequestReconcile() => ReconcileRequested = true;
@@ -57,6 +58,7 @@ public sealed class FakeMonitorSource : IMonitorSource
 /// <summary>Failing monitor used to prove the HUD shows unknown instead of a frozen summary.</summary>
 public sealed class FaultingMonitorSource : IMonitorSource
 {
+    public Task Completion => Task.CompletedTask;
     public event Action<MonitoringSnapshot>? SnapshotAvailable;
 
     public MonitoringSnapshot Current { get; } = MonitoringSnapshot.Empty(DateTimeOffset.UnixEpoch);

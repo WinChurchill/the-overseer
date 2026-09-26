@@ -1,5 +1,13 @@
 # OVERSEER changelog
 
+## Unreleased — 2026-09-25 (monitor offline regression)
+
+- Separate monitor startup from its lifetime. Successful composite initialization
+  no longer makes the HUD latch offline and discard every subsequent snapshot.
+- Observe Codex termination as a source-local failure while peer sources continue.
+- Added a controller/composite regression covering startup, subsequent updates,
+  source failure and shutdown. Release tests: 668 passed.
+
 ## Unreleased — 2026-09-25 (input prompts and scrolling)
 
 - Recognize persisted Codex `request_user_input` and `request_user_input_async`

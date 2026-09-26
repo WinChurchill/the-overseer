@@ -10,6 +10,7 @@ namespace TheOverseer.App.Monitoring;
 public sealed class CodexMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonitorAdapter
 {
     private readonly IMonitorSource _source;
+    private int _disposed;
 
     public CodexMonitorAdapter(IMonitorSource source, SourceInstance? sourceInstance = null)
     {
@@ -26,10 +27,25 @@ public sealed class CodexMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonitor
 
     public event Action<SourceSnapshot>? SnapshotAvailable;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         _source.SnapshotAvailable += OnSnapshot;
-        return _source.StartAsync(cancellationToken);
+        await _source.StartAsync(cancellationToken).ConfigureAwait(false);
+        _ = _source.Completion.ContinueWith(task =>
+        {
+            _ = task.Exception;
+            if (_disposed != 0 || cancellationToken.IsCancellationRequested) return;
+            _current = _current with
+            {
+                ObservedAt = DateTimeOffset.UtcNow,
+                Health = MonitoringHealthLevel.Unavailable,
+                CoverageComplete = false,
+                HealthReasons = new[] { task.IsFaulted ? "source-faulted" : "source-stopped" },
+                Tasks = _current.Tasks.Select(item => item with { IsStale = true }).ToArray(),
+                Transitions = Array.Empty<AttentionEvent>(),
+            };
+            SnapshotAvailable?.Invoke(_current);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     public void RequestReconcile() => _source.RequestReconcile();
@@ -57,6 +73,7 @@ public sealed class CodexMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonitor
 
     public ValueTask DisposeAsync()
     {
+        Interlocked.Exchange(ref _disposed, 1);
         _source.SnapshotAvailable -= OnSnapshot;
         return _source.DisposeAsync();
     }
@@ -84,6 +101,9 @@ public sealed class CompositeMonitorSource : IMonitorSource
     private int _started;
     private int _disposed;
     private ITimer? _watchdog;
+    private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private CancellationTokenRegistration _cancellation;
+    public Task Completion => _completion.Task;
     private static readonly TimeSpan SourceSilenceLimit = TimeSpan.FromMinutes(2);
 
     public CompositeMonitorSource(
@@ -165,6 +185,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
         {
             return;
         }
+
+        _cancellation = cancellationToken.Register(() => _completion.TrySetCanceled(cancellationToken));
 
         foreach (var adapter in _adapters)
         {
@@ -432,6 +454,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _cancellation.Dispose();
+        _completion.TrySetResult();
         if (_watchdog is not null) await _watchdog.DisposeAsync().ConfigureAwait(false);
         foreach (var adapter in _adapters)
         {

@@ -504,7 +504,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         Task monitorTask;
         try
         {
-            monitorTask = _dependencies.Monitor.StartAsync(_lifetime.Token);
+            monitorTask = ObserveMonitorAsync();
         }
         catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
         {
@@ -522,6 +522,12 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
+    }
+
+    private async Task ObserveMonitorAsync()
+    {
+        await _dependencies.Monitor.StartAsync(_lifetime.Token).ConfigureAwait(false);
+        await _dependencies.Monitor.Completion.ConfigureAwait(false);
     }
 
     /// <summary>

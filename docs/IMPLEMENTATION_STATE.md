@@ -55,6 +55,21 @@ user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
 
+### Follow-up — monitor offline regression, 2026-09-25
+
+User reported the deployed HUD offline. The live log confirmed
+`hud-monitor-monitor-stopped` immediately after launch. The prior startup fix
+changed StartAsync to initialization completion, but the controller still treated
+that task as monitor lifetime and permanently rejected subsequent snapshots.
+The earlier process-responsive check did not establish live monitoring health.
+
+IMonitorSource now explicitly separates initialization from Completion. The
+controller observes both; the composite remains alive through source-local faults,
+and Codex lifetime termination publishes unavailable source health immediately.
+A real controller/composite/adapter regression checks startup, later snapshots,
+source failure and disposal. All 668 Release tests passed. Updated deployment and
+live HUD verification pending; previous package is not qualified as usable.
+
 ### Follow-up — missed input prompts and scrolling, 2026-09-25
 
 Deployment after explicit user request: package hash verified, old 5521980 instance

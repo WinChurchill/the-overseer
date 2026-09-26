@@ -10,7 +10,11 @@ public interface IMonitorSource : IAsyncDisposable
 
     event Action<MonitoringSnapshot>? SnapshotAvailable;
 
+    /// <summary>Completes when initialization finishes, not when monitoring stops.</summary>
     Task StartAsync(CancellationToken cancellationToken);
+
+    /// <summary>Monitor lifetime, observed after startup to detect unexpected termination.</summary>
+    Task Completion { get; }
 
     void RequestReconcile();
 }
@@ -29,6 +33,7 @@ public sealed class CodexMonitorSource : IMonitorSource, IBudgetedMonitorAdapter
     public event Action<MonitoringSnapshot>? SnapshotAvailable;
 
     public MonitoringSnapshot Current => _monitor.Current;
+    public Task Completion { get; private set; } = Task.CompletedTask;
 
     public void ApplyBudget(SourceBudget budget) => _monitor.ApplyBudget(budget);
 
@@ -36,7 +41,7 @@ public sealed class CodexMonitorSource : IMonitorSource, IBudgetedMonitorAdapter
     {
         // CodexMonitor returns its lifetime task. Starting this adapter must not
         // wait for shutdown and prevent subsequent adapters from ever starting.
-        _ = _monitor.StartAsync(cancellationToken);
+        Completion = _monitor.StartAsync(cancellationToken);
         return Task.CompletedTask;
     }
 

@@ -25,11 +25,13 @@ public sealed class SyntheticMonitorSource : IMonitorSource
     public MonitoringSnapshot Current { get; private set; } = MonitoringSnapshot.Empty(DateTimeOffset.UnixEpoch);
 
     public IReadOnlyList<MonitoringSnapshot> Scenarios => _scenarios;
+    public Task Completion { get; private set; } = Task.CompletedTask;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         Push(0);
-        return Task.Delay(Timeout.Infinite, cancellationToken);
+        Completion = Task.Delay(Timeout.Infinite, cancellationToken);
+        return Task.CompletedTask;
     }
 
     /// <summary>Advances to the next scenario; used by the fixture runner.</summary>
