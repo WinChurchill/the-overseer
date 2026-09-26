@@ -6,9 +6,9 @@ Goal: One integrated implementation/review round for project grouping, activity 
 responsive HUD controls, and an offline baseline voice
 Branch: ux/first-use
 Product base: d869db6 (custom HUD implementation: 5521980)
-Last packaged implementation: **763c688** (`ux/first-use`), including the Astra
-monitoring fixes and input/scroll follow-up. The user explicitly requested replacement;
-this build is now running from artifacts/overseer-live-763c688.
+Last packaged implementation: **ad35e6d** (`ux/first-use`), including the monitor
+lifetime regression fix. Running from artifacts/overseer-live-ad35e6d; desktop
+shortcut updated and live task updates verified after replacement.
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
@@ -67,8 +67,24 @@ IMonitorSource now explicitly separates initialization from Completion. The
 controller observes both; the composite remains alive through source-local faults,
 and Codex lifetime termination publishes unavailable source health immediately.
 A real controller/composite/adapter regression checks startup, later snapshots,
-source failure and disposal. All 668 Release tests passed. Updated deployment and
-live HUD verification pending; previous package is not qualified as usable.
+source failure and disposal. All 668 Release tests passed; build 0 warnings/errors.
+
+Clean-source package **ad35e6d**: artifacts/monitor-lifetime-release/OVERSEER-v1-win-x64.zip,
+SHA-256 323B03D64500A919BD3AF8449E02FAAA9F5C4B60730F04B9A31D62C4CC7F6804.
+Old HUD exited through its Exit menu. New process 27424 runs from
+artifacts/overseer-live-ad35e6d and desktop shortcut points there. Configuration
+is byte-for-byte unchanged, voice remains muted/pack. Backups retained in
+artifacts/deployment-ad35e6d; old builds retained for rollback.
+Live accessibility and visual checks show Working, two project/task rows and
+40 tracked tasks, updated 0s ago. Coverage still honestly reports discovery-backlog
+and input-detection limitations; this is distinct from the fixed offline latch.
+No new monitor-stopped error appeared after restart. This replaces the previous
+process-only deployment check; full live multi-harness/voice qualification remains open.
+Fresh-extraction package smoke: 17/17 passed (five-second finite HUD/monitor modes,
+38 renders, isolated voice/pack checks). HUD lifecycle script block skipped to
+preserve the user instance; the actual replacement was separately checked twice
+through native accessibility, with fresh task updates both times.
+Evidence: artifacts/monitor-lifetime-release/smoke/run-20260926T055551Z-384d21f7/.
 
 ### Follow-up — missed input prompts and scrolling, 2026-09-25
 
