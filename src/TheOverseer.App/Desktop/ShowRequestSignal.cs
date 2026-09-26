@@ -8,7 +8,6 @@ namespace TheOverseer.App.Desktop;
 /// </summary>
 public sealed class ShowRequestSignal : IDisposable
 {
-    private const string EventNamePrefix = "Local\\OVERSEER.Hud.ShowRequest";
     private const int WaitMilliseconds = 500;
 
     private readonly EventWaitHandle? _handle;
@@ -33,29 +32,14 @@ public sealed class ShowRequestSignal : IDisposable
     }
 
     /// <summary>
-    /// Stable event name for one data directory. A scoped name keeps an isolated
-    /// run (and every test) from signalling the user's real HUD, and keeps two
-    /// independent instances from stealing each other's restore requests.
+    /// Stable event name for one instance scope (Windows user plus canonical data
+    /// directory). It is derived from the same canonical identity as the
+    /// single-instance mutex, so the instance that owns the slot is exactly the one
+    /// that receives the restore request. Isolated runs and tests can therefore
+    /// never signal the user's real HUD, and two independent instances cannot steal
+    /// each other's requests.
     /// </summary>
-    public static string EventNameFor(string? scope)
-    {
-        if (string.IsNullOrWhiteSpace(scope))
-        {
-            return EventNamePrefix;
-        }
-
-        // FNV-1a over the scope: stable, bounded and never a path in the name.
-        const ulong offset = 14695981039346656037;
-        const ulong prime = 1099511628211;
-        var hash = offset;
-        foreach (var character in scope!)
-        {
-            hash ^= character;
-            hash *= prime;
-        }
-
-        return EventNamePrefix + "." + hash.ToString("x16", System.Globalization.CultureInfo.InvariantCulture);
-    }
+    public static string EventNameFor(string? scope) => InstanceScope.ShowRequestEventName(scope);
 
     /// <summary>Running instance: listen for show requests. Null when unavailable.</summary>
     public static ShowRequestSignal? TryListen(Action onRequest, string? scope = null)

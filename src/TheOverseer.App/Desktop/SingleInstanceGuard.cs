@@ -3,14 +3,15 @@ using System.IO;
 namespace TheOverseer.App.Desktop;
 
 /// <summary>
-/// Minimal per-user single-instance guard. A second normal launch exits quietly;
-/// the first instance keeps its monitor and tray. Debug and fixture modes bypass
-/// the guard so diagnostics never fight the running HUD.
+/// Minimal per-user single-instance guard, scoped to one canonical instance
+/// identity (Windows user plus data directory). A second launch of the same scope
+/// exits quietly; the first instance keeps its monitor and tray. An isolated run
+/// with its own data directory therefore owns its own slot instead of stealing the
+/// user's. Debug and fixture modes bypass the guard so diagnostics never fight the
+/// running HUD.
 /// </summary>
-internal sealed class SingleInstanceGuard : IDisposable
+public sealed class SingleInstanceGuard : IDisposable
 {
-    private const string MutexName = "Local\\OVERSEER.Hud.SingleInstance";
-
     private Mutex? _mutex;
     private bool _owned;
 
@@ -22,11 +23,14 @@ internal sealed class SingleInstanceGuard : IDisposable
 
     public bool IsOwner => _owned;
 
-    public static SingleInstanceGuard TryAcquire()
+    /// <summary>Kernel object name for diagnostics and tests (never a path).</summary>
+    public static string NameFor(string? scope) => InstanceScope.MutexName(scope);
+
+    public static SingleInstanceGuard TryAcquire(string? scope = null)
     {
         try
         {
-            var mutex = new Mutex(initiallyOwned: true, MutexName, out var created);
+            var mutex = new Mutex(initiallyOwned: true, InstanceScope.MutexName(scope), out var created);
             return new SingleInstanceGuard(mutex, created);
         }
         catch (UnauthorizedAccessException)

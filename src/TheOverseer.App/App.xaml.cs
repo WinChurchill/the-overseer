@@ -72,12 +72,16 @@ public partial class App : Application
             return;
         }
 
-        _instanceGuard = SingleInstanceGuard.TryAcquire();
+        // One canonical scope for both the single-instance slot and the restore
+        // signal: the Windows user plus the resolved data directory. An isolated
+        // run owns its own slot instead of competing for the user's.
+        var instanceScope = DataDirectoryResolver.Resolve(arguments.DataDirectory);
+        _instanceGuard = SingleInstanceGuard.TryAcquire(instanceScope);
         if (!_instanceGuard.IsOwner)
         {
-            // A HUD is already running: ask it to restore its window, then exit
-            // quietly without touching its monitor, tray or session.
-            ShowRequestSignal.TrySignal(DataDirectoryResolver.Resolve(arguments.DataDirectory));
+            // A HUD with the same scope is already running: ask it to restore its
+            // window, then exit quietly without touching its monitor, tray or session.
+            ShowRequestSignal.TrySignal(instanceScope);
             Shutdown(0);
             return;
         }
