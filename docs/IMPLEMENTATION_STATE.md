@@ -1,5 +1,21 @@
 # OVERSEER Implementation State
 
+## Planning update — 2026-09-26
+
+User requested a repository-grounded diagnosis combining HUD simplification with
+a credible public-release path. Baseline 075356e; no product code, running app or
+settings changed in this planning round. See docs/RELEASE_READINESS.md for confirmed
+findings, concrete UI contract and two proposed implementation/qualification iterations.
+The ignored .agent/HANDOFF.md now contains the executable implementation packet;
+its predecessor is backed up under artifacts/planning-20260926/.
+Confirmed release gaps include mutex/show-signal scope mismatch, smoke checks
+without real composite-to-UI state assertions, absent bridge assets in the ZIP,
+unsigned apphost and stale current documentation. 668 tests/17 scoped package checks
+are previous recorded evidence, not rerun or claimed as full public qualification.
+Next action: review/authorize the packet, then execute the whole implementation goal;
+public publishing, distribution terms/signing and external-machine tests remain separate.
+The sections below retain historical implementation and deployment evidence.
+
 ## Current
 Plan: Post-V1 — Project-centered multi-harness HUD
 Goal: One integrated implementation/review round for project grouping, activity strips,
