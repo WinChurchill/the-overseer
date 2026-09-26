@@ -118,6 +118,13 @@ startup, and the `--start-in-tray --no-tray` visible fallback). The lifecycle bl
 no longer environment-blocked: the scoped instance identity lets it run beside a real
 HUD.
 
+Known test flake, unchanged by this round and not caused by it:
+`HudWindowTests.WholeSummaryCapturesDragButHeaderButtonsKeepTheirClicks` was seen
+once to fail on its `Mouse.Captured` assertion while the build was otherwise failing
+under full-suite load, and passed in the immediately following full runs and in
+isolation. No test was skipped, weakened or hidden; the same flake is recorded in the
+historical section below.
+
 One new product defect was found and fixed by this round's own check: a tracked
 rollout file that disappears was retained forever in its failure backoff, so the
 source reported `read-failure` on every pass, the HUD stayed at limited coverage, and
