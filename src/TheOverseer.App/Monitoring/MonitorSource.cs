@@ -16,7 +16,7 @@ public interface IMonitorSource : IAsyncDisposable
 }
 
 /// <summary>Wraps the reviewed CodexMonitor without changing its semantics.</summary>
-public sealed class CodexMonitorSource : IMonitorSource
+public sealed class CodexMonitorSource : IMonitorSource, IBudgetedMonitorAdapter
 {
     private readonly CodexMonitor _monitor;
 
@@ -30,7 +30,15 @@ public sealed class CodexMonitorSource : IMonitorSource
 
     public MonitoringSnapshot Current => _monitor.Current;
 
-    public Task StartAsync(CancellationToken cancellationToken) => _monitor.StartAsync(cancellationToken);
+    public void ApplyBudget(SourceBudget budget) => _monitor.ApplyBudget(budget);
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        // CodexMonitor returns its lifetime task. Starting this adapter must not
+        // wait for shutdown and prevent subsequent adapters from ever starting.
+        _ = _monitor.StartAsync(cancellationToken);
+        return Task.CompletedTask;
+    }
 
     public void RequestReconcile() => _monitor.RequestReconcile();
 

@@ -16,7 +16,7 @@ public sealed record ReduceOutcome(bool Applied, string RejectCode, TaskTransiti
 /// </summary>
 public sealed class AgentStateReducer
 {
-    private readonly MonitorOptions _options;
+    private MonitorOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly TaskNumberPool _numbers;
     private readonly CurrentActionClassifier _classifier;
@@ -34,6 +34,9 @@ public sealed class AgentStateReducer
     }
 
     public int ConversationCount => _tasks.Count;
+
+    internal void SetSessionLimit(int limit) =>
+        _options = _options with { MaxTrackedConversations = Math.Min(_options.MaxTrackedConversations, limit) };
 
     public AgentTask? TryGetTask(TaskKey key) =>
         _tasks.TryGetValue(key, out var task) ? ToImmutable(task) : null;

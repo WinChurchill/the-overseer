@@ -27,7 +27,7 @@ public static class HarnessSources
 {
     // Match each shipped producer's default; they currently use different roots.
     public static string SpoolDirectory(string dataDirectory, SourceInstance source) =>
-        Path.Combine(dataDirectory, source.HarnessId == HarnessIds.Claude ? "spool" : "bridges",
+        source.LocalSpoolDirectory ?? Path.Combine(dataDirectory, source.HarnessId == HarnessIds.Claude ? "spool" : "bridges",
             source.HarnessId, source.SourceInstanceId);
 
     /// <summary>Default root for one harness under the data directory.</summary>
@@ -48,47 +48,50 @@ public static class HarnessSources
         var settings = options ?? new HarnessDiscoveryOptions();
         var maximum = Math.Clamp(settings.MaximumSources, 1, SourceBudget.MaximumSourceInstances);
         var perRoot = Math.Clamp(settings.MaximumEntriesPerRoot, 1, 8192);
-        var roots = new List<(string HarnessId, string Root)>
+        var roots = new List<(string HarnessId, string Root, bool Required)>
         {
-            (HarnessIds.Dsh, DefaultRoot(dataDirectory, HarnessIds.Dsh)),
-            (HarnessIds.Claude, DefaultRoot(dataDirectory, HarnessIds.Claude)),
+            (HarnessIds.Dsh, DefaultRoot(dataDirectory, HarnessIds.Dsh), false),
+            (HarnessIds.Claude, DefaultRoot(dataDirectory, HarnessIds.Claude), false),
         };
         foreach (var configured in settings.ConfiguredRoots ?? Array.Empty<HarnessRootSetting>())
         {
             if (string.IsNullOrWhiteSpace(configured?.Path)) continue;
-            roots.Add((HarnessIds.Normalize(configured.HarnessId), configured.Path));
+            roots.Add((HarnessIds.Normalize(configured.HarnessId), configured.Path, true));
         }
 
         var sources = new List<SourceInstance>();
+        var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenSources = new HashSet<string>(StringComparer.Ordinal);
+        var enabledCount = 0;
         var capped = false;
         var scanned = 0;
-        foreach (var (harnessId, root) in roots)
+        foreach (var (harnessId, root, required) in roots)
         {
-            if (sources.Count >= maximum)
-            {
-                capped = true;
-                break;
-            }
-
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
             {
+                capped |= required;
                 continue;
             }
+
+            var resolvedRoot = Path.GetFullPath(root);
+            if (!seenRoots.Add(harnessId + ":" + resolvedRoot.TrimEnd(Path.DirectorySeparatorChar))) continue;
 
             scanned++;
             List<string> directories;
             try
             {
-                directories = Directory.EnumerateDirectories(root)
+                directories = Directory.EnumerateDirectories(resolvedRoot)
                     .Take(perRoot + 1)
                     .ToList();
             }
             catch (IOException)
             {
+                capped = true;
                 continue;
             }
             catch (UnauthorizedAccessException)
             {
+                capped = true;
                 continue;
             }
 
@@ -110,12 +113,18 @@ public static class HarnessSources
 
                 var key = harnessId + "/" + instanceId;
                 var isDisabled = disabled?.Any(item => string.Equals(item, key, StringComparison.OrdinalIgnoreCase)) == true;
-                sources.Add(new SourceInstance(harnessId, instanceId, HarnessIds.DisplayName(harnessId) + " (" + instanceId + ")", !isDisabled));
-                if (sources.Count >= maximum)
+                // Two different spool directories claiming the same identity are
+                // ambiguous; never silently merge them or claim full coverage.
+                if (!seenSources.Add(key)) { capped = true; continue; }
+                if (!isDisabled && enabledCount >= maximum)
                 {
                     capped = true;
-                    break;
+                    continue;
                 }
+                sources.Add(new SourceInstance(harnessId, instanceId,
+                    HarnessIds.DisplayName(harnessId) + " (" + instanceId + ")", !isDisabled,
+                    LocalSpoolDirectory: directory));
+                if (!isDisabled) enabledCount++;
             }
         }
 

@@ -4,8 +4,7 @@ namespace TheOverseer.Core.Models;
 /// One source's share of the aggregate monitoring budget. The aggregate is
 /// deliberately NOT multiplied by the number of sources: a machine running three
 /// harnesses must not read three times as much per pass. Each source receives an
-/// equal share of the configured aggregate, with a floor that keeps a source able
-/// to make progress.
+/// equal share of the configured aggregate, without inflating small allowances.
 /// </summary>
 public sealed record SourceBudget(int BytesPerPass, int MaximumSessions, string Code)
 {
@@ -15,10 +14,10 @@ public sealed record SourceBudget(int BytesPerPass, int MaximumSessions, string 
     /// <summary>Aggregate tracked-session allowance shared by every bridge source.</summary>
     public const int DefaultAggregateSessions = 1024;
 
-    /// <summary>Smallest share a source may be reduced to.</summary>
+    /// <summary>Default lower bound for the aggregate, before sharing.</summary>
     public const int MinimumBytesPerPass = 64 * 1024;
 
-    /// <summary>Smallest session share a source may be reduced to.</summary>
+    /// <summary>Default lower bound for aggregate session capacity, before sharing.</summary>
     public const int MinimumSessions = 32;
 
     /// <summary>Most source instances the composite will monitor at once.</summary>
@@ -35,8 +34,10 @@ public sealed record SourceBudget(int BytesPerPass, int MaximumSessions, string 
     public static SourceBudget Share(int aggregateBytesPerPass, int aggregateSessions, int sourceCount)
     {
         var count = Math.Clamp(sourceCount, 1, MaximumSourceInstances);
-        var bytes = Math.Max(MinimumBytesPerPass, aggregateBytesPerPass / count);
-        var sessions = Math.Clamp(aggregateSessions / count, MinimumSessions, DefaultAggregateSessions);
+        ArgumentOutOfRangeException.ThrowIfLessThan(aggregateBytesPerPass, count);
+        ArgumentOutOfRangeException.ThrowIfLessThan(aggregateSessions, count);
+        var bytes = aggregateBytesPerPass / count;
+        var sessions = Math.Min(aggregateSessions / count, DefaultAggregateSessions);
         return new SourceBudget(bytes, sessions, "share-1/" + count.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 

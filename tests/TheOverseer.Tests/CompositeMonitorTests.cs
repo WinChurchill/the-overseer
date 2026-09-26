@@ -383,10 +383,10 @@ public sealed class CompositeMonitorTests
     [Fact]
     public void ABudgetShareIsClampedSoNeitherConfigNorCallerCanRemoveTheBound()
     {
-        Assert.Equal(SourceBudget.MinimumBytesPerPass, SourceBudget.Share(1, 1, 64).BytesPerPass);
+        Assert.Throws<ArgumentOutOfRangeException>(() => SourceBudget.Share(1, 1, 64));
         Assert.Equal(SourceBudget.DefaultAggregateBytesPerPass / 8, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 1024, 8).BytesPerPass);
         Assert.Equal(SourceBudget.DefaultAggregateBytesPerPass, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 1024, 1).BytesPerPass);
-        Assert.Equal(SourceBudget.MinimumSessions, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 8, 8).MaximumSessions);
+        Assert.Equal(1, SourceBudget.Share(SourceBudget.DefaultAggregateBytesPerPass, 8, 8).MaximumSessions);
     }
 
     [Fact]

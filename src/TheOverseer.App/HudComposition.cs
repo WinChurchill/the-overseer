@@ -80,12 +80,13 @@ internal static class HudComposition
         {
             new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
         };
-        foreach (var source in HarnessSources.Discover(
+        var discovery = HarnessSources.DiscoverDetailed(
             dataDirectory,
             config.DisabledHarnessSources,
             new HarnessDiscoveryOptions(
                 MaximumSources: config.MaximumHarnessSources,
-                ConfiguredRoots: config.HarnessRoots)))
+                ConfiguredRoots: config.HarnessRoots));
+        foreach (var source in discovery.Sources)
         {
             adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
         }
@@ -96,7 +97,7 @@ internal static class HudComposition
         var monitorSource = new CompositeMonitorSource(adapters, log, TimeProvider.System, new SourceBudget(
             config.Limits.GlobalBytesPerPass,
             Math.Max(SourceBudget.MinimumSessions, config.Limits.MaxTrackedFiles * 16),
-            "config-aggregate"));
+            "config-aggregate"), discoveryIncomplete: discovery.Capped);
         var executablePath = Environment.ProcessPath ?? string.Empty;
         var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
         var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));

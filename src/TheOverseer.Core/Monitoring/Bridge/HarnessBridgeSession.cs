@@ -130,7 +130,7 @@ public sealed class HarnessBridgeSession
     {
         _source = source;
         _staleLease = staleLease ?? TimeSpan.FromMinutes(15);
-        _maximumSessions = Math.Clamp(maximumSessions, 16, 4096);
+        _maximumSessions = Math.Clamp(maximumSessions, 1, 4096);
         _actionLease = actionLease ?? DefaultActionLease;
     }
 
@@ -147,7 +147,7 @@ public sealed class HarnessBridgeSession
     {
         lock (_gate)
         {
-            _maximumSessions = Math.Clamp(maximumSessions, 16, 4096);
+            _maximumSessions = Math.Clamp(maximumSessions, 1, 4096);
         }
     }
 

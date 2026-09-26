@@ -32,6 +32,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
     private SourceBudget _budget = SourceBudget.Default;
     private DateTimeOffset _lastResyncAt;
     private int _disposed;
+    private int _started;
 
     /// <summary>The HUD's activity window: a gap older than this cannot be displayed.</summary>
     private static readonly TimeSpan HistoryWindow = TimeSpan.FromMinutes(60);
@@ -68,6 +69,8 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        if (Interlocked.Exchange(ref _started, 1) != 0) return Task.CompletedTask;
         _attachedAt = _timeProvider.GetUtcNow();
         _session = new HarnessBridgeSession(Source, _staleLease, _budget.MaximumSessions, _actionLease);
         _reader = new BridgeSpoolReader(SpoolDirectory) { MaximumBytesPerPass = _budget.BytesPerPass };
@@ -77,18 +80,15 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
 
     /// <summary>
     /// Applies this source's share of the aggregate budget. The composite calls this
-    /// before <see cref="StartAsync"/>, so an unstarted adapter is already bounded
-    /// and a running reader is re-bounded without restarting it.
+    /// before <see cref="StartAsync"/> so it cannot race a running reader.
     /// </summary>
     public void ApplyBudget(SourceBudget budget)
     {
-        _budget = budget ?? SourceBudget.Default;
-        if (_reader is { } reader)
-        {
-            reader.MaximumBytesPerPass = _budget.BytesPerPass;
-        }
-
-        _session?.SetSessionLimit(_budget.MaximumSessions);
+        if (_started != 0) throw new InvalidOperationException("Apply the source budget before starting the adapter.");
+        ArgumentNullException.ThrowIfNull(budget);
+        ArgumentOutOfRangeException.ThrowIfLessThan(budget.BytesPerPass, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(budget.MaximumSessions, 1);
+        _budget = budget;
     }
 
     public void RequestReconcile() => Poll();
@@ -96,6 +96,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
     /// <summary>One bounded pass: read new records, fold them, resynchronize, publish.</summary>
     public SourceSnapshot Poll()
     {
+        if (_disposed != 0) return _current;
         if (_session is null || _reader is null)
         {
             return Publish("not-started", "bridge");
@@ -160,6 +161,9 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
                     // resynchronization exists for: current state stays unproven.
                     rejected++;
                     break;
+                case BridgeCurrentStateOutcome.Ignored when current.ReasonCode != "snapshot-absent" || _lastResyncAt != default:
+                    if (readReason == "ok") readReason = current.ReasonCode;
+                    break;
             }
 
             // Producer-reported drops are coverage evidence recorded after the
@@ -182,6 +186,9 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             {
                 _session.NoteProducerIncomplete("bridge-rejected:" + rejected.ToString(CultureInfo.InvariantCulture), now);
             }
+
+            if (readReason is "bridge-rotated-unread" or "bridge-record-oversize" or "bridge-events-missing")
+                _session.NoteProducerIncomplete(readReason, now);
 
             return Publish(readReason, "bridge", transitions);
         }
@@ -230,6 +237,11 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
 
         if (tasks.Count == 0)
         {
+            if (_session?.EmptySourceAuthoritative == true && now - _lastResyncAt > _staleLease)
+            {
+                reasons.Add("bridge-empty-snapshot-stale");
+                complete = false;
+            }
             // An authoritative document that lists no sessions is a complete
             // statement about an empty source, not a missing observation.
             if (_session?.EmptySourceAuthoritative == true && complete)
@@ -400,6 +412,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         }
 
         _lifetime.Dispose();
-        _gate.Dispose();
+        // A timed-out filesystem read may still own the gate. SemaphoreSlim has
+        // no native handle here; let it be collected after that poll releases it.
     }
 }

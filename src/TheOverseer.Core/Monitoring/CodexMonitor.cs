@@ -17,7 +17,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     private static readonly StringComparer PathComparer =
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-    private readonly MonitorOptions _options;
+    private MonitorOptions _options;
     private readonly IRuntimeActivitySource _activitySource;
     private readonly IMonitorLog _log;
     private readonly TimeProvider _timeProvider;
@@ -83,6 +83,22 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
     public event Action<MonitoringSnapshot>? SnapshotAvailable;
 
     public int TrackedFileCount => _tracked.Count;
+
+    /// <summary>Apply a composite share before any monitoring work begins.</summary>
+    public void ApplyBudget(SourceBudget budget)
+    {
+        ArgumentNullException.ThrowIfNull(budget);
+        ArgumentOutOfRangeException.ThrowIfLessThan(budget.BytesPerPass, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(budget.MaximumSessions, 1);
+        if (_loop is not null || _tracked.Count != 0)
+            throw new InvalidOperationException("The source budget must be applied before monitoring starts.");
+        _options = _options with
+        {
+            GlobalBytesPerPass = Math.Min(_options.GlobalBytesPerPass, budget.BytesPerPass),
+            MaxTrackedFiles = Math.Min(_options.MaxTrackedFiles, budget.MaximumSessions),
+        };
+        _reducer.SetSessionLimit(budget.MaximumSessions);
+    }
 
     public IReadOnlyList<SessionProfile> Profiles => _profileStates.Select(static state => state.Profile).ToArray();
 
@@ -590,7 +606,8 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 continue;
             }
 
-            var identityAllowance = Math.Min(_options.MaxIdentityHeaderBytes, _options.PerFileBytesPerPass);
+            var identityAllowance = Math.Min(Math.Min(_options.MaxIdentityHeaderBytes, _options.PerFileBytesPerPass),
+                _options.GlobalBytesPerPass / 4);
             if (globalBudget < identityAllowance + _options.GlobalBytesPerPass / 2)
             {
                 reasons.Add(HealthReasons.DiscoveryBacklog);
@@ -641,7 +658,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
                 LastProcessedAt = DateTimeOffset.MinValue,
                 BytesReservedThisPass = identityAllowance,
             };
-            file.SignatureBytes = (int)Math.Min(Math.Min(4096, candidate.Length), _options.PerFileBytesPerPass - identityAllowance);
+            file.SignatureBytes = (int)Math.Min(Math.Min(Math.Min(4096, candidate.Length), globalBudget), _options.PerFileBytesPerPass - identityAllowance);
             globalBudget -= file.SignatureBytes;
             file.BytesReservedThisPass += file.SignatureBytes;
             file.Signature = ComputeSignature(candidate.FullName, file.SignatureBytes);
@@ -701,7 +718,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             }
             if (file.IdentityCheckPending)
             {
-                var budget = Math.Min(_options.MaxIdentityHeaderBytes, _options.PerFileBytesPerPass);
+                var budget = Math.Min(Math.Min(_options.MaxIdentityHeaderBytes, _options.PerFileBytesPerPass), _options.GlobalBytesPerPass / 4);
                 if (globalBudget < budget) { coverageComplete = false; reasons.Add(HealthReasons.HydrationBudget); return; }
                 globalBudget -= budget;
                 file.BytesReservedThisPass += budget;

@@ -7,7 +7,7 @@ using TheOverseer.Core.Monitoring;
 namespace TheOverseer.App.Monitoring;
 
 /// <summary>Adapts the existing Codex monitor to the shared adapter contract.</summary>
-public sealed class CodexMonitorAdapter : IAgentMonitorAdapter
+public sealed class CodexMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonitorAdapter
 {
     private readonly IMonitorSource _source;
 
@@ -33,6 +33,11 @@ public sealed class CodexMonitorAdapter : IAgentMonitorAdapter
     }
 
     public void RequestReconcile() => _source.RequestReconcile();
+
+    public void ApplyBudget(SourceBudget budget)
+    {
+        if (_source is IBudgetedMonitorAdapter budgeted) budgeted.ApplyBudget(budget);
+    }
 
     private void OnSnapshot(MonitoringSnapshot snapshot)
     {
@@ -70,21 +75,27 @@ public sealed class CompositeMonitorSource : IMonitorSource
     private readonly TimeProvider _timeProvider;
     private readonly object _gate = new();
     private readonly Dictionary<string, SourceSnapshot> _latest = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _receivedAt = new(StringComparer.Ordinal);
     private readonly HashSet<AttentionEvent> _seenTransitions = new();
     private readonly Queue<AttentionEvent> _transitionOrder = new();
     private readonly List<AttentionEvent> _pendingTransitions = new();
     private bool _allCompleteArmed;
     private MonitoringSnapshot _current;
     private int _started;
+    private int _disposed;
+    private ITimer? _watchdog;
+    private static readonly TimeSpan SourceSilenceLimit = TimeSpan.FromMinutes(2);
 
     public CompositeMonitorSource(
         IReadOnlyList<IAgentMonitorAdapter> adapters,
         IMonitorLog? log = null,
         TimeProvider? timeProvider = null,
-        SourceBudget? aggregateBudget = null)
+        SourceBudget? aggregateBudget = null,
+        bool discoveryIncomplete = false)
     {
         ArgumentNullException.ThrowIfNull(adapters);
         var enabled = adapters.Where(adapter => adapter.Source.IsEnabled).ToArray();
+        SourcesTruncated = discoveryIncomplete;
         // The caller passes the AGGREGATE allowance; the composite divides it. Adding
         // a source therefore never multiplies the work the machine performs per pass.
         var aggregate = aggregateBudget ?? SourceBudget.Default;
@@ -149,6 +160,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
         if (Interlocked.Exchange(ref _started, 1) == 1)
         {
             return;
@@ -174,6 +186,11 @@ public sealed class CompositeMonitorSource : IMonitorSource
         }
 
         Publish();
+        _watchdog = _timeProvider.CreateTimer(_ =>
+        {
+            try { Publish(); }
+            catch (Exception) { _log.Write(MonitorLogLevel.Error, "composite-watchdog-publication-failed"); }
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
     }
 
     public void RequestReconcile()
@@ -213,6 +230,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
             // Only this source's entry is replaced: a fresh publication from one
             // harness can never advance another harness's evidence time.
             _latest[key] = snapshot with { Transitions = Array.Empty<AttentionEvent>() };
+            _receivedAt[key] = _timeProvider.GetTimestamp();
             foreach (var transition in snapshot.Transitions)
             {
                 // Source-local all-complete is never a global completion edge.
@@ -234,6 +252,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
         MonitoringSnapshot merged;
         lock (_gate)
         {
+            if (_disposed != 0) return;
             var sources = _latest.Values.ToArray();
             var tasks = new List<AgentTask>();
             var transitions = new List<AttentionEvent>(_pendingTransitions);
@@ -246,8 +265,20 @@ public sealed class CompositeMonitorSource : IMonitorSource
             var anyReadable = false;
             DateTimeOffset? lastEvidence = null;
 
-            foreach (var source in sources)
+            foreach (var stored in sources)
             {
+                var source = stored;
+                if (_receivedAt.TryGetValue(SourceKey(stored.Source), out var received) &&
+                    _timeProvider.GetElapsedTime(received) > SourceSilenceLimit)
+                {
+                    source = stored with
+                    {
+                        Health = MonitoringHealthLevel.Unavailable,
+                        CoverageComplete = false,
+                        HealthReasons = stored.HealthReasons.Append("source-silent").ToArray(),
+                        Tasks = stored.Tasks.Select(task => task with { IsStale = true }).ToArray(),
+                    };
+                }
                 tasks.AddRange(source.Tasks);
                 observation = observation with
                 {
@@ -298,6 +329,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
             if (SourcesTruncated)
             {
                 reasons.Add("sources-truncated:" + SourceBudget.MaximumSourceInstances.ToString(CultureInfo.InvariantCulture));
+                coverage = false;
+                if (level == MonitoringHealthLevel.Healthy) level = MonitoringHealthLevel.Degraded;
             }
 
             // Readable work always leaves the source set at worst degraded: a
@@ -398,6 +431,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (_watchdog is not null) await _watchdog.DisposeAsync().ConfigureAwait(false);
         foreach (var adapter in _adapters)
         {
             adapter.SnapshotAvailable -= OnSourceSnapshot;

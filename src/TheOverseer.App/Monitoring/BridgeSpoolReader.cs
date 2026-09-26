@@ -27,9 +27,6 @@ public sealed class BridgeSpoolReader
     /// <summary>Hard ceiling for one source's share, whatever the caller asks for.</summary>
     public const int HardMaximumBytesPerPass = 1 * 1024 * 1024;
 
-    /// <summary>Floor that keeps a small share able to make progress.</summary>
-    public const int MinimumBytesPerPass = 64 * 1024;
-
     private const int MaximumHealthBytes = 64 * 1024;
     private const int MaximumCurrentBytes = 512 * 1024;
     private const int MaximumRotatedFilesPerPass = 4;
@@ -37,10 +34,19 @@ public sealed class BridgeSpoolReader
 
     private (long Length, DateTime LastWrite) _currentStamp = (-1, DateTime.MinValue);
     private BridgeCurrentStateParseResult? _currentCache;
+    private (long Length, DateTime LastWrite) _pendingStamp = (-1, DateTime.MinValue);
+    private byte[]? _pendingCurrent;
+    private int _pendingCurrentRead;
+    private int _remainingBytes = HardMaximumBytesPerPass;
+    private int _eventAllowance;
+    private readonly List<byte> _partialLine = new();
+    private bool _discardingLine;
+    private int _lastProducerDrops;
+    private string _healthReason = "ok";
+    private const int MaximumRecordBytes = 64 * 1024;
     private long _eventsOffset;
     private long _eventsLength = -1;
     private DateTime _eventsCreationUtc;
-    private DateTime _eventsLastWriteUtc;
     private ulong _eventsHeadHash;
 
     private int _maximumBytesPerPass = HardMaximumBytesPerPass;
@@ -50,14 +56,24 @@ public sealed class BridgeSpoolReader
     public string Directory { get; }
 
     /// <summary>
-    /// This source's share of the aggregate monitoring budget. Clamped to the
-    /// documented floor and ceiling so neither a caller nor a config can remove the
-    /// bound.
+    /// This source's share of the aggregate monitoring budget. Small shares are
+    /// honored; incomplete records and documents progress across polls.
     /// </summary>
     public int MaximumBytesPerPass
     {
         get => _maximumBytesPerPass;
-        set => _maximumBytesPerPass = Math.Clamp(value, MinimumBytesPerPass, HardMaximumBytesPerPass);
+        set { _maximumBytesPerPass = Math.Clamp(value, 1, HardMaximumBytesPerPass); _remainingBytes = _maximumBytesPerPass; }
+    }
+
+    /// <summary>Actual payload bytes read in the current poll, including metadata.</summary>
+    public int BytesReadThisPass { get; private set; }
+
+    private int ReadBudgeted(Stream stream, byte[] buffer, int offset, int count)
+    {
+        var read = stream.Read(buffer, offset, Math.Min(count, _remainingBytes));
+        _remainingBytes -= read;
+        BytesReadThisPass += read;
+        return read;
     }
 
     public string EventsPath => Path.Combine(Directory, "events.jsonl");
@@ -71,19 +87,27 @@ public sealed class BridgeSpoolReader
     {
         reasonCode = "ok";
         droppedByProducer = 0;
+        _remainingBytes = _maximumBytesPerPass;
+        BytesReadThisPass = 0;
+        // Leave room for authoritative snapshots even under sustained event traffic.
+        _eventAllowance = File.Exists(CurrentPath) ? _maximumBytesPerPass / 2 : _maximumBytesPerPass;
         var lines = new List<string>();
         try
         {
             droppedByProducer = ReadProducerDrops();
+            if (_healthReason != "ok") reasonCode = _healthReason;
             if (!File.Exists(EventsPath))
             {
+                if (_eventsLength >= 0) reasonCode = "bridge-events-missing";
                 _eventsLength = -1;
+                _eventsOffset = 0;
+                _partialLine.Clear();
+                _discardingLine = false;
                 return lines;
             }
 
             var info = new FileInfo(EventsPath);
             var creation = info.CreationTimeUtc;
-            var lastWrite = info.LastWriteTimeUtc;
             var head = ReadHeadFingerprint();
             var replaced = _eventsLength >= 0 &&
                 (info.Length < _eventsOffset ||
@@ -93,17 +117,18 @@ public sealed class BridgeSpoolReader
             {
                 // The file this reader was following was rotated or replaced.
                 // Drain what is left of it from the producer's rotated copy first.
-                var recovered = DrainRotatedTail(lines, lastWrite);
+                var recovered = DrainRotatedTail(lines);
                 if (!recovered)
                 {
                     reasonCode = "bridge-rotated-unread";
                 }
 
                 _eventsOffset = 0;
+                _partialLine.Clear();
+                _discardingLine = false;
             }
 
             _eventsCreationUtc = creation;
-            _eventsLastWriteUtc = lastWrite;
             _eventsHeadHash = head;
             _eventsLength = info.Length;
             if (info.Length <= _eventsOffset)
@@ -111,14 +136,14 @@ public sealed class BridgeSpoolReader
                 return lines;
             }
 
-            var budget = (int)Math.Min(_maximumBytesPerPass, info.Length - _eventsOffset);
+            var budget = (int)Math.Min(Math.Min(_remainingBytes, _eventAllowance), info.Length - _eventsOffset);
             using var stream = new FileStream(EventsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             stream.Seek(_eventsOffset, SeekOrigin.Begin);
             var buffer = new byte[budget];
             var read = 0;
             while (read < budget)
             {
-                var next = stream.Read(buffer, read, budget - read);
+                var next = ReadBudgeted(stream, buffer, read, budget - read);
                 if (next <= 0)
                 {
                     break;
@@ -127,22 +152,31 @@ public sealed class BridgeSpoolReader
                 read += next;
             }
 
-            if (read == 0) return lines;
-            var lastNewline = Array.LastIndexOf(buffer, (byte)'\n', read - 1, read);
-            if (lastNewline < 0)
+            if (read == 0)
             {
-                // A partially written record is left for the next pass.
+                if (reasonCode == "ok") reasonCode = "bridge-budget-pending";
                 return lines;
             }
-
-            var consumed = lastNewline + 1;
-            _eventsOffset += consumed;
-            var text = Encoding.UTF8.GetString(buffer, 0, consumed);
-            AppendLines(lines, text);
-
-            if (info.Length - _eventsOffset > 0 && lines.Count == 0 && string.Equals(reasonCode, "ok", StringComparison.Ordinal))
+            _eventsOffset += read;
+            for (var index = 0; index < read; index++)
             {
-                reasonCode = "bridge-no-progress";
+                if (buffer[index] == (byte)'\n')
+                {
+                    if (!_discardingLine && _partialLine.Count > 0)
+                        lines.Add(Encoding.UTF8.GetString(_partialLine.ToArray()));
+                    _partialLine.Clear();
+                    _discardingLine = false;
+                }
+                else if (!_discardingLine)
+                {
+                    if (_partialLine.Count >= MaximumRecordBytes)
+                    {
+                        _partialLine.Clear();
+                        _discardingLine = true;
+                        reasonCode = "bridge-record-oversize";
+                    }
+                    else _partialLine.Add(buffer[index]);
+                }
             }
 
             return lines;
@@ -160,81 +194,65 @@ public sealed class BridgeSpoolReader
     }
 
     /// <summary>
-    /// Reads the producer's authoritative current-state document. One bounded read
-    /// with a single retry: the shipped producer replaces the file atomically, but a
-    /// foreign or older producer may still be observed mid-write.
+    /// Reads the producer's authoritative current-state document within the same
+    /// poll allowance as events. Larger documents continue on subsequent polls.
     /// </summary>
     public BridgeCurrentStateParseResult ReadCurrentState(SourceInstance source)
     {
-        for (var attempt = 0; attempt < 2; attempt++)
+        try
         {
-            string text;
-            try
+            if (!File.Exists(CurrentPath))
             {
-                if (!File.Exists(CurrentPath))
-                {
-                    return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Ignored, null, "snapshot-absent");
-                }
-
-                var stamp = new FileInfo(CurrentPath);
-                var identity = (stamp.Length, stamp.LastWriteTimeUtc);
-                if (identity == _currentStamp && _currentCache is not null)
-                {
-                    // The atomically replaced document is byte-identical to the one
-                    // already parsed. The cached document is returned instead of
-                    // re-parsing, so the consumer can still re-apply it (and clear a
-                    // producer-drop note) without paying for a parse every poll.
-                    return _currentCache;
-                }
-
-                _currentStamp = identity;
-                using var stream = new FileStream(CurrentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                var budget = (int)Math.Min(MaximumCurrentBytes, stream.Length);
-                if (budget <= 0)
-                {
-                    return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Ignored, null, "snapshot-empty");
-                }
-
-                var buffer = new byte[budget];
-                var read = 0;
-                while (read < budget)
-                {
-                    var next = stream.Read(buffer, read, budget - read);
-                    if (next <= 0)
-                    {
-                        break;
-                    }
-
-                    read += next;
-                }
-
-                text = Encoding.UTF8.GetString(buffer, 0, read);
-            }
-            catch (IOException)
-            {
-                return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Ignored, null, "snapshot-io");
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Ignored, null, "snapshot-denied");
+                _pendingCurrent = null;
+                _currentCache = null;
+                return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-absent");
             }
 
-            var parsed = HarnessBridgeCurrentStateParser.Parse(text, source);
-            if (parsed.Outcome != BridgeCurrentStateOutcome.Malformed || attempt == 1)
-            {
-                _currentCache = parsed;
-                return parsed;
-            }
+            var stamp = new FileInfo(CurrentPath);
+            var identity = (stamp.Length, stamp.LastWriteTimeUtc);
+            if (identity == _currentStamp && _currentCache is not null) return _currentCache;
+            if (stamp.Length <= 0 || stamp.Length > MaximumCurrentBytes)
+                return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-size");
 
-            Thread.Sleep(5);
+            // Large documents progress across polls without borrowing another
+            // source's budget. Cache identity and value are published together.
+            if (_pendingCurrent is null || identity != _pendingStamp)
+            {
+                _pendingStamp = identity;
+                _pendingCurrent = new byte[(int)stamp.Length];
+                _pendingCurrentRead = 0;
+            }
+            using var stream = new FileStream(CurrentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            stream.Seek(_pendingCurrentRead, SeekOrigin.Begin);
+            while (_pendingCurrentRead < _pendingCurrent.Length && _remainingBytes > 0)
+            {
+                var read = ReadBudgeted(stream, _pendingCurrent, _pendingCurrentRead, _pendingCurrent.Length - _pendingCurrentRead);
+                if (read == 0) break;
+                _pendingCurrentRead += read;
+            }
+            var after = new FileInfo(CurrentPath);
+            if ((after.Length, after.LastWriteTimeUtc) != identity)
+            {
+                _pendingCurrent = null;
+                return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-changing");
+            }
+            if (_pendingCurrentRead != _pendingCurrent.Length)
+                return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-budget-pending");
+
+            var parsed = HarnessBridgeCurrentStateParser.Parse(Encoding.UTF8.GetString(_pendingCurrent), source);
+            _pendingCurrent = null;
+            _currentStamp = identity;
+            _currentCache = parsed;
+            return parsed;
         }
-
-        return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Malformed, null, "snapshot-malformed");
+        catch (IOException) { return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-io"); }
+        catch (UnauthorizedAccessException) { return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-denied"); }
     }
 
     /// <summary>Producer drop/overflow counters, which lower coverage when non-zero.</summary>
     public int ReadProducerDrops()
     {
+        _healthReason = "ok";
         try
         {
             if (!File.Exists(HealthPath))
@@ -243,13 +261,20 @@ public sealed class BridgeSpoolReader
             }
 
             using var stream = new FileStream(HealthPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var budget = (int)Math.Min(MaximumHealthBytes, stream.Length);
-            var buffer = new byte[budget];
-            var read = stream.Read(buffer, 0, budget);
-            using var document = JsonDocument.Parse(Encoding.UTF8.GetString(buffer, 0, read));
-            if (!document.RootElement.TryGetProperty("counters", out var counters) || counters.ValueKind != JsonValueKind.Object)
+            var budget = (int)Math.Min(Math.Min(MaximumHealthBytes, _maximumBytesPerPass / 8), stream.Length);
+            if (budget < stream.Length)
             {
-                return 0;
+                _healthReason = "bridge-health-size";
+                return _lastProducerDrops;
+            }
+            var buffer = new byte[budget];
+            var read = ReadBudgeted(stream, buffer, 0, budget);
+            using var document = JsonDocument.Parse(Encoding.UTF8.GetString(buffer, 0, read));
+            if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                !document.RootElement.TryGetProperty("counters", out var counters) || counters.ValueKind != JsonValueKind.Object)
+            {
+                _healthReason = "bridge-health-malformed";
+                return _lastProducerDrops;
             }
 
             // The shipped producers publish a total `dropped` counter plus its
@@ -258,7 +283,7 @@ public sealed class BridgeSpoolReader
             if (counters.TryGetProperty("dropped", out var total) &&
                 total.ValueKind == JsonValueKind.Number && total.TryGetInt32(out var value))
             {
-                return Math.Max(0, value);
+                return _lastProducerDrops = Math.Max(0, value);
             }
 
             var dropped = 0;
@@ -272,23 +297,26 @@ public sealed class BridgeSpoolReader
 
                 if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var breakdown) && breakdown > 0)
                 {
-                    dropped += breakdown;
+                    dropped = (int)Math.Min(int.MaxValue, (long)dropped + breakdown);
                 }
             }
 
-            return dropped;
+            return _lastProducerDrops = dropped;
         }
         catch (JsonException)
         {
-            return 0;
+            _healthReason = "bridge-health-malformed";
+            return _lastProducerDrops;
         }
         catch (IOException)
         {
-            return 0;
+            _healthReason = "bridge-health-io";
+            return _lastProducerDrops;
         }
         catch (UnauthorizedAccessException)
         {
-            return 0;
+            _healthReason = "bridge-health-denied";
+            return _lastProducerDrops;
         }
     }
 
@@ -298,7 +326,7 @@ public sealed class BridgeSpoolReader
         {
             using var stream = new FileStream(EventsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             var buffer = new byte[HeadFingerprintBytes];
-            var read = stream.Read(buffer, 0, buffer.Length);
+            var read = ReadBudgeted(stream, buffer, 0, buffer.Length);
             return Hash(buffer, read);
         }
         catch (IOException)
@@ -327,91 +355,60 @@ public sealed class BridgeSpoolReader
     /// (never copies), so the rotated file still holds exactly the bytes that were
     /// in <c>events.jsonl</c> when the rotation happened.
     /// </summary>
-    private bool DrainRotatedTail(List<string> lines, DateTime observedLastWriteUtc)
+    private bool DrainRotatedTail(List<string> lines)
     {
-        if (_eventsOffset <= 0)
-        {
-            return true;
-        }
-
-        List<(string Path, DateTime LastWrite, long Length)> rotated;
+        if (_eventsOffset <= 0) return true;
         try
         {
-            rotated = new DirectoryInfo(Directory)
-                .EnumerateFiles("events-*.jsonl")
-                .Where(file => file.Length > 0)
-                .Select(file => (file.FullName, file.LastWriteTimeUtc, file.Length))
-                .OrderBy(file => file.LastWriteTimeUtc)
-                .Take(MaximumRotatedFilesPerPass)
-                .ToList();
-        }
-        catch (IOException)
-        {
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return false;
-        }
-
-        if (rotated.Count == 0)
-        {
-            return false;
-        }
-
-        var recoveredAny = false;
-        var remaining = _maximumBytesPerPass;
-        for (var index = 0; index < rotated.Count; index++)
-        {
-            var file = rotated[index];
-            if (remaining <= 0)
+            // Bound enumeration before sorting. Older retained rotations are not
+            // assumed to be the live file we just lost.
+            var files = new DirectoryInfo(Directory).EnumerateFiles("events-*.jsonl")
+                .Take(MaximumRotatedFilesPerPass + 1).ToArray();
+            if (files.Length == 0 || files.Length > MaximumRotatedFilesPerPass) return false;
+            Array.Sort(files, (left, right) => left.LastWriteTimeUtc.CompareTo(right.LastWriteTimeUtc));
+            var matching = -1;
+            for (var index = 0; index < files.Length; index++)
             {
-                break;
+                var file = files[index];
+                if (file.CreationTimeUtc != _eventsCreationUtc || file.Length < _eventsOffset) continue;
+                var size = (int)Math.Min(HeadFingerprintBytes, _eventsLength);
+                if (_remainingBytes < size) return false;
+                using var probe = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var head = new byte[size];
+                var count = ReadBudgeted(probe, head, 0, size);
+                if (count == size && Hash(head, count) == _eventsHeadHash) { matching = index; break; }
             }
+            if (matching < 0 || _discardingLine) return false;
 
-            // The oldest rotated file is the one this reader was following; later
-            // ones are entirely unread. A file shorter than our offset cannot be
-            // that file, so it is read from the beginning.
-            var start = index == 0 && file.Length >= _eventsOffset ? _eventsOffset : 0;
-            var budget = (int)Math.Min(remaining, file.Length - start);
-            if (budget <= 0)
+            for (var index = matching; index < files.Length; index++)
             {
-                // Everything in this file was already consumed before the rotation.
-                if (index == 0 && file.Length <= _eventsOffset) recoveredAny = true;
-                continue;
-            }
-
-            try
-            {
-                using var stream = new FileStream(file.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var file = files[index];
+                var start = index == matching ? _eventsOffset - _partialLine.Count : 0;
+                var available = file.Length - start;
+                if (available == 0) continue;
+                var budget = (int)Math.Min(Math.Min(_remainingBytes, _eventAllowance), available);
+                if (budget <= 0) return false;
+                using var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 stream.Seek(start, SeekOrigin.Begin);
                 var buffer = new byte[budget];
                 var read = 0;
                 while (read < budget)
                 {
-                    var next = stream.Read(buffer, read, budget - read);
+                    var next = ReadBudgeted(stream, buffer, read, budget - read);
                     if (next <= 0) break;
                     read += next;
                 }
-
+                _eventAllowance -= read;
+                if (read == 0) return false;
                 var lastNewline = Array.LastIndexOf(buffer, (byte)'\n', read - 1, read);
-                if (lastNewline >= 0)
-                {
-                    AppendLines(lines, Encoding.UTF8.GetString(buffer, 0, lastNewline + 1));
-                    recoveredAny = true;
-                }
+                if (lastNewline >= 0) AppendLines(lines, Encoding.UTF8.GetString(buffer, 0, lastNewline + 1));
+                // Partial recovery is a reported history gap, never "recovered".
+                if (read < available || lastNewline != read - 1) return false;
             }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
-
-            _ = observedLastWriteUtc;
+            return true;
         }
-
-        return recoveredAny || rotated.Count == 0;
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 
     private static void AppendLines(List<string> lines, string text)

@@ -1,5 +1,21 @@
 # OVERSEER changelog
 
+## Unreleased — 2026-09-25 (Astra review and cleanup)
+
+- Start all harness adapters without waiting for the Codex monitor to shut down.
+- Read configured bridge folders, deduplicate aliases, retain disabled sources
+  without consuming enabled slots, and keep discovery failures/caps visible in coverage.
+- Apply shared byte/session limits to Codex and bridge consumers; count bridge
+  health, fingerprints, rotations and snapshots in the same poll allowance.
+  Small shares progress through partial records and snapshots without increasing the budget.
+- Prevent corrupted snapshots from reusing an older healthy cache; preserve drop
+  counts on malformed health data, guard counter overflow, and report incomplete rotation recovery.
+- Expire silent adapters independently of peer updates, expire old empty-source
+  snapshots, and prevent duplicate bridge starts or disposal of an in-use poll gate.
+- Add 18 regressions covering runtime composition and adversarial input. Release
+  build: 0 warnings/errors; 659 .NET tests and 51 bridge tests passed. This source
+  revision has not yet been packaged or qualified against live harnesses.
+
 ## Unreleased — 2026-09-24 (project-centered round, partial)
 
 ### Astra integration review fixes

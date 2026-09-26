@@ -51,12 +51,14 @@ public sealed record SourceInstance(
     string SourceInstanceId,
     string DisplayName,
     bool IsEnabled = true,
-    bool IsOptional = false)
+    bool IsOptional = false,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? LocalSpoolDirectory = null)
 {
     public string HarnessDisplayName => HarnessIds.DisplayName(HarnessId);
 
     /// <summary>Safe diagnostic label: no paths, no session content.</summary>
     public string Describe() => HarnessId + ":" + SourceInstanceId + (IsEnabled ? "" : " (disabled)");
+    public override string ToString() => Describe();
 }
 
 /// <summary>

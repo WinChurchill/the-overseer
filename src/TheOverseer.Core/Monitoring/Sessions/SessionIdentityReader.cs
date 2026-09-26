@@ -46,7 +46,8 @@ public static class SessionIdentityReader
 
     public static SessionIdentity Read(string path, int maxBytes)
     {
-        var cap = Math.Max(4096, maxBytes);
+        if (maxBytes <= 0) return SessionIdentity.Empty("identity-budget-empty");
+        var cap = maxBytes;
         try
         {
             using var stream = new FileStream(

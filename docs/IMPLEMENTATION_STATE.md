@@ -6,8 +6,8 @@ Goal: One integrated implementation/review round for project grouping, activity 
 responsive HUD controls, and an offline baseline voice
 Branch: ux/first-use
 Product base: d869db6 (custom HUD implementation: 5521980)
-Packaged implementation: **915b735** (`ux/first-use`); this smoke-record commit is
-documentation-only and changes no product file.
+Last packaged implementation: **915b735** (`ux/first-use`). The 2026-09-25 Astra
+review fixes below change product code and are newer than that package.
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
@@ -18,8 +18,9 @@ documentation-only and changes no product file.
   **38 render fixtures** rendered and inspected from committed source; clean-source
   publish from `915b735` (sha256 `2F578ECF…3E10B`); packaged smoke **17/17 passed**
   with the HUD lifecycle block environment-blocked (exact reason below).
-- Astra review: CHANGES REQUIRED on 26e642b — this round is the response; **no further
-  blocker identified by the implementer**.
+- Astra source review: **PASS WITH NONBLOCKING NOTES after the 2026-09-25 fixes**.
+  The confirmed monitoring defects were fixed and adversarially rechecked; see the
+  latest review below. Release qualification remains pending, not implicitly passed.
 - Preserved: the user's running HUD (pid 38960) and live `config.json` were never
   modified; provider is still `pack`, still muted, byte-for-byte the same file.
 - Prior UX baseline: Release build passed with 0 warnings/errors; 456 tests passed;
@@ -46,12 +47,108 @@ and close behavior, script parameters, and current branch/head. No remaining pla
 blocker identified; actual installed-version and live harness qualification remain gates.
 Documentation diff check passed; no product build/test run is claimed for this review.
 
-Next action: continue in a fresh DeepSeek conversation using the current handoff and
-latest review below. Implementation is already authorized. Do not restart planning.
+Next action: publish a new clean-source candidate containing the review fixes, then
+finish packaged lifecycle and live harness/voice qualification. Preserve the running
+user HUD and live configuration until an intentional replacement/test session.
 The frozen original four-plan V1 scope documents remain unchanged; this is an explicit
 user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
+
+### Astra implementation cleanup and adversarial review — 2026-09-25
+
+Reviewed base: e5a6a0f on ux/first-use. User explicitly authorized direct cleanup and
+fixes, followed by a final adversarial review. No product redesign, scope expansion,
+new project, framework or dependency. Frozen source documents remain unchanged.
+
+Confirmed findings fixed:
+
+1. **MAJOR — startup stalled at Codex.** Its lifetime task was awaited as adapter
+   initialization, preventing subsequent bridge startup. Start now returns after launch;
+   a regression composes the real Codex monitor with a second adapter.
+2. **MAJOR — custom roots and incomplete discovery.** Retain the discovered local
+   path through ingestion (excluded from JSON/diagnostics), deduplicate root aliases,
+   distinguish disabled sources from enabled capacity, propagate caps/missing explicit
+   roots into partial counts, and suppress complete coverage even when visible sources
+   are healthy.
+3. **MAJOR — shared bounds were not enforced.** Codex now receives its share before
+   work starts, including tracked conversations/files. Remove upward share floors and
+   the identity-reader floor. Bridge payload reads share one allowance across health,
+   fingerprints, rotated events, live events and current state. Partial records and large
+   snapshots progress across polls; rotation enumeration is bounded before sorting.
+4. **MAJOR — misleading recovery/health.** Cache snapshot identity only with its parsed
+   result; malformed replacements cannot return old healthy data. Preserve drop evidence
+   on invalid health JSON, saturate overflow, and report partially recovered rotations
+   as loss. Select the matching rotation rather than replaying the oldest retained file.
+5. **MAJOR — silence could stay healthy.** A monotonic-clock watchdog ages adapters
+   after two minutes without publication, including when every source stops; fresh
+   evidence restores them. Empty authoritative snapshots also expire by their lease.
+6. **MINOR — lifecycle races.** Bridge startup is idempotent, budget application is
+   restricted to startup, and timed-out disposal does not dispose a gate still owned
+   by a filesystem read.
+
+Final verification: Release build **0 warnings / 0 errors**; **659/659 .NET tests**,
+including 18 new runtime/adversarial regressions; **30/30 dsh + 21/21 Claude** tests;
+git diff --check clean. Existing regression tests retained. The second review covered
+small allowances, hostile health shapes/overflow, partial records, rotation history,
+malformed snapshot replacement, discovery omissions and silence/recovery. No remaining
+confirmed blocker in the reviewed paths. UI/voice code was not redesigned in this round.
+
+**Release hold remains:** the existing 915b735 package does not contain these fixes.
+No publish or packaged lifecycle smoke was rerun. Previous smoke explicitly skipped HUD
+lifecycle; live dsh attach, Claude Code compatibility, physical tray/multi-DPI and audible
+voice still require qualification. Do not interpret green unit/fixture tests as those
+checks. Running HUD, desktop shortcut and live harness settings were not changed.
+
+### Astra repository review — e5a6a0f
+
+Verdict: **CHANGES REQUIRED**, materially closer to completion. Project expansion,
+source/voice settings, evidence-carrying strips, close/header changes, snapshot recovery
+and a clean-source packaged candidate now exist. No significant scope creep or new
+framework/project dependency was found; frozen documents remain unchanged.
+
+Remaining findings from inspected integration boundaries:
+
+1. **MAJOR — configured spool roots are not used by the reader.**
+   HarnessSources.DiscoverDetailed enumerates configured paths, but creates a
+   SourceInstance carrying only harness/id/display/enabled. BridgeMonitorAdapter's
+   SpoolDirectory reconstructs the default data-directory path, so a source discovered
+   exclusively under a custom root is unreadable (or reads an unrelated default source
+   with the same ID). Preserve resolved local spool location through composition,
+   deduplicate aliases to the same root, and test actual adapter ingestion from a
+   nondefault root rather than discovery alone.
+2. **MAJOR — the claimed shared budget excludes Codex.** CodexMonitorAdapter does
+   not implement IBudgetedMonitorAdapter; CodexMonitor is constructed with the full
+   MonitorOptions allowance before the composite divides a budget among adapters.
+   With three sources, Codex can still read 4 MiB plus two bridge shares (~1.33 MiB
+   each), instead of 4 MiB aggregate. Divide/enforce before Codex construction or
+   provide a real budget boundary. SourceBudget.Share also floors shares upward,
+   so small configured aggregates may be exceeded. Prove total work across actual
+   adapters under low as well as default limits.
+3. **MAJOR — discovery truncation is discarded.** Composition calls Discover(),
+   throwing away DiscoverDetailed.Capped. Composite knows only its own eight-source
+   truncation; a lower configured discovery cap or per-root cap can omit enabled
+   producers without making global coverage incomplete. Carry this evidence into
+   health/counts and suppress unqualified all-complete. Disabled entries currently
+   consume discovery slots too; keep them from crowding enabled sources out silently.
+4. **Release qualification still pending.** Inspected package evidence explicitly
+   has hudLifecycleSkipped=true. The running user's HUD prevented that test block;
+   this is a pending release gate, not a passing lifecycle result. dsh live attach,
+   a compatible Claude Code hook environment, physical tray/DPI and audible playback
+   remain disclosed qualifications. No live settings were changed during review.
+
+Fresh independent verification: Release build 0 warnings/errors, **641/641 .NET**
+tests, **51/51 Node** tests (30 dsh + 21 Claude), diff check clean. The archive's
+SHA-256 independently matches 2F578ECF497DC2E7158F28B9BA46965AF21ECF3E82726A935C3D54947813E10B;
+manifest confirms clean source 915b735. The 17 smoke checks are prior recorded evidence,
+not rerun in this review; HEAD differs from that source only in documentation.
+
+Git audit: ux/first-use at e5a6a0f, 21 commits since 3152ec5, clean at review start;
+main unchanged at 663caf5; no remote configured. agent/ui and agent/voice worktrees
+are clean, and git cherry reports all their commits patch-equivalent in ux/first-use
+(no unintegrated branch changes detected). This review adds only this ledger edit;
+no product/package/app/shortcut changes. Complete the focused fixes above, rerun
+checks, republish changed implementation, then finish lifecycle/live qualification.
 
 ### DeepSeek completion — response to "inspected 26e642b" (2026-09-24)
 
