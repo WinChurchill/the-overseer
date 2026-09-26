@@ -17,6 +17,111 @@ public publishing, distribution terms/signing and external-machine tests remain 
 The sections below retain historical implementation and deployment evidence.
 
 ## Current
+Plan: Post-V1 — Usable public release candidate (internal RC 1.0.0-rc.1)
+Goal: simplify the HUD, fix isolated-instance scope, verify the candidate through the
+real monitor path, distribute the optional bridges, and identify the candidate by
+version and source commit.
+Branch: `ux/first-use`. This round's base is `7ac5768`; the planning packet is
+`docs/RELEASE_READINESS.md` plus the ignored `.agent/HANDOFF.md`.
+
+### Status: implementation complete for everything locally executable; NOT a public release
+
+Public-release readiness is **not** claimed. The gates that still require
+environments this machine does not have are listed below as explicit qualification
+gaps. No merge, tag, push or public upload was performed.
+
+### Delivered
+
+- **Simplified HUD** (`6ca5d17`). One attention-first summary whose halves open the
+  matching filter with *All* always visible; one clickable health control with
+  per-source detail; explicit Recent-hours selection; per-project and per-task history
+  disclosure with the shared axis and legend inside the disclosed area; first-appearance
+  expansion (attention/active expanded, settled collapsed) with the user's choices and a
+  once-per-episode attention reveal preserved. Removed: duplicate status headline,
+  decorative linework, constant voice sentence, permanent instruction line. Body 13 DIP,
+  secondary 12 DIP, collapsed HUD 300x96 DIP. Closed history stops the geometry
+  projection only — observation, recording and voice are untouched.
+- **Source-aware health wording** (in `6ca5d17`). Composite reasons are prefixed with
+  the harness, so the HUD now matches codes with or without that prefix. A degraded
+  `dsh`/Claude source is no longer rendered as healthy, and the empty state no longer
+  claims a Codex-only view.
+- **One instance scope** (`051f4e7`). `InstanceScope` derives the single-instance mutex
+  and the show-request event from one identity: Windows user plus canonical data
+  directory. Two different data directories can no longer fight over one slot or signal
+  each other, which is what makes an isolated packaged lifecycle check possible while a
+  real HUD keeps running.
+- **Production-path candidate check** (`debc035`). `--hud-integration-check` invents a
+  Codex rollout home and two bridge spools, drives them through the real readers,
+  composite and controller, and asserts the applied UI state: working → attention →
+  answer → completion; async attention while working (and that an unrelated tool output
+  cannot answer it); honest per-source degradation with the peer still publishing; no
+  monitor-stopped latch; recovery on clean data; freshness advancing via the new
+  `HudViewModel.AppliedSnapshots` counter. 13/13 checks pass locally.
+- **Distribution and identity** (`a49403b`). The archive now ships both bridges
+  (sources, notices, installers, tests — 73 files) plus an index that states
+  prerequisites, the data-directory spool location and the required restart. The archive
+  carries `release.json`; numeric `FileVersion`/`AssemblyVersion` is separate from the
+  release identifier and source commit; publish validation compares the numeric version
+  exactly. `Test-PackagedRelease.ps1` verifies identity, runs the shipped bridge suites
+  from the extraction alone, runs the integration check, and verifies that a previous
+  release's settings, mapping, disabled source, recording, placement and spool survive.
+  `scripts/Test-ReleaseUpgrade.ps1` compares an older archive with this candidate on
+  copies of one data directory.
+- **Docs** — `README.md` (release identity, integrations, smoke coverage),
+  `CHANGELOG.md`, `docs/UI_SPEC_v0.2.md` (placeholder replaced by the implemented
+  contract) and `integrations/README.md`.
+
+### Preserved
+
+The user's running HUD, `%LOCALAPPDATA%\OVERSEER` settings, desktop shortcut,
+startup entry and real harness configuration were never modified. All checks ran with
+`--data-directory` under `artifacts/`. No merge, rebase, reset, tag or push; `main`
+is untouched; the stale `agent/ui` and `agent/voice` worktrees were left alone.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Release build | 0 warnings / 0 errors |
+| .NET tests (`dotnet test -c Release`) | 674 passed, 0 failed, 0 skipped |
+| dsh bridge tests (`node --test`) | 30 passed, 0 failed |
+| Claude bridge tests (`node --test`) | 21 passed, 0 failed |
+| Renders (`--hud-fixture`) | 44 PNGs, both themes, 300/360/480/720 DIP widths, attention filter, open history |
+| Production-path check (`--hud-integration-check`) | 13/13 passed |
+| `git diff --check` | clean |
+
+### Qualification gaps (not claimed as delivered)
+
+1. **No clean Windows machine or VM.** The archive was never downloaded through a
+   browser, extracted and run on a machine without this checkout, the workspace SDK or
+   cached packages. `Test-PackagedRelease.ps1` sanitizes the child environment and runs
+   from an unrelated working directory, which is not the same evidence.
+2. **No live harness qualification.** `dsh` is installed (`0.1.5-rc.3`) but the
+   observer plugin was never installed into the live profile, and no model-backed
+   session was observed; Claude Code CLI is still not installed on this machine. Both
+   bridges remain contract-tested and are labelled experimental in
+   `integrations/README.md`.
+3. **Unsigned.** The apphost is `NotSigned`; browser-download reputation, distribution
+   terms and asset-redistribution rights remain owner decisions.
+4. **Physical checks not performed:** real tray interaction, mixed-DPI monitor
+   combinations and movement, Snap behaviour, monitor removal/reconnect, sleep/wake and
+   audible playback by ear.
+5. **Rollback** from this candidate back to the previously deployed build was not
+   executed; `Test-ReleaseUpgrade.ps1` covers old → candidate on copies of one data
+   directory.
+6. **Shortcut and startup targets** were only inspected read-only; the upgrade check
+   does not rewrite a user shortcut or the Run entry.
+
+### Next actions (for Astra review)
+
+1. Review the diff and the new checks; decide whether the presentation contract is met.
+2. Re-run `scripts/Publish-Release.ps1` / `Test-PackagedRelease.ps1` from the reviewed
+   commit (the packaged source commit is recorded below and in `release.json`).
+3. Decide the distribution/signing path, then perform the clean-machine and live-harness
+   gates once those environments exist.
+
+## Historical — project-centered round (superseded by the 2026-09-26 round)
+
 Plan: Post-V1 — Project-centered multi-harness HUD
 Goal: One integrated implementation/review round for project grouping, activity strips,
 responsive HUD controls, and an offline baseline voice

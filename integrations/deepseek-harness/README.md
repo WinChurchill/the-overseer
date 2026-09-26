@@ -157,6 +157,14 @@ record and leaves the turn open.
 Default `spoolRoot`: `%LOCALAPPDATA%\OVERSEER\bridges` on Windows, else
 `$XDG_STATE_HOME/overseer/bridges` (falling back to `~/.local/state/overseer/bridges`).
 
+The spool root lives inside OVERSEER's **data directory**, not inside the extracted
+application folder. Installing, moving or removing an OVERSEER version therefore never
+moves or orphans an installed bridge, and `--data-directory PATH` keeps an isolated run
+separate from the real one. OVERSEER discovers spool directories when it composes its
+monitor at startup, so **restart OVERSEER after installing or changing this bridge**;
+hot attach is not implemented and is not claimed. Restart `dsh` after installing the
+plugin so the profile bundle is loaded.
+
 `current.json` (atomic, one document):
 
 ```json

@@ -185,6 +185,13 @@ is documented without a correlation id, so its `callId`/`requestId` stay `null` 
 
 ## Spool
 
+The spool root lives inside OVERSEER's **data directory**, not inside the extracted
+application folder, so installing, moving or removing an OVERSEER version never moves
+or orphans an installed bridge, and `--data-directory PATH` keeps an isolated run
+separate from the real one. OVERSEER discovers spool directories when it composes its
+monitor at **startup**: restart OVERSEER after installing or removing this bridge. Hook
+changes need no host restart beyond the settings file being re-read by Claude Code.
+
 Default location:
 
 * Windows: `%LOCALAPPDATA%\OVERSEER\spool`

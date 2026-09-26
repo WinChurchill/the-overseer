@@ -1,5 +1,47 @@
 # OVERSEER changelog
 
+## Unreleased — 2026-09-26 (usable release candidate: simplified HUD, packaged bridges, candidate verification)
+
+Internal release candidate `1.0.0-rc.1` on `ux/first-use`. It is **not** a public
+release: clean-machine, live-harness and signing gates are still open (see the
+qualification gaps in `docs/IMPLEMENTATION_STATE.md`).
+
+- **Simplified HUD.** One attention-first summary whose halves open the matching
+  filter (*All* is always visible as the reset), one clickable health control with
+  per-source detail, an explicit Recent-hours choice, and per-project/per-task history
+  disclosure that keeps the shared hour axis and legend inside the disclosed area.
+  Settled projects start collapsed; a new attention episode reveals its project once
+  without focus. Decorative linework, the duplicate status headline, the constant
+  voice sentence and the permanent instruction line are gone. Body text is 13 DIP,
+  secondary text 12 DIP, and the collapsed HUD is 300x96 DIP so nothing is clipped.
+- **Source-aware health wording.** Composite monitoring prefixes every reason with its
+  harness, so the HUD matches reason codes with or without that prefix: a degraded
+  `dsh` or Claude source is no longer displayed as healthy, and the empty state no
+  longer claims a Codex-only view.
+- **One instance scope.** The single-instance mutex and the "show the running HUD"
+  event now derive from one identity: the Windows user plus the canonical data
+  directory. An isolated run owns its own slot instead of losing the mutex and
+  signalling the wrong scope, which is also what makes an isolated packaged lifecycle
+  check possible while your own HUD keeps running.
+- **Production-path candidate check.** `--hud-integration-check` invents Codex and
+  bridge producer files and drives them through the real readers, composite and
+  controller, asserting the applied HUD state: working → input → answer → completion,
+  asynchronous attention while working, honest per-source degradation with a surviving
+  peer, no monitor-stopped latch, recovery on clean data and advancing freshness.
+- **Bridges ship in the archive.** The dsh and Claude assets, notices, installers and
+  their tests are included under `integrations/`, runnable from the extraction alone,
+  with an index that states prerequisites, the data-directory spool location (so an app
+  upgrade cannot move it), and that the host and OVERSEER must be restarted.
+- **Release identity.** A numeric `FileVersion`/`AssemblyVersion` is now separate from
+  the release identifier and source commit: `1.0.0-rc.1` ships as file version
+  `1.0.0.0` with `1.0.0-rc.1+<commit>` in the product version, and the archive carries
+  `release.json`. The publish validation compares the numeric version exactly instead
+  of the unsuitable `FileVersion.StartsWith(Version)`.
+- **Upgrade checks.** The packaged smoke verifies that a previous release's settings,
+  project mapping, disabled source, custom recording, saved placement and
+  data-directory spool survive, and `scripts/Test-ReleaseUpgrade.ps1` compares an older
+  archive with the candidate on copies of one data directory.
+
 ## Unreleased — 2026-09-25 (monitor offline regression)
 
 - Separate monitor startup from its lifetime. Successful composite initialization

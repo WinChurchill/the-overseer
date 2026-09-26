@@ -367,23 +367,40 @@ the selected provider, never to a different provider.
 }
 ```
 
-## Release package (V1)
+## Release package
 
 Build the release using PowerShell 7 and the .NET 10 SDK from committed source (the script refuses a dirty tree unless
-`-AllowDirtyTree` is passed):
+`-AllowDirtyTree` is passed). The version may carry a semantic prerelease suffix:
 
 ```powershell
-pwsh -NoProfile -File scripts/Publish-Release.ps1 -OutputDirectory artifacts/p4-release
-pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 -ArchivePath artifacts/p4-release/OVERSEER-v1-win-x64.zip
+pwsh -NoProfile -File scripts/Publish-Release.ps1 -Version 1.0.0-rc.1 `
+    -ArchiveName OVERSEER-1.0.0-rc.1-win-x64.zip -OutputDirectory artifacts/rc1
+pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 `
+    -ArchivePath artifacts/rc1/OVERSEER-1.0.0-rc.1-win-x64.zip `
+    -EvidenceDirectory artifacts/rc1/smoke
 ```
 
 `Publish-Release.ps1` runs the documented self-contained publish
 (`Release`, `win-x64`, `PublishSingleFile=false`, `PublishTrimmed=false`,
-`PublishAot=false`, `Version=1.0.0`), assembles an explicit payload, writes
-`OVERSEER-v1-win-x64.zip`, and records `build-manifest.json` with the source
-commit, SDK version, included frameworks, payload file list and archive SHA-256.
-The process is repeatable and validated, not byte-identical: archive timestamps
-differ between runs.
+`PublishAot=false`), assembles an explicit payload and records
+`build-manifest.json` with the source commit, SDK version, included frameworks,
+payload file list and archive SHA-256. The process is repeatable and validated,
+not byte-identical: archive timestamps differ between runs.
+
+### Release identity
+
+A release has two identities, and both are checked after publishing:
+
+| Value | Example | Meaning |
+| --- | --- | --- |
+| File/assembly version | `1.0.0.0` | Numeric, four parts, valid for Windows file metadata |
+| Release identifier | `1.0.0-rc.1` | What the archive is called and what `release.json` records |
+| Informational version | `1.0.0-rc.1+<short commit>` | Release identifier plus the exact source commit |
+
+The archive also contains `release.json` with those values, the full source commit,
+the SDK version, the runtime identifier and the list of shipped integration files. A
+semantic prerelease suffix is never a valid file version, which is why the numeric and
+informational values are separate; the candidate binaries are still `NotSigned`.
 
 ### Install and run
 
@@ -396,10 +413,27 @@ differ between runs.
    `state.json`, logs). Pass `--data-directory PATH` for an isolated run.
 
 Archive contents: the complete publish output, `README.md`, `CHANGELOG.md`,
-`THIRD_PARTY_NOTICES.md`, `licenses/` (the upstream codex-monitor-hud MIT license
-and the licenses/notices from the exact .NET and Windows Desktop runtime packages
-redistributed) and `examples/voicepacks/example/`. No repository files, tests, agent
-documents, build caches, logs or private data are included.
+`THIRD_PARTY_NOTICES.md`, `release.json`, `licenses/` (the upstream codex-monitor-hud
+MIT license and the licenses/notices from the exact .NET and Windows Desktop runtime
+packages redistributed), `examples/voicepacks/example/` and `integrations/` (both
+optional bridges with their notices, installers and test suites). No repository files,
+build caches, logs or private data are included.
+
+### Optional integrations in the archive
+
+`integrations/README.md` is the index. Each bridge is opt-in, previewed by default and
+reversible; both are runnable from the extracted archive with no repository checkout:
+
+```powershell
+cd integrations/deepseek-harness; node --test    # Node 20+
+cd integrations/claude-code;      node --test    # Node 18+
+```
+
+The spool a bridge writes lives under OVERSEER's **data directory**
+(`%LOCALAPPDATA%\OVERSEER\bridges\…` and `…\spool\claude\…`), not under the
+extracted application folder, so installing a later version cannot move or orphan it.
+Discovery happens when the monitor is composed at startup: restart OVERSEER after
+installing or removing a bridge.
 
 ### Example voice pack (opt-in)
 
@@ -413,15 +447,21 @@ replaces a pack by itself. See `examples/voicepacks/example/README.md`.
 ### Smoke evidence and known limits
 
 `Test-PackagedRelease.ps1` extracts the ZIP into a fresh directory, verifies the
-payload and version metadata, removes workspace SDK paths from the child
-environment, and runs the extracted apphost from an unrelated working directory
-with isolated data directories: ten HUD fixture renders, `--hud-smoke`,
-`--voice-smoke` (owned loopback endpoint), `--voice-pack-check` against the
-shipped pack, deterministic `--monitor-debug` against a synthetic Codex home, one
-read-only real-monitor run, a 60-second normal HUD run (no foreground change, no
-window while started in the tray, second instance exits politely, graceful close
-and persisted state) and the `--start-in-tray --no-tray` visible fallback. It
-writes `smoke-evidence-<timestamp>.json` and fails on any failed check.
+payload, the release identity and the shipped integrations, removes workspace SDK paths
+from the child environment, and runs the extracted apphost from an unrelated working
+directory with isolated data directories: the HUD fixture renders, `--hud-smoke`,
+`--hud-integration-check` (invented Codex and bridge producers through the real
+monitor, composite and controller), `node --test` for both shipped bridges,
+`--voice-smoke` (owned loopback endpoint), `--voice-pack-check` against the shipped
+pack, deterministic `--monitor-debug` against a synthetic Codex home, one read-only
+real-monitor run, the legacy-settings upgrade checks, a 60-second normal HUD run (no
+foreground change, no window while started in the tray, second instance exits politely,
+graceful close and persisted state) and the `--start-in-tray --no-tray` visible
+fallback. It writes `smoke-evidence-<timestamp>.json` and fails on any failed check.
+
+With the scoped single-instance identity, the lifecycle checks use their own data
+directory and therefore their own instance slot: they no longer require your running
+HUD to be closed (pass `-SkipHudLifecycle` to leave them out anyway).
 
 Not covered by that script and still listed as unverified in
 `docs/IMPLEMENTATION_STATE.md`: physical sleep/wake, monitor disconnect and
