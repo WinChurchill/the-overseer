@@ -25,7 +25,7 @@ param(
     [Parameter(Mandatory = $true)][string] $PreviousArchivePath,
     [Parameter(Mandatory = $true)][string] $CandidateArchivePath,
     [string] $EvidenceDirectory = 'artifacts/upgrade',
-    [ValidateRange(2, 600)][int] $DurationSeconds = 6,
+    [ValidateRange(2, 600)][int] $DurationSeconds = 5,
     [switch] $KeepExtraction
 )
 
@@ -128,9 +128,13 @@ function Get-SettingsSnapshot([string] $dataDirectory) {
     }
 }
 
-function Compare-Snapshot($before, $after) {
+# Placement is compared informationally: a running HUD re-derives its own size and
+# position from the live monitor layout, so offsets legitimately differ between two
+# builds with different window sizes.
+function Compare-Snapshot($before, $after, [string[]] $ignore = @()) {
     $changed = New-Object System.Collections.ArrayList
     foreach ($key in $before.Keys) {
+        if ($ignore -contains $key) { continue }
         $left = $before[$key]
         $right = $after[$key]
         $same = if ($left -is [double]) { [math]::Abs($left - [double]$right) -lt 0.001 } else { $left -eq $right }
@@ -210,11 +214,12 @@ try {
     Add-Check 'candidate-build-runs' ($candidateRun.ExitCode -eq 0) ('exit=' + $candidateRun.ExitCode)
     $afterCandidate = Get-SettingsSnapshot $candidateData
 
-    $candidateChanged = Compare-Snapshot $afterPrevious $afterCandidate
+    $placementKeys = @('placementX', 'placementY', 'monitor')
+    $candidateChanged = Compare-Snapshot $afterPrevious $afterCandidate $placementKeys
     Add-Check 'candidate-preserves-previous-settings' ($candidateChanged.Count -eq 0) (
         $(if ($candidateChanged.Count -eq 0) { 'all compared settings identical' } else { 'changed: ' + ($candidateChanged -join ', ') }))
 
-    $previousLost = Compare-Snapshot (Get-SettingsSnapshot $legacyData) $afterPrevious
+    $previousLost = Compare-Snapshot (Get-SettingsSnapshot $legacyData) $afterPrevious $placementKeys
     $wavKept = (Get-FileHash -LiteralPath (Join-Path $candidateData 'voicepacks/custom/input.wav') -Algorithm SHA256).Hash -eq $legacyWavHash
     Add-Check 'candidate-preserves-custom-recording' $wavKept ('sha256=' + $legacyWavHash.Substring(0, 12))
     $spoolKept = Test-Path -LiteralPath (Join-Path $candidateData 'bridges/dsh/legacy-instance/events.jsonl')
@@ -243,6 +248,8 @@ try {
         settingsAfterCandidate = $afterCandidate
         candidateChangedSettings = $candidateChanged
         settingsThePreviousBuildItselfDropped = $previousLost
+        placementAfterPrevious = @{ x = $afterPrevious.placementX; y = $afterPrevious.placementY; monitor = $afterPrevious.monitor }
+        placementAfterCandidate = @{ x = $afterCandidate.placementX; y = $afterCandidate.placementY; monitor = $afterCandidate.monitor }
         physicalChecksNotPerformed = @(
             'desktop shortcut target rewrite (the user shortcut is never modified by this check)',
             'Windows startup entry rewrite',

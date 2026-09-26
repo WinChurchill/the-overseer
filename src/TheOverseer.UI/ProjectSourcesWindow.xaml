@@ -43,9 +43,14 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock Text="No harness source has reported a task yet. A source appears here once it is discovered."
-                   Visibility="{Binding HasSources, Converter={StaticResource InverseBoolToVisibility}}"
-                   Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,14" />
+        <!-- A missing harness is a setup state, not an error: name the next action
+             instead of showing an empty page. -->
+        <StackPanel Visibility="{Binding HasSources, Converter={StaticResource InverseBoolToVisibility}}" Margin="0,4,0,14">
+          <TextBlock Text="No optional harness source is installed. OVERSEER still monitors Codex."
+                     Foreground="{DynamicResource MutedBrush}" />
+          <TextBlock Text="To add one, run the installer in the integrations folder that shipped with OVERSEER (integrations/claude-code for Claude Code, integrations/deepseek-harness for dsh), then restart OVERSEER so it is discovered."
+                     Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" FontSize="11" />
+        </StackPanel>
         <TextBlock Text="PROJECT BUCKETS" FontWeight="SemiBold" />
         <ItemsControl x:Name="ProjectRows" ItemsSource="{Binding Projects}" Margin="0,6,0,0">
           <ItemsControl.ItemTemplate>
