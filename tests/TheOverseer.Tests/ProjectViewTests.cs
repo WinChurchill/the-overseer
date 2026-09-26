@@ -167,12 +167,19 @@ public sealed class ProjectViewTests
         counting.Reset();
         viewModel.UpdateAges(Now.AddSeconds(5));
 
-        // Collapsing is a presentation state: the strip projection and the rows the
-        // monitor owns keep working, so history and attention are never stopped.
-        Assert.Equal(1, counting.ProjectCalls);
-        Assert.Equal(2, counting.TaskCalls);
+        // Collapsing is a presentation state: the rows the monitor owns keep working
+        // and the closed history projects no geometry at all.
+        Assert.Equal(0, counting.ProjectCalls);
+        Assert.Equal(0, counting.TaskCalls);
         Assert.Equal(2, viewModel.Tasks.Count);
         Assert.All(viewModel.Tasks, row => Assert.False(row.IsProjectExpanded));
+
+        // Disclosing the history resumes exactly one bounded projection per tick.
+        viewModel.Projects[0].IsHistoryOpen = true;
+        counting.Reset();
+        viewModel.UpdateAges(Now.AddSeconds(6));
+        Assert.Equal(1, counting.ProjectCalls);
+        Assert.Equal(0, counting.TaskCalls);
     }
 
     [Fact]

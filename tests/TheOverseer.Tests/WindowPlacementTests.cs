@@ -18,8 +18,8 @@ public sealed class WindowPlacementTests
 
         Assert.Equal(100, placement.X);
         Assert.Equal(40, placement.Y);
-        Assert.Equal(280, placement.Width);
-        Assert.Equal(72, placement.Height);
+        Assert.Equal((int)HudSize.Collapsed.Width, placement.Width);
+        Assert.Equal((int)HudSize.Collapsed.Height, placement.Height);
         Assert.False(placement.Clamped);
         Assert.False(placement.FallbackMonitor);
     }
@@ -44,8 +44,8 @@ public sealed class WindowPlacementTests
         Assert.True(placement.FallbackMonitor);
         Assert.True(placement.Clamped);
         Assert.Equal(Primary.DeviceName, placement.DeviceName);
-        Assert.Equal(1920 - 280, placement.X);
-        Assert.Equal(1040 - 72, placement.Y);
+        Assert.Equal(1920 - (int)HudSize.Collapsed.Width, placement.X);
+        Assert.Equal(1040 - (int)HudSize.Collapsed.Height, placement.Y);
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public sealed class WindowPlacementTests
             1.0);
         Assert.Equal(100, onPrimary.X);
         Assert.Equal(40, onPrimary.Y);
-        Assert.Equal(280, onPrimary.Width);
-        Assert.Equal(72, onPrimary.Height);
+        Assert.Equal((int)HudSize.Collapsed.Width, onPrimary.Width);
+        Assert.Equal((int)HudSize.Collapsed.Height, onPrimary.Height);
 
         var onScaled = HudPlacementPolicy.Resolve(
             new HudWindowState { MonitorDeviceName = Scaled.DeviceName, OffsetXDips = 100, OffsetYDips = 40, DpiScale = 1.5 },
@@ -105,8 +105,8 @@ public sealed class WindowPlacementTests
             1.5);
         Assert.Equal(1920 + 150, onScaled.X);
         Assert.Equal(60, onScaled.Y);
-        Assert.Equal(420, onScaled.Width);
-        Assert.Equal(108, onScaled.Height);
+        Assert.Equal((int)Math.Round(HudSize.Collapsed.Width * 1.5), onScaled.Width);
+        Assert.Equal((int)Math.Round(HudSize.Collapsed.Height * 1.5), onScaled.Height);
         Assert.False(onScaled.FallbackMonitor);
     }
 
@@ -148,7 +148,7 @@ public sealed class WindowPlacementTests
 
         Assert.True(placement.FallbackMonitor);
         Assert.Equal(Primary.DeviceName, placement.DeviceName);
-        Assert.Equal(280, placement.Width);
+        Assert.Equal((int)HudSize.Collapsed.Width, placement.Width);
         Assert.InRange(placement.X, Primary.X, Primary.Right - placement.Width);
         Assert.InRange(placement.Y, Primary.Y, Primary.Bottom - placement.Height);
     }

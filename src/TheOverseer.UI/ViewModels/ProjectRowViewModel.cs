@@ -22,6 +22,7 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
     private string _binsSignature = string.Empty;
     private string _stripText = ActivityStripText.Describe(Array.Empty<ActivityStripBin>());
     private bool _isExpanded = true;
+    private bool _isHistoryOpen;
     private bool _isPartial;
     private int _working;
     private int _needsHuman;
@@ -62,6 +63,37 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
     /// <summary>Last-hour strip: one bounded bin per minute of the rolling hour.</summary>
     public IReadOnlyList<ActivityStripBin> Bins => _bins;
 
+    /// <summary>Working members of this project, from the monitor's own task states.</summary>
+    public int WorkingCount => _working;
+
+    /// <summary>Members currently asking for the user.</summary>
+    public int NeedsHumanCount => _needsHuman;
+
+    /// <summary>
+    /// True while this project's hour history is disclosed. The legend and axis are
+    /// shared and appear with the first open history area; closing it stops the
+    /// geometry projection without touching observation, recording or voice.
+    /// </summary>
+    public bool IsHistoryOpen
+    {
+        get => _isHistoryOpen;
+        set
+        {
+            if (Set(ref _isHistoryOpen, value))
+            {
+                Raise(nameof(HistoryAutomationName));
+                Raise(nameof(HeaderTooltip));
+                HistoryToggled?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    /// <summary>Raised when the user discloses or closes this project's history.</summary>
+    public event EventHandler? HistoryToggled;
+
+    public string HistoryAutomationName =>
+        (_isHistoryOpen ? "Hide" : "Show") + " the last hour for project " + Name;
+
     /// <summary>Plain-text strip summary for the tooltip and automation name.</summary>
     public string StripText
     {
@@ -100,8 +132,10 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
         " (" + SummaryText + ")";
 
     /// <summary>Header tooltip: counts, coverage, strip detail and the click action.</summary>
-    public string HeaderTooltip => Name + " · " + SummaryText + "\n" + StripText +
-        "\n" + (_isExpanded ? "Click to collapse this project's tasks." : "Click to expand this project's tasks.");
+    public string HeaderTooltip => Name + " · " + SummaryText +
+        (_isHistoryOpen ? "\n" + StripText : string.Empty) +
+        "\n" + (_isExpanded ? "Click to collapse this project's tasks." : "Click to expand this project's tasks.") +
+        "\n" + (_isHistoryOpen ? "History is open." : "Use History to show the last hour.");
 
     public bool IsPartial => _isPartial;
 

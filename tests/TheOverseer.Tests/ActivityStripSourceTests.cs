@@ -155,14 +155,25 @@ public sealed class ActivityStripSourceTests
         viewModel.UseActivitySource(counting);
         viewModel.ApplySnapshot(VoiceTestData.Snapshot(Now, new[] { Task(key), Task(other) }));
 
+        // Nothing is projected while every history disclosure is closed.
         counting.Reset();
         viewModel.UpdateAges(Now.AddSeconds(5));
+        Assert.Equal(0, counting.ProjectCalls);
+        Assert.Equal(0, counting.TaskCalls);
+
+        // One disclosed project and one disclosed task lane: each distinct project is
+        // projected once per tick and only the open task lane is projected at all.
+        viewModel.Projects[0].IsHistoryOpen = true;
+        viewModel.Tasks[0].IsHistoryOpen = true;
+        counting.Reset();
+        viewModel.UpdateAges(Now.AddSeconds(6));
 
         Assert.Equal(1, counting.ProjectCalls);
-        Assert.Equal(2, counting.TaskCalls);
-        Assert.All(viewModel.Tasks, row => Assert.NotEmpty(row.ProjectBins));
+        Assert.Equal(1, counting.TaskCalls);
         Assert.Single(viewModel.Projects);
         Assert.NotEmpty(viewModel.Projects[0].Bins);
+        Assert.NotEmpty(viewModel.Tasks[0].TaskBins);
+        Assert.Empty(viewModel.Tasks[1].TaskBins);
     }
 
     [Fact]

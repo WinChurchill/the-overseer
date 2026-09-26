@@ -58,13 +58,15 @@ public sealed class HudViewModelTests
         healthy.ApplySnapshot(SyntheticHudScenarios.HealthyEmpty());
         Assert.False(healthy.MonitoringUnavailable);
         Assert.Equal("0", healthy.WorkingCountText);
-        Assert.Contains("No Codex conversations", healthy.EmptyStateText, StringComparison.Ordinal);
+        Assert.Contains("No agent sessions tracked yet", healthy.EmptyStateText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Codex", healthy.EmptyStateText, StringComparison.Ordinal);
 
         var unavailable = CreateViewModel();
         unavailable.ApplySnapshot(SyntheticHudScenarios.Unavailable());
         Assert.True(unavailable.MonitoringUnavailable);
         Assert.Equal("?", unavailable.WorkingCountText);
-        Assert.Equal("Task activity unavailable.", unavailable.EmptyStateText);
+        Assert.StartsWith("Task activity unavailable.", unavailable.EmptyStateText, StringComparison.Ordinal);
+        Assert.Contains("monitoring details", unavailable.EmptyStateText, StringComparison.Ordinal);
     }
 
     [Fact]

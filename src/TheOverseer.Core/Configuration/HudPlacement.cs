@@ -40,7 +40,9 @@ public sealed record HudScreenLayout(IReadOnlyList<HudScreen> Screens)
 /// <summary>Window size in display independent pixels.</summary>
 public sealed record HudSize(double Width, double Height)
 {
-    public static HudSize Collapsed { get; } = new(280, 72);
+    // The collapsed HUD carries the pinned header (controls, one summary and the
+    // health control) without clipping any of them at the supported minimum width.
+    public static HudSize Collapsed { get; } = new(300, 96);
 
     public static HudSize Expanded { get; } = new(360, 320);
 }

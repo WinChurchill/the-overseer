@@ -142,7 +142,7 @@ public sealed class HudWindowTests
                 var region = (System.Windows.Controls.Grid)window.FindName("DragRegion");
                 var summary = (FrameworkElement)window.FindName("SummaryRegion");
                 Assert.True(region.IsAncestorOf(summary));
-                Assert.True(region.ActualHeight > 45);
+                Assert.True(region.ActualHeight > 60);
                 Assert.Equal(System.Windows.Input.Cursors.SizeAll, region.Cursor);
                 Assert.Equal(System.Windows.Input.Cursors.Hand, ((FrameworkElement)window.FindName("MuteButton")).Cursor);
                 Assert.Equal(System.Windows.Input.Cursors.Hand, ((FrameworkElement)window.FindName("ExpandButton")).Cursor);
@@ -161,11 +161,33 @@ public sealed class HudWindowTests
                 Assert.True(controls.ForceCursor);
                 MouseEvent(controls, UIElement.PreviewMouseDownEvent);
                 Assert.Null(System.Windows.Input.Mouse.Captured);
+                // The summary sections and the health control are real controls: they
+                // keep their own clicks and never start a window drag.
                 MouseEvent((UIElement)window.FindName("HealthDot"), UIElement.PreviewMouseDownEvent);
                 Assert.Null(System.Windows.Input.Mouse.Captured);
-                MouseEvent((UIElement)window.FindName("StatusButton"), UIElement.PreviewMouseDownEvent);
-                MouseEvent(region, UIElement.PreviewMouseUpEvent);
+                var health = (System.Windows.Controls.Button)window.FindName("HealthButton");
+                Assert.False(vm.IsHealthOpen);
+                // The button owns the toggle command; the drag assertion above proves
+                // the click never reaches the window drag gesture.
+                Assert.Same(vm.ToggleHealthCommand, health.Command);
+                vm.ToggleHealthCommand.Execute(null);
+                Assert.True(vm.IsHealthOpen);
+                var popup = (System.Windows.Controls.Primitives.Popup)window.FindName("HealthPopup");
+                Assert.True(popup.IsOpen);
+                vm.CloseHealthCommand.Execute(null);
+                Assert.False(vm.IsHealthOpen);
+
+                var attention = FindVisuals<System.Windows.Controls.Button>((FrameworkElement)window.FindName("SummaryRegion"))
+                    .First(button => button.Command is not null && ReferenceEquals(button.Command, vm.ShowAttentionCommand));
+                // Raising the click event directly does not run a WPF command, so the
+                // command itself is invoked here; the drag assertion above proves the
+                // button keeps its own mouse input.
+                attention.Command.Execute(attention.CommandParameter);
+                Assert.Equal("attention", vm.TaskFilter);
                 Assert.True(vm.IsExpanded);
+                Assert.True(vm.IsFilterAttention);
+                vm.ShowAllTasksCommand.Execute(null);
+                Assert.True(vm.IsFilterAll);
             }
             finally { System.Windows.Input.Mouse.Capture(null); window.Close(); }
         });
@@ -237,10 +259,16 @@ public sealed class HudWindowTests
                 Assert.Equal(viewModel.Projects.Count, headers.Length);
                 Assert.All(headers, header => Assert.Contains("project", header.ToolTip!.ToString()!, StringComparison.OrdinalIgnoreCase));
 
+                // History is disclosed on demand, and the shared axis/legend belongs to
+                // the history area: it appears with the first open disclosure.
+                var historyArea = (FrameworkElement)window.FindName("HistoryArea")!;
+                Assert.Equal(Visibility.Collapsed, historyArea.Visibility);
+                viewModel.Projects[0].IsHistoryOpen = true;
+                window.UpdateLayout();
+                Assert.Equal(Visibility.Visible, historyArea.Visibility);
                 var legend = (System.Windows.Controls.ItemsControl)window.FindName("ActivityLegend")!;
                 Assert.Equal(viewModel.Legend.Count, legend.Items.Count);
                 Assert.True(legend.ActualWidth > 0);
-                Assert.Equal(Visibility.Visible, legend.Visibility);
             }
             finally { window.Close(); }
         });
@@ -268,12 +296,15 @@ public sealed class HudWindowTests
                 Assert.NotEmpty(mine);
                 Assert.All(mine, button => Assert.True(button.IsVisible));
 
+                // Settled projects start collapsed under the first-appearance defaults;
+                // collapsing one project must not change any other project's state.
+                var others = viewModel.Projects.Where(project => project.Key != first.Key && project.IsExpanded).ToArray();
+                Assert.NotEmpty(others);
                 viewModel.ToggleProject(first);
                 window.UpdateLayout();
 
                 Assert.All(mine, button => Assert.False(button.IsVisible));
-                Assert.All(viewModel.Projects.Where(project => project.Key != first.Key),
-                    project => Assert.True(project.IsExpanded));
+                Assert.All(others, project => Assert.True(project.IsExpanded));
                 Assert.Equal(viewModel.Projects.Sum(project => project.Tasks.Count), viewModel.Tasks.Count);
             }
             finally { window.Close(); }

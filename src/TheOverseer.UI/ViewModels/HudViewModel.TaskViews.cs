@@ -72,13 +72,27 @@ public sealed partial class HudViewModel
         Raise(nameof(FooterHint));
     }
 
+    /// <summary>
+    /// The view selects a time window; the filter narrows it to attention or
+    /// working rows. Counts are never recomputed here: the summary keeps describing
+    /// all monitored work even while a filter hides rows.
+    /// </summary>
     private IReadOnlyList<AgentTask> SelectTasks(IReadOnlyList<AgentTask> tasks, DateTimeOffset now) =>
-        tasks.Where(task => TaskView switch
-        {
-            "recent" => task.LastActivityAt >= now.AddHours(-RecentHours),
-            "session" => task.LastActivityAt >= _sessionStartedAt,
-            _ => IsCurrent(task, now),
-        }).ToArray();
+        tasks.Where(task => MatchesView(task, now) && MatchesFilter(task)).ToArray();
+
+    private bool MatchesView(AgentTask task, DateTimeOffset now) => TaskView switch
+    {
+        "recent" => task.LastActivityAt >= now.AddHours(-RecentHours),
+        "session" => task.LastActivityAt >= _sessionStartedAt,
+        _ => IsCurrent(task, now),
+    };
+
+    private bool MatchesFilter(AgentTask task) => _taskFilter switch
+    {
+        "attention" => IsAttention(task),
+        "working" => task.State == AgentTaskState.Working && !task.IsStale,
+        _ => true,
+    };
 
     private static bool IsCurrent(AgentTask task, DateTimeOffset now) =>
         !task.IsStale && !task.IsProvisional &&
@@ -100,9 +114,9 @@ public sealed partial class HudViewModel
             : limited ? "Limited coverage" : AttentionLimited ? "Input detection limited" : "Live monitoring";
         MonitoringDisclosure = snapshot.Health.Level == MonitoringHealthLevel.Unavailable
             ? "Cannot read task activity. Counts are unknown."
-            : reasons.Contains(HealthReasons.HydrationBudget) || reasons.Contains(HealthReasons.DiscoveryBacklog)
+            : HudText.HasReason(reasons, HealthReasons.HydrationBudget) || HudText.HasReason(reasons, HealthReasons.DiscoveryBacklog)
                 ? "Some task history is still unread. Counts may miss work."
-                : reasons.Contains(HealthReasons.StaleTasks)
+                : HudText.HasReason(reasons, HealthReasons.StaleTasks)
                     ? "Some tasks have no fresh updates. Counts may miss work."
                     : !snapshot.Counts.Working.IsComplete || !snapshot.Counts.Working.IsKnown || !snapshot.Health.CoverageComplete
                         ? "Only some task activity is available. Counts may miss work."
@@ -143,6 +157,7 @@ public sealed partial class HudViewModel
             StatusHeadline = "Idle";
             StatusSymbol = "–";
         }
+        HealthLabel = HudText.HealthLabel(snapshot.Health.Level, snapshot.Health.CoverageComplete);
         RaiseStatus();
     }
 
@@ -156,5 +171,8 @@ public sealed partial class HudViewModel
         Raise(nameof(MonitoringDisclosure));
         Raise(nameof(MonitoringBadgeText));
         Raise(nameof(StatusDetails));
+        Raise(nameof(HealthLabel));
+        Raise(nameof(HealthDetails));
+        Raise(nameof(HealthNextAction));
     }
 }

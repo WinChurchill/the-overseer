@@ -13,6 +13,30 @@ public static class HarnessIds
 
     public static IReadOnlyList<string> All { get; } = new[] { Codex, Dsh, Claude };
 
+    /// <summary>
+    /// True when the value names one of the compiled-in harnesses. Used to tell a
+    /// real "&lt;harness&gt;:&lt;reason&gt;" prefix from a reason code that happens to
+    /// contain a colon, without treating arbitrary text as a source identity.
+    /// </summary>
+    public static bool IsKnown(string? harnessId)
+    {
+        if (string.IsNullOrWhiteSpace(harnessId))
+        {
+            return false;
+        }
+
+        var trimmed = harnessId.Trim();
+        foreach (var known in All)
+        {
+            if (string.Equals(known, trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static string Normalize(string? harnessId)
     {
         if (string.IsNullOrWhiteSpace(harnessId))

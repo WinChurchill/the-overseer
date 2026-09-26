@@ -23,6 +23,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     private string _projectStripText = ActivityStripText.Describe(Array.Empty<ActivityStripBin>());
     private string _taskStripText = ActivityStripText.Describe(Array.Empty<ActivityStripBin>());
     private bool _isProjectExpanded = true;
+    private bool _isHistoryOpen;
 
     public TaskRowViewModel(
         AgentTask task,
@@ -212,10 +213,51 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         : TaskState == AgentTaskState.Error ? "error"
         : TaskState == AgentTaskState.Working ? "working" : "idle";
 
-    /// <summary>Harness/provider, state, action and marks on one compact metadata line.</summary>
-    public string RowSubtitle => MarksText.Length > 0
-        ? HarnessText + " · " + StateText + " · " + ActionText + " · " + MarksText
-        : HarnessText + " · " + StateText + " · " + ActionText;
+    /// <summary>
+    /// One concise metadata line: the harness badge plus the single most useful
+    /// status word. Attention rows name the blocking state; ordinary rows name what
+    /// the agent is doing. Marks (stale, provisional, cancelled, failed) are always
+    /// kept. The full state, timestamps and evidence stay in the tooltip/detail text.
+    /// </summary>
+    public string RowSubtitle
+    {
+        get
+        {
+            var attention = NeedsHuman || TaskState is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput;
+            var status = attention || ActionText.Length == 0 ? StateText : ActionText;
+            return MarksText.Length > 0
+                ? HarnessText + " · " + status + " · " + MarksText
+                : HarnessText + " · " + status;
+        }
+    }
+
+    /// <summary>
+    /// True while this row's own hour strip is disclosed. History is a separate
+    /// control: revealing it never activates the task and never changes monitoring.
+    /// </summary>
+    public bool IsHistoryOpen
+    {
+        get => _isHistoryOpen;
+        set
+        {
+            if (_isHistoryOpen == value)
+            {
+                return;
+            }
+
+            _isHistoryOpen = value;
+            Raise(nameof(IsHistoryOpen));
+            Raise(nameof(HistoryAutomationName));
+            HistoryToggled?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Raised when the user discloses or closes this row's history.</summary>
+    public event EventHandler? HistoryToggled;
+
+    public string HistoryAutomationName =>
+        (_isHistoryOpen ? "Hide" : "Show") + " the last hour for task #" +
+        Number.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + Label;
 
     public string AgeText
     {

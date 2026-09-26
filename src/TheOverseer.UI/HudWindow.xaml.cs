@@ -13,7 +13,6 @@ namespace TheOverseer.UI;
 public partial class HudWindow : Window
 {
     private readonly DragGestureTracker _drag = new();
-    private bool _statusClick;
     private double _lightResizeSize;
 
     private void OnLightResizeStarted(object sender, DragStartedEventArgs e) => _lightResizeSize = ViewModel?.LightSize ?? 32;
@@ -122,8 +121,8 @@ public partial class HudWindow : Window
         IsWindowView = enabled;
         if (!preserveBounds) WindowState = WindowState.Normal;
         // Minimum outer size from the handoff's size matrix: below it the header
-        // controls stop being comfortably reachable.
-        MinWidth = enabled ? 320 : 280;
+        // controls and the health control stop being comfortably reachable.
+        MinWidth = enabled ? 320 : 300;
         MinHeight = enabled ? 220 : 0;
         ExpandButton.ToolTip = enabled ? "Collapse to compact HUD" : "Expand task list";
         System.Windows.Automation.AutomationProperties.SetName(ExpandButton, (string)ExpandButton.ToolTip);
@@ -138,16 +137,17 @@ public partial class HudWindow : Window
     /// </summary>
     public void UpdateResponsiveLayout()
     {
+        // The status light takes real content width, so every threshold is measured
+        // against what is left for the pinned header and the rows.
         var contentWidth = ActualWidth - (ViewModel?.LightExtraWidth ?? 0);
-        BrandLabel.Visibility = contentWidth < 260 ? Visibility.Collapsed : Visibility.Visible;
+        BrandLabel.Visibility = contentWidth < 280 ? Visibility.Collapsed : Visibility.Visible;
         // One scroll surface at every size: wheel/touch input never gets trapped
         // inside a short nested task list. The controls remain outside this surface.
         ContentScroll.VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;
         ContentScroll.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled;
-        // The legend is the first thing to give way at the narrowest widths; its
-        // text stays in the tooltip and in every bin's automation name.
-        ActivityLegend.Visibility = contentWidth < 300 ? Visibility.Collapsed : Visibility.Visible;
-        SummaryRow.Height = new GridLength(IsWindowView ? 86 : 72);
+        // The header grows with its content instead of shrinking every label with a
+        // Viewbox, and it never becomes shorter than the collapsed HUD.
+        SummaryRow.MinHeight = IsWindowView ? 96 : 96;
         var verticalLight = ViewModel?.LightPosition is "left" or "right";
         StatusLight.MaxWidth = IsWindowView && verticalLight ? Math.Max(6, ActualWidth - 270) : double.PositiveInfinity;
         StatusLight.MaxHeight = IsWindowView && !verticalLight ? Math.Max(6, ActualHeight - 220) : double.PositiveInfinity;
@@ -207,19 +207,13 @@ public partial class HudWindow : Window
             return;
         }
 
-        _statusClick = false;
         for (var node = e.OriginalSource as DependencyObject; node is not null && node != sender;
              node = node is FrameworkContentElement content ? content.Parent : VisualTreeHelper.GetParent(node))
         {
-            // The entire controls area, including gaps and the health indicator,
-            // is reserved for interaction rather than moving the window.
+            // Every control area - header buttons, the summary sections, the health
+            // control - is reserved for interaction rather than moving the window.
             if (node == HeaderControls) return;
-            if (node is ButtonBase button)
-            {
-                if (button != StatusButton) return;
-                _statusClick = true;
-                break;
-            }
+            if (node is ButtonBase) return;
         }
         var position = e.GetPosition(this);
         _drag.Begin(position.X, position.Y);
@@ -255,7 +249,6 @@ public partial class HudWindow : Window
         finally
         {
             _drag.Cancel();
-            _statusClick = false;
         }
     }
 
@@ -267,10 +260,8 @@ public partial class HudWindow : Window
         }
 
         if (!_drag.IsPressed) return;
-        var clicked = _drag.End();
+        _drag.End();
         Mouse.Capture(null);
-        if (clicked && _statusClick) ViewModel?.ShowCurrentTasksCommand.Execute(null);
-        _statusClick = false;
         e.Handled = true;
     }
 }

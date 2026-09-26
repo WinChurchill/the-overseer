@@ -63,6 +63,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         ToggleProjectCommand = new RelayCommand<ProjectRowViewModel>(ToggleProject);
         ExpandAllProjectsCommand = new RelayCommand(() => SetAllProjectsExpanded(true));
         CollapseAllProjectsCommand = new RelayCommand(() => SetAllProjectsExpanded(false));
+        InitializeSimpleCommands();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -395,6 +396,9 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         RaiseStatus();
         MonitoringTitle = "MONITORING UNAVAILABLE";
         MonitoringDetail = "monitor stopped · " + code;
+        HealthLabel = "Monitoring offline";
+        HealthDetails = new[] { new HealthSourceDetail("Monitoring", "stopped", "Restart OVERSEER to resume monitoring.", string.Empty) };
+        HealthNextAction = "Restart OVERSEER to resume monitoring.";
         HealthLine = MonitoringTitle + " · " + MonitoringDetail;
         Tasks.Clear();
         Projects.Clear();
@@ -440,6 +444,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
         MonitoringTitle = HudText.HealthTitle(snapshot.Health.Level);
         MonitoringDetail = HudText.HealthDetail(snapshot);
+        UpdateHealthProjection(snapshot, now);
         CapabilityLine = HudText.CapabilityDisclosure(snapshot.Capabilities);
         HealthLine = MonitoringTitle + " · " + MonitoringDetail;
         IsPartial = !snapshot.Health.CoverageComplete;
@@ -485,6 +490,13 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 continue;
             }
 
+            // Closed history stops the geometry projection entirely. Observation,
+            // recording and voice are untouched: only this reading path is skipped.
+            if (!task.IsHistoryOpen && !IsProjectHistoryOpen(task.ProjectGroupProjectId))
+            {
+                continue;
+            }
+
             var projectId = task.ProjectGroupProjectId;
             if (!projectBins.TryGetValue(projectId, out var bins))
             {
@@ -492,7 +504,9 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 projectBins[projectId] = bins;
             }
 
-            task.UpdateActivity(bins, _activity.TaskBins(task.Key, now));
+            task.UpdateActivity(
+                task.IsHistoryOpen ? bins : Array.Empty<ActivityStripBin>(),
+                task.IsHistoryOpen ? _activity.TaskBins(task.Key, now) : Array.Empty<ActivityStripBin>());
         }
 
         if (projectBins is not null)
@@ -501,6 +515,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             // only ever reads the cache filled above.
             foreach (var project in Projects)
             {
+                if (!project.IsHistoryOpen)
+                {
+                    project.UpdateBins(Array.Empty<ActivityStripBin>());
+                    continue;
+                }
+
                 if (!projectBins.TryGetValue(project.ProjectId, out var bins))
                 {
                     bins = _activity!.ProjectBins(project.ProjectId, now);
@@ -593,11 +613,16 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         Tasks.Clear();
         Projects.Clear();
         _lastActivity.Clear();
+        // First-appearance expansion defaults and a new attention episode are decided
+        // before the rows exist, so a rebuilt row can never override a user's choice.
+        ApplyFirstAppearanceDefaults(entries);
         for (var index = 0; index < entries.Length; index++)
         {
             var (task, group) = entries[index];
             var row = new TaskRowViewModel(task, CanNavigate(task), NavigationHint(task), group.Key, group.Label, group.Meta,
                 group.ProjectId, !IsProjectCollapsed(group.ProjectId));
+            row.HistoryToggled += OnTaskHistoryToggled;
+            row.IsHistoryOpen = _openTaskHistory.Contains(task.Key);
             Tasks.Add(row);
             _lastActivity.Add(task.LastActivityAt);
         }
@@ -621,11 +646,111 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             var group = entries[start].Group;
             var project = new ProjectRowViewModel(group.Project, group.Key, rows, group.Working, group.NeedsHuman, group.Partial, group.Harnesses);
             project.SetExpanded(!IsProjectCollapsed(group.ProjectId));
+            project.HistoryToggled += OnProjectHistoryToggled;
+            project.IsHistoryOpen = _openProjectHistory.Contains(group.ProjectId);
             Projects.Add(project);
             start = end;
         }
 
         HasTasks = Tasks.Count > 0;
+        Raise(nameof(AnyProjectHistoryOpen));
+        Raise(nameof(ShowHistoryLegend));
+    }
+
+    // ---- expansion defaults and history disclosure state -------------------------
+
+    private readonly HashSet<ProjectId> _knownProjects = new();
+    private readonly HashSet<ProjectId> _attentionEpisodes = new();
+    private readonly HashSet<ProjectId> _userCollapsedInEpisode = new();
+    private readonly HashSet<ProjectId> _openProjectHistory = new();
+    private readonly HashSet<TaskKey> _openTaskHistory = new();
+
+    /// <summary>
+    /// First appearance expands attention/active projects and collapses settled ones;
+    /// afterwards a user's choice is preserved. A genuinely new attention episode
+    /// (needs-you appears again for a project that did not have one) reveals that
+    /// project once without focus, without changing the selected view and without
+    /// scrolling. The reveal is skipped when the user collapsed everything themselves.
+    /// </summary>
+    private void ApplyFirstAppearanceDefaults((AgentTask Task, ProjectGroup Group)[] entries)
+    {
+        var handled = new HashSet<ProjectId>();
+        foreach (var (_, group) in entries)
+        {
+            if (!handled.Add(group.ProjectId))
+            {
+                continue;
+            }
+
+            var active = group.NeedsHuman > 0 || group.Working > 0;
+            if (_knownProjects.Add(group.ProjectId))
+            {
+                if (!active)
+                {
+                    _collapsedProjects.Add(group.ProjectId);
+                }
+
+                if (group.NeedsHuman > 0)
+                {
+                    _attentionEpisodes.Add(group.ProjectId);
+                }
+
+                continue;
+            }
+
+            if (group.NeedsHuman > 0)
+            {
+                if (_attentionEpisodes.Add(group.ProjectId) && !_userCollapsedInEpisode.Contains(group.ProjectId) && !_allCollapsed)
+                {
+                    _collapsedProjects.Remove(group.ProjectId);
+                }
+            }
+            else
+            {
+                _attentionEpisodes.Remove(group.ProjectId);
+                _userCollapsedInEpisode.Remove(group.ProjectId);
+            }
+        }
+    }
+
+    private bool IsProjectHistoryOpen(ProjectId projectId) => _openProjectHistory.Contains(projectId);
+
+    private void OnProjectHistoryToggled(object? sender, EventArgs e)
+    {
+        if (sender is not ProjectRowViewModel project)
+        {
+            return;
+        }
+
+        if (project.IsHistoryOpen)
+        {
+            _openProjectHistory.Add(project.ProjectId);
+        }
+        else
+        {
+            _openProjectHistory.Remove(project.ProjectId);
+        }
+
+        OnProjectHistoryChanged();
+    }
+
+    private void OnTaskHistoryToggled(object? sender, EventArgs e)
+    {
+        if (sender is not TaskRowViewModel task)
+        {
+            return;
+        }
+
+        if (task.IsHistoryOpen)
+        {
+            _openTaskHistory.Add(task.Key);
+        }
+        else
+        {
+            _openTaskHistory.Remove(task.Key);
+        }
+
+        RefreshActivityNow();
     }
 
     private static (AgentTask Task, ProjectGroup Group)[] GroupRows(IReadOnlyList<AgentTask> tasks, IReadOnlyList<AgentTask> allTasks)
@@ -855,6 +980,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         else
         {
             _collapsedProjects.Add(projectId);
+            if (_attentionEpisodes.Contains(projectId))
+            {
+                // The user closed a project that is asking for attention: the
+                // once-per-episode reveal must not undo that choice.
+                _userCollapsedInEpisode.Add(projectId);
+            }
         }
 
         ApplyProjectExpansion();
@@ -869,6 +1000,10 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             foreach (var project in Projects)
             {
                 _collapsedProjects.Add(project.ProjectId);
+                if (_attentionEpisodes.Contains(project.ProjectId))
+                {
+                    _userCollapsedInEpisode.Add(project.ProjectId);
+                }
             }
         }
 

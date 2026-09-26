@@ -4,7 +4,7 @@
         xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
         xmlns:converters="clr-namespace:TheOverseer.UI.Converters"
         Title="OVERSEER"
-        Width="280" Height="72"
+        Width="300" Height="96"
         WindowStyle="None" AllowsTransparency="False" Background="{DynamicResource BackgroundBaseBrush}"
         ResizeMode="NoResize" ShowInTaskbar="True" ShowActivated="False"
         SnapsToDevicePixels="True" UseLayoutRounding="True"
@@ -58,6 +58,64 @@
         </Trigger>
         <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource ForegroundBrush}" /></Trigger>
       </Style.Triggers>
+    </Style>
+    <!-- The filter is visible on its own line, and All is always present as the
+         explicit reset, so an attention view can never look like an empty HUD. -->
+    <Style x:Key="FilterChip" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeMeta}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="Margin" Value="0,0,5,0" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="RadioButton">
+          <Border x:Name="Chip" CornerRadius="8" Background="Transparent" Padding="{TemplateBinding Padding}"
+                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <ContentPresenter />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Chip" Property="Background" Value="{DynamicResource PanelOverlayBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Chip" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Chip" Property="BorderBrush" Value="{DynamicResource ForegroundBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="HistoryToggle" TargetType="ToggleButton">
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="FontFamily" Value="{DynamicResource MetadataFontFamily}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeMeta}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="True" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="Chip" CornerRadius="7" Background="Transparent" Padding="{TemplateBinding Padding}"
+                  BorderBrush="Transparent" BorderThickness="1">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Chip" Property="Background" Value="{DynamicResource PanelOverlayBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Chip" Property="BorderBrush" Value="{DynamicResource AccentSecondaryBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Chip" Property="BorderBrush" Value="{DynamicResource ForegroundBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value>
+      </Setter>
     </Style>
     <Style x:Key="HudScrollBarThumb" TargetType="Thumb">
       <Setter Property="OverridesDefaultStyle" Value="True" />
@@ -128,6 +186,33 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- The one summary line. Each half opens the matching filter, so the summary
+         is also the way to reach work the current view does not show. -->
+    <Style x:Key="SummarySectionButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="True" />
+      <Setter Property="Padding" Value="2,1" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Section" Background="Transparent" CornerRadius="3" Padding="{TemplateBinding Padding}">
+              <ContentPresenter VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Section" Property="Background" Value="{DynamicResource PanelOverlayBrush}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Section" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+                <Setter TargetName="Section" Property="BorderThickness" Value="1" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="HudTaskRowButton" TargetType="Button">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -161,7 +246,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-      <Setter Property="Padding" Value="6,7,10,5" />
+      <Setter Property="Padding" Value="6,7,4,5" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Focusable" Value="True" />
       <Setter Property="Template">
@@ -266,8 +351,18 @@
       <UniformGrid Rows="1" />
     </ItemsPanelTemplate>
 
-    <!-- One task row: harness/provider badge, useful action, turn elapsed time and
-         its own last-hour strip. An explicit click still activates the task. -->
+    <DataTemplate x:Key="HealthDetailTemplate">
+      <StackPanel Margin="0,5,0,0">
+        <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+                   FontFamily="{DynamicResource MetadataFontFamily}"
+                   FontSize="{DynamicResource FontSizeMeta}"
+                   Foreground="{DynamicResource ForegroundBrush}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- One task row: title, harness plus one concise status, quiet turn elapsed
+         time. An explicit click still activates the task; History is a separate
+         control that never activates it. -->
     <DataTemplate x:Key="TaskRowTemplate">
       <Button Style="{StaticResource HudTaskRowButton}"
               Command="{Binding DataContext.ActivateTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -301,59 +396,73 @@
             <ItemsControl ItemsSource="{Binding TaskBins}"
                           ItemsPanel="{StaticResource ActivityBinsPanel}"
                           ItemTemplate="{StaticResource ActivityBinTemplate}"
+                          Visibility="{Binding IsHistoryOpen, Converter={StaticResource BoolToVisibility}}"
                           Margin="0,3,0,0" />
           </StackPanel>
-          <TextBlock Grid.Column="2" Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" Margin="8,0,0,0" VerticalAlignment="Center"
-                     FontFamily="{DynamicResource MetadataFontFamily}"
-                     FontSize="{DynamicResource FontSizeMeta}"
-                     Foreground="{DynamicResource MutedBrush}" />
+          <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+            <TextBlock Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" HorizontalAlignment="Right"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}" />
+            <ToggleButton Style="{StaticResource HistoryToggle}" Content="History" Margin="0,2,0,0"
+                          IsChecked="{Binding IsHistoryOpen, Mode=TwoWay}"
+                          automation:AutomationProperties.Name="{Binding HistoryAutomationName}"
+                          ToolTip="{Binding HistoryAutomationName}" />
+          </StackPanel>
         </Grid>
       </Button>
     </DataTemplate>
 
     <!-- One expandable project row: the HUD's primary grouping. Project click
-         toggles expansion; the task rows below keep their own activate action. -->
+         toggles expansion; History discloses this project's hour strip, which is
+         also where the shared axis and legend appear. -->
     <DataTemplate x:Key="ProjectRowTemplate">
       <StackPanel>
-        <Button x:Name="ProjectHeader" Style="{StaticResource HudProjectHeaderButton}"
-                Command="{Binding DataContext.ToggleProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                CommandParameter="{Binding}"
-                ToolTip="{Binding HeaderTooltip}"
-                automation:AutomationProperties.Name="{Binding ToggleAutomationName}"
-                automation:AutomationProperties.HelpText="{Binding HeaderTooltip}">
-          <Grid>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding ToggleGlyph}" Margin="0,0,6,0"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource MetadataFontFamily}"
-                       FontSize="{DynamicResource FontSizeBody}"
-                       Foreground="{DynamicResource MutedBrush}" />
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource PrimaryFontFamily}"
-                       FontSize="{DynamicResource FontSizeBody}" FontWeight="SemiBold"
-                       Foreground="{DynamicResource ForegroundBrush}" />
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding SummaryText}" Margin="8,0,0,0"
-                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                       FontFamily="{DynamicResource MetadataFontFamily}"
-                       FontSize="{DynamicResource FontSizeMeta}"
-                       Foreground="{DynamicResource MutedBrush}" />
-            <ItemsControl Grid.Row="1" Grid.ColumnSpan="3" ItemsSource="{Binding Bins}"
-                          ItemsPanel="{StaticResource ActivityBinsPanel}"
-                          ItemTemplate="{StaticResource ActivityBinTemplate}"
-                          Margin="0,5,0,0"
-                          automation:AutomationProperties.Name="{Binding StripText}"
-                          ToolTip="{Binding StripText}" />
-          </Grid>
-        </Button>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Button x:Name="ProjectHeader" Grid.Column="0" Style="{StaticResource HudProjectHeaderButton}"
+                  Command="{Binding DataContext.ToggleProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                  CommandParameter="{Binding}"
+                  ToolTip="{Binding HeaderTooltip}"
+                  automation:AutomationProperties.Name="{Binding ToggleAutomationName}"
+                  automation:AutomationProperties.HelpText="{Binding HeaderTooltip}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="{Binding ToggleGlyph}" Margin="0,0,6,0"
+                         VerticalAlignment="Center"
+                         FontFamily="{DynamicResource MetadataFontFamily}"
+                         FontSize="{DynamicResource FontSizeBody}"
+                         Foreground="{DynamicResource MutedBrush}" />
+              <StackPanel Grid.Column="1">
+                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                           FontFamily="{DynamicResource PrimaryFontFamily}"
+                           FontSize="{DynamicResource FontSizeBody}" FontWeight="SemiBold"
+                           Foreground="{DynamicResource ForegroundBrush}" />
+                <TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap" Margin="0,1,0,0"
+                           FontFamily="{DynamicResource MetadataFontFamily}"
+                           FontSize="{DynamicResource FontSizeMeta}"
+                           Foreground="{DynamicResource MutedBrush}" />
+              </StackPanel>
+            </Grid>
+          </Button>
+          <ToggleButton Grid.Column="1" Style="{StaticResource HistoryToggle}" Content="History"
+                        VerticalAlignment="Center" Margin="0,0,6,0"
+                        IsChecked="{Binding IsHistoryOpen, Mode=TwoWay}"
+                        automation:AutomationProperties.Name="{Binding HistoryAutomationName}"
+                        ToolTip="{Binding HistoryAutomationName}" />
+        </Grid>
+        <ItemsControl x:Name="ProjectHistory" ItemsSource="{Binding Bins}" Margin="14,4,12,4"
+                      ItemsPanel="{StaticResource ActivityBinsPanel}"
+                      ItemTemplate="{StaticResource ActivityBinTemplate}"
+                      Visibility="{Binding IsHistoryOpen, Converter={StaticResource BoolToVisibility}}"
+                      automation:AutomationProperties.Name="{Binding StripText}"
+                      ToolTip="{Binding StripText}" />
         <ItemsControl ItemsSource="{Binding Tasks}" ItemTemplate="{StaticResource TaskRowTemplate}"
                       Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}" />
       </StackPanel>
@@ -363,6 +472,7 @@
   <Border x:Name="Shell" Background="{DynamicResource BackgroundBaseBrush}"
           BorderBrush="{DynamicResource BorderBrush}"
           BorderThickness="{DynamicResource ShellBorderThickness}">
+    <Grid>
     <DockPanel>
       <Border x:Name="StatusLight" DockPanel.Dock="{Binding LightDock}" Width="{Binding LightWidth}" Height="{Binding LightHeight}"
               Visibility="{Binding LightVisible, Converter={StaticResource BoolToVisibility}}" Style="{StaticResource StatusAccent}"
@@ -377,20 +487,13 @@
       </Border>
     <Grid x:Name="ContentGrid">
       <Grid.RowDefinitions>
-        <RowDefinition x:Name="SummaryRow" Height="72" />
+        <RowDefinition x:Name="SummaryRow" Height="Auto" MinHeight="96" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <Border Grid.RowSpan="2" Style="{StaticResource StatusAccent}" BorderThickness="6,0,0,0" IsHitTestVisible="False" />
-
-      <!-- Static technical linework: no animation, never hit-testable. -->
-      <Canvas Grid.RowSpan="2" IsHitTestVisible="False" ClipToBounds="True">
-        <Line X1="0" Y1="0.5" X2="280" Y2="0.5" Stroke="{DynamicResource DecorLineBrush}" StrokeThickness="1" />
-        <Line X1="8.5" Y1="0" X2="8.5" Y2="72" Stroke="{DynamicResource DecorLineBrush}" StrokeThickness="1" Opacity="0.55" />
-        <Line X1="271.5" Y1="0" X2="271.5" Y2="72" Stroke="{DynamicResource DecorLineBrush}" StrokeThickness="1" Opacity="0.55" />
-        <Path Data="M 267,0 L 280,13" Stroke="{DynamicResource AccentPrimaryBrush}" StrokeThickness="1.5" Opacity="0.85" />
-        <Path Data="M 273,0 L 280,7" Stroke="{DynamicResource AccentSecondaryBrush}" StrokeThickness="1" Opacity="0.6" />
-      </Canvas>
+      <!-- The left state accent is hidden while the light already carries state. -->
+      <Border Grid.RowSpan="2" Style="{StaticResource StatusAccent}" BorderThickness="6,0,0,0" IsHitTestVisible="False"
+              Visibility="{Binding LeftAccentVisible, Converter={StaticResource BoolToVisibility}}" />
 
       <!-- Header: always pinned above the scrolling content, so it stays reachable
            in a short layout. Branding collapses before the controls do. -->
@@ -400,7 +503,7 @@
             PreviewMouseUp="OnDragRegionMouseLeftButtonUp">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -415,23 +518,6 @@
                      Foreground="{DynamicResource MutedBrush}" />
           <WrapPanel x:Name="HeaderControls" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                       Background="Transparent" Cursor="Arrow" ForceCursor="True">
-            <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="2,0,7,0" VerticalAlignment="Center"
-                     automation:AutomationProperties.Name="{Binding HealthLine}"
-                     ToolTip="{Binding StatusDetails}">
-              <Ellipse.Style>
-                <Style TargetType="Ellipse">
-                  <Setter Property="Fill" Value="{DynamicResource HealthyBrush}" />
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding HealthLevelText}" Value="DEGRADED">
-                      <Setter Property="Fill" Value="{DynamicResource DegradedBrush}" />
-                    </DataTrigger>
-                    <DataTrigger Binding="{Binding HealthLevelText}" Value="UNAVAILABLE">
-                      <Setter Property="Fill" Value="{DynamicResource UnavailableBrush}" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </Ellipse.Style>
-            </Ellipse>
             <Button x:Name="LightToggleButton" Content="{Binding LightToggleText}" Command="{Binding ToggleLightCommand}"
                     ToolTip="{Binding LightToggleTooltip}" automation:AutomationProperties.Name="{Binding LightToggleTooltip}" Margin="0,0,2,0">
               <Button.Style>
@@ -462,53 +548,84 @@
           </WrapPanel>
         </Grid>
 
-        <Viewbox Grid.Row="1" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                    x:Name="SummaryRegion"
-                    automation:AutomationProperties.Name="{Binding SummaryText}">
-          <TextBlock Text="{Binding WorkingCountText}" VerticalAlignment="Center"
-                     FontFamily="{DynamicResource PrimaryFontFamily}"
-                     FontSize="{DynamicResource FontSizeCount}" FontWeight="Bold"
-                     Foreground="{DynamicResource ForegroundBrush}" />
-          <TextBlock Text="WORKING" Margin="5,0,0,3" VerticalAlignment="Bottom"
-                     FontFamily="{DynamicResource MetadataFontFamily}"
-                     FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
-                     Foreground="{DynamicResource MutedBrush}" />
-          <TextBlock Text="·" Margin="9,0,9,2" VerticalAlignment="Center"
+        <!-- One summary. Attention is first because it is the reason to look. -->
+        <WrapPanel x:Name="SummaryRegion" Grid.Row="1" Orientation="Horizontal" Margin="0,3,0,0"
+                   automation:AutomationProperties.Name="{Binding SummaryText}">
+          <Button Style="{StaticResource SummarySectionButton}" Command="{Binding ShowAttentionCommand}"
+                  automation:AutomationProperties.Name="Needs you - show tasks that need you"
+                  ToolTip="Show the tasks that need you, including async requests on working tasks">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding NeedsHumanCountText}" VerticalAlignment="Center"
+                         FontFamily="{DynamicResource PrimaryFontFamily}"
+                         FontSize="{DynamicResource FontSizeCount}" FontWeight="Bold">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding CountsNeedAttention}" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+              <TextBlock Text="NEED YOU" Margin="5,0,0,2" VerticalAlignment="Bottom"
+                         FontFamily="{DynamicResource MetadataFontFamily}"
+                         FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource MutedBrush}" />
+            </StackPanel>
+          </Button>
+          <TextBlock Text="·" Margin="6,0,6,1" VerticalAlignment="Center"
                      FontFamily="{DynamicResource MetadataFontFamily}"
                      FontSize="{DynamicResource FontSizeBody}"
                      Foreground="{DynamicResource BorderBrush}" />
-          <TextBlock Text="{Binding NeedsHumanCountText}" VerticalAlignment="Center"
-                     FontFamily="{DynamicResource PrimaryFontFamily}"
-                     FontSize="{DynamicResource FontSizeCount}" FontWeight="Bold">
-            <TextBlock.Style>
-              <Style TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding CountsNeedAttention}" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource UnavailableBrush}" />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </TextBlock.Style>
-          </TextBlock>
-          <TextBlock Text="NEEDS YOU" Margin="5,0,0,3" VerticalAlignment="Bottom"
-                     FontFamily="{DynamicResource MetadataFontFamily}"
-                     FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
-                     Foreground="{DynamicResource MutedBrush}" />
-        </StackPanel>
-        </Viewbox>
+          <Button Style="{StaticResource SummarySectionButton}" Command="{Binding ShowWorkingCommand}"
+                  automation:AutomationProperties.Name="Working - show tasks that are working"
+                  ToolTip="Show the tasks that are working now">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding WorkingCountText}" VerticalAlignment="Center"
+                         FontFamily="{DynamicResource PrimaryFontFamily}"
+                         FontSize="{DynamicResource FontSizeCount}" FontWeight="Bold"
+                         Foreground="{DynamicResource ForegroundBrush}" />
+              <TextBlock Text="WORKING" Margin="5,0,0,2" VerticalAlignment="Bottom"
+                         FontFamily="{DynamicResource MetadataFontFamily}"
+                         FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource MutedBrush}" />
+            </StackPanel>
+          </Button>
+        </WrapPanel>
 
-        <Grid Grid.Row="2">
-        <Button x:Name="StatusButton" Cursor="SizeAll" Command="{Binding ShowCurrentTasksCommand}" Style="{StaticResource HudIconButton}"
-                HorizontalContentAlignment="Left" Padding="0" MinHeight="0" ToolTip="{Binding StatusDetails}"
-                automation:AutomationProperties.Name="Show current tasks">
-        <TextBlock Text="{Binding CollapsedStatusLine}" TextTrimming="CharacterEllipsis" Style="{StaticResource StatusText}"
-                   FontFamily="{DynamicResource PrimaryFontFamily}"
-                   FontSize="14"
-                   ToolTip="{Binding StatusDetails}" />
+        <!-- One clickable health control, in the pinned area. It opens per-source
+             detail instead of pushing a long list above the projects. -->
+        <Button x:Name="HealthButton" Grid.Row="2" Style="{StaticResource HudIconButton}" Margin="0,3,0,0"
+                HorizontalContentAlignment="Left" Padding="2,2" MinHeight="20"
+                Command="{Binding ToggleHealthCommand}"
+                ToolTip="{Binding StatusDetails}"
+                automation:AutomationProperties.Name="{Binding HealthLabel}"
+                automation:AutomationProperties.HelpText="{Binding StatusDetails}">
+          <StackPanel Orientation="Horizontal">
+            <Ellipse x:Name="HealthDot" Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center"
+                     automation:AutomationProperties.Name="{Binding HealthLine}">
+              <Ellipse.Style>
+                <Style TargetType="Ellipse">
+                  <Setter Property="Fill" Value="{DynamicResource HealthyBrush}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding HealthLevelText}" Value="DEGRADED">
+                      <Setter Property="Fill" Value="{DynamicResource DegradedBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding HealthLevelText}" Value="UNAVAILABLE">
+                      <Setter Property="Fill" Value="{DynamicResource UnavailableBrush}" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Ellipse.Style>
+            </Ellipse>
+            <TextBlock Text="{Binding HealthLabel}" VerticalAlignment="Center"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}" />
+          </StackPanel>
         </Button>
-        </Grid>
       </Grid>
 
       <!-- Expanded surface: scrolled content below the pinned header. -->
@@ -519,77 +636,71 @@
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="ExpandedDragRegion" Grid.Row="0" Margin="14,8,14,6" Background="Transparent" Cursor="SizeAll"
+        <Grid x:Name="ExpandedDragRegion" Grid.Row="0" Margin="14,8,14,4" Background="Transparent" Cursor="SizeAll"
               PreviewMouseDown="OnDragRegionMouseLeftButtonDown"
               PreviewMouseMove="OnDragRegionMouseMove"
               PreviewMouseUp="OnDragRegionMouseLeftButtonUp">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-          </Grid.RowDefinitions>
-          <StackPanel Grid.Row="0">
-            <TextBlock Text="{Binding StatusHeadline}" TextWrapping="Wrap" FontSize="23" Style="{StaticResource StatusText}" ToolTip="{Binding StatusDetails}" />
-            <TextBlock Text="{Binding MonitoringBadgeText}" FontSize="10" Margin="0,3,0,2"
-                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding StatusDetails}"
-                       automation:AutomationProperties.HelpText="{Binding StatusDetails}" />
-          </StackPanel>
-
-          <!-- Common hour axis and its small legend. Unknown is spelled out as
-               missing observation so the strip never depends on colour alone. -->
-          <StackPanel Grid.Row="1" Margin="0,6,0,0" ToolTip="{Binding LegendNote}">
-            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" MaxHeight="12">
-              <TextBlock Text="Last hour · each cell about a minute · now at the right" FontSize="{DynamicResource FontSizeMeta}"
-                         FontFamily="{DynamicResource PrimaryFontFamily}" Foreground="{DynamicResource MutedBrush}" />
-            </Viewbox>
-            <ItemsControl x:Name="ActivityLegend" ItemsSource="{Binding Legend}"
-                          ItemTemplate="{StaticResource ActivityLegendEntryTemplate}"
-                          Margin="0,5,0,0"
-                          automation:AutomationProperties.Name="{Binding LegendNote}"
-                          automation:AutomationProperties.HelpText="{Binding LegendNote}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-            </ItemsControl>
-          </StackPanel>
-
-          <Grid Grid.Row="2" Margin="0,3,0,0">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="{Binding MetaStripLine}" TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource MetadataFontFamily}"
-                       FontSize="{DynamicResource FontSizeMeta}"
-                       Foreground="{DynamicResource MutedBrush}"
-                       ToolTip="{Binding CapabilityLine}" />
-            <TextBlock Grid.Column="1" Text="{Binding VoiceStatusLine}" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center" MaxWidth="150"
-                       FontFamily="{DynamicResource MetadataFontFamily}"
-                       FontSize="{DynamicResource FontSizeMeta}"
-                       Foreground="{DynamicResource MutedBrush}"
-                       ToolTip="{Binding VoiceStatusLine}" />
-          </Grid>
+          <TextBlock Text="{Binding MetaStripLine}" TextTrimming="CharacterEllipsis"
+                     FontFamily="{DynamicResource MetadataFontFamily}"
+                     FontSize="{DynamicResource FontSizeMeta}"
+                     Foreground="{DynamicResource MutedBrush}"
+                     ToolTip="{Binding StatusDetails}" />
         </Grid>
 
-        <Grid Grid.Row="1" Margin="6,0,10,5" ToolTip="{Binding TaskViewHint}">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel Grid.Row="1" Margin="14,0,14,2" ToolTip="{Binding TaskViewHint}">
           <StackPanel Orientation="Horizontal">
             <RadioButton x:Name="NowTab" Content="Now" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsNowView}" />
             <RadioButton x:Name="RecentTab" Content="Recent" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsRecentView}" />
             <RadioButton x:Name="SessionTab" Content="This session" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsSessionView}" />
+            <!-- The Recent window is an explicit choice, not a hidden cycling gesture. -->
+            <ComboBox x:Name="RecentHoursBox" Margin="6,2,0,0" MinWidth="56" VerticalAlignment="Center"
+                      ItemsSource="{Binding RecentHourOptions}"
+                      SelectedItem="{Binding SelectedRecentHours, Mode=TwoWay}"
+                      ItemStringFormat="{}{0}h"
+                      Visibility="{Binding IsRecentView, Converter={StaticResource BoolToVisibility}}"
+                      ToolTip="Choose how far back Recent looks"
+                      automation:AutomationProperties.Name="Recent time window in hours" />
           </StackPanel>
-          <Button Grid.Column="1" Content="{Binding RecentWindowLabel}" Command="{Binding CycleRecentWindowCommand}"
-                  Style="{StaticResource HudIconButton}" Visibility="{Binding IsRecentView, Converter={StaticResource BoolToVisibility}}"
-                  ToolTip="Change time window: 1, 2, 4, 8 or 24 hours" automation:AutomationProperties.Name="Change recent time window" />
-        </Grid>
+        </StackPanel>
 
-        <Grid Grid.Row="2">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="14,2,14,4">
+          <RadioButton x:Name="FilterAll" Content="All" GroupName="TaskFilter" Style="{StaticResource FilterChip}"
+                       IsChecked="{Binding IsFilterAll}" Command="{Binding SetTaskFilterCommand}" CommandParameter="all"
+                       ToolTip="Show every row in this view" automation:AutomationProperties.Name="Show all rows" />
+          <RadioButton x:Name="FilterAttention" Content="Needs you" GroupName="TaskFilter" Style="{StaticResource FilterChip}"
+                       IsChecked="{Binding IsFilterAttention}" Command="{Binding SetTaskFilterCommand}" CommandParameter="attention"
+                       ToolTip="Show only rows that need you" automation:AutomationProperties.Name="Show rows that need you" />
+          <RadioButton x:Name="FilterWorking" Content="Working" GroupName="TaskFilter" Style="{StaticResource FilterChip}"
+                       IsChecked="{Binding IsFilterWorking}" Command="{Binding SetTaskFilterCommand}" CommandParameter="working"
+                       ToolTip="Show only rows that are working" automation:AutomationProperties.Name="Show working rows" />
+        </StackPanel>
+
+        <!-- The hour axis and legend belong to the history area and only appear with
+             an open history disclosure. -->
+        <StackPanel x:Name="HistoryArea" Grid.Row="3" Margin="14,2,14,4"
+                    Visibility="{Binding ShowHistoryLegend, Converter={StaticResource BoolToVisibility}}"
+                    ToolTip="{Binding LegendNote}">
+          <TextBlock Text="Last hour · each cell about a minute · now at the right"
+                     TextWrapping="Wrap"
+                     FontSize="{DynamicResource FontSizeMeta}"
+                     FontFamily="{DynamicResource PrimaryFontFamily}" Foreground="{DynamicResource MutedBrush}" />
+          <ItemsControl x:Name="ActivityLegend" ItemsSource="{Binding Legend}"
+                        ItemTemplate="{StaticResource ActivityLegendEntryTemplate}"
+                        Margin="0,5,0,0"
+                        automation:AutomationProperties.Name="{Binding LegendNote}"
+                        automation:AutomationProperties.HelpText="{Binding LegendNote}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </StackPanel>
+
+        <Grid Grid.Row="4">
           <Grid>
             <ItemsControl x:Name="ProjectList" ItemsSource="{Binding Projects}"
                           ItemTemplate="{StaticResource ProjectRowTemplate}" />
@@ -600,16 +711,38 @@
                        Foreground="{DynamicResource MutedBrush}" />
           </Grid>
         </Grid>
-
-        <TextBlock Grid.Row="3" Margin="14,6,14,8" TextTrimming="CharacterEllipsis"
-                   Text="{Binding FooterHint}"
-                   Visibility="{Binding HasTasks, Converter={StaticResource BoolToVisibility}}"
-                   FontFamily="{DynamicResource MetadataFontFamily}"
-                   FontSize="{DynamicResource FontSizeMeta}"
-                   Foreground="{DynamicResource MutedBrush}" />
       </Grid>
       </ScrollViewer>
     </Grid>
     </DockPanel>
+      <!-- Health details: per source, freshness, capabilities and the next action. -->
+      <Popup x:Name="HealthPopup" PlacementTarget="{Binding ElementName=HealthButton}" Placement="Bottom"
+             StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
+             IsOpen="{Binding IsHealthOpen, Mode=TwoWay}">
+        <Border Background="{DynamicResource PanelSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1" Padding="10" MaxWidth="380" Margin="0,2,8,8">
+          <StackPanel>
+            <TextBlock Text="{Binding MonitoringTitle}" FontWeight="SemiBold" TextWrapping="Wrap"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeBody}"
+                       Foreground="{DynamicResource ForegroundBrush}" />
+            <TextBlock Text="{Binding MonitoringDetail}" TextWrapping="Wrap" Margin="0,3,0,0"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}" />
+            <ItemsControl ItemsSource="{Binding HealthDetails}" ItemTemplate="{StaticResource HealthDetailTemplate}"
+                          Margin="0,4,0,0" />
+            <TextBlock Text="{Binding HealthNextAction}" TextWrapping="Wrap" Margin="0,6,0,0"
+                       FontFamily="{DynamicResource PrimaryFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource ForegroundBrush}" />
+            <TextBlock Text="{Binding CapabilityLine}" TextWrapping="Wrap" Margin="0,6,0,0"
+                       FontFamily="{DynamicResource MetadataFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource MutedBrush}" />
+          </StackPanel>
+        </Border>
+      </Popup>
+    </Grid>
   </Border>
 </Window>

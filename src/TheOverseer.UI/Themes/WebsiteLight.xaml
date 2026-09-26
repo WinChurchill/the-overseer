@@ -38,10 +38,12 @@
   <FontFamily x:Key="PrimaryFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
   <FontFamily x:Key="MetadataFontFamily">Cascadia Mono, Consolas</FontFamily>
 
-  <sys:Double x:Key="FontSizeCount">26</sys:Double>
+  <!-- Readable targets from the UI contract: 13 DIP body, 12 DIP secondary. The
+       count stays the largest glyph on the summary line without dominating it. -->
+  <sys:Double x:Key="FontSizeCount">18</sys:Double>
   <sys:Double x:Key="FontSizeDisplay">15</sys:Double>
-  <sys:Double x:Key="FontSizeBody">12</sys:Double>
-  <sys:Double x:Key="FontSizeMeta">9.5</sys:Double>
+  <sys:Double x:Key="FontSizeBody">13</sys:Double>
+  <sys:Double x:Key="FontSizeMeta">12</sys:Double>
 
   <Thickness x:Key="ShellBorderThickness">1</Thickness>
   <Thickness x:Key="HairlineThickness">1</Thickness>
