@@ -141,6 +141,7 @@ function Compare-Snapshot($before, $after, [string[]] $ignore = @()) {
         if (-not $same) { [void]$changed.Add($key + '=' + $left + '->' + $right) }
     }
 
+    # Callers wrap this in @() so an empty result is still an array under StrictMode.
     return @($changed)
 }
 
@@ -215,11 +216,11 @@ try {
     $afterCandidate = Get-SettingsSnapshot $candidateData
 
     $placementKeys = @('placementX', 'placementY', 'monitor')
-    $candidateChanged = Compare-Snapshot $afterPrevious $afterCandidate $placementKeys
+    $candidateChanged = @(Compare-Snapshot $afterPrevious $afterCandidate $placementKeys)
     Add-Check 'candidate-preserves-previous-settings' ($candidateChanged.Count -eq 0) (
-        $(if ($candidateChanged.Count -eq 0) { 'all compared settings identical' } else { 'changed: ' + ($candidateChanged -join ', ') }))
+        $(if ($candidateChanged.Count -eq 0) { 'all compared settings identical' } else { 'changed: ' + (@($candidateChanged) -join ', ') }))
 
-    $previousLost = Compare-Snapshot (Get-SettingsSnapshot $legacyData) $afterPrevious $placementKeys
+    $previousLost = @(Compare-Snapshot (Get-SettingsSnapshot $legacyData) $afterPrevious $placementKeys)
     $wavKept = (Get-FileHash -LiteralPath (Join-Path $candidateData 'voicepacks/custom/input.wav') -Algorithm SHA256).Hash -eq $legacyWavHash
     Add-Check 'candidate-preserves-custom-recording' $wavKept ('sha256=' + $legacyWavHash.Substring(0, 12))
     $spoolKept = Test-Path -LiteralPath (Join-Path $candidateData 'bridges/dsh/legacy-instance/events.jsonl')

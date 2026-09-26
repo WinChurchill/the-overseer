@@ -78,17 +78,52 @@ startup entry and real harness configuration were never modified. All checks ran
 `--data-directory` under `artifacts/`. No merge, rebase, reset, tag or push; `main`
 is untouched; the stale `agent/ui` and `agent/voice` worktrees were left alone.
 
-### Verification
+### Candidate evidence (packaged)
+
+Packaged source commit `784733dba63e84c3b7ed61ec58fe8b49259c9ef7` (`ux/first-use`).
+Repository HEAD at the time of writing is a later documentation-only commit; the
+archive below was built from `784733d`, and `release.json` inside it records the same
+commit. Scripts changed after that commit are not part of the archive payload.
+
+```text
+archive : artifacts/rc1/OVERSEER-1.0.0-rc.1-win-x64.zip
+sha256  : DFB84201F7F2F1F4D6E09A30FD64AC834FDE06414E58E15A7ADAA9530BAA5B82
+bytes   : 76810259
+entries : 566   (payload 566 files, 73 of them integration assets)
+identity: FileVersion 1.0.0.0, ProductVersion 1.0.0-rc.1+784733d, signing NotSigned
+manifest: artifacts/rc1/build-manifest.json
+smoke   : artifacts/rc1/smoke/run-20260926T231953Z-9004e47d/smoke-evidence-20260926T231953Z.json
+upgrade : artifacts/rc1/upgrade/run-20260926T232512Z-9b665477/upgrade-evidence-20260926T232512Z.json
+```
 
 | Check | Result |
 | --- | --- |
 | Release build | 0 warnings / 0 errors |
-| .NET tests (`dotnet test -c Release`) | 674 passed, 0 failed, 0 skipped |
+| .NET tests (`dotnet test -c Release`) | 675 passed, 0 failed, 0 skipped |
 | dsh bridge tests (`node --test`) | 30 passed, 0 failed |
 | Claude bridge tests (`node --test`) | 21 passed, 0 failed |
 | Renders (`--hud-fixture`) | 44 PNGs, both themes, 300/360/480/720 DIP widths, attention filter, open history |
-| Production-path check (`--hud-integration-check`) | 13/13 passed |
+| Production-path check (`--hud-integration-check`) | 14/14 passed, in-process and from the extracted archive |
+| Packaged smoke (`Test-PackagedRelease.ps1`) | **40/40 passed, 0 failed, no skipped block** |
+| Upgraded from `ad35e6d` (`Test-ReleaseUpgrade.ps1`) | 8/8 passed; settings, mapping, disabled source, recording, spool and identity compared |
 | `git diff --check` | clean |
+
+The packaged smoke now includes: archive identity and integration payload, 44 fixture
+renders, `--hud-smoke`, `--hud-integration-check`, `node --test` for both shipped
+bridges, voice smoke with the owned loopback endpoint, the shipped voice pack check,
+synthetic and real `--monitor-debug`, the legacy-settings upgrade checks, and the full
+HUD lifecycle (60 s live run with no focus takeover, second instance exits politely,
+close hides to tray, second launch restores the same window, persisted state, tray
+startup, and the `--start-in-tray --no-tray` visible fallback). The lifecycle block is
+no longer environment-blocked: the scoped instance identity lets it run beside a real
+HUD.
+
+One new product defect was found and fixed by this round's own check: a tracked
+rollout file that disappears was retained forever in its failure backoff, so the
+source reported `read-failure` on every pass, the HUD stayed at limited coverage, and
+its task could never be observed again. Files that are absent are now released after
+`MonitorOptions.MissingFileRetention` (60 s default) and re-admitted if they return;
+the integration check runs with a 12 s retention and asserts that the reason clears.
 
 ### Qualification gaps (not claimed as delivered)
 
@@ -112,13 +147,31 @@ is untouched; the stale `agent/ui` and `agent/voice` worktrees were left alone.
 6. **Shortcut and startup targets** were only inspected read-only; the upgrade check
    does not rewrite a user shortcut or the Run entry.
 
+### Acceptance matrix (RELEASE_READINESS.md)
+
+| Gate | State | Evidence |
+| --- | --- | --- |
+| Start | partial | Archive extracts and runs from an unrelated working directory with a sanitized environment (no SDK, no checkout) — 40/40 packaged checks. A real browser download on a clean OS was not performed. |
+| Empty machine | done | A HUD with no bridge installed starts, shows Codex only, and `Projects & sources` states the setup action. |
+| Monitoring | done | Live tasks reach the actual HUD after startup: `--hud-integration-check` (applied UI state) and the packaged 60 s live run. |
+| Attention | done (Codex async qualified) | Bridge approval asked/decided and Codex async input while working; the async request is not cleared by an unrelated tool output and clears at the turn boundary; per-source unavailability is disclosed. |
+| Harnesses | **blocked** | No live `dsh` session and no Claude Code CLI on this machine. Contract tests only; both integrations are labelled experimental. |
+| UI | done locally | 44 renders (both themes, 300/360/480/720 DIP, short/tall, light at max width, attention filter, open history) plus WPF tests for hit regions, one scroller, last-row reach and focus. Native Snap/DPI/monitor movement remain physical. |
+| Lifecycle | done | Same-scope second launch restores; a different scope cannot signal the user's HUD (regression test); hide, tray start, graceful exit and persisted state verified in the packaged run. |
+| Recovery | partial | Malformed/absent producer data degrades only that source, is disclosed per source, does not latch, and recovers on clean data. Sleep/wake and monitor removal/reconnect are physical. |
+| Voice | partial | Loopback smoke, shipped pack check and mute persistence pass. Audible playback by ear was not performed in this round. |
+| Upgrade | partial | Old → candidate on copies of one data directory: 8/8. Rollback to the previous build was not executed. |
+| Distribution | partial | Unique version/source hash, private-payload audit, bridge assets/notices, correct `NotSigned` status. Download reputation and distribution terms are owner decisions. |
+
 ### Next actions (for Astra review)
 
 1. Review the diff and the new checks; decide whether the presentation contract is met.
-2. Re-run `scripts/Publish-Release.ps1` / `Test-PackagedRelease.ps1` from the reviewed
-   commit (the packaged source commit is recorded below and in `release.json`).
-3. Decide the distribution/signing path, then perform the clean-machine and live-harness
-   gates once those environments exist.
+2. Re-run `scripts/Publish-Release.ps1` / `Test-PackagedRelease.ps1` /
+   `Test-ReleaseUpgrade.ps1` from the reviewed commit (the packaged source commit is
+   recorded above and in `release.json`).
+3. Decide the distribution/signing path, then complete the blocked gates (live `dsh`
+   and Claude qualification, clean machine, physical DPI/Snap/sleep checks, audible
+   playback, rollback) once those environments exist.
 
 ## Historical — project-centered round (superseded by the 2026-09-26 round)
 
