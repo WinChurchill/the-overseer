@@ -27,6 +27,7 @@ param(
     [ValidateRange(6, 6)][int] $FixtureMinimumRenders = 6,
     [switch] $AllowUnavailableMonitor,
     [switch] $SkipHudLifecycle,
+    [switch] $SkipBridgeTests,
     [switch] $KeepExtraction
 )
 
@@ -188,6 +189,31 @@ function Complete-PackagedProcess($handle, [int] $timeoutSeconds, [string] $logP
     return [ordered]@{ TimedOut = (-not $exited); ExitCode = $exitCode; Stdout = $stdout; Stderr = $stderr; Log = $logPath }
 }
 
+# Runs the shipped bridge test suite from the extraction with the probe's own Node.
+# It is a real distribution check: the assets must work without the repository.
+function Invoke-NodeTest(
+    [string] $name,
+    [string] $directory,
+    [System.Collections.IDictionary] $environment,
+    [string] $logDirectory,
+    [int] $timeoutSeconds) {
+
+    Write-Step ($name + ': node --test in ' + $directory)
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $node -or -not (Test-Path -LiteralPath $directory)) {
+        Add-Check $name $false ('node-on-path=' + [bool]$node + ' directory=' + $directory)
+        return [ordered]@{ ExitCode = -1; TimedOut = $false; Stdout = ''; Stderr = ''; Log = '' }
+    }
+
+    $handle = Start-PackagedProcess $node.Source @('--test') $environment $directory
+    $result = Complete-PackagedProcess $handle $timeoutSeconds (Join-Path $logDirectory ($name + '.log'))
+    $passLines = ([regex]::Matches($result.Stdout, '(?m)^# pass ')).Count
+    $failLines = ([regex]::Matches($result.Stdout, '(?m)^# fail ')).Count
+    Add-Check $name ($result.ExitCode -eq 0) (
+        'exit=' + $result.ExitCode + ' timedOut=' + $result.TimedOut + ' passLines=' + $passLines + ' failLines=' + $failLines + ' log=' + $result.Log)
+    return $result
+}
+
 function Invoke-FiniteMode(
     [string] $executable,
     [string] $name,
@@ -257,9 +283,42 @@ Expand-Archive -LiteralPath $resolvedArchive -DestinationPath $extractionRoot -F
 $executable = Join-Path $extractionRoot 'TheOverseer.App.exe'
 Add-Check 'extraction-apphost' (Test-Path -LiteralPath $executable) ('exe=' + $executable)
 
-$fileVersion = (Get-Item -LiteralPath $executable).VersionInfo.FileVersion
-$productName = (Get-Item -LiteralPath $executable).VersionInfo.ProductName
-Add-Check 'extracted-version-metadata' ($fileVersion -like '1.0.0*') ('FileVersion=' + $fileVersion + ' ProductName=' + $productName)
+# Release identity: the numeric file version, the release identifier and the source
+# commit must all agree between the shipped binary and release.json. A semantic
+# prerelease suffix is never a valid file version, so the two are checked separately.
+$versionInfo = (Get-Item -LiteralPath $executable).VersionInfo
+$releasePath = Join-Path $extractionRoot 'release.json'
+$release = if (Test-Path -LiteralPath $releasePath) { Get-Content -LiteralPath $releasePath -Raw | ConvertFrom-Json } else { $null }
+$numericFromFile = (($versionInfo.FileVersion -split '\.')[0..2] -join '.')
+$identityOk = $null -ne $release -and
+    $versionInfo.FileVersion -eq $release.fileVersion -and
+    $versionInfo.FileVersion -match '^\d+\.\d+\.\d+\.\d+$' -and
+    $numericFromFile -eq (($release.version -split '-')[0]) -and
+    $versionInfo.ProductVersion -like ($release.version + '*') -and
+    $versionInfo.ProductVersion -like ('*' + $release.sourceShortCommit + '*') -and
+    $versionInfo.ProductName -eq 'OVERSEER'
+Add-Check 'extracted-version-metadata' ([bool]$identityOk) (
+    'FileVersion=' + $versionInfo.FileVersion + ' ProductVersion=' + $versionInfo.ProductVersion +
+    ' release=' + $(if ($release) { $release.version } else { 'missing' }) +
+    ' source=' + $(if ($release) { $release.sourceShortCommit } else { 'missing' }))
+
+# The optional integrations ship in the archive and are runnable from the extraction
+# alone: no repository checkout, no build step.
+$integrationEntries = @($entryNames | Where-Object { $_ -like 'integrations/*' })
+$integrationRequired = @(
+    'integrations/deepseek-harness/README.md',
+    'integrations/deepseek-harness/NOTICE.md',
+    'integrations/deepseek-harness/src/index.js',
+    'integrations/deepseek-harness/package.json',
+    'integrations/claude-code/README.md',
+    'integrations/claude-code/NOTICE.md',
+    'integrations/claude-code/install.mjs',
+    'integrations/claude-code/uninstall.mjs',
+    'integrations/claude-code/bridge.mjs'
+)
+$integrationMissing = @($integrationRequired | Where-Object { $entryNames -notcontains $_ })
+Add-Check 'archive-integrations' ($integrationMissing.Count -eq 0) (
+    'integrationEntries=' + $integrationEntries.Count + ' missing=' + ($integrationMissing -join ','))
 
 $runtimeConfig = Get-Content -LiteralPath (Join-Path $extractionRoot 'TheOverseer.App.runtimeconfig.json') -Raw | ConvertFrom-Json
 $frameworks = @()
@@ -299,6 +358,24 @@ $largeRenders = @($renders | Where-Object { $_.Length -gt 1024 })
 Add-Check 'hud-fixture-renders' ($renders.Count -ge $FixtureMinimumRenders -and $largeRenders.Count -eq $renders.Count) ('renders=' + $renders.Count + ' nonEmpty=' + $largeRenders.Count + ' minimum=' + $FixtureMinimumRenders)
 
 $hudSmoke = Invoke-FiniteMode $executable 'hud-smoke' @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', (Join-Path $evidenceRoot 'hud-smoke-data')) $sanitized.Environment $workingDirectory $logRoot ($HudSmokeSeconds + 90) @(0)
+
+# Production-path integration check: invented Codex and bridge producer files
+# through the real readers, composite and controller, asserting the applied state.
+$integrationCheck = Invoke-FiniteMode $executable 'hud-integration-check' @('--hud-integration-check', '--output-directory', (Join-Path $evidenceRoot 'integration-check')) $sanitized.Environment $workingDirectory $logRoot 300 @(0)
+$integrationPassed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check PASS ')).Count
+$integrationFailed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check FAIL ')).Count
+Add-Check 'hud-integration-check' ($integrationCheck.ExitCode -eq 0 -and $integrationFailed -eq 0 -and $integrationPassed -ge 13) (
+    'exit=' + $integrationCheck.ExitCode + ' passed=' + $integrationPassed + ' failed=' + $integrationFailed)
+
+# The shipped bridge assets must be usable from the extraction alone.
+if ($SkipBridgeTests) {
+    Write-Step 'bridge asset tests skipped by request'
+} else {
+    foreach ($integration in @('deepseek-harness', 'claude-code')) {
+        $bridgeDirectory = Join-Path $extractionRoot ('integrations/' + $integration)
+        [void](Invoke-NodeTest ('packaged-bridge-tests-' + $integration) $bridgeDirectory $sanitized.Environment $logRoot 240)
+    }
+}
 
 $voiceSmoke = Invoke-FiniteMode $executable 'voice-smoke' @('--voice-smoke', '--data-directory', (Join-Path $evidenceRoot 'voice-smoke-data')) $sanitized.Environment $workingDirectory $logRoot 240 @(0)
 $loopback = $voiceSmoke.Stdout -match '127\.0\.0\.1'
@@ -343,6 +420,88 @@ if ($realDebug.ExitCode -eq 2 -and -not $AllowUnavailableMonitor) {
 } else {
     Add-Check 'monitor-debug-real-readable' $true ('exit=' + $realDebug.ExitCode + $(if ($realDebug.ExitCode -eq 2) { ' (unavailable accepted by switch)' } else { '' }))
 }
+
+# ---- legacy settings upgrade -------------------------------------------------
+# A data directory written by an earlier release must be used exactly as written:
+# the theme, mute, provider, pack, custom recording, project mapping and window
+# placement all survive a new build, and the app does not rewrite them.
+$legacyData = Join-Path $evidenceRoot 'upgrade-legacy-data'
+New-Item -ItemType Directory -Force -Path (Join-Path $legacyData 'voicepacks/custom') | Out-Null
+$legacyConfig = @'
+{
+  "codexHome": null,
+  "hud": {
+    "theme": "light",
+    "alwaysOnTop": true,
+    "opacity": 0.85,
+    "startWithWindows": false,
+    "taskView": "recent",
+    "recentHours": 8,
+    "lightPosition": "right",
+    "lightSize": 24
+  },
+  "voice": {
+    "muted": true,
+    "provider": "pack",
+    "packId": "custom",
+    "clips": {}
+  },
+  "project": {
+    "mappings": [ { "projectKey": "legacy-project", "name": "Legacy project", "root": "C:\\legacy\\work" } ],
+    "aliases": [],
+    "maxAncestorChecks": 32,
+    "maxCacheEntries": 256
+  },
+  "disabledHarnessSources": [ "claude/legacy-disabled" ],
+  "harnessRoots": [],
+  "maximumHarnessSources": 8,
+  "runtimeActivitySource": false
+}
+'@
+Set-Content -LiteralPath (Join-Path $legacyData 'config.json') -Value $legacyConfig -Encoding utf8
+$legacyState = '{"version":1,"isExpanded":true,"monitorDevice":"LEGACY-MONITOR","offsetXDips":123.5,"offsetYDips":77.25,"dpiScale":1.0,"savedAtUtc":"2026-01-02T03:04:05.0000000Z"}'
+Set-Content -LiteralPath (Join-Path $legacyData 'state.json') -Value $legacyState -Encoding utf8
+# A real (tiny, synthetic) WAV so the custom recording is a byte-compared asset.
+$legacyWav = Join-Path $legacyData 'voicepacks/custom/input.wav'
+$wavBytes = [byte[]](0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
+    0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00, 0x00, 0x02, 0x00,
+    0x10, 0x00, 0x64, 0x61, 0x74, 0x61, 0x00, 0x00, 0x00, 0x00)
+[System.IO.File]::WriteAllBytes($legacyWav, $wavBytes)
+$legacyWavHash = (Get-FileHash -LiteralPath $legacyWav -Algorithm SHA256).Hash
+
+$upgradeRun = Invoke-FiniteMode $executable 'upgrade-legacy-settings' @('--hud-smoke', '--duration', '6', '--data-directory', $legacyData) $sanitized.Environment $workingDirectory $logRoot 180 @(0)
+$upgradedConfig = Get-Content -LiteralPath (Join-Path $legacyData 'config.json') -Raw | ConvertFrom-Json
+$upgradedState = Get-Content -LiteralPath (Join-Path $legacyData 'state.json') -Raw | ConvertFrom-Json
+$mappingKept = @($upgradedConfig.project.mappings | Where-Object { $_.projectKey -eq 'legacy-project' -and $_.root -eq 'C:\legacy\work' }).Count -eq 1
+$disabledKept = @($upgradedConfig.disabledHarnessSources) -contains 'claude/legacy-disabled'
+$settingsKept = $upgradedConfig.hud.theme -eq 'light' -and
+    $upgradedConfig.hud.alwaysOnTop -eq $true -and
+    [math]::Abs([double]$upgradedConfig.hud.opacity - 0.85) -lt 0.001 -and
+    $upgradedConfig.hud.taskView -eq 'recent' -and
+    [int]$upgradedConfig.hud.recentHours -eq 8 -and
+    [int]$upgradedConfig.hud.lightSize -eq 24 -and
+    $upgradedConfig.voice.muted -eq $true -and
+    $upgradedConfig.voice.provider -eq 'pack' -and
+    $upgradedConfig.voice.packId -eq 'custom'
+$placementKept = $upgradedState.version -eq 1 -and
+    [math]::Abs([double]$upgradedState.offsetXDips - 123.5) -lt 0.001 -and
+    [math]::Abs([double]$upgradedState.offsetYDips - 77.25) -lt 0.001 -and
+    $upgradedState.monitorDevice -eq 'LEGACY-MONITOR'
+$wavKept = (Get-FileHash -LiteralPath $legacyWav -Algorithm SHA256).Hash -eq $legacyWavHash
+Add-Check 'upgrade-settings-preserved' ([bool]$settingsKept) (
+    'theme=' + $upgradedConfig.hud.theme + ' opacity=' + $upgradedConfig.hud.opacity + ' taskView=' + $upgradedConfig.hud.taskView +
+    ' recentHours=' + $upgradedConfig.hud.recentHours + ' provider=' + $upgradedConfig.voice.provider + ' pack=' + $upgradedConfig.voice.packId)
+Add-Check 'upgrade-project-and-source-settings-preserved' ([bool]($mappingKept -and $disabledKept)) (
+    'mapping=' + $mappingKept + ' disabledSource=' + $disabledKept)
+Add-Check 'upgrade-placement-preserved' ([bool]$placementKept) (
+    'x=' + $upgradedState.offsetXDips + ' y=' + $upgradedState.offsetYDips + ' dpi=' + $upgradedState.dpiScale)
+Add-Check 'upgrade-custom-recording-preserved' ([bool]$wavKept) ('sha256=' + $legacyWavHash.Substring(0, 12))
+# The bridge spool is data-directory rooted, so an app upgrade cannot orphan it.
+$upgradeSpool = Join-Path $legacyData 'bridges/dsh/legacy-instance'
+New-Item -ItemType Directory -Force -Path $upgradeSpool | Out-Null
+Set-Content -LiteralPath (Join-Path $upgradeSpool 'events.jsonl') -Value '' -Encoding utf8
+$spoolKept = Test-Path -LiteralPath (Join-Path $legacyData 'bridges/dsh/legacy-instance/events.jsonl')
+Add-Check 'upgrade-bridge-spool-is-data-directory-rooted' ([bool]$spoolKept) ('path=' + $upgradeSpool)
 
 # ---- normal HUD lifecycle ----------------------------------------------------
 if (-not $SkipHudLifecycle) {
@@ -499,7 +658,12 @@ if (-not $SkipHudLifecycle) {
 $failed = @($script:Checks | Where-Object { $_.status -ne 'pass' })
 $evidence = [ordered]@{
     product = 'OVERSEER'
-    version = '1.0.0'
+    version = $release.version
+    fileVersion = $versionInfo.FileVersion
+    productVersion = $versionInfo.ProductVersion
+    sourceCommit = $release.sourceCommit
+    sourceShortCommit = $release.sourceShortCommit
+    integrationEntries = $integrationEntries.Count
     archive = $resolvedArchive
     archiveSha256 = $archiveHash
     archiveEntries = $entryNames.Count

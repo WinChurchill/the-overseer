@@ -88,6 +88,15 @@ Write-Step ('repository ' + $repoRoot)
 Write-Step ('output     ' + $outputRoot)
 
 # ---- source identity ---------------------------------------------------------
+# ---- release identity --------------------------------------------------------
+# The release version may carry a semantic prerelease suffix; the numeric file and
+# assembly version never can. Deriving both here is what lets "1.0.0-rc.1" ship with
+# a valid "1.0.0.0" file version and a testable release identifier.
+$numericVersion = ($Version -split '-')[0]
+if ($numericVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw ('Version must start with a numeric major.minor.patch version, for example 1.0.0 or 1.0.0-rc.1; got ' + $Version)
+}
+
 $sourceCommit = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'git rev-parse failed; the release must come from a Git checkout' }
 $sourceShort = (& git -C $repoRoot rev-parse --short HEAD).Trim()
@@ -117,7 +126,9 @@ try { $sdkVersion = (& $dotnet --version).Trim(); if ($LASTEXITCODE -ne 0) { thr
 finally { Pop-Location }
 Write-Step ('dotnet     ' + $dotnet + ' (' + $sdkVersion + ')')
 Write-Step ('source     ' + $sourceShort + ' on ' + $sourceBranch + $(if ($dirty) { ' (dirty tree allowed)' } else { '' }))
-Write-Step ('version    ' + $Version + ' ' + $Configuration + '/' + $RuntimeIdentifier)
+$fileVersion = $numericVersion + '.0'
+$informationalVersion = $Version + '+' + $sourceShort
+Write-Step ('version    ' + $Version + ' (file ' + $fileVersion + ') ' + $Configuration + '/' + $RuntimeIdentifier)
 
 $previousEnvironment = @{}
 foreach ($name in 'DOTNET_CLI_TELEMETRY_OPTOUT', 'DOTNET_NOLOGO', 'DOTNET_CLI_USE_MSBUILD_SERVER', 'MSBUILDDISABLENODEREUSE') {
@@ -166,6 +177,9 @@ try {
         '-p:PublishTrimmed=false',
         '-p:PublishAot=false',
         ('-p:Version=' + $Version),
+        ('-p:FileVersion=' + $fileVersion),
+        ('-p:AssemblyVersion=' + $fileVersion),
+        ('-p:InformationalVersion=' + $informationalVersion),
         # Map the checkout path out of the deterministic build metadata so the
         # shipped binaries and symbols cannot leak where the release was built.
         ('-p:PathMap=' + $repoRoot + '=/_/'),
@@ -202,9 +216,22 @@ try {
 
     if ($includedFrameworks.Count -eq 0) { throw 'publish output is not self-contained: no included frameworks were recorded' }
 
-    $fileVersion = (Get-Item -LiteralPath (Join-Path $publishRoot $executableName)).VersionInfo.FileVersion
-    if (-not $fileVersion -or -not $fileVersion.StartsWith($Version, [System.StringComparison]::Ordinal)) {
-        throw ('published executable version ' + $fileVersion + ' does not match ' + $Version)
+    # Numeric file version exactly, and the release identifier plus source commit in
+    # the product version. StartsWith($Version) was wrong: "1.0.0-rc.1" is not a
+    # prefix of the numeric "1.0.0.0" the compiler writes.
+    $versionInfo = (Get-Item -LiteralPath (Join-Path $publishRoot $executableName)).VersionInfo
+    $publishedFileVersion = $versionInfo.FileVersion
+    $publishedProductVersion = $versionInfo.ProductVersion
+    if ($publishedFileVersion -ne $fileVersion) {
+        throw ('published executable FileVersion ' + $publishedFileVersion + ' does not match ' + $fileVersion)
+    }
+
+    if ($publishedProductVersion -notlike ($Version + '*')) {
+        throw ('published executable ProductVersion ' + $publishedProductVersion + ' does not start with ' + $Version)
+    }
+
+    if ($publishedProductVersion -notlike ('*' + $sourceShort + '*')) {
+        throw ('published executable ProductVersion ' + $publishedProductVersion + ' does not name source ' + $sourceShort)
     }
 
     # ---- assemble the shipping payload --------------------------------------
@@ -248,6 +275,40 @@ try {
     New-Item -ItemType Directory -Force -Path $exampleTarget | Out-Null
     Copy-Item -Path (Join-Path $examplePack '*') -Destination $exampleTarget -Recurse -Force
 
+    # ---- optional integrations ----------------------------------------------
+    # The harness bridges ship as their own assets, with notices, reversible
+    # installers and their tests, so a user never needs this checkout. Their spool
+    # lives under the data directory (%LOCALAPPDATA%\OVERSEER), not under the
+    # application folder, so installing a later version cannot move or orphan it.
+    $integrationRoot = Join-Path $repoRoot 'integrations'
+    if (-not (Test-Path -LiteralPath $integrationRoot)) { throw ('integrations directory is missing: ' + $integrationRoot) }
+    $integrationTarget = Join-Path $payloadRoot 'integrations'
+    New-Item -ItemType Directory -Force -Path $integrationTarget | Out-Null
+    Copy-Item -Path (Join-Path $integrationRoot '*') -Destination $integrationTarget -Recurse -Force
+    $integrationFiles = @(Get-ChildItem -LiteralPath $integrationTarget -Recurse -File | Sort-Object FullName)
+    $integrationNames = @($integrationFiles | ForEach-Object { $_.FullName.Substring($integrationTarget.Length + 1).Replace('\', '/') })
+
+    # ---- machine-readable release identity ----------------------------------
+    $release = [ordered]@{
+        product = 'OVERSEER'
+        project = 'THE OVERSEER PROJECT'
+        version = $Version
+        fileVersion = $fileVersion
+        informationalVersion = $informationalVersion
+        sourceCommit = $sourceCommit
+        sourceShortCommit = $sourceShort
+        sourceBranch = $sourceBranch
+        sourceTreeDirty = $dirty
+        sdkVersion = $sdkVersion
+        runtimeIdentifier = $RuntimeIdentifier
+        configuration = $Configuration
+        selfContained = $true
+        generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+        integrations = $integrationNames
+        dataDirectoryNote = 'Runtime data (settings, state, logs and bridge spools) stays under the data directory (%LOCALAPPDATA%\OVERSEER unless --data-directory is passed) and is not stored in this package folder.'
+    }
+    $release | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $payloadRoot 'release.json') -Encoding utf8
+
     # ---- payload audit -------------------------------------------------------
     $payloadFiles = Get-ChildItem -LiteralPath $payloadRoot -Recurse -File | Sort-Object FullName
     $payloadBytes = ($payloadFiles | Measure-Object -Property Length -Sum).Sum
@@ -267,6 +328,11 @@ try {
         (Join-Path $payloadRoot $executableName),
         (Join-Path $payloadRoot 'README.md'),
         (Join-Path $payloadRoot 'THIRD_PARTY_NOTICES.md'),
+        (Join-Path $payloadRoot 'release.json'),
+        (Join-Path $payloadRoot 'integrations/deepseek-harness/README.md'),
+        (Join-Path $payloadRoot 'integrations/deepseek-harness/src/index.js'),
+        (Join-Path $payloadRoot 'integrations/claude-code/README.md'),
+        (Join-Path $payloadRoot 'integrations/claude-code/install.mjs'),
         (Join-Path $payloadRoot 'licenses/codex-monitor-hud-MIT.txt'),
         (Join-Path $payloadRoot 'examples/voicepacks/example/manifest.json'))) {
         if (-not (Test-Path -LiteralPath $required)) { throw ('payload is missing ' + $required) }
@@ -314,10 +380,18 @@ try {
         $executableName,
         'README.md',
         'THIRD_PARTY_NOTICES.md',
+        'release.json',
         'licenses/codex-monitor-hud-MIT.txt',
         'licenses/dotnet-LICENSE.txt',
         'examples/voicepacks/example/manifest.json',
-        'examples/voicepacks/example/permission-1.wav')) {
+        'examples/voicepacks/example/permission-1.wav',
+        'integrations/deepseek-harness/README.md',
+        'integrations/deepseek-harness/NOTICE.md',
+        'integrations/deepseek-harness/src/index.js',
+        'integrations/claude-code/README.md',
+        'integrations/claude-code/NOTICE.md',
+        'integrations/claude-code/install.mjs',
+        'integrations/claude-code/uninstall.mjs')) {
         if ($entries -notcontains $required) { throw ('archive is missing ' + $required) }
     }
 
@@ -332,6 +406,9 @@ try {
         product = 'OVERSEER'
         project = 'THE OVERSEER PROJECT'
         version = $Version
+        fileVersion = $fileVersion
+        informationalVersion = $informationalVersion
+        productVersion = $publishedProductVersion
         configuration = $Configuration
         runtimeIdentifier = $RuntimeIdentifier
         selfContained = $true
@@ -350,6 +427,8 @@ try {
         archiveEntryCount = $entries.Count
         payloadFileCount = $payloadFiles.Count
         payloadBytes = $payloadBytes
+        integrationFileCount = $integrationFiles.Count
+        integrations = $integrationNames
         payloadFiles = @($payloadFiles | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($payloadRoot.Length + 1).Replace('\', '/'); bytes = $_.Length } })
     }
     $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
@@ -360,6 +439,7 @@ try {
     Write-Host ('bytes   : ' + $archiveBytes)
     Write-Host ('entries : ' + $entries.Count)
     Write-Host ('payload : ' + $payloadFiles.Count + ' files, ' + $payloadBytes + ' bytes')
+    Write-Host ('assets  : ' + $integrationFiles.Count + ' integration files')
     Write-Host ('manifest: ' + $manifestPath)
     Write-Host ('source  : ' + $sourceCommit + ' (' + $sourceBranch + ')')
     Write-Host 'publish complete'

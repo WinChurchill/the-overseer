@@ -22,8 +22,8 @@ namespace TheOverseer.App.Diagnostics;
 /// </summary>
 internal static class HudFixtureRunner
 {
-    private const double CollapsedWidth = 280;
-    private const double CollapsedHeight = 72;
+    private const double CollapsedWidth = 300;
+    private const double CollapsedHeight = 96;
     private const double ExpandedWidth = 360;
     private const double ExpandedHeight = 480;
 
@@ -158,6 +158,37 @@ internal static class HudFixtureRunner
             rendered.Add(path);
         }
 
+        // Progressive disclosure in the render set: the attention filter applied and
+        // a project history open, so the disclosed strip, axis and legend are
+        // inspectable rather than only described.
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            var filtered = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+            filtered.UseActivitySource(fixtureActivity.Source);
+            filtered.ApplySnapshot(scenarios[0]);
+            filtered.ApplyActivity(activity, VoiceStatus.Initial);
+            filtered.IsExpanded = true;
+            filtered.TaskFilter = "attention";
+            var filteredPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-filter-attention.png");
+            Render(filtered, theme, filteredPath);
+            rendered.Add(filteredPath);
+
+            var history = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+            history.UseActivitySource(hourActivity.Source);
+            history.ApplySnapshot(hour[^1]);
+            history.ApplyActivity(activity, VoiceStatus.Initial);
+            history.IsExpanded = true;
+            history.TaskFilter = "all";
+            if (history.Projects.Count > 0)
+            {
+                history.Projects[0].IsHistoryOpen = true;
+            }
+
+            var historyPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-history-open.png");
+            Render(history, theme, historyPath);
+            rendered.Add(historyPath);
+        }
+
         foreach (var (name, snapshot) in new[]
         {
             ("dark-empty.png", SyntheticHudScenarios.HealthyEmpty()),
@@ -209,8 +240,10 @@ internal static class HudFixtureRunner
             rendered.Add(settingsPath);
         }
 
+        // The contract's supported content widths: 300/360/480/720 DIPs, short and
+        // tall, plus the light at maximum width and a large window.
         foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
-        foreach (var size in new[] { (320, 220), (280, 720), (320, 720), (440, 620), (480, 720), (900, 700), (640, 260), (1400, 900) })
+        foreach (var size in new[] { (300, 220), (300, 720), (320, 720), (360, 260), (360, 480), (480, 480), (720, 640), (900, 700), (1400, 900) })
         {
             HudThemeManager.Apply(Application.Current, theme);
             var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, LightSize = 128 });
