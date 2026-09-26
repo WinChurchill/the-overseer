@@ -6,8 +6,9 @@ Goal: One integrated implementation/review round for project grouping, activity 
 responsive HUD controls, and an offline baseline voice
 Branch: ux/first-use
 Product base: d869db6 (custom HUD implementation: 5521980)
-Last packaged implementation: **915b735** (`ux/first-use`). The 2026-09-25 Astra
-review fixes below change product code and are newer than that package.
+Last packaged implementation: **763c688** (`ux/first-use`), including the Astra
+monitoring fixes and input/scroll follow-up. Running user HUD remains the older
+5521980 build; the new candidate has not replaced it.
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
@@ -47,9 +48,8 @@ and close behavior, script parameters, and current branch/head. No remaining pla
 blocker identified; actual installed-version and live harness qualification remain gates.
 Documentation diff check passed; no product build/test run is claimed for this review.
 
-Next action: publish a new clean-source candidate containing the review fixes, then
-finish packaged lifecycle and live harness/voice qualification. Preserve the running
-user HUD and live configuration until an intentional replacement/test session.
+Next action: switch to the new candidate in an intentional test session, then finish
+packaged lifecycle and live harness/voice qualification. Preserve live configuration.
 The frozen original four-plan V1 scope documents remain unchanged; this is an explicit
 user-requested post-V1 extension.
 
@@ -75,6 +75,14 @@ renders, representative short/dark and tall/light images inspected; diff check c
 The running process was observed at artifacts/overseer-chrome-5521980, older than
 these changes. It was not replaced during source testing. Updated package preparation
 is recorded separately; live input-alert and scrolling confirmation remain desirable.
+
+Clean-source package from **763c688**: artifacts/input-scroll-release/OVERSEER-v1-win-x64.zip,
+SHA-256 EAE3393ED03FD1FBE3D5BD310FB9D009C1352759C2AC5FD57B2141B0FF7DC5A0.
+Manifest confirms sourceTreeDirty=false. Fresh-extraction smoke **17/17 passed**
+(38 renders, isolated HUD/voice/pack checks, synthetic and readable real monitor).
+Evidence: artifacts/input-scroll-release/smoke/run-20260926T052833Z-5c069e7d/
+smoke-evidence-20260926T052833Z.json. HUD lifecycle explicitly skipped to preserve
+the running user HUD; no audible or live multi-harness qualification claimed.
 
 ### Astra implementation cleanup and adversarial review — 2026-09-25
 
