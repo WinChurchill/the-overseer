@@ -7,8 +7,8 @@ responsive HUD controls, and an offline baseline voice
 Branch: ux/first-use
 Product base: d869db6 (custom HUD implementation: 5521980)
 Last packaged implementation: **763c688** (`ux/first-use`), including the Astra
-monitoring fixes and input/scroll follow-up. Running user HUD remains the older
-5521980 build; the new candidate has not replaced it.
+monitoring fixes and input/scroll follow-up. The user explicitly requested replacement;
+this build is now running from artifacts/overseer-live-763c688.
 
 ## Current Plan Status
 - Astra handoff: reviewed and corrected in ignored `.agent/HANDOFF.md`
@@ -48,14 +48,23 @@ and close behavior, script parameters, and current branch/head. No remaining pla
 blocker identified; actual installed-version and live harness qualification remain gates.
 Documentation diff check passed; no product build/test run is claimed for this review.
 
-Next action: switch to the new candidate in an intentional test session, then finish
-packaged lifecycle and live harness/voice qualification. Preserve live configuration.
+Next action: confirm input-alert/scroll behavior in the running updated HUD and finish
+remaining packaged lifecycle and live harness/voice qualification.
 The frozen original four-plan V1 scope documents remain unchanged; this is an explicit
 user-requested post-V1 extension.
 
 ## Project-centered round — execution (2026-09-24, partial)
 
 ### Follow-up — missed input prompts and scrolling, 2026-09-25
+
+Deployment after explicit user request: package hash verified, old 5521980 instance
+closed through its orderly shutdown handler, and 763c688 launched with the same default
+data directory. New process 51308 is responsive with an OVERSEER window; only one
+OVERSEER process remains. Desktop OVERSEER.lnk now points to the new build. No existing
+configuration value changed; the new app added only project/source configuration fields.
+Voice remains muted with the pack provider. Settings, state and old shortcut backups:
+artifacts/deployment-763c688-20260925-223226. Old binaries retained for rollback.
+This confirms replacement/startup, not the outstanding audible/multi-harness/DPI checks.
 
 Base 79345b2. Current desktop metadata was observed to persist input requests as
 `response_item/function_call` named `request_user_input_async`, with a call ID but
