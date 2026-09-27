@@ -265,7 +265,20 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         // Position first, then show through WPF so IsVisible/layout are real.
         // ShowActivated=false keeps the HUD from taking focus.
+        //
+        // Windows can still make the window the foreground window when it is created
+        // and positioned on a monitor other than the one holding the active window,
+        // even when it is shown without activation and even while it stays hidden. A
+        // HUD that owns the foreground silently swallows the user's typing, so the
+        // window that had focus is remembered here and the guard below returns it.
+        var foregroundBeforeShow = NativeMethods.GetForegroundWindow();
+        _originalExStyle = NativeMethods.GetWindowLongPtr(_handle, NativeMethods.GwlExStyle);
+        _ = NativeMethods.SetWindowLongPtr(
+            _handle,
+            NativeMethods.GwlExStyle,
+            new IntPtr(_originalExStyle.ToInt64() | NativeMethods.WsExNoActivate));
         ApplyGeometry(show: false);
+        StartForegroundGuard(foregroundBeforeShow);
         if (!_dependencies.StartHidden)
         {
             _window.Show();
@@ -288,6 +301,90 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                     }
                 }));
         }
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _foregroundGuard;
+    private bool _userTookFocus;
+    private IntPtr _originalExStyle;
+    private bool _exStyleRestored;
+
+    /// <summary>
+    /// Bounded startup guard: while the HUD is starting up it must never keep a focus
+    /// it was not given. The check runs a few times over the first two seconds because
+    /// the platform can activate the window a moment after it is created, and it stops
+    /// for good as soon as the user interacts with the HUD or asks for it to be shown —
+    /// an explicit request is intent, and the HUD keeps that activation.
+    /// </summary>
+    private void StartForegroundGuard(IntPtr foregroundBeforeShow)
+    {
+        if (_window is null || foregroundBeforeShow == IntPtr.Zero)
+        {
+            return;
+        }
+
+        _window.PreviewMouseDown += (_, _) => _userTookFocus = true;
+        _window.PreviewKeyDown += (_, _) => _userTookFocus = true;
+
+        var ticks = 0;
+        _foregroundGuard = new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background, _window.Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(100),
+        };
+        _foregroundGuard.Tick += (_, _) =>
+        {
+            var guard = _foregroundGuard;
+            if (guard is null || _shuttingDown || _userTookFocus || ++ticks > 20)
+            {
+                guard?.Stop();
+                _foregroundGuard = null;
+                RestoreActivationStyle();
+                return;
+            }
+
+            RestoreForegroundIfTaken(foregroundBeforeShow);
+        };
+        _foregroundGuard.Start();
+    }
+
+    /// <summary>
+    /// Removes the startup no-activate style once the HUD has settled, so ordinary
+    /// interaction (clicking a control, Alt+Tab, keyboard access) behaves normally.
+    /// </summary>
+    private void RestoreActivationStyle()
+    {
+        if (_exStyleRestored || _handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        _exStyleRestored = true;
+        _ = NativeMethods.SetWindowLongPtr(_handle, NativeMethods.GwlExStyle, _originalExStyle);
+    }
+
+    /// <summary>
+    /// Returns focus to the window that had it before the HUD was created. It never
+    /// runs once the user has interacted with the HUD, when the previous window is
+    /// gone, or when the HUD does not actually hold the foreground.
+    /// </summary>
+    private void RestoreForegroundIfTaken(IntPtr foregroundBeforeShow)
+    {
+        if (_handle == IntPtr.Zero || foregroundBeforeShow == _handle)
+        {
+            return;
+        }
+
+        if (NativeMethods.GetForegroundWindow() != _handle)
+        {
+            return;
+        }
+
+        if (!NativeMethods.IsWindow(foregroundBeforeShow))
+        {
+            return;
+        }
+
+        _ = NativeMethods.SetForegroundWindow(foregroundBeforeShow);
     }
 
     /// <summary>Recomputes size/position from state and the live monitor layout.</summary>
