@@ -180,6 +180,18 @@ try {
     $logRoot = Join-Path $evidenceRoot 'logs'
     New-Item -ItemType Directory -Force -Path $extractionRoot, $logRoot | Out-Null
 
+    # Every run below opens a window; decide up front which display it may use, so the
+    # seeded legacy placement can target it too.
+    $secondaryMonitor = Get-SecondaryMonitor
+    $visibleChecksDeferred = -not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary
+    if ($visibleChecksDeferred) {
+        Add-Check 'visible-checks-placement' $false (
+            'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so the windowed upgrade comparison was not run')
+    } else {
+        Add-Check 'visible-checks-placement' $true (
+            $(if ($secondaryMonitor) { 'secondary monitor=' + $secondaryMonitor } else { 'primary display explicitly allowed by request' }))
+    }
+
     $previousRoot = Join-Path $extractionRoot 'previous'
     $candidateRoot = Join-Path $extractionRoot 'candidate'
     Expand-Archive -LiteralPath $previousArchive -DestinationPath $previousRoot -Force
@@ -230,17 +242,6 @@ try {
     $legacySpool = Join-Path $legacyData 'bridges/dsh/legacy-instance'
     New-Item -ItemType Directory -Force -Path $legacySpool | Out-Null
     Set-Content -LiteralPath (Join-Path $legacySpool 'events.jsonl') -Value '' -Encoding utf8
-
-    # Every run below opens a window; keep it off the display in use.
-    $secondaryMonitor = Get-SecondaryMonitor
-    $visibleChecksDeferred = -not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary
-    if ($visibleChecksDeferred) {
-        Add-Check 'visible-checks-placement' $false (
-            'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so the windowed upgrade comparison was not run')
-    } else {
-        Add-Check 'visible-checks-placement' $true (
-            $(if ($secondaryMonitor) { 'secondary monitor=' + $secondaryMonitor } else { 'primary display explicitly allowed by request' }))
-    }
 
     $environment = New-SanitizedEnvironment
     $workingDirectory = Join-Path $evidenceRoot 'cwd'

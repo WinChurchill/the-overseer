@@ -59,6 +59,107 @@ rebuilds/retests/republishes the candidate and refreshes package evidence. Prese
 the existing clean-machine, live-harness, signing/terms and physical qualification
 gaps; no public-release claim, merge, push or live-app replacement is authorized here.
 
+## Astra review-fix continuation — 2026-09-27 (response to CHANGES REQUIRED)
+
+All four findings are closed with regressions, and the newly-enabled secondary-display
+lifecycle check exposed one further product defect that is fixed and measured.
+
+### Findings closed
+
+1. **P1 recursive history restoration — fixed** (`c09399f`). Rebuilding a row set
+   restored `IsHistoryOpen` through the public setter, which raised `HistoryToggled` and
+   re-entered `RefreshActivityNow -> UpdateAges -> SyncRows -> RebuildRows` while the row
+   collections were still being populated (the reproducer stopped at eight nested
+   resets). Task and project rows now restore disclosure through `RestoreHistoryOpen`,
+   which raises only property change; a user toggle is the only thing that notifies.
+   Regressions open task and project history, then change membership, order and state,
+   asserting disclosure survives with at most one rebuild per changed snapshot.
+2. **P2 attention selection — fixed** (`c09399f`). The attention filter was still bounded
+   by the selected time window and the command silently rewrote the saved Recent window
+   to eight hours, so a nine-hour-old request produced an empty list. The attention
+   filter now spans the whole snapshot while keeping stale/provisional marks and the
+   honest global counts, and the command changes only the selected view; the saved view
+   and window are untouched by `All`. Regressions cover an old blocking request, an
+   async needs-you on a working task, and the reset path.
+3. **P3 source health detail — fixed** (`737fbe8`, `c09399f`). `MonitoringSnapshot` now
+   carries an immutable, bounded `SourceHealth` list (harness, source instance, display
+   name, level, reason codes, coverage, its own evidence time and the typed capability
+   record), published by `CompositeMonitorSource` in deterministic harness/instance
+   order. The popup renders one row per source with its own state, its own freshness and
+   the typed distinction observed/supported/not exercised/unsupported/unreadable; the
+   aggregate fallback remains only for publishers without per-source data. Tests cover a
+   healthy Codex plus a silent dsh (the silent row is `3m ago`, never the peer's
+   `0s ago`) and two instances of one harness as separate rows.
+4. **P4 attention episodes — fixed** (`c09399f`). Episodes and first-appearance defaults
+   are now derived from the whole snapshot over the union of current tasks and tracked
+   episodes, not from the displayed subset. A collapsed request that disappears and is
+   followed by a new turn is a new episode that reveals once, a manual collapse inside an
+   episode and collapse-all are never overridden, and no focus or scroll is forced.
+
+### Additional defect found and fixed
+
+**The HUD took focus while starting up** (`dd51ed8`). Enabling the windowed lifecycle
+check on a secondary display exposed it: the HUD became the foreground window about
+0.4 s after launch on the visible, `--no-tray`, `--start-in-tray` and non-topmost paths
+(542 of 547 samples, one takeover from a live external window). A HUD that owns the
+foreground while the user types silently swallows their keystrokes. Two bounded startup
+measures fix it: `WS_EX_NOACTIVATE` from window creation until the first two seconds
+settle (the original extended style is restored afterwards, verified
+`0x08040108 -> 0x00040108`), plus a 20 x 100 ms guard that returns focus to the window
+that had it and stops for good on any user interaction or explicit show request.
+Measured with a foreground probe on both displays: **0 owned samples out of 40** in all
+four configurations, against 542/547 before the fix.
+
+### Visible-check placement (review instruction)
+
+Windowed checks must not open on the display the user is working on. A new
+diagnostics-only argument `--placement-monitor DEVICE` steers a check's own window
+(no setting is written, the saved placement is untouched), and
+`Test-PackagedRelease.ps1` / `Test-ReleaseUpgrade.ps1` enumerate displays, send every
+windowed mode to a non-primary monitor, and seed each isolated lifecycle data
+directory's `state.json` with that monitor. With no non-primary display they **defer**
+the windowed checks with an explicit gap instead of opening them on the display in use
+(`-AllowVisibleChecksOnPrimary` covers a single-display qualification VM). The upgrade
+comparison never passes a new argument to the previous build — a release older than the
+option would reject it with a blocking usage dialog (observed as
+`previous-build-runs exit=-1`) — so its placement is steered through the seeded saved
+state, which every release understands.
+
+### Candidate evidence (review-fix round)
+
+Packaged source commit `c18822d21a28083c4e596314a320d50d1c6c178a`. Commits after it are
+documentation and `scripts/` only, and scripts are not part of the archive payload; the
+repository HEAD is a later docs-only commit.
+
+```text
+archive : artifacts/rc4/OVERSEER-1.0.0-rc.4-win-x64.zip
+sha256  : E6101FA471657DC11C5FCAA184A59CB6F1D8A4A75AAF623122FDCF747A5C31DE
+bytes   : 76815286   entries: 566   integration assets: 73
+identity: FileVersion 1.0.0.0, ProductVersion 1.0.0-rc.4+c18822d, signing NotSigned
+manifest: artifacts/rc4/build-manifest.json
+smoke   : artifacts/rc4/smoke/run-20260927T232228Z-5d48094d/smoke-evidence-20260927T232228Z.json
+upgrade : artifacts/rc4/upgrade/run-20260927T232702Z-7041adaf/upgrade-evidence-20260927T232702Z.json
+```
+
+| Check | Result |
+| --- | --- |
+| Release build | 0 warnings / 0 errors |
+| .NET tests | **681 passed**, 0 failed, 0 skipped |
+| dsh / Claude bridge suites | **30/30** and **21/21** |
+| Renders (`--hud-fixture`) | **46 PNGs**, both themes, 300/360/480/720 DIP, attention filter, open history, and the open health detail |
+| Production-path check | **14/14**, in-process and from the extracted archive, now including "the released file stops degrading the source" (Codex back to live) |
+| Packaged smoke | **41/41 passed, 0 failed, no skipped block**, windowed checks on `\\.\DISPLAY2` |
+| Upgrade `ad35e6d` → rc.4 | **9/9 passed** on copies of one data directory |
+| Focus probe | 0 owned foreground samples of 40 per configuration on both displays |
+| `git diff --check` | clean |
+
+### Still open (unchanged external qualification)
+
+No clean Windows machine or VM, no live `dsh` observer attach and no Claude Code CLI,
+no signing or distribution decision, no physical DPI/Snap/monitor-removal/sleep-wake or
+audible playback check, and no rollback execution. Public-release readiness is not
+claimed; the candidate is an internal RC.
+
 ## Planning update — 2026-09-26
 
 User requested a repository-grounded diagnosis combining HUD simplification with
