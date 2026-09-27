@@ -255,6 +255,24 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     /// <summary>Raised when the user discloses or closes this row's history.</summary>
     public event EventHandler? HistoryToggled;
 
+    /// <summary>
+    /// Restores persisted disclosure state without raising <see cref="HistoryToggled"/>.
+    /// A rebuilt row is a replacement, not a user action: raising the event here
+    /// re-entered the owner's refresh, which rebuilt the rows while the collections were
+    /// still being populated (unbounded recursion). Only the user's own toggle notifies.
+    /// </summary>
+    public void RestoreHistoryOpen(bool open)
+    {
+        if (_isHistoryOpen == open)
+        {
+            return;
+        }
+
+        _isHistoryOpen = open;
+        Raise(nameof(IsHistoryOpen));
+        Raise(nameof(HistoryAutomationName));
+    }
+
     public string HistoryAutomationName =>
         (_isHistoryOpen ? "Hide" : "Show") + " the last hour for task #" +
         Number.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + Label;

@@ -91,6 +91,24 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
     /// <summary>Raised when the user discloses or closes this project's history.</summary>
     public event EventHandler? HistoryToggled;
 
+    /// <summary>
+    /// Restores persisted disclosure state without raising <see cref="HistoryToggled"/>,
+    /// so rebuilding the row set cannot re-enter the owner's refresh (the project path
+    /// had the same reentrancy as the task path).
+    /// </summary>
+    public void RestoreHistoryOpen(bool open)
+    {
+        if (_isHistoryOpen == open)
+        {
+            return;
+        }
+
+        _isHistoryOpen = open;
+        Raise(nameof(IsHistoryOpen));
+        Raise(nameof(HistoryAutomationName));
+        Raise(nameof(HeaderTooltip));
+    }
+
     public string HistoryAutomationName =>
         (_isHistoryOpen ? "Hide" : "Show") + " the last hour for project " + Name;
 

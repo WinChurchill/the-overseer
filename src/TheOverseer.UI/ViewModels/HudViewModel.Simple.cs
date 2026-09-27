@@ -62,9 +62,9 @@ public sealed partial class HudViewModel
     public ICommand SetTaskFilterCommand { get; private set; } = null!;
 
     /// <summary>
-    /// Attention first: it opens the attention filter and, when the current view
-    /// would hide a known attention row, widens to the Recent window so the summary
-    /// can never point at a filter that shows nothing.
+    /// Attention first: it opens the attention filter, which spans every known pending
+    /// request rather than the selected time window. It never rewrites the user's saved
+    /// Recent window as a side effect; only the selected view changes.
     /// </summary>
     public ICommand ShowAttentionCommand { get; private set; } = null!;
 
@@ -78,16 +78,7 @@ public sealed partial class HudViewModel
         ShowAttentionCommand = new RelayCommand(() =>
         {
             TaskFilter = "attention";
-            if (HasHiddenAttention())
-            {
-                TaskView = "recent";
-                RecentHours = Math.Max(RecentHours, 8);
-            }
-            else
-            {
-                TaskView = "now";
-            }
-
+            TaskView = "now";
             IsExpanded = true;
         });
         ShowWorkingCommand = new RelayCommand(() =>
@@ -107,25 +98,6 @@ public sealed partial class HudViewModel
         "working" => "working",
         _ => "all",
     };
-
-    /// <summary>True when an attention row exists that the Now view would exclude.</summary>
-    private bool HasHiddenAttention()
-    {
-        if (_latestSnapshot is not { } snapshot)
-        {
-            return false;
-        }
-
-        foreach (var task in snapshot.Tasks)
-        {
-            if (IsAttention(task) && !IsCurrent(task, _viewNow))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     /// <summary>Attention includes async needs-you on a working task, not just blocking states.</summary>
     internal static bool IsAttention(AgentTask task) =>
@@ -165,96 +137,136 @@ public sealed partial class HudViewModel
         private set => Set(ref _healthNextAction, value);
     }
 
+    /// <summary>Rows shown in the health popup before the list is summarized.</summary>
+    public const int MaximumHealthRows = 8;
+
     /// <summary>
-    /// Builds the per-source detail from source-prefixed reasons and the aggregated
-    /// capability notes. No paths, no session content: reason codes and status words
-    /// only.
+    /// Builds the health detail. When the snapshot carries typed per-source health, each
+    /// row is one source with its own instance identity, level, reason codes, evidence
+    /// freshness and typed capability set. The aggregate fallback exists only for a
+    /// publisher that does not describe separate sources (single-source monitors and
+    /// synthetic fixtures); no free-text capability note is ever parsed.
     /// </summary>
     private void UpdateHealthProjection(MonitoringSnapshot snapshot, DateTimeOffset now)
     {
         HealthLabel = HealthLabelFor(snapshot);
+        var rows = snapshot.Sources.Count > 0
+            ? FromSources(snapshot.Sources, now)
+            : FromAggregate(snapshot, now);
+        HealthDetails = rows;
+        HealthNextAction = rows
+            .Select(static row => row.Action)
+            .FirstOrDefault(static action => !string.Equals(action, NoAction, StringComparison.Ordinal)) ?? NoAction;
+    }
+
+    private const string NoAction = "No action needed.";
+
+    /// <summary>One row per reporting source, bounded and in the snapshot's own order.</summary>
+    private static IReadOnlyList<HealthSourceDetail> FromSources(IReadOnlyList<SourceHealth> sources, DateTimeOffset now)
+    {
+        var rows = new List<HealthSourceDetail>(Math.Min(sources.Count, MaximumHealthRows) + 1);
+        for (var index = 0; index < sources.Count && index < MaximumHealthRows; index++)
+        {
+            var source = sources[index];
+            rows.Add(new HealthSourceDetail(
+                HudText.ShortHarness(source.HarnessId),
+                source.SourceInstanceId,
+                StateText(source),
+                HudText.CapabilityDetail(source.Capabilities),
+                HudText.Freshness(source.EvidenceAt, now),
+                FirstAction(source.Reasons)));
+        }
+
+        if (sources.Count > MaximumHealthRows)
+        {
+            var hidden = sources.Count - MaximumHealthRows;
+            rows.Add(new HealthSourceDetail(
+                "+" + hidden.ToString(System.Globalization.CultureInfo.InvariantCulture) + " more sources",
+                string.Empty,
+                "not shown",
+                "requests: not shown",
+                string.Empty,
+                "Source list is bounded; the oldest entries are omitted."));
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Fallback for a snapshot without typed per-source health: group the source-prefixed
+    /// reason codes and report the aggregate freshness as the aggregate's own.
+    /// </summary>
+    private static IReadOnlyList<HealthSourceDetail> FromAggregate(MonitoringSnapshot snapshot, DateTimeOffset now)
+    {
         var freshness = HudText.Freshness(snapshot.Health.LastSuccessfulReadAt, now);
         var rows = new List<HealthSourceDetail>(4);
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var worstAction = string.Empty;
         foreach (var reason in snapshot.Health.Reasons)
         {
             var code = HudText.ReasonCode(reason);
             var source = HudText.ReasonSource(reason);
-            var key = source + "|" + code;
-            if (!seen.Add(key))
+            if (!seen.Add(source + "|" + code))
             {
                 continue;
-            }
-
-            var action = HudText.ReasonAction(code);
-            if (worstAction.Length == 0 && !string.Equals(action, "No action needed.", StringComparison.Ordinal))
-            {
-                worstAction = action;
             }
 
             rows.Add(new HealthSourceDetail(
                 source.Length == 0 ? "Monitoring" : HudText.ShortHarness(source),
+                string.Empty,
                 code,
-                action,
-                source.Length == 0 ? string.Empty : freshness));
-        }
-
-        // Every source that reported capabilities is listed even when healthy, so a
-        // working harness is visible next to a degraded one.
-        foreach (var harness in CapabilitySources(snapshot.Capabilities))
-        {
-            if (rows.Any(row => string.Equals(row.Source, HudText.ShortHarness(harness), StringComparison.Ordinal)))
-            {
-                continue;
-            }
-
-            rows.Add(new HealthSourceDetail(HudText.ShortHarness(harness), "reporting", "No action needed.", freshness));
+                HudText.CapabilityDetail(snapshot.Capabilities),
+                freshness,
+                HudText.ReasonAction(code)));
         }
 
         if (rows.Count == 0)
         {
-            rows.Add(new HealthSourceDetail("Monitoring", snapshot.Health.CoverageComplete ? "complete" : "partial coverage",
-                "No action needed.", freshness));
+            rows.Add(new HealthSourceDetail(
+                "Monitoring",
+                string.Empty,
+                snapshot.Health.CoverageComplete ? "complete" : "partial coverage",
+                HudText.CapabilityDetail(snapshot.Capabilities),
+                freshness,
+                NoAction));
         }
 
-        HealthDetails = rows;
-        HealthNextAction = worstAction.Length > 0 ? worstAction : "No action needed.";
+        return rows;
     }
 
-    /// <summary>Harness ids present in the aggregated capability notes ("dsh:supported").</summary>
-    private static IEnumerable<string> CapabilitySources(MonitorCapabilities capabilities)
+    private static string StateText(SourceHealth source)
     {
-        var notes = new[]
+        var state = source.Level switch
         {
-            capabilities.LifecycleEvents.Note,
-            capabilities.StructuredActivity.Note,
-            capabilities.PermissionRequests.Note,
-            capabilities.InputRequests.Note,
-            capabilities.TaskFailureEvidence.Note,
-            capabilities.SessionTitles.Note,
-            capabilities.AttentionLiveVerification.Note,
+            MonitoringHealthLevel.Unavailable => "not readable",
+            MonitoringHealthLevel.Degraded => "limited",
+            _ => "live",
         };
-        var found = new List<string>(3);
-        foreach (var note in notes)
+        if (!source.CoverageComplete)
         {
-            foreach (var token in note.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var separator = token.IndexOf(':');
-                if (separator <= 0)
-                {
-                    continue;
-                }
+            state += " · partial";
+        }
 
-                var harness = token[..separator];
-                if (HarnessIds.IsKnown(harness) && !found.Contains(HarnessIds.Normalize(harness)))
-                {
-                    found.Add(HarnessIds.Normalize(harness));
-                }
+        var codes = source.Reasons
+            .Select(HudText.ReasonCode)
+            .Where(static code => code.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Take(3)
+            .ToArray();
+        return codes.Length == 0 ? state : state + " · " + string.Join(", ", codes);
+    }
+
+    private static string FirstAction(IReadOnlyList<string> reasons)
+    {
+        foreach (var reason in reasons)
+        {
+            var action = HudText.ReasonAction(reason);
+            if (!string.Equals(action, NoAction, StringComparison.Ordinal))
+            {
+                return action;
             }
         }
 
-        return found;
+        return NoAction;
     }
 
     private static string HealthLabelFor(MonitoringSnapshot snapshot)
@@ -306,11 +318,26 @@ public sealed partial class HudViewModel
     }
 }
 
-/// <summary>One source's health line in the pinned health details.</summary>
-public sealed record HealthSourceDetail(string Source, string State, string Action, string Freshness)
+/// <summary>
+/// One source's health line in the pinned health details: harness, source instance,
+/// state with its own reason codes, its own evidence freshness, the typed capability
+/// distinction and one next action. Provider-instance identity is what keeps two
+/// instances of the same harness apart.
+/// </summary>
+public sealed record HealthSourceDetail(
+    string Source,
+    string Instance,
+    string State,
+    string Capability,
+    string Freshness,
+    string Action)
 {
-    /// <summary>One readable line: source, state, freshness and next action.</summary>
-    public string Description => Freshness.Length > 0
-        ? Source + " · " + State + " · " + Freshness + " — " + Action
-        : Source + " · " + State + " — " + Action;
+    /// <summary>Source and instance, e.g. "dsh · dsh-default".</summary>
+    public string Title => Instance.Length > 0 ? Source + " · " + Instance : Source;
+
+    /// <summary>State and this source's own evidence freshness.</summary>
+    public string Detail => Freshness.Length > 0 ? State + " · " + Freshness : State;
+
+    /// <summary>One readable line for automation, tooltips and tests.</summary>
+    public string Description => Title + " · " + Detail + " — " + Action + " (" + Capability + ")";
 }

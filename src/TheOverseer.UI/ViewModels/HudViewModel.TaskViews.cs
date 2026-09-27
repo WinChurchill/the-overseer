@@ -73,12 +73,15 @@ public sealed partial class HudViewModel
     }
 
     /// <summary>
-    /// The view selects a time window; the filter narrows it to attention or
-    /// working rows. Counts are never recomputed here: the summary keeps describing
-    /// all monitored work even while a filter hides rows.
+    /// Selection is view + filter, with one deliberate exception: the attention filter
+    /// spans the whole snapshot instead of the selected time window. A pending request
+    /// that is old, stale or outside the Recent window is still a request the user has
+    /// to answer, and the summary must never lead to a filter that shows nothing.
+    /// Stale and provisional rows keep their own marks, so uncertainty stays visible.
+    /// Counts are never recomputed here: the summary keeps describing all monitored work.
     /// </summary>
     private IReadOnlyList<AgentTask> SelectTasks(IReadOnlyList<AgentTask> tasks, DateTimeOffset now) =>
-        tasks.Where(task => MatchesView(task, now) && MatchesFilter(task)).ToArray();
+        tasks.Where(task => MatchesFilter(task) && (MatchesView(task, now) || _taskFilter == "attention")).ToArray();
 
     private bool MatchesView(AgentTask task, DateTimeOffset now) => TaskView switch
     {

@@ -403,7 +403,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         MonitoringTitle = "MONITORING UNAVAILABLE";
         MonitoringDetail = "monitor stopped · " + code;
         HealthLabel = "Monitoring offline";
-        HealthDetails = new[] { new HealthSourceDetail("Monitoring", "stopped", "Restart OVERSEER to resume monitoring.", string.Empty) };
+        HealthDetails = new[]
+        {
+            new HealthSourceDetail(
+                "Monitoring", string.Empty, "stopped", "requests: unknown", string.Empty,
+                "Restart OVERSEER to resume monitoring."),
+        };
         HealthNextAction = "Restart OVERSEER to resume monitoring.";
         HealthLine = MonitoringTitle + " · " + MonitoringDetail;
         Tasks.Clear();
@@ -559,6 +564,13 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     private void SyncRows(MonitoringSnapshot snapshot, DateTimeOffset now)
     {
         _generatedAt = snapshot.GeneratedAt;
+        // Expansion defaults and attention episodes come from the whole snapshot, before
+        // the filtered selection decides which rows are shown.
+        if (ApplyProjectStateDefaults(snapshot.Tasks))
+        {
+            ApplyProjectExpansion();
+        }
+
         // Select first (Now/Recent/This session), then group, then order the projects
         // attention -> active -> recent. Rows of one project stay contiguous so the
         // project order is the group order and cannot jitter between ticks.
@@ -621,16 +633,13 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         Tasks.Clear();
         Projects.Clear();
         _lastActivity.Clear();
-        // First-appearance expansion defaults and a new attention episode are decided
-        // before the rows exist, so a rebuilt row can never override a user's choice.
-        ApplyFirstAppearanceDefaults(entries);
         for (var index = 0; index < entries.Length; index++)
         {
             var (task, group) = entries[index];
             var row = new TaskRowViewModel(task, CanNavigate(task), NavigationHint(task), group.Key, group.Label, group.Meta,
                 group.ProjectId, !IsProjectCollapsed(group.ProjectId));
             row.HistoryToggled += OnTaskHistoryToggled;
-            row.IsHistoryOpen = _openTaskHistory.Contains(task.Key);
+            row.RestoreHistoryOpen(_openTaskHistory.Contains(task.Key));
             Tasks.Add(row);
             _lastActivity.Add(task.LastActivityAt);
         }
@@ -655,7 +664,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             var project = new ProjectRowViewModel(group.Project, group.Key, rows, group.Working, group.NeedsHuman, group.Partial, group.Harnesses);
             project.SetExpanded(!IsProjectCollapsed(group.ProjectId));
             project.HistoryToggled += OnProjectHistoryToggled;
-            project.IsHistoryOpen = _openProjectHistory.Contains(group.ProjectId);
+            project.RestoreHistoryOpen(_openProjectHistory.Contains(group.ProjectId));
             Projects.Add(project);
             start = end;
         }
@@ -673,52 +682,99 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     private readonly HashSet<ProjectId> _openProjectHistory = new();
     private readonly HashSet<TaskKey> _openTaskHistory = new();
 
-    /// <summary>
-    /// First appearance expands attention/active projects and collapses settled ones;
-    /// afterwards a user's choice is preserved. A genuinely new attention episode
-    /// (needs-you appears again for a project that did not have one) reveals that
-    /// project once without focus, without changing the selected view and without
-    /// scrolling. The reveal is skipped when the user collapsed everything themselves.
-    /// </summary>
-    private void ApplyFirstAppearanceDefaults((AgentTask Task, ProjectGroup Group)[] entries)
+    /// <summary>Per-project facts a project-state decision needs.</summary>
+    private struct ProjectActivity
     {
-        var handled = new HashSet<ProjectId>();
-        foreach (var (_, group) in entries)
+        public bool Attention;
+
+        public bool Working;
+
+        public bool Active => Attention || Working;
+    }
+
+    /// <summary>
+    /// Expansion defaults and attention episodes are derived from the <b>full</b>
+    /// snapshot, never from the displayed subset. A filter or a time window can hide a
+    /// request, and a project can lose every displayed row between two snapshots; both
+    /// must still start and end an episode correctly. Tracking the union of the current
+    /// task set and the tracked episode set is what makes "a request disappears, then a
+    /// new turn asks again" a genuinely new episode that may reveal once.
+    ///
+    /// First appearance expands attention/active projects and collapses settled ones;
+    /// afterwards a user's choice is preserved. The reveal is skipped while the user has
+    /// collapsed that project inside the current episode, and while everything is
+    /// collapsed, so a rebuild never fights the user. Returns true when an expansion
+    /// decision changed, so the caller can apply it to the existing rows.
+    /// </summary>
+    private bool ApplyProjectStateDefaults(IReadOnlyList<AgentTask> allTasks)
+    {
+        var states = new Dictionary<ProjectId, ProjectActivity>();
+        foreach (var task in allTasks)
         {
-            if (!handled.Add(group.ProjectId))
+            var id = task.AssignedProject.Id;
+            if (!states.TryGetValue(id, out var state))
             {
+                state = new ProjectActivity();
+                states[id] = state;
+            }
+
+            if (IsAttention(task))
+            {
+                state.Attention = true;
+            }
+
+            if (task.State == AgentTaskState.Working && !task.IsStale)
+            {
+                state.Working = true;
+            }
+
+            states[id] = state;
+        }
+
+        // Projects with an open episode are considered even when they currently have no
+        // tasks at all: that absence is exactly what ends the episode.
+        var considered = new HashSet<ProjectId>(_attentionEpisodes);
+        foreach (var id in states.Keys)
+        {
+            considered.Add(id);
+        }
+
+        var changed = false;
+        foreach (var id in considered)
+        {
+            var present = states.TryGetValue(id, out var state);
+            var attention = present && state.Attention;
+
+            if (_knownProjects.Add(id))
+            {
+                if (!present || !state.Active)
+                {
+                    changed |= _collapsedProjects.Add(id);
+                }
+
+                if (attention)
+                {
+                    _attentionEpisodes.Add(id);
+                }
+
                 continue;
             }
 
-            var active = group.NeedsHuman > 0 || group.Working > 0;
-            if (_knownProjects.Add(group.ProjectId))
+            if (attention)
             {
-                if (!active)
+                if (_attentionEpisodes.Add(id) && !_userCollapsedInEpisode.Contains(id) && !_allCollapsed)
                 {
-                    _collapsedProjects.Add(group.ProjectId);
-                }
-
-                if (group.NeedsHuman > 0)
-                {
-                    _attentionEpisodes.Add(group.ProjectId);
-                }
-
-                continue;
-            }
-
-            if (group.NeedsHuman > 0)
-            {
-                if (_attentionEpisodes.Add(group.ProjectId) && !_userCollapsedInEpisode.Contains(group.ProjectId) && !_allCollapsed)
-                {
-                    _collapsedProjects.Remove(group.ProjectId);
+                    changed |= _collapsedProjects.Remove(id);
                 }
             }
-            else
+            else if (_attentionEpisodes.Remove(id))
             {
-                _attentionEpisodes.Remove(group.ProjectId);
-                _userCollapsedInEpisode.Remove(group.ProjectId);
+                // The episode is over: the next request is a new one and may reveal once.
+                _userCollapsedInEpisode.Remove(id);
             }
         }
+
+        return changed;
     }
 
     private bool IsProjectHistoryOpen(ProjectId projectId) => _openProjectHistory.Contains(projectId);

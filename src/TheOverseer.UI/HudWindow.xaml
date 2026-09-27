@@ -351,10 +351,25 @@
       <UniformGrid Rows="1" />
     </ItemsPanelTemplate>
 
+    <!-- One reporting source: identity, its own state and evidence freshness, the typed
+         capability distinction and one next action. -->
     <DataTemplate x:Key="HealthDetailTemplate">
-      <StackPanel Margin="0,5,0,0">
-        <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+      <StackPanel Margin="0,6,0,0" ToolTip="{Binding Description}"
+                  automation:AutomationProperties.Name="{Binding Description}">
+        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"
                    FontFamily="{DynamicResource MetadataFontFamily}"
+                   FontSize="{DynamicResource FontSizeMeta}"
+                   Foreground="{DynamicResource ForegroundBrush}" />
+        <TextBlock Text="{Binding Detail}" TextWrapping="Wrap"
+                   FontFamily="{DynamicResource MetadataFontFamily}"
+                   FontSize="{DynamicResource FontSizeMeta}"
+                   Foreground="{DynamicResource MutedBrush}" />
+        <TextBlock Text="{Binding Capability}" TextWrapping="Wrap"
+                   FontFamily="{DynamicResource MetadataFontFamily}"
+                   FontSize="{DynamicResource FontSizeMeta}"
+                   Foreground="{DynamicResource MutedBrush}" />
+        <TextBlock Text="{Binding Action}" TextWrapping="Wrap"
+                   FontFamily="{DynamicResource PrimaryFontFamily}"
                    FontSize="{DynamicResource FontSizeMeta}"
                    Foreground="{DynamicResource ForegroundBrush}" />
       </StackPanel>

@@ -263,7 +263,240 @@ public sealed class HudViewModelTests
         Assert.Contains("no supported open route", dshOnly.FooterHint, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ---- 2026-09-27 review fixes ---------------------------------------------
+
+    private static readonly DateTimeOffset ReviewNow = new(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+
+    private static AgentTask ReviewTask(
+        string conversation,
+        AgentTaskState state = AgentTaskState.Working,
+        bool needsHuman = false,
+        bool stale = false,
+        DateTimeOffset? lastActivity = null,
+        string turnId = "turn-1")
+    {
+        var at = lastActivity ?? ReviewNow;
+        return VoiceTestData.Task(key: TaskKey.For(HarnessIds.Codex, "codex", conversation), state: state, needsHuman: needsHuman, stale: stale, turnId: turnId) with
+        {
+            ConversationId = conversation,
+            LastActivityAt = at,
+            FirstSeenAt = at,
+            StateSince = at,
+            Project = new ProjectDescriptor(ProjectId.FromKey("review"), "Review", @"C:\synthetic", ProjectResolution.ConfiguredRoot),
+        };
+    }
+
+    private static MonitoringSnapshot ReviewSnapshot(
+        DateTimeOffset at,
+        params AgentTask[] tasks) => VoiceTestData.Snapshot(at, tasks) with
+        {
+            Health = new MonitoringHealth(MonitoringHealthLevel.Healthy, Array.Empty<string>(), true, at, at),
+        };
+
+    /// <summary>
+    /// Restoring disclosure state must not re-enter the row rebuild. Rebuilding a row
+    /// set for a membership/order/state change used to fire the toggle event while the
+    /// collections were half-populated, which rebuilt recursively.
+    /// </summary>
+    [Fact]
+    public void TaskHistoryDisclosureSurvivesRebuildsWithoutRecursion()
+    {
+        var viewModel = new HudViewModel(new HudSettings());
+        var first = ReviewTask("conv-1");
+        var second = ReviewTask("conv-2");
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow, first));
+        viewModel.IsExpanded = true;
+        viewModel.Tasks[0].IsHistoryOpen = true;
+
+        var resets = 0;
+        viewModel.Tasks.CollectionChanged += (_, change) =>
+        {
+            if (change.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset && ++resets > 4)
+            {
+                throw new InvalidOperationException("rows were rebuilt recursively");
+            }
+        };
+
+        // Membership change: a second task arrives.
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(1), first, second));
+        Assert.Equal(2, viewModel.Tasks.Count);
+        Assert.True(viewModel.Tasks.Single(row => row.Key.ConversationId == "conv-1").IsHistoryOpen);
+
+        // Reorder plus state change, then removal of the disclosed row.
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(2), second, first with { State = AgentTaskState.NeedsInput, NeedsHuman = true }));
+        Assert.True(viewModel.Tasks.Single(row => row.Key.ConversationId == "conv-1").IsHistoryOpen);
+        Assert.False(viewModel.Tasks.Single(row => row.Key.ConversationId == "conv-2").IsHistoryOpen);
+
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(3), second));
+        Assert.Single(viewModel.Tasks);
+        Assert.True(resets <= 4, "each changed snapshot rebuilds at most once");
+    }
+
+    [Fact]
+    public void ProjectHistoryDisclosureSurvivesRebuildsWithoutRecursion()
+    {
+        var viewModel = new HudViewModel(new HudSettings());
+        var first = ReviewTask("conv-1");
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow, first));
+        viewModel.IsExpanded = true;
+        viewModel.Projects[0].IsHistoryOpen = true;
+        Assert.True(viewModel.AnyProjectHistoryOpen);
+
+        var resets = 0;
+        viewModel.Projects.CollectionChanged += (_, change) =>
+        {
+            if (change.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset && ++resets > 4)
+            {
+                throw new InvalidOperationException("projects were rebuilt recursively");
+            }
+        };
+
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(1), first with { State = AgentTaskState.NeedsInput, NeedsHuman = true }));
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(2), first with { TurnId = "turn-2" }));
+
+        Assert.True(viewModel.Projects[0].IsHistoryOpen);
+        Assert.True(viewModel.AnyProjectHistoryOpen);
+        Assert.True(resets <= 4, "each changed snapshot rebuilds at most once");
+    }
+
+    /// <summary>
+    /// A pending request is a request regardless of age, so the attention filter spans
+    /// the whole snapshot. It must not rewrite the saved Recent window either.
+    /// </summary>
+    [Fact]
+    public void NeedsYouExposesOldPendingAttentionWithoutRewritingTheSavedWindow()
+    {
+        var viewModel = new HudViewModel(new HudSettings { TaskView = "recent", RecentHours = 2 });
+        var oldBlocking = ReviewTask("old", AgentTaskState.NeedsInput, needsHuman: true, stale: true, lastActivity: ReviewNow.AddHours(-9));
+        var oldAsync = ReviewTask("async", AgentTaskState.Working, needsHuman: true, lastActivity: ReviewNow.AddHours(-5));
+        var recent = ReviewTask("recent", AgentTaskState.Working, lastActivity: ReviewNow.AddMinutes(-1));
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow, oldBlocking, oldAsync, recent) with { Counts = new MonitoringCounts(
+            CountValue.Known(2), CountValue.Partial(2), CountValue.Known(0), CountValue.Known(1), CountValue.Known(0), CountValue.Known(0), CountValue.Known(0), CountValue.Known(3)) });
+
+        // The Recent window hides both old requests.
+        Assert.Equal(new[] { "recent" }, viewModel.Tasks.Select(static row => row.Key.ConversationId).ToArray());
+
+        viewModel.ShowAttentionCommand.Execute(null);
+
+        Assert.True(viewModel.IsFilterAttention);
+        Assert.Equal("now", viewModel.TaskView);
+        Assert.Equal(2, viewModel.RecentHours);
+        Assert.Equal(
+            new[] { "async", "old" },
+            viewModel.Tasks.Select(static row => row.Key.ConversationId).OrderBy(static id => id, StringComparer.Ordinal).ToArray());
+        // Uncertainty stays visible on the rows that carry it.
+        var stale = viewModel.Tasks.Single(row => row.Key.ConversationId == "old");
+        Assert.True(stale.IsStale);
+        Assert.Contains("stale", stale.RowSubtitle, StringComparison.OrdinalIgnoreCase);
+        Assert.True(viewModel.Tasks.Single(row => row.Key.ConversationId == "async").NeedsHuman);
+        // Counts keep describing all monitored work, not the filtered rows.
+        Assert.Equal("2+", viewModel.NeedsHumanCountText);
+
+        // All is the reset: the saved view and window come back untouched.
+        viewModel.ShowAllTasksCommand.Execute(null);
+        Assert.True(viewModel.IsFilterAll);
+        Assert.Equal("now", viewModel.TaskView);
+        Assert.Equal(2, viewModel.RecentHours);
+        Assert.Equal(2, viewModel.Tasks.Count);
+    }
+
+    /// <summary>
+    /// Each source carries its own evidence time, so a fresh peer can never renew a
+    /// silent source's displayed freshness, and two instances of one harness stay apart.
+    /// </summary>
+    [Fact]
+    public void HealthDetailsUseEachSourcesOwnEvidenceAndInstanceIdentity()
+    {
+        var viewModel = new HudViewModel(new HudSettings());
+        var observed = MonitorCapabilities.Initial with
+        {
+            PermissionRequests = new CapabilityStatus(CapabilitySupport.LiveObserved, "codex", "codex"),
+            InputRequests = new CapabilityStatus(CapabilitySupport.LiveObserved, "codex", "codex"),
+        };
+        var unsupported = MonitorCapabilities.Initial with
+        {
+            PermissionRequests = new CapabilityStatus(CapabilitySupport.Unsupported, "bridge", "bridge"),
+            InputRequests = new CapabilityStatus(CapabilitySupport.Unavailable, "bridge", "bridge"),
+        };
+        var snapshot = CompleteSnapshot(1, 0, ReviewTask("conv-1")) with
+        {
+            GeneratedAt = ReviewNow,
+            Sources = new[]
+            {
+                new SourceHealth(HarnessIds.Codex, "codex", "Codex", MonitoringHealthLevel.Healthy, Array.Empty<string>(), true, ReviewNow, observed),
+                new SourceHealth(HarnessIds.Dsh, "dsh-a", "DeepSeek Harness (dsh-a)", MonitoringHealthLevel.Unavailable, new[] { "source-silent" }, false, ReviewNow.AddMinutes(-2), unsupported),
+                new SourceHealth(HarnessIds.Dsh, "dsh-b", "DeepSeek Harness (dsh-b)", MonitoringHealthLevel.Degraded, new[] { "bridge-stale-or-incomplete" }, false, ReviewNow.AddSeconds(-5), unsupported),
+            },
+        };
+
+        viewModel.ApplySnapshot(snapshot);
+
+        Assert.Equal(3, viewModel.HealthDetails.Count);
+        var codex = viewModel.HealthDetails[0];
+        Assert.Equal("Codex · codex", codex.Title);
+        Assert.Contains("live", codex.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("0s ago", codex.Freshness, StringComparison.Ordinal);
+        Assert.Contains("observed", codex.Capability, StringComparison.Ordinal);
+
+        var silent = viewModel.HealthDetails[1];
+        Assert.Equal("dsh · dsh-a", silent.Title);
+        Assert.Contains("not readable", silent.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("source-silent", silent.Detail, StringComparison.Ordinal);
+        // The healthy peer's freshness must not leak into this row.
+        Assert.Contains("2m ago", silent.Freshness, StringComparison.Ordinal);
+        Assert.DoesNotContain("0s ago", silent.Freshness, StringComparison.Ordinal);
+        Assert.Contains("unsupported", silent.Capability, StringComparison.Ordinal);
+        Assert.Contains("unreadable", silent.Capability, StringComparison.Ordinal);
+
+        // Two instances of one harness are separate rows with separate freshness.
+        var second = viewModel.HealthDetails[2];
+        Assert.Equal("dsh · dsh-b", second.Title);
+        Assert.Contains("limited", second.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("5s ago", second.Freshness, StringComparison.Ordinal);
+
+        // The next action comes from the worst reported condition, not from the label.
+        Assert.Contains("stopped publishing", viewModel.HealthNextAction, StringComparison.OrdinalIgnoreCase);
+        Assert.True(viewModel.HealthDetails.All(static row => row.Description.Length > 0));
+    }
+
+    /// <summary>
+    /// A request that is collapsed, disappears and then asks again in a new turn is a
+    /// new episode: it may reveal once. Within one episode a manual collapse wins, and
+    /// collapse-all is never overridden.
+    /// </summary>
+    [Fact]
+    public void AttentionEpisodeIsDerivedFromTheWholeSnapshot()
+    {
+        var viewModel = new HudViewModel(new HudSettings());
+        var requesting = ReviewTask("conv-1", AgentTaskState.NeedsInput, needsHuman: true);
+        var quiet = ReviewTask("conv-1", AgentTaskState.Working);
+
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow, requesting));
+        viewModel.IsExpanded = true;
+        Assert.True(viewModel.Projects[0].IsExpanded);
+
+        // The user collapses the requesting project: the same episode must not reopen it.
+        viewModel.ToggleProject(viewModel.Projects[0]);
+        Assert.False(viewModel.Projects[0].IsExpanded);
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(1), requesting));
+        Assert.False(viewModel.Projects[0].IsExpanded);
+
+        // The request is answered and the tasks leave the snapshot entirely.
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(2), quiet));
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(3)));
+
+        // A new turn asks again: that is a new episode and reveals the project once.
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(4), requesting with { TurnId = "turn-2" }));
+        Assert.True(viewModel.Projects[0].IsExpanded);
+
+        // Collapse-all stays authoritative for the rest of the episode.
+        viewModel.SetAllProjectsExpanded(false);
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow.AddSeconds(5), requesting with { TurnId = "turn-2" }));
+        Assert.False(viewModel.Projects[0].IsExpanded);
+    }
+
     private const double HudSettingsMaximumOpacity = 1.0;
+
 
     private static MonitoringSnapshot CompleteSnapshot(int working, int needsHuman, params AgentTask[] extra)
     {

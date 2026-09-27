@@ -277,6 +277,25 @@ public static class HudText
         return "approval requests: " + Support(permission) + " · input requests: " + Support(input);
     }
 
+    /// <summary>
+    /// Typed capability distinction for one source's request detection. These are the
+    /// states the health detail must not blur: observed (seen live), supported
+    /// (implemented and contract-verified), not exercised, unsupported (the host cannot
+    /// expose it) and unreadable (present in principle, not readable now).
+    /// </summary>
+    public static string CapabilityDetail(MonitorCapabilities capabilities) =>
+        "requests: approval " + CapabilityWord(capabilities.PermissionRequests.Support) +
+        ", input " + CapabilityWord(capabilities.InputRequests.Support);
+
+    public static string CapabilityWord(CapabilitySupport support) => support switch
+    {
+        CapabilitySupport.LiveObserved => "observed",
+        CapabilitySupport.Supported => "supported",
+        CapabilitySupport.NotExercised => "not exercised",
+        CapabilitySupport.Unavailable => "unreadable",
+        _ => "unsupported",
+    };
+
     public static string Support(CapabilitySupport support) => support switch
     {
         CapabilitySupport.Supported => "supported",
