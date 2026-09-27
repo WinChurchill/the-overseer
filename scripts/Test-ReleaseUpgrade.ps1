@@ -26,7 +26,11 @@ param(
     [Parameter(Mandatory = $true)][string] $CandidateArchivePath,
     [string] $EvidenceDirectory = 'artifacts/upgrade',
     [ValidateRange(2, 600)][int] $DurationSeconds = 5,
-    [switch] $KeepExtraction
+    [switch] $KeepExtraction,
+    # Both runs open a HUD window. It goes to a non-primary display so the comparison
+    # never appears on the display the user is working on; on a single-display machine
+    # the windowed comparison is deferred with an explicit gap unless this is passed.
+    [switch] $AllowVisibleChecksOnPrimary
 )
 
 Set-StrictMode -Version Latest
@@ -43,6 +47,22 @@ function Add-Check([string] $name, [bool] $passed, [string] $detail) {
 }
 
 function Write-Step([string] $message) { Write-Host ('==> ' + $message) }
+
+# A display the user is not working on; empty when the machine has only one.
+function Get-SecondaryMonitor {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $secondary = [System.Windows.Forms.Screen]::AllScreens |
+            Where-Object { -not $_.Primary } |
+            Sort-Object -Property DeviceName |
+            Select-Object -First 1
+        if ($secondary) { return [string]$secondary.DeviceName }
+    } catch {
+        Write-Warning ('display enumeration failed: ' + $_.Exception.Message)
+    }
+
+    return ''
+}
 
 function Resolve-UnderRoot([string] $path, [string] $root) {
     if ([System.IO.Path]::IsPathRooted($path)) { return [System.IO.Path]::GetFullPath($path) }
@@ -197,12 +217,25 @@ try {
     New-Item -ItemType Directory -Force -Path $legacySpool | Out-Null
     Set-Content -LiteralPath (Join-Path $legacySpool 'events.jsonl') -Value '' -Encoding utf8
 
+    # Every run below opens a window; keep it off the display in use.
+    $secondaryMonitor = Get-SecondaryMonitor
+    $visibleChecksDeferred = -not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary
+    if ($visibleChecksDeferred) {
+        Add-Check 'visible-checks-placement' $false (
+            'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so the windowed upgrade comparison was not run')
+    } else {
+        Add-Check 'visible-checks-placement' $true (
+            $(if ($secondaryMonitor) { 'secondary monitor=' + $secondaryMonitor } else { 'primary display explicitly allowed by request' }))
+    }
+
     $environment = New-SanitizedEnvironment
     $workingDirectory = Join-Path $evidenceRoot 'cwd'
     New-Item -ItemType Directory -Force -Path $workingDirectory | Out-Null
 
     Write-Step 'running the previous build against the legacy data directory'
-    $previousRun = Invoke-PackagedRun $previousExe 'previous-run' @('--hud-smoke', '--duration', [string]$DurationSeconds, '--data-directory', $legacyData) $environment $workingDirectory $logRoot ($DurationSeconds + 120)
+    $previousArguments = @('--hud-smoke', '--duration', [string]$DurationSeconds, '--data-directory', $legacyData)
+    if ($secondaryMonitor) { $previousArguments += @('--placement-monitor', $secondaryMonitor) }
+    $previousRun = Invoke-PackagedRun $previousExe 'previous-run' $previousArguments $environment $workingDirectory $logRoot ($DurationSeconds + 120)
     Add-Check 'previous-build-runs' ($previousRun.ExitCode -eq 0) ('exit=' + $previousRun.ExitCode)
     $afterPrevious = Get-SettingsSnapshot $legacyData
 
@@ -211,7 +244,9 @@ try {
     $candidateData = Join-Path $evidenceRoot 'candidate-data'
     Copy-Item -LiteralPath $legacyData -Destination $candidateData -Recurse -Force
     Write-Step 'running the candidate build against the copied data directory'
-    $candidateRun = Invoke-PackagedRun $candidateExe 'candidate-run' @('--hud-smoke', '--duration', [string]$DurationSeconds, '--data-directory', $candidateData) $environment $workingDirectory $logRoot ($DurationSeconds + 120)
+    $candidateArguments = @('--hud-smoke', '--duration', [string]$DurationSeconds, '--data-directory', $candidateData)
+    if ($secondaryMonitor) { $candidateArguments += @('--placement-monitor', $secondaryMonitor) }
+    $candidateRun = Invoke-PackagedRun $candidateExe 'candidate-run' $candidateArguments $environment $workingDirectory $logRoot ($DurationSeconds + 120)
     Add-Check 'candidate-build-runs' ($candidateRun.ExitCode -eq 0) ('exit=' + $candidateRun.ExitCode)
     $afterCandidate = Get-SettingsSnapshot $candidateData
 
@@ -256,6 +291,8 @@ try {
             'Windows startup entry rewrite',
             'rollback from candidate to previous release'
         )
+        visibleChecksDeferred = [bool]$visibleChecksDeferred
+        visibleCheckMonitor = $secondaryMonitor
         generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
         checks = @($script:Checks)
     }
