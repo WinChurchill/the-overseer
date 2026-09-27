@@ -285,7 +285,9 @@ public sealed class CompositeMonitorSource : IMonitorSource
             var readable = new List<(SourceInstance Source, MonitorCapabilities Capabilities)>();
             var observation = LiveObservationStats.Empty;
             var anyReadable = false;
+            var perSource = new List<SourceHealth>(sources.Length);
             DateTimeOffset? lastEvidence = null;
+            var now = _timeProvider.GetUtcNow();
 
             foreach (var stored in sources)
             {
@@ -346,7 +348,19 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 {
                     reasons.Add(source.Source.HarnessId + ":" + reason);
                 }
+
+                // Typed per-source health for consumers that need source-specific detail.
+                // The evidence time is this source's own, so a fresh peer can never
+                // renew a stalled source's displayed freshness.
+                perSource.Add(SourceHealth.From(source, now));
             }
+
+            // Deterministic order: harness, then instance identity.
+            perSource.Sort(static (left, right) =>
+            {
+                var byHarness = string.CompareOrdinal(left.HarnessId, right.HarnessId);
+                return byHarness != 0 ? byHarness : string.CompareOrdinal(left.SourceInstanceId, right.SourceInstanceId);
+            });
 
             if (SourcesTruncated)
             {
@@ -372,7 +386,6 @@ public sealed class CompositeMonitorSource : IMonitorSource
             var capabilities = MonitorCapabilities.Aggregate(readable);
             var counts = ComputeCounts(tasks, coverage && anyReadable, anyReadable);
             if (tasks.Any(task => !task.IsStale && task.State == AgentTaskState.Working)) _allCompleteArmed = true;
-            var now = _timeProvider.GetUtcNow();
             if (_allCompleteArmed && coverage && anyReadable && tasks.Count > 0 &&
                 tasks.All(task => !task.IsStale && !task.IsProvisional && task.State == AgentTaskState.Done) &&
                 transitions.Any(transition => transition.Kind == AttentionEventKind.TaskCompleted))
@@ -393,7 +406,10 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 tasks,
                 DedupeTransitions(transitions, coverage),
                 capabilities,
-                observation);
+                observation)
+            {
+                Sources = perSource.Count == 0 ? Array.Empty<SourceHealth>() : perSource.ToArray(),
+            };
             _current = merged;
             // Deliver in the same serialized order as source replacement. Subscribers
             // enqueue UI work; they must not block waiting for another publication.

@@ -554,4 +554,43 @@ public sealed class CompositeMonitorTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    /// <summary>
+    /// The composite carries typed per-source health, each with its own evidence time
+    /// and identity, so a consumer never parses reason prefixes or borrows a peer's
+    /// freshness.
+    /// </summary>
+    [Fact]
+    public async Task SnapshotCarriesTypedPerSourceHealthWithItsOwnEvidenceTime()
+    {
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        await using var composite = new CompositeMonitorSource(new IAgentMonitorAdapter[] { codex, dsh }, NullMonitorLog.Instance);
+        await composite.StartAsync(CancellationToken.None);
+
+        var silentAt = Start.AddMinutes(-5);
+        codex.Push(MonitoringHealthLevel.Healthy, true, new[] { BuildTask(HarnessIds.Codex, "codex", "conv-1", AgentTaskState.Working) }, observedAt: Start, evidenceAt: Start);
+        dsh.Push(MonitoringHealthLevel.Unavailable, false, Array.Empty<AgentTask>(), observedAt: silentAt, evidenceAt: silentAt);
+
+        var snapshot = composite.Current;
+        Assert.Equal(2, snapshot.Sources.Count);
+        // Deterministic order: harness, then instance identity.
+        Assert.Equal(new[] { HarnessIds.Codex, HarnessIds.Dsh }, snapshot.Sources.Select(static source => source.HarnessId).ToArray());
+
+        var codexHealth = snapshot.Sources[0];
+        var dshHealth = snapshot.Sources[1];
+        Assert.Equal("codex", codexHealth.SourceInstanceId);
+        Assert.Equal(Start, codexHealth.EvidenceAt);
+        Assert.True(codexHealth.IsReadable);
+
+        Assert.Equal("dsh-default", dshHealth.SourceInstanceId);
+        Assert.Equal(silentAt, dshHealth.EvidenceAt);
+        Assert.False(dshHealth.IsReadable);
+        Assert.False(dshHealth.CoverageComplete);
+
+        // The aggregate evidence time is the newest readable source; the silent source
+        // keeps its own older time and can never be presented as freshly read.
+        Assert.Equal(Start, snapshot.Health.LastSuccessfulReadAt);
+        Assert.NotEqual(snapshot.Health.LastSuccessfulReadAt, dshHealth.EvidenceAt);
+    }
 }

@@ -50,6 +50,14 @@ public sealed record MonitoringSnapshot(
     MonitorCapabilities Capabilities,
     LiveObservationStats Observation)
 {
+    /// <summary>
+    /// Per-source health, evidence and capabilities, in a stable order. Empty when the
+    /// publisher is a single-source monitor that does not describe separate sources;
+    /// consumers fall back to the aggregate health in that case. Immutable and bounded
+    /// by the source limit, so it can be carried on every snapshot.
+    /// </summary>
+    public IReadOnlyList<SourceHealth> Sources { get; init; } = Array.Empty<SourceHealth>();
+
     public static MonitoringSnapshot Empty(DateTimeOffset now) => new(
         now,
         MonitoringHealth.Unavailable(new[] { HealthReasons.RootMissing }, now),
