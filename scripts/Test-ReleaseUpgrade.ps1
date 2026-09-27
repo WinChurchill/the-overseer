@@ -205,7 +205,21 @@ try {
 }
 '@
     Set-Content -LiteralPath (Join-Path $legacyData 'config.json') -Value $legacyConfig -Encoding utf8
-    Set-Content -LiteralPath (Join-Path $legacyData 'state.json') -Value '{"version":1,"isExpanded":true,"monitorDevice":"LEGACY-MONITOR","offsetXDips":123.5,"offsetYDips":77.25,"dpiScale":1.0,"savedAtUtc":"2026-01-02T03:04:05.0000000Z"}' -Encoding utf8
+    # Placement is steered through the saved state, not through a command-line option:
+    # the previous build may predate --placement-monitor and would reject it with a
+    # blocking usage dialog. A release older than that option still honors its own
+    # saved monitor, which is what this seeds.
+    $legacyMonitor = if ($secondaryMonitor) { $secondaryMonitor } else { 'LEGACY-MONITOR' }
+    $legacyPlacement = [ordered]@{
+        version = 1
+        isExpanded = $true
+        monitorDevice = $legacyMonitor
+        offsetXDips = 123.5
+        offsetYDips = 77.25
+        dpiScale = 1.0
+        savedAtUtc = '2026-01-02T03:04:05.0000000Z'
+    }
+    $legacyPlacement | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $legacyData 'state.json') -Encoding utf8
     $legacyWav = Join-Path $legacyData 'voicepacks/custom/input.wav'
     $wavBytes = [byte[]](0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
         0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00, 0x00, 0x02, 0x00,
@@ -233,9 +247,9 @@ try {
     New-Item -ItemType Directory -Force -Path $workingDirectory | Out-Null
 
     Write-Step 'running the previous build against the legacy data directory'
-    $previousArguments = @('--hud-smoke', '--duration', [string]$DurationSeconds, '--data-directory', $legacyData)
-    if ($secondaryMonitor) { $previousArguments += @('--placement-monitor', $secondaryMonitor) }
-    $previousRun = Invoke-PackagedRun $previousExe 'previous-run' $previousArguments $environment $workingDirectory $logRoot ($DurationSeconds + 120)
+    # The previous build is never given an argument it may not know: placement comes
+    # from the saved state seeded above, which every release understands.
+    $previousRun = Invoke-PackagedRun $previousExe 'previous-run' @('--hud-smoke', '--duration', [string]$DurationSeconds, '--data-directory', $legacyData) $environment $workingDirectory $logRoot ($DurationSeconds + 120)
     Add-Check 'previous-build-runs' ($previousRun.ExitCode -eq 0) ('exit=' + $previousRun.ExitCode)
     $afterPrevious = Get-SettingsSnapshot $legacyData
 
@@ -280,6 +294,7 @@ try {
         candidateVersion = $candidateRelease.version
         candidateFileVersion = $candidateVersion
         candidateSourceCommit = $candidateRelease.sourceCommit
+        seededPlacementMonitor = $legacyMonitor
         settingsAfterPrevious = $afterPrevious
         settingsAfterCandidate = $afterCandidate
         candidateChangedSettings = $candidateChanged

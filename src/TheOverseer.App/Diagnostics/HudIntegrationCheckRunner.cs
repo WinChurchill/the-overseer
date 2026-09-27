@@ -67,9 +67,12 @@ internal static class HudIntegrationCheckRunner
             ReconcileInterval = TimeSpan.FromSeconds(1),
             DebounceInterval = TimeSpan.FromMilliseconds(100),
             StaleLease = TimeSpan.FromMinutes(10),
-            // A shorter retention than the 60-second default, so one finite run can
-            // observe a removed file being released and the source recovering.
+            // Shorter bounds than the defaults, so one finite run can observe a removed
+            // file being released and its reason clearing instead of the default
+            // one-minute backoff hiding the behaviour behind a timeout.
             MissingFileRetention = TimeSpan.FromSeconds(12),
+            FailureBackoffInitial = TimeSpan.FromSeconds(1),
+            FailureBackoffMax = TimeSpan.FromSeconds(4),
         };
 
         var projects = new ProjectResolver(new ProjectSettings());
@@ -195,14 +198,15 @@ internal static class HudIntegrationCheckRunner
                 "applied " + before.ToString(CultureInfo.InvariantCulture) + " -> " + after.ToString(CultureInfo.InvariantCulture) +
                 " " + Summarize(viewModel));
 
-            // Does a reason recorded while a tracked file was unreadable clear once the
-            // source is healthy again? A latched reason would leave the HUD at limited
-            // coverage forever, so this is asserted rather than assumed.
-            await Task.Delay(8000).ConfigureAwait(true);
-            var clearedHealth = !viewModel.HealthDetails.Any(static row =>
+            // The removed file must actually be released: until then it keeps its own
+            // reason on the source and its task unobservable. A latched reason would
+            // leave the HUD at limited coverage forever, so this waits for the release
+            // instead of asserting a weaker condition.
+            var released = await WaitAsync(() => !viewModel.HealthDetails.Any(static row =>
                 row.Source.Contains("Codex", StringComparison.OrdinalIgnoreCase) &&
-                row.State.Contains("read-failure", StringComparison.OrdinalIgnoreCase));
-            Check("source-health-clears-after-recovery", clearedHealth, Summarize(viewModel));
+                (row.State.Contains("file-missing", StringComparison.OrdinalIgnoreCase) ||
+                 row.State.Contains("stale-tasks", StringComparison.OrdinalIgnoreCase))), 45);
+            Check("released-file-stops-degrading-the-source", released, Summarize(viewModel));
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
