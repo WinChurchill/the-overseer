@@ -48,6 +48,13 @@ public sealed class StartupArguments
 
     public string? OutputDirectory { get; private init; }
 
+    /// <summary>
+    /// Diagnostics/test placement: start the HUD window on this monitor device instead
+    /// of the saved or primary one. It exists so automated checks can run on a display
+    /// the user is not working on; it changes no setting and persists nothing.
+    /// </summary>
+    public string? PlacementMonitor { get; private init; }
+
     public bool IsFixtureInvocation =>
         HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || VoiceSmoke || VoicePackCheck;
 
@@ -69,6 +76,7 @@ public sealed class StartupArguments
         string? codexHome = null;
         string? dataDirectory = null;
         string? outputDirectory = null;
+        string? placementMonitor = null;
 
         for (var index = 0; index < args.Count; index++)
         {
@@ -140,6 +148,15 @@ public sealed class StartupArguments
 
                     outputDirectory = args[++index];
                     break;
+                case "--placement-monitor":
+                    if (index + 1 >= args.Count)
+                    {
+                        error = "missing value for --placement-monitor";
+                        return false;
+                    }
+
+                    placementMonitor = args[++index];
+                    break;
                 default:
                     error = "unknown argument: " + args[index];
                     return false;
@@ -168,6 +185,7 @@ public sealed class StartupArguments
             CodexHome = codexHome,
             DataDirectory = dataDirectory,
             OutputDirectory = outputDirectory,
+            PlacementMonitor = placementMonitor,
         };
         return true;
     }
@@ -179,7 +197,10 @@ public sealed class StartupArguments
        TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)
        TheOverseer.App --hud-integration-check [--output-directory DIR]   (invented producers through the real monitor and HUD)
        TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]
-       TheOverseer.App --voice-pack-check [--data-directory PATH]";
+       TheOverseer.App --voice-pack-check [--data-directory PATH]
+
+       --placement-monitor DEVICE   diagnostics/tests: start the HUD on this monitor
+                                    (for example \\.\DISPLAY2) instead of the saved one";
 }
 
 public static class DataDirectoryResolver

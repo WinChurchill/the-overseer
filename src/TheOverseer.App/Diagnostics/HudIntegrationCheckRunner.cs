@@ -52,6 +52,7 @@ internal static class HudIntegrationCheckRunner
 
         Console.WriteLine("OVERSEER production-path integration check (invented producers, isolated data)");
         Console.WriteLine("root: " + root);
+        Console.WriteLine("placement monitor: " + (string.IsNullOrWhiteSpace(arguments.PlacementMonitor) ? "(saved or primary)" : arguments.PlacementMonitor));
 
         var codex = new SyntheticCodexProducer(codexHome);
         var dsh = new SyntheticBridgeProducer(dataDirectory, HarnessIds.Dsh, "dsh-check");
@@ -106,7 +107,7 @@ internal static class HudIntegrationCheckRunner
             new IntegrationClipboard(),
             NullMonitorLog.Instance,
             MonitorConfigStore.Load(configPath).Config,
-            HudStateStore.Load(statePath).State,
+            HudPlacementOptions.WithMonitor(HudStateStore.Load(statePath).State, arguments.PlacementMonitor),
             new HudControllerPaths(dataDirectory, configPath, statePath),
             () => new HudWindow { ShowActivated = false },
             TimeProvider.System,

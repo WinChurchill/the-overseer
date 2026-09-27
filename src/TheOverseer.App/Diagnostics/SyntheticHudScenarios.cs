@@ -109,7 +109,27 @@ public static class SyntheticHudScenarios
                 needsHuman: false, stale: false, provisional: false, minutesAgo: 45),
         };
 
-        return Snapshot(tasks, MonitoringHealthLevel.Degraded, new[] { "stale-tasks", "discovery-backlog" }, coverageComplete: false, known: true);
+        // Typed per-source health, so the preview shows the real shape of the health
+        // detail: a degraded Codex, a silent dsh and a stale Claude bridge.
+        return Snapshot(tasks, MonitoringHealthLevel.Degraded, new[] { "stale-tasks", "discovery-backlog" }, coverageComplete: false, known: true) with
+        {
+            Sources = new[]
+            {
+                new SourceHealth(
+                    HarnessIds.Codex, "codex", "Codex", MonitoringHealthLevel.Degraded,
+                    new[] { "stale-tasks", "discovery-backlog" }, false, Now.AddSeconds(-2),
+                    MonitorCapabilities.Initial with
+                    {
+                        InputRequests = new CapabilityStatus(CapabilitySupport.LiveObserved, "input-requests", "observed"),
+                    }),
+                new SourceHealth(
+                    HarnessIds.Dsh, "dsh-default", "DeepSeek Harness (dsh-default)", MonitoringHealthLevel.Unavailable,
+                    new[] { "source-silent" }, false, Now.AddMinutes(-3), MonitorCapabilities.ForBridge(HarnessIds.Dsh, true)),
+                new SourceHealth(
+                    HarnessIds.Claude, "claude-default", "Claude Code (claude-default)", MonitoringHealthLevel.Degraded,
+                    new[] { "bridge-stale-or-incomplete" }, false, Now.AddSeconds(-20), MonitorCapabilities.ForBridge(HarnessIds.Claude, false)),
+            },
+        };
     }
 
     /// <summary>One project with three tasks: the single-project render case.</summary>

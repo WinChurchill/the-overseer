@@ -28,7 +28,11 @@ param(
     [switch] $AllowUnavailableMonitor,
     [switch] $SkipHudLifecycle,
     [switch] $SkipBridgeTests,
-    [switch] $KeepExtraction
+    [switch] $KeepExtraction,
+    # Visible checks normally run on a non-primary display so a user working on the
+    # primary one is never disturbed. Pass this only on a machine where nothing else
+    # is using the primary display (for example a clean qualification VM).
+    [switch] $AllowVisibleChecksOnPrimary
 )
 
 Set-StrictMode -Version Latest
@@ -45,6 +49,40 @@ function Add-Check([string] $name, [bool] $passed, [string] $detail) {
 }
 
 function Write-Step([string] $message) { Write-Host ('==> ' + $message) }
+
+# A display the user is not working on, so windowed checks open there. Returns an
+# empty string when the machine has only one display.
+function Get-SecondaryMonitor {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $secondary = [System.Windows.Forms.Screen]::AllScreens |
+            Where-Object { -not $_.Primary } |
+            Sort-Object -Property DeviceName |
+            Select-Object -First 1
+        if ($secondary) { return [string]$secondary.DeviceName }
+    } catch {
+        Write-Warning ('display enumeration failed: ' + $_.Exception.Message)
+    }
+
+    return ''
+}
+
+# Seeds an isolated run's saved placement so its window opens on the chosen display.
+# It never touches the user's real data directory or any system display setting.
+function Set-IsolatedPlacement([string] $dataDirectory, [string] $monitorDevice) {
+    if (-not $monitorDevice) { return }
+    New-Item -ItemType Directory -Force -Path $dataDirectory | Out-Null
+    $state = [ordered]@{
+        version = 1
+        isExpanded = $false
+        monitorDevice = $monitorDevice
+        offsetXDips = 80
+        offsetYDips = 100
+        dpiScale = 1.0
+        savedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    $state | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dataDirectory 'state.json') -Encoding utf8
+}
 
 function Resolve-UnderRoot([string] $path, [string] $root) {
     if ([System.IO.Path]::IsPathRooted($path)) { return [System.IO.Path]::GetFullPath($path) }
@@ -344,6 +382,19 @@ Add-Check 'extraction-no-private-payload' ($offending.Count -eq 0) ('files=' + $
 $sanitized = New-SanitizedEnvironment
 Add-Check 'child-environment-sanitized' ($sanitized.Leaks.Count -eq 0) ('removed=' + ($sanitized.Removed -join ',') + ' leaks=' + ($sanitized.Leaks -join ','))
 
+# ---- visible-check placement -------------------------------------------------
+# Every check that opens a window runs on a display the user is not working on, or it
+# is deferred with an explicit gap instead of appearing on the display in use.
+$secondaryMonitor = Get-SecondaryMonitor
+$visibleChecksDeferred = -not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary
+if ($visibleChecksDeferred) {
+    Add-Check 'visible-checks-placement' $false (
+        'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so no windowed check was opened on the display in use')
+} else {
+    Add-Check 'visible-checks-placement' $true (
+        $(if ($secondaryMonitor) { 'secondary monitor=' + $secondaryMonitor } else { 'primary display explicitly allowed by request' }))
+}
+
 # An unrelated working directory: neither the repository nor the extraction.
 $workingDirectory = Join-Path $evidenceRoot ('cwd-' + $stamp)
 New-Item -ItemType Directory -Force -Path $workingDirectory | Out-Null
@@ -358,15 +409,29 @@ $renders = @(Get-ChildItem -LiteralPath $fixtureDirectory -Filter '*.png' -File 
 $largeRenders = @($renders | Where-Object { $_.Length -gt 1024 })
 Add-Check 'hud-fixture-renders' ($renders.Count -ge $FixtureMinimumRenders -and $largeRenders.Count -eq $renders.Count) ('renders=' + $renders.Count + ' nonEmpty=' + $largeRenders.Count + ' minimum=' + $FixtureMinimumRenders)
 
-$hudSmoke = Invoke-FiniteMode $executable 'hud-smoke' @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', (Join-Path $evidenceRoot 'hud-smoke-data')) $sanitized.Environment $workingDirectory $logRoot ($HudSmokeSeconds + 90) @(0)
+if ($visibleChecksDeferred) {
+    Add-Check 'hud-smoke' $false 'deferred: no non-primary display available for a windowed run'
+} else {
+    $hudSmokeArguments = @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', (Join-Path $evidenceRoot 'hud-smoke-data'))
+    if ($secondaryMonitor) { $hudSmokeArguments += @('--placement-monitor', $secondaryMonitor) }
+    $hudSmoke = Invoke-FiniteMode $executable 'hud-smoke' $hudSmokeArguments $sanitized.Environment $workingDirectory $logRoot ($HudSmokeSeconds + 90) @(0)
+}
 
 # Production-path integration check: invented Codex and bridge producer files
 # through the real readers, composite and controller, asserting the applied state.
-$integrationCheck = Invoke-FiniteMode $executable 'hud-integration-check' @('--hud-integration-check', '--output-directory', (Join-Path $evidenceRoot 'integration-check')) $sanitized.Environment $workingDirectory $logRoot 300 @(0)
-$integrationPassed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check PASS ')).Count
-$integrationFailed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check FAIL ')).Count
-Add-Check 'hud-integration-check' ($integrationCheck.ExitCode -eq 0 -and $integrationFailed -eq 0 -and $integrationPassed -ge 13) (
-    'exit=' + $integrationCheck.ExitCode + ' passed=' + $integrationPassed + ' failed=' + $integrationFailed)
+if ($visibleChecksDeferred) {
+    Add-Check 'hud-integration-check' $false 'deferred: no non-primary display available for a windowed run'
+} else {
+    $integrationArguments = @('--hud-integration-check', '--output-directory', (Join-Path $evidenceRoot 'integration-check'))
+    if ($secondaryMonitor) { $integrationArguments += @('--placement-monitor', $secondaryMonitor) }
+    $integrationCheck = Invoke-FiniteMode $executable 'hud-integration-check' $integrationArguments $sanitized.Environment $workingDirectory $logRoot 300 @(0)
+}
+if (-not $visibleChecksDeferred) {
+    $integrationPassed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check PASS ')).Count
+    $integrationFailed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check FAIL ')).Count
+    Add-Check 'hud-integration-check' ($integrationCheck.ExitCode -eq 0 -and $integrationFailed -eq 0 -and $integrationPassed -ge 14) (
+        'exit=' + $integrationCheck.ExitCode + ' passed=' + $integrationPassed + ' failed=' + $integrationFailed)
+}
 
 # The shipped bridge assets must be usable from the extraction alone.
 if ($SkipBridgeTests) {
@@ -471,8 +536,20 @@ $wavBytes = [byte[]](0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41,
 $legacyWavHash = (Get-FileHash -LiteralPath $legacyWav -Algorithm SHA256).Hash
 
 # Duration 5 keeps the finite smoke below its second scenario tick, so the run
-# exercises loading and persisting a legacy directory without toggling its theme.
-$upgradeRun = Invoke-FiniteMode $executable 'upgrade-legacy-settings' @('--hud-smoke', '--duration', '5', '--data-directory', $legacyData) $sanitized.Environment $workingDirectory $logRoot 180 @(0)
+# exercises loading and persisting a legacy directory without toggling its theme. The
+# seeded legacy monitor is deliberately unknown; the placement argument keeps the
+# window off the display in use while the legacy state is still read and validated.
+if ($visibleChecksDeferred) {
+    Add-Check 'upgrade-legacy-settings' $false 'deferred: no non-primary display available for a windowed run'
+    Add-Check 'upgrade-settings-preserved' $false 'deferred with the legacy run'
+    Add-Check 'upgrade-project-and-source-settings-preserved' $false 'deferred with the legacy run'
+    Add-Check 'upgrade-placement-file-stays-valid' $false 'deferred with the legacy run'
+    Add-Check 'upgrade-custom-recording-preserved' $false 'deferred with the legacy run'
+    Add-Check 'upgrade-bridge-spool-is-data-directory-rooted' $false 'deferred with the legacy run'
+} else {
+$upgradeArguments = @('--hud-smoke', '--duration', '5', '--data-directory', $legacyData)
+if ($secondaryMonitor) { $upgradeArguments += @('--placement-monitor', $secondaryMonitor) }
+$upgradeRun = Invoke-FiniteMode $executable 'upgrade-legacy-settings' $upgradeArguments $sanitized.Environment $workingDirectory $logRoot 180 @(0)
 $upgradedConfig = Get-Content -LiteralPath (Join-Path $legacyData 'config.json') -Raw | ConvertFrom-Json
 $upgradedState = Get-Content -LiteralPath (Join-Path $legacyData 'state.json') -Raw | ConvertFrom-Json
 $mappingKept = @($upgradedConfig.project.mappings | Where-Object { $_.projectKey -eq 'legacy-project' -and $_.root -eq 'C:\legacy\work' }).Count -eq 1
@@ -509,12 +586,25 @@ New-Item -ItemType Directory -Force -Path $upgradeSpool | Out-Null
 Set-Content -LiteralPath (Join-Path $upgradeSpool 'events.jsonl') -Value '' -Encoding utf8
 $spoolKept = Test-Path -LiteralPath (Join-Path $legacyData 'bridges/dsh/legacy-instance/events.jsonl')
 Add-Check 'upgrade-bridge-spool-is-data-directory-rooted' ([bool]$spoolKept) ('path=' + $upgradeSpool)
+}
 
 # ---- normal HUD lifecycle ----------------------------------------------------
-if (-not $SkipHudLifecycle) {
+if ($visibleChecksDeferred) {
+    Add-Check 'hud-live-process-alive' $false 'deferred: no non-primary display available for a windowed run'
+    Add-Check 'hud-live-window-visible' $false 'deferred with the live run'
+    Add-Check 'hud-live-no-focus-steal' $false 'deferred with the live run'
+    Add-Check 'hud-live-second-instance' $false 'deferred with the live run'
+    Add-Check 'hud-live-graceful-close' $false 'deferred with the live run'
+    Add-Check 'hud-live-persisted-state' $false 'deferred with the live run'
+    Add-Check 'hud-tray-hidden-startup' $false 'deferred with the live run'
+    Add-Check 'hud-tray-close-keeps-session' $false 'deferred with the live run'
+    Add-Check 'hud-no-tray-visible-fallback' $false 'deferred with the live run'
+    Add-Check 'hud-no-tray-graceful-close' $false 'deferred with the live run'
+} elseif (-not $SkipHudLifecycle) {
     $liveData = Join-Path $evidenceRoot 'hud-live-data'
-    New-Item -ItemType Directory -Force -Path $liveData | Out-Null
-    Write-Step ('hud-live: launching for ' + $HudSeconds + 's from ' + $workingDirectory)
+    # The isolated run's own saved placement targets the display the user is not on.
+    Set-IsolatedPlacement $liveData $secondaryMonitor
+    Write-Step ('hud-live: launching for ' + $HudSeconds + 's from ' + $workingDirectory + ' on ' + $(if ($secondaryMonitor) { $secondaryMonitor } else { 'the primary display (explicitly allowed)' }))
     Set-Content -LiteralPath (Join-Path $liveData 'config.json') -Value '{"hud":{"theme":"light"},"voice":{"muted":true}}' -Encoding utf8
     $liveHandle = Start-PackagedProcess $executable @('--data-directory', $liveData) $sanitized.Environment $workingDirectory
     $live = $liveHandle.Process
@@ -654,6 +744,7 @@ if (-not $SkipHudLifecycle) {
         # --start-in-tray --no-tray must still present a controllable window.
         Write-Step 'hud-no-tray: hidden request with tray disabled must stay usable'
         $noTrayData = Join-Path $evidenceRoot 'hud-notray-data'
+        Set-IsolatedPlacement $noTrayData $secondaryMonitor
         $noTrayHandle = Start-PackagedProcess $executable @('--start-in-tray', '--no-tray', '--data-directory', $noTrayData) $sanitized.Environment $workingDirectory
         $noTray = $noTrayHandle.Process
         Start-Sleep -Seconds 15
@@ -701,6 +792,8 @@ $evidence = [ordered]@{
     hudSeconds = $HudSeconds
     monitorSeconds = $MonitorSeconds
     hudLifecycleSkipped = [bool]$SkipHudLifecycle
+    visibleChecksDeferred = [bool]$visibleChecksDeferred
+    visibleCheckMonitor = $secondaryMonitor
     focusTakeovers = @($focusTransitions)
     realMonitorUnavailable = $realDebug.ExitCode -eq 2
     fullDurationChecks = $HudSeconds -ge 60 -and $MonitorSeconds -ge 60 -and $HudSmokeSeconds -ge 15 -and $SyntheticMonitorSeconds -ge 15

@@ -189,6 +189,21 @@ internal static class HudFixtureRunner
             rendered.Add(historyPath);
         }
 
+        // Health detail with typed per-source rows. A Popup renders in its own window,
+        // so its content is measured and captured directly.
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            var health = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+            health.ApplySnapshot(scenarios[0]);
+            health.IsExpanded = true;
+            health.IsHealthOpen = true;
+            var healthPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-health-details.png");
+            if (RenderPopupContent(health, theme, healthPath, "HealthPopup"))
+            {
+                rendered.Add(healthPath);
+            }
+        }
+
         foreach (var (name, snapshot) in new[]
         {
             ("dark-empty.png", SyntheticHudScenarios.HealthyEmpty()),
@@ -278,6 +293,54 @@ internal static class HudFixtureRunner
         RenderWindow(window, path);
     }
 
+    /// <summary>
+    /// Renders an open popup's content. Returns false when the popup produced no layout,
+    /// so a fixture never writes an empty image and claims it as evidence.
+    /// </summary>
+    private static bool RenderPopupContent(HudViewModel viewModel, HudTheme theme, string path, string popupName)
+    {
+        HudThemeManager.Apply(Application.Current, theme);
+        var window = new HudWindow
+        {
+            DataContext = viewModel, ShowActivated = false, ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = -4000, Top = -4000, Width = ExpandedWidth, Height = ExpandedHeight,
+        };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
+            if (window.FindName(popupName) is not System.Windows.Controls.Primitives.Popup popup ||
+                popup.Child is not FrameworkElement content)
+            {
+                return false;
+            }
+
+            content.UpdateLayout();
+            if (content.ActualWidth <= 0 || content.ActualHeight <= 0)
+            {
+                return false;
+            }
+
+            const double scale = 2.0;
+            var bitmap = new RenderTargetBitmap(
+                (int)Math.Ceiling(content.ActualWidth * scale),
+                (int)Math.Ceiling(content.ActualHeight * scale),
+                96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            bitmap.Render(content);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var stream = File.Create(path);
+            encoder.Save(stream);
+            return true;
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     private static void RenderWindow(Window window, string path)
     {
         try
@@ -361,7 +424,7 @@ internal static class HudFixtureRunner
             new FakeClipboardWriter(),
             TheOverseer.Core.Diagnostics.NullMonitorLog.Instance,
             MonitorConfigStore.Load(configPath).Config,
-            HudStateStore.Load(statePath).State,
+            HudPlacementOptions.WithMonitor(HudStateStore.Load(statePath).State, arguments.PlacementMonitor),
             new HudControllerPaths(dataDirectory, configPath, statePath),
             () => new HudWindow(),
             TimeProvider.System,
@@ -372,6 +435,7 @@ internal static class HudFixtureRunner
         Console.WriteLine("OVERSEER HUD smoke (synthetic input, isolated data, finite run)");
         Console.WriteLine("data-directory: " + dataDirectory);
         Console.WriteLine("duration: " + arguments.Duration.TotalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture) + "s");
+        Console.WriteLine("placement monitor: " + (string.IsNullOrWhiteSpace(arguments.PlacementMonitor) ? "(saved or primary)" : arguments.PlacementMonitor));
 
         var advance = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromSeconds(3) };
         var scenario = 0;
