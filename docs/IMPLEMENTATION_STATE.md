@@ -1,5 +1,64 @@
 # OVERSEER Implementation State
 
+## Astra review — 2026-09-27 — CHANGES REQUIRED
+
+Reviewed DeepSeek's candidate changes `7ac5768..af4d42f` on `ux/first-use`
+(41 files). Scope largely matches the authorized simplification/distribution packet;
+the following implementation defects prevent acceptance. The earlier claim that
+everything locally executable is complete is superseded by this review.
+
+1. **MAJOR / P1 — recursive task-history restoration.** In
+   `HudViewModel.RebuildRows`, subscribing to `HistoryToggled` before restoring
+   `IsHistoryOpen` calls `RefreshActivityNow -> UpdateAges -> SyncRows` while the
+   task collection is incomplete. Opening one task's history, then adding a second
+   task, recursively rebuilds the collection. An isolated probe stopped at eight
+   nested resets; without the guard this path exhausts the stack. Restore disclosure
+   without firing user actions and refresh only after the complete row set exists.
+2. **MAJOR / P2 — attention selection can hide known requests.**
+   `ShowAttentionCommand` widens Recent to eight hours, but `MatchesView` still
+   excludes older requests. A nine-hour-old stale NeedsInput row produces zero rows
+   after clicking Needs you. Expose all known pending attention, keeping stale and
+   provisional uncertainty visible; do not rewrite the saved Recent window as a
+   side effect. Test blocking and async attention beyond the selected time window.
+3. **MAJOR / P2 — source health detail uses aggregate freshness.**
+   `UpdateHealthProjection` gives every source the newest readable peer's timestamp.
+   A `dsh:source-silent` row can say `0s ago` because Codex is fresh. Capability notes
+   only recover harness names; the promised source-specific supported/observed/
+   unreadable distinctions and separate instances are missing. Carry immutable,
+   bounded per-source health/capability/evidence data through the snapshot to the UI;
+   do not parse free-text notes or query monitor state from the UI. Test two sources
+   with different evidence times, plus two instances of the same harness.
+4. **MINOR / P2 — attention episode survives project disappearance.**
+   `ApplyFirstAppearanceDefaults` clears episodes only for projects present in the
+   filtered row set. Collapse a requesting project, remove its tasks, then introduce
+   a new requesting turn: it remains collapsed. Track episode transitions from the
+   full snapshot independently of filters; retain manual collapse within one episode
+   and permit the specified once-only reveal for a new episode without focus/scroll.
+
+Independent verification: Release .NET build/test completed with **675 passed,
+0 failed, 0 skipped**; bridge suites **dsh 30/30, Claude 21/21**. Those tests do not
+cover the above interactions. Ignored reproducer and output:
+`artifacts/astra-review-20260927/{Probe.csproj,Program.cs,probe.txt}`.
+The RC ZIP SHA-256 matches
+`DFB84201F7F2F1F4D6E09A30FD64AC834FDE06414E58E15A7ADAA9530BAA5B82`;
+source identity is `784733d`. Existing package **40/40** and upgrade **8/8** evidence
+was inspected, not independently rerun in full. Later source changes through the
+reviewed head are ledger/upgrade-script changes, not app binary changes.
+
+An independently extracted RC ran the finite synthetic HUD smoke for 55 seconds
+using isolated settings on `DISPLAY2` (portrait secondary monitor, window origin
+`-1000,-166`, DPI 96). Read-only computer-use inspection confirmed that placement;
+shutdown and settings reload were clean. No mouse/keyboard input was sent. This is
+placement/render/lifecycle evidence, not interactive drag/Snap/DPI or real-harness
+qualification. Logs: `artifacts/astra-review-20260927/secondary-smoke.*.txt`.
+The user's running build, shortcut and live data/settings were not changed.
+
+Next action: DeepSeek executes the review-fix prompt at the top of
+`.agent/HANDOFF.md` on the same branch, adds meaningful regression coverage, then
+rebuilds/retests/republishes the candidate and refreshes package evidence. Preserve
+the existing clean-machine, live-harness, signing/terms and physical qualification
+gaps; no public-release claim, merge, push or live-app replacement is authorized here.
+
 ## Planning update — 2026-09-26
 
 User requested a repository-grounded diagnosis combining HUD simplification with
