@@ -153,7 +153,6 @@
       </Setter>
     </Style>
     <Style TargetType="ScrollBar" BasedOn="{StaticResource HudScrollBar}" />
-    <ResourceDictionary x:Key="HudScrollBarResources" />
     <Style x:Key="HudIconButton" TargetType="Button">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
@@ -645,7 +644,7 @@
 
       <!-- Expanded surface: scrolled content below the pinned header. -->
       <ScrollViewer x:Name="ContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                    PanningMode="VerticalOnly" Resources="{StaticResource HudScrollBarResources}">
+                    PanningMode="VerticalOnly">
       <Grid x:Name="ExpandedPanel" Background="{DynamicResource PanelSurfaceBrush}"
             Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
         <Grid.RowDefinitions>

@@ -104,7 +104,9 @@ public sealed class TaskViewTests
             var changes = 0;
             vm.SettingsChanged += (_, _) => changes++;
             vm.IsRecentView = true;
-            vm.CycleRecentWindowCommand.Execute(null);
+            // The Recent window is chosen explicitly now; the old cycling gesture is
+            // gone, so the selector is the only thing that changes it.
+            vm.SelectedRecentHours = 24;
             Assert.Equal(24, vm.RecentHours);
             Assert.Equal(2, changes);
         }

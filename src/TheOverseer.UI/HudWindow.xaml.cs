@@ -147,7 +147,7 @@ public partial class HudWindow : Window
         ContentScroll.HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled;
         // The header grows with its content instead of shrinking every label with a
         // Viewbox, and it never becomes shorter than the collapsed HUD.
-        SummaryRow.MinHeight = IsWindowView ? 96 : 96;
+        SummaryRow.MinHeight = 96;
         var verticalLight = ViewModel?.LightPosition is "left" or "right";
         StatusLight.MaxWidth = IsWindowView && verticalLight ? Math.Max(6, ActualWidth - 270) : double.PositiveInfinity;
         StatusLight.MaxHeight = IsWindowView && !verticalLight ? Math.Max(6, ActualHeight - 220) : double.PositiveInfinity;
@@ -163,9 +163,6 @@ public partial class HudWindow : Window
         Left = left;
         Top = top;
     }
-
-    /// <summary>Updates the health marker brush without touching layout.</summary>
-    public void SetHealthBrush(System.Windows.Media.Brush brush) => HealthDot.Fill = brush;
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {

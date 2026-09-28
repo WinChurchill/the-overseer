@@ -55,7 +55,6 @@ public sealed partial class HudViewModel
         _ => "Current work and attention, plus completions/errors from the last 10 minutes. Older or stale tasks remain in Recent. Counts above cover all monitored work.",
     };
 
-    public ICommand CycleRecentWindowCommand { get; }
     public ICommand ShowCurrentTasksCommand { get; }
     public string StatusKind { get; private set; } = "unavailable";
     public string StatusHeadline { get; private set; } = "Starting monitor";
