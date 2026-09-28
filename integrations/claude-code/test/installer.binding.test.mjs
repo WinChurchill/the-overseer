@@ -19,6 +19,33 @@ import {
 const MARKER = 'overseer-claude-bridge';
 const DEFAULT_EVENTS = 15;
 
+for (const failure of ['missing', 'broken', 'missing-no-verify', 'mixed-paths']) {
+  test(`same-path mutation refuses ${failure} payload without changing settings`, async (t) => {
+    const dir = tempDir();
+    t.after(() => removeDir(dir));
+    const root = fullExtraction(dir, 'payload');
+    const bridge = path.join(root, 'bridge.mjs');
+    const settings = path.join(dir, 'settings.json');
+    const applied = await runNode(INSTALL_PATH, [settings, `--bridge=${bridge}`, '--events=SessionStart', '--apply']);
+    assert.equal(applied.status, 0, applied.stderr);
+    if (failure === 'mixed-paths') {
+      const data = readJson(settings);
+      data.hooks.Stop = [{ hooks: [{ ...data.hooks.SessionStart[0].hooks[0], args: [path.join(dir, 'old.mjs'), MARKER] }] }];
+      fs.writeFileSync(settings, JSON.stringify(data));
+    }
+    if (failure === 'broken') fs.writeFileSync(bridge, 'process.exit(3);');
+    else fs.renameSync(bridge, bridge + '.unavailable');
+    const before = fs.readFileSync(settings, 'utf8');
+    const backups = listBackups(settings).length;
+    const args = [settings, `--bridge=${bridge}`, '--events=SessionStart,Stop', '--apply'];
+    if (failure === 'missing-no-verify') args.push('--no-verify');
+    const refused = await runNode(INSTALL_PATH, args);
+    assert.equal(refused.status, 2, refused.stdout);
+    assert.equal(fs.readFileSync(settings, 'utf8'), before);
+    assert.equal(listBackups(settings).length, backups);
+  });
+}
+
 /**
  * A directory that looks like a user's extraction of the release archive: the
  * installer and its libraries are present, but bridge.mjs has been deleted (or was

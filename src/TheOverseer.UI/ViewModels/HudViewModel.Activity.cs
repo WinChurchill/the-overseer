@@ -46,18 +46,7 @@ public sealed partial class HudViewModel
         private set => Set(ref _hasActivity, value);
     }
 
-    public string VoiceStatusLine
-    {
-        get => _voiceStatusLine;
-        private set
-        {
-            if (Set(ref _voiceStatusLine, value))
-            {
-                Raise(nameof(VoiceFailed));
-                Raise(nameof(VoiceFailureLine));
-            }
-        }
-    }
+    public string VoiceStatusLine => _voiceStatusLine;
 
     /// <summary>
     /// True when voice is enabled and the last attempted notification did not speak.
@@ -80,6 +69,8 @@ public sealed partial class HudViewModel
                 Raise(nameof(MuteGlyph));
                 Raise(nameof(MuteTooltip));
                 Raise(nameof(VoiceStatusLine));
+                Raise(nameof(VoiceFailed));
+                Raise(nameof(VoiceFailureLine));
                 SettingsChanged?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -118,8 +109,13 @@ public sealed partial class HudViewModel
             ? "Collecting activity…"
             : series.HasPartial ? "Dashed: minimum known"
                 : series.HasGap || series.HasUnknown ? "Gaps: no observation" : "Count of working tasks";
-        VoiceStatusLine = status.Detail;
-        VoiceAvailable = !status.IsMuted && status.ProviderId != "silent";
+        // Set both inputs before notifying dependent bindings: neither an old mute
+        // flag nor an old detail should be observed during this single update.
+        _voiceStatusLine = status.Detail;
         IsMuted = status.IsMuted;
+        Raise(nameof(VoiceStatusLine));
+        Raise(nameof(VoiceFailed));
+        Raise(nameof(VoiceFailureLine));
+        VoiceAvailable = !status.IsMuted && status.ProviderId != "silent";
     }
 }

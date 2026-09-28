@@ -1,5 +1,18 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.7 — review corrections
+
+- Composition diagnostics now require an authorized display before creating windows,
+  seed both window modes in every scenario, and assert the resulting bounds.
+- Restarts use production adapter discovery/construction. Added applied-HUD checks
+  for missing, stale, unsupported, locked and removed sources, recovery and peer survival.
+- Claude hook changes validate the bridge even when its path was previously installed;
+  a missing file cannot bypass validation with `--no-verify`.
+- Upgrade/rollback comparisons reject lost or changed window settings. Only valid save
+  timestamps may vary; `-WindowView` checks resizable mode separately. Negative controls
+  cover corruption and deletion without launching windows.
+- Muting and combined voice-status updates notify the actual WPF failure bindings.
+
 ## 1.0.0-rc.6 — 2026-09-28 (composition verification, bridge install hardening, lifecycle qualification, UI contract fixes)
 
 Source changes for internal candidate `1.0.0-rc.6` on `ux/first-use`. The archive is

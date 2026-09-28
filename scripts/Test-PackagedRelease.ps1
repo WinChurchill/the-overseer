@@ -504,6 +504,7 @@ if ($visibleChecksDeferred) {
         # live data directory.
         '--data-directory', (Join-Path $evidenceRoot 'composition-check-data'))
     if ($secondaryMonitor) { $compositionArguments += @('--placement-monitor', $secondaryMonitor) }
+    if ($AllowVisibleChecksOnPrimary) { $compositionArguments += '--allow-primary-placement' }
     $compositionCheck = Invoke-FiniteMode $executable 'hud-composition-check' $compositionArguments $sanitized.Environment $workingDirectory $logRoot 300 @(0)
     $compositionPassed = ([regex]::Matches($compositionCheck.Stdout, '(?m)^check PASS ')).Count
     $compositionFailed = ([regex]::Matches($compositionCheck.Stdout, '(?m)^check FAIL ')).Count

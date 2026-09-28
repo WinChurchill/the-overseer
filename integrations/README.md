@@ -77,4 +77,3 @@ The Claude suite includes installer regressions that delete a bridge from a simu
 extraction and prove that `--apply` refuses, that rebinding to a new directory whose
 path contains spaces and non-ASCII characters rewrites every owned handler, and that
 the command the settings file records actually publishes a record when it is invoked.
-

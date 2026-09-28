@@ -40,10 +40,22 @@ internal static class HudCompositionCheckRunner
     public static async Task<int> RunAsync(StartupArguments arguments, Dispatcher dispatcher)
     {
         var outputRoot = string.IsNullOrWhiteSpace(arguments.OutputDirectory)
-            ? Path.Combine(DataDirectoryResolver.Resolve(arguments.DataDirectory), "composition-check")
+            ? Path.Combine(Path.GetTempPath(), "OVERSEER-composition-check")
             : Path.GetFullPath(arguments.OutputDirectory!);
         var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssZ", CultureInfo.InvariantCulture);
         var root = Path.Combine(outputRoot, "run-" + stamp + "-" + Guid.NewGuid().ToString("N")[..8]);
+
+        if (SelectMonitor(arguments) is null)
+        {
+            Directory.CreateDirectory(root);
+            var detail = "No authorized display: requested monitor missing, primary not opted in, or no secondary available.";
+            File.WriteAllText(Path.Combine(root, "composition-report.json"), JsonSerializer.Serialize(new
+            {
+                deferred = true, reason = detail, passed = 0, failed = 0, placementMonitor = arguments.PlacementMonitor,
+            }));
+            Console.WriteLine("composition check deferred: " + detail);
+            return 2;
+        }
 
         var checks = new List<CheckResult>();
         void Check(string name, bool passed, string detail)
@@ -86,6 +98,7 @@ internal static class HudCompositionCheckRunner
             await NoHarnessInstalledAsync(root, arguments, dispatcher, Check, NonActivatingWindow).ConfigureAwait(true);
             await MixedSourcesAndRestartAsync(root, arguments, dispatcher, Check, NonActivatingWindow).ConfigureAwait(true);
             await ExistingPreferencesAreAuthoritativeAsync(root, arguments, dispatcher, Check, NonActivatingWindow).ConfigureAwait(true);
+            await FailureAndRecoveryAsync(root, arguments, dispatcher, Check, NonActivatingWindow).ConfigureAwait(true);
 
             // Offline voice availability for a brand-new data directory is a property of
             // startup configuration, so it is asserted here through the same call path
@@ -131,12 +144,12 @@ internal static class HudCompositionCheckRunner
         var composed = await HudComposition.ComposeAsync(
             Isolated(data, Path.Combine(root, "empty-codex-home"), arguments),
             dispatcher,
-            new HudCompositionOverrides { WindowFactory = windowFactory, BudgetLabel = "composition-check" }).ConfigureAwait(true);
+            Overrides(data, arguments, windowFactory)).ConfigureAwait(true);
 
         var viewModel = composed.Controller.ViewModel;
         try
         {
-            await composed.Controller.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            await StartCheckedAsync(composed, arguments, check).ConfigureAwait(true);
             var applied = await WaitAsync(() => viewModel.HasAppliedSnapshot, 30).ConfigureAwait(true);
 
             check("empty-first-run-composes", true,
@@ -181,12 +194,12 @@ internal static class HudCompositionCheckRunner
         var composed = await HudComposition.ComposeAsync(
             Isolated(data, codexHome, arguments),
             dispatcher,
-            new HudCompositionOverrides { WindowFactory = windowFactory, BudgetLabel = "composition-check" }).ConfigureAwait(true);
+            Overrides(data, arguments, windowFactory)).ConfigureAwait(true);
 
         var viewModel = composed.Controller.ViewModel;
         try
         {
-            await composed.Controller.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            await StartCheckedAsync(composed, arguments, check).ConfigureAwait(true);
             await WaitAsync(() => viewModel.HasAppliedSnapshot, 30).ConfigureAwait(true);
             await Task.Delay(TimeSpan.FromSeconds(SettleSeconds)).ConfigureAwait(true);
 
@@ -238,7 +251,7 @@ internal static class HudCompositionCheckRunner
         var firstViewModel = first.Controller.ViewModel;
         try
         {
-            await first.Controller.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            await StartCheckedAsync(first, arguments, check).ConfigureAwait(true);
 
             var codexApplied = await WaitAsync(() => firstViewModel.Tasks.Any(static row =>
                 row.Key.HarnessId == HarnessIds.Codex && row.TaskState == AgentTaskState.Working), 40).ConfigureAwait(true);
@@ -267,34 +280,15 @@ internal static class HudCompositionCheckRunner
         check("restart-discovery-finds-both-bridges", afterRestart.Sources.Count == 2,
             "sources=" + string.Join(',', afterRestart.Sources.Select(static source => source.Describe())));
 
-        // The second composition is built with adapters for the newly discovered
-        // sources, exactly as the next real startup would.
-        var projects = new ProjectResolver(new ProjectSettings());
-        var monitor = new CodexMonitor(
-            MonitorOptions.Default with { KnownFilePollInterval = TimeSpan.FromMilliseconds(500), ReconcileInterval = TimeSpan.FromSeconds(1) },
-            MonitorProfiles.Create(codexHome),
-            NullRuntimeActivitySource.Instance,
-            NullMonitorLog.Instance,
-            TimeProvider.System,
-            projects);
-        var adapters = new List<IAgentMonitorAdapter>
-        {
-            new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
-        };
-        foreach (var source in afterRestart.Sources)
-        {
-            adapters.Add(new BridgeMonitorAdapter(source, data, projects, pollInterval: TimeSpan.FromMilliseconds(500)));
-        }
-
         var second = await HudComposition.ComposeAsync(
             Isolated(data, codexHome, arguments),
             dispatcher,
-            new HudCompositionOverrides { Adapters = adapters, WindowFactory = windowFactory, BudgetLabel = "composition-check" }).ConfigureAwait(true);
+            Overrides(data, arguments, windowFactory)).ConfigureAwait(true);
 
         var secondViewModel = second.Controller.ViewModel;
         try
         {
-            await second.Controller.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            await StartCheckedAsync(second, arguments, check).ConfigureAwait(true);
             var bothBridges = await WaitAsync(() => secondViewModel.Tasks.Any(static row => row.Key.HarnessId == HarnessIds.Dsh) &&
                 secondViewModel.Tasks.Any(static row => row.Key.HarnessId == HarnessIds.Claude), 40).ConfigureAwait(true);
             check("restart-composition-applies-both-bridges", bothBridges, Summarize(secondViewModel));
@@ -335,7 +329,7 @@ internal static class HudCompositionCheckRunner
         var viewModel = composed.Controller.ViewModel;
         try
         {
-            await composed.Controller.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            await StartCheckedAsync(composed, arguments, check).ConfigureAwait(true);
             await WaitAsync(() => viewModel.HasAppliedSnapshot, 30).ConfigureAwait(true);
 
             check("existing-config-is-loaded", composed.Config.Status == ConfigLoadStatus.Loaded,
@@ -389,6 +383,107 @@ internal static class HudCompositionCheckRunner
             "providerType=" + (provider?.GetType().Name ?? "none"));
         check("provider-requires-no-network-endpoint", effective.Endpoint is null,
             "endpoint=" + (effective.Endpoint ?? "none"));
+        if (provider is IDisposable disposable) disposable.Dispose();
+    }
+
+    private static async Task FailureAndRecoveryAsync(string root, StartupArguments arguments,
+        Dispatcher dispatcher, Action<string, bool, string> check, Func<HudWindow> windowFactory)
+    {
+        var data = Path.Combine(root, "failure-recovery");
+        Directory.CreateDirectory(data);
+        File.WriteAllText(Path.Combine(data, "config.json"),
+            "{\"hud\":{\"taskView\":\"recent\",\"recentHours\":24},\"voice\":{\"muted\":true},\"runtimeActivitySource\":false}");
+        var codexHome = Path.Combine(root, "failure-codex-home");
+        var source = new SyntheticProducers.SyntheticBridgeProducer(data, HarnessIds.Dsh, "subject")
+        { Timestamp = DateTimeOffset.UtcNow.AddMinutes(-16) };
+        source.Start("stale-session", @"C:\synthetic\subject");
+        var peer = new SyntheticProducers.SyntheticBridgeProducer(data, HarnessIds.Claude, "peer");
+        peer.Start("peer-session", @"C:\synthetic\peer");
+        Directory.CreateDirectory(Path.Combine(HarnessSources.DefaultRoot(data, HarnessIds.Dsh), "missing"));
+
+        var composed = await HudComposition.ComposeAsync(Isolated(data, codexHome, arguments), dispatcher,
+            Overrides(data, arguments, windowFactory)).ConfigureAwait(true);
+        var vm = composed.Controller.ViewModel;
+        bool PeerSurvives() => vm.Tasks.Any(row => row.Key.SourceInstanceId == "peer" && !row.IsStale) &&
+            vm.HealthDetails.Any(row => row.Instance == "peer" && row.State.StartsWith("live", StringComparison.Ordinal));
+        // Recovery restores current coverage; a previously observed history gap
+        // correctly remains visible for the rest of its hour.
+        bool SubjectCurrent() => composed.Dependencies.Monitor.Current.Sources.Any(source =>
+            source.SourceInstanceId == "subject" && source.CoverageComplete) &&
+            vm.HealthDetails.Any(row => row.Instance == "subject" && !row.State.Contains("partial", StringComparison.Ordinal));
+        async Task Observe(string name, Func<bool> predicate)
+        {
+            peer.Heartbeat();
+            var passed = await WaitAsync(() => predicate() && PeerSurvives(), 25).ConfigureAwait(true);
+            check(name, passed, Summarize(vm));
+        }
+
+        try
+        {
+            await StartCheckedAsync(composed, arguments, check).ConfigureAwait(true);
+            await Observe("stale-source-and-healthy-peer", () => vm.Tasks.Any(row => row.Key.SourceInstanceId == "subject" && row.IsStale));
+            await Observe("missing-source-is-not-readable", () => vm.HealthDetails.Any(row => row.Instance == "missing" && row.State.StartsWith("not readable", StringComparison.Ordinal)));
+            source.Timestamp = null;
+            source.Heartbeat();
+            await Observe("stale-source-recovers", () => SubjectCurrent() && vm.Tasks.Any(row => row.Key.SourceInstanceId == "subject" && !row.IsStale));
+
+            var current = Path.Combine(source.SpoolDirectory, "current.json");
+            var unsupported = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(current))!;
+            unsupported["schemaVersion"] = 999;
+            File.WriteAllText(current, unsupported.ToJsonString());
+            await Observe("unsupported-source-is-limited", () => vm.HealthDetails.Any(row => row.Instance == "subject" && row.State.Contains("bridge-coverage-incomplete", StringComparison.Ordinal)));
+            source.Heartbeat();
+            await Observe("unsupported-source-recovers", SubjectCurrent);
+
+            using (var locked = new FileStream(Path.Combine(source.SpoolDirectory, "events.jsonl"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                await Observe("unreadable-source-is-limited", () => vm.HealthDetails.Any(row => row.Instance == "subject" && row.State.Contains("bridge-io", StringComparison.Ordinal)));
+            }
+            source.Heartbeat();
+            await Observe("unreadable-source-recovers", SubjectCurrent);
+
+            // Rename only invented producer data. Its absence is a failure in the
+            // running graph; the next normal startup must no longer discover it.
+            Directory.Move(source.SpoolDirectory, Path.Combine(root, "removed-subject"));
+            await Observe("removed-source-degrades-before-restart", () => !SubjectCurrent() &&
+                vm.HealthDetails.Any(row => row.Instance == "subject" && row.State.Contains("partial", StringComparison.Ordinal)));
+        }
+        finally { await ShutdownAsync(composed.Controller).ConfigureAwait(true); }
+
+        peer.Heartbeat();
+        var restarted = await HudComposition.ComposeAsync(Isolated(data, codexHome, arguments), dispatcher,
+            Overrides(data, arguments, windowFactory)).ConfigureAwait(true);
+        try
+        {
+            await StartCheckedAsync(restarted, arguments, check).ConfigureAwait(true);
+            var after = restarted.Controller.ViewModel;
+            var passed = await WaitAsync(() => after.HasAppliedSnapshot &&
+                after.Tasks.Any(row => row.Key.SourceInstanceId == "peer") &&
+                after.HealthDetails.All(row => row.Instance != "subject") &&
+                after.Tasks.All(row => row.Key.SourceInstanceId != "subject"), 25).ConfigureAwait(true);
+            check("removed-source-absent-after-real-restart", passed, Summarize(after));
+        }
+        finally { await ShutdownAsync(restarted.Controller).ConfigureAwait(true); }
+    }
+
+    private static HudScreen? SelectMonitor(StartupArguments arguments) => HudPlacementOptions.SelectMonitor(
+        new WindowsWindowPlacementService().CaptureLayout(), arguments.PlacementMonitor, arguments.AllowPrimaryPlacement);
+
+    private static async Task StartCheckedAsync(HudComposition.PreparedComposition composed,
+        StartupArguments arguments, Action<string, bool, string> check)
+    {
+        var target = SelectMonitor(arguments) ?? throw new InvalidOperationException("Authorized monitor disappeared before start.");
+        var state = composed.Dependencies.WindowState;
+        if (state.MonitorDeviceName != target.DeviceName || state.WindowMonitor != target.DeviceName)
+            throw new InvalidOperationException("Composition did not seed both window modes onto the authorized monitor.");
+        await composed.Controller.StartAsync(CancellationToken.None).ConfigureAwait(true);
+        var window = composed.Controller.Window ?? throw new InvalidOperationException("No composed HUD window.");
+        var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        var onTarget = NativeMethods.GetWindowRect(handle, out var rect) &&
+            rect.Left >= target.X - 1 && rect.Top >= target.Y - 1 &&
+            rect.Right <= target.Right + 1 && rect.Bottom <= target.Bottom + 1;
+        check("placement-" + Path.GetFileName(composed.Dependencies.Paths.DataDirectory), onTarget, target.DeviceName);
+        if (!onTarget) throw new InvalidOperationException("Composed HUD escaped the authorized monitor.");
     }
 
     private static HudCompositionOverrides Overrides(
@@ -398,14 +493,20 @@ internal static class HudCompositionCheckRunner
         // the display in use steers through the same in-memory seed the other
         // diagnostics checks use. Nothing is written and the saved state is untouched.
         var saved = HudStateStore.Load(Path.Combine(dataDirectory, HudStateStore.FileName)).State;
+        var target = SelectMonitor(arguments) ?? throw new InvalidOperationException("No authorized monitor for composition.");
         return new HudCompositionOverrides
         {
-            WindowFactory = windowFactory,
+            WindowFactory = () =>
+            {
+                if (SelectMonitor(arguments)?.DeviceName != target.DeviceName)
+                    throw new InvalidOperationException("Display changed before window creation; refusing fallback.");
+                return windowFactory();
+            },
             Startup = new CompositionStartup(),
             Navigator = new CompositionNavigator(),
             Clipboard = new CompositionClipboard(),
             BudgetLabel = "composition-check",
-            WindowState = HudPlacementOptions.WithMonitor(saved, arguments.PlacementMonitor),
+            WindowState = HudPlacementOptions.WithMonitor(saved, target.DeviceName),
         };
     }
 

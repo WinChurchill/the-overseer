@@ -283,7 +283,7 @@ Options:
 | `--bridge=<path>` | override the recorded hook script path (default: this directory's `bridge.mjs`) |
 | `--json` | machine-readable plan on stdout (tests use this) |
 | `--dry-run` | explicit preview (same as omitting `--apply`) |
-| `--no-verify` | skip the pre-write execution probe described below (advanced; the recorded path is then unproven) |
+| `--no-verify` | skip execution of the pre-write probe (advanced); the path must still be a regular file, and execution remains unproven |
 
 ### Keep the bridge somewhere permanent
 
@@ -298,8 +298,8 @@ spool, and refuses to write anything (exit 2, no backup, no change) unless that 
 - a command that exits 0 but publishes no spool record is refused, because it would silently
   observe nothing.
 
-The probe runs only when the run would record a bridge path the settings file does not already
-point at, so re-running an unchanged install stays idempotent and cheap. Copy this integration to a
+The probe runs before every settings-changing apply, including added events at an already
+recorded path. An unchanged install remains an idempotent no-op. Copy this integration to a
 directory you intend to keep, then install from there:
 
 ```text

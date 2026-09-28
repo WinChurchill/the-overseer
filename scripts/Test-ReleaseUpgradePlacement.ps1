@@ -119,7 +119,7 @@ foreach ($case in @(
             if (@($report.failingDifferences).Count -ne 0) { throw 'Mocked runs must not report failing differences.' }
             if ([int]$report.comparedPathCount -lt 60) { throw ('The comparison covered only ' + $report.comparedPathCount + ' JSON paths.') }
             if (@($report.checksNotPerformed).Count -lt 5) { throw 'checksNotPerformed must be recorded in the evidence.' }
-            if (@($report.normalizationJustifications).Count -lt 10) { throw 'Every normalization justification must be recorded.' }
+            if (@($report.normalizationJustifications).Count -ne 1) { throw 'Only the save timestamp may be exempted globally.' }
             if (-not $report.startupTarget.helperExecuted) { throw 'The production StartupRegistration helper was not executed.' }
             if (-not $report.startupTarget.requestedByProbe.staleDetected) { throw 'The production helper must report the stale recorded path after the move.' }
             if (-not $report.startupTarget.requestedByProbe.optInPreserved) { throw 'The opt-in state must survive the move.' }

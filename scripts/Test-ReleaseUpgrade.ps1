@@ -45,6 +45,7 @@ param(
     [string] $EvidenceDirectory = 'artifacts/upgrade',
     [ValidateRange(2, 600)][int] $DurationSeconds = 5,
     [switch] $KeepExtraction,
+    [switch] $WindowView,
     # Both runs open a HUD window. It goes to a non-primary display so the comparison
     # never appears on the display the user is working on; on a single-display machine
     # the windowed comparison is deferred with an explicit gap unless this is passed.
@@ -65,57 +66,10 @@ $script:OwnedProcesses = New-Object System.Collections.ArrayList
 # Leaves whose value legitimately cannot be carried across two runs of a HUD. Every
 # entry is reported verbatim in the evidence JSON; a difference covered here is still
 # listed as a difference, it is only classified as explained instead of failing.
+# Only the save timestamp is volatile. Persisted placement is user state.
 $script:NormalizationJustifications = @(
-    [ordered]@{
-        path = 'state.json.savedatutc'
-        justification = 'HudWindowState.SavedAtUtc is the timestamp of the last placement write, not a user setting: whichever build saves placement overwrites it.'
-    }
-    [ordered]@{
-        path = 'state.json.offsetxdips'
-        justification = 'HudWindowState offset dips are re-derived from the live monitor working area every time the HUD saves; two runs can legitimately land at different offsets.'
-    }
-    [ordered]@{
-        path = 'state.json.offsetydips'
-        justification = 'HudWindowState offset dips are re-derived from the live monitor working area every time the HUD saves; two runs can legitimately land at different offsets.'
-    }
-    [ordered]@{
-        path = 'state.json.dpiscale'
-        justification = 'HudWindowState.DpiScale records the scale in effect when the placement was saved; it is re-derived from the live display and clamped by HudWindowState.Normalized.'
-    }
-    [ordered]@{
-        path = 'state.json.windowmonitor'
-        justification = 'HudWindowState.WindowMonitor is the monitor the persisted window bounds were measured on; a running HUD re-derives it, see state.json.offsetxdips.'
-    }
-    [ordered]@{
-        path = 'state.json.windowx'
-        justification = 'Persisted window bounds are re-derived by the running HUD (HudWindowState.Normalized clamps width/height and the window is re-positioned into the work area), so X is not a user setting.'
-    }
-    [ordered]@{
-        path = 'state.json.windowy'
-        justification = 'Persisted window bounds are re-derived by the running HUD (HudWindowState.Normalized clamps width/height and the window is re-positioned into the work area), so Y is not a user setting.'
-    }
-    [ordered]@{
-        path = 'state.json.windowwidth'
-        justification = 'Persisted window bounds are re-derived by the running HUD (HudWindowState.Normalized clamps width/height and the window is re-positioned into the work area), so width is not a user setting.'
-    }
-    [ordered]@{
-        path = 'state.json.windowheight'
-        justification = 'Persisted window bounds are re-derived by the running HUD (HudWindowState.Normalized clamps width/height and the window is re-positioned into the work area), so height is not a user setting.'
-    }
-    [ordered]@{
-        path = 'state.json.windowdpi'
-        justification = 'Persisted window DPI is re-derived from the live display and clamped to 0.5..4.0 by HudWindowState.Normalized.'
-    }
-    [ordered]@{
-        path = 'state.json.windowmaximized'
-        justification = 'Maximized state cannot be restored on every layout (a removed or resized monitor drops it); the running HUD re-derives it, so it is reported but not required to match.'
-    }
-    [ordered]@{
-        path = '<timestamps>'
-        justification = 'JSON timestamps are compared as instants (ConvertFrom-Json yields DateTime), not as formatted strings: the store writes DateTimeOffset values whose textual form can differ from the seeded literal for the same instant.'
-    }
+    [ordered]@{ path = 'state.json.savedatutc'; justification = 'Valid save timestamps may advance after an orderly placement write.' }
 )
-
 function Add-Check([string] $name, [bool] $passed, [string] $detail) {
     $entry = [ordered]@{ check = $name; status = $(if ($passed) { 'pass' } else { 'fail' }); detail = $detail }
     [void]$script:Checks.Add($entry)
@@ -369,7 +323,8 @@ function New-Difference {
     if ($Kind -eq 'added-after') {
         $disposition = 'additive'
         $justification = 'The previous data did not contain this path; an upgrade may add a setting, so an addition is reported but does not fail.'
-    } else {
+    } elseif ($Kind -eq 'changed' -and $CanonicalPath -eq 'state.json.savedatutc' -and
+        $Before -is [datetime] -and $After -is [datetime]) {
         $justification = Get-NormalizationJustification $CanonicalPath $ExtraJustifications
         if ($justification) { $disposition = 'explained' }
     }
@@ -1066,7 +1021,7 @@ try {
     $legacyMonitor = if ($secondaryMonitor) { $secondaryMonitor } else { 'LEGACY-MONITOR' }
     $legacyPlacement = [ordered]@{
         version = 1
-        WindowView = $false
+        WindowView = [bool]$WindowView
         WindowPinned = $true
         WindowMaximized = $false
         WindowMonitor = $legacyMonitor
@@ -1224,19 +1179,11 @@ try {
     Add-Check 'candidate-build-runs' ($candidateRun.ExitCode -eq 0) ('exit=' + $candidateRun.ExitCode)
     $afterCandidate = Get-DataStateSnapshot $candidateData
 
-    # The candidate is deliberately steered to the secondary display while the
-    # previous build is not, so a monitor-device difference between the two runs is
-    # reported as explained instead of failing. Without a secondary display the two
-    # runs are symmetric and the device is compared strictly.
+    # Both versions use the same seeded monitor and topology. The first run may
+    # legitimately clamp the original seed; the candidate must preserve the actual
+    # placement saved by that run, not receive a blanket placement exemption.
     $seededMonitor = [string](Get-LeafValue $legacyState.state 'state.json.monitordevice')
     $previousKeptSeededMonitor = ([string](Get-LeafValue $afterPrevious.state 'state.json.monitordevice')) -eq $seededMonitor
-    if ($secondaryMonitor) {
-        [void]$conditionalJustifications.Add([ordered]@{
-            path = 'state.json.monitordevice'
-            justification = ('the candidate run is steered with --placement-monitor ' + $secondaryMonitor + ' while the previous build is not, so this harness can itself move the restored monitor; the candidate placement is asserted separately')
-        })
-    }
-
     $candidateChanged = Compare-DataState $legacyData $candidateData @($conditionalJustifications)
     $candidateFailures = @($candidateChanged.failures)
     Add-Check 'candidate-preserves-previous-settings' ($candidateFailures.Count -eq 0) (

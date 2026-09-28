@@ -27,7 +27,6 @@ import {
   backupSettings,
   diffSummary,
   expandHome,
-  isOwnedHandler,
   loadSettings,
   parseArgs,
   planInstall,
@@ -57,38 +56,6 @@ function fail(message, code = 2) {
 function relativeIfUnderHERE(target) {
   const relative = path.relative(HERE, target);
   return relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : null;
-}
-
-/** Windows paths are case-insensitive; compare resolved paths accordingly. */
-function samePath(a, b) {
-  const left = path.resolve(a);
-  const right = path.resolve(b);
-  return process.platform === 'win32'
-    ? left.toLowerCase() === right.toLowerCase()
-    : left === right;
-}
-
-/**
- * The bridge path already recorded in the settings file, or null when no owned
- * handler exists yet. Used to decide whether this run is recording a NEW path
- * (which must be executed before it is trusted) or re-confirming the one already
- * in place (which is idempotent and needs no probe).
- */
-function recordedBridgePath(data) {
-  const hooks = data && typeof data.hooks === 'object' && data.hooks !== null ? data.hooks : {};
-  for (const groups of Object.values(hooks)) {
-    if (!Array.isArray(groups)) continue;
-    for (const group of groups) {
-      const handlers = group && Array.isArray(group.hooks) ? group.hooks : null;
-      if (!handlers) continue;
-      for (const handler of handlers) {
-        if (!isOwnedHandler(handler)) continue;
-        const args = Array.isArray(handler.args) ? handler.args : [];
-        if (typeof args[0] === 'string' && args[0].length > 0) return args[0];
-      }
-    }
-  }
-  return null;
 }
 
 function main() {
@@ -121,16 +88,12 @@ function main() {
   const diff = diffSummary(before, after);
   const bridgeExists = fs.existsSync(bridgePath);
   const changed = diff.length > 0;
-  const alreadyRecorded = recordedBridgePath(before);
-
-  // When this run is about to record a hook path the settings file does not already
-  // point at, prove the move is safe first: a path that has never been executed must
-  // not be written into settings. Re-running against the already-installed path
-  // changes nothing, so it stays cheap and does not need the probe.
-  const recordPathIsNew = alreadyRecorded === null || !samePath(alreadyRecorded, bridgePath);
   let verification = null;
-  if (options.apply && changed && !options.noVerify && recordPathIsNew) {
-    verification = verifyBridgeCommand({ bridgePath, command: HOOK_COMMAND });
+  // A previously recorded path can disappear or break. Validate every mutation,
+  // including added events and repairs of mixed-path installs. A true no-op stays
+  // idempotent. --no-verify skips execution, never the regular-file requirement.
+  if (options.apply && changed) {
+    verification = verifyBridgeCommand({ bridgePath, command: HOOK_COMMAND, execute: !options.noVerify });
     if (!verification.ok) {
       const detail = `refusing to write ${loaded.path}: ${verification.message} [${verification.code}]\n  ${STABLE_LOCATION_HINT}`;
       if (options.json) {
@@ -163,7 +126,7 @@ function main() {
       settingsExisted: loaded.existed,
       bridgePath,
       bridgeExists,
-      bridgeVerified: verification ? verification.ok === true : null,
+      bridgeVerified: verification?.code === 'verified' ? true : null,
       verification,
       events,
       marker: MARKER,
@@ -178,7 +141,7 @@ function main() {
     process.stdout.write(`  bridge   : ${bridgePath}${bridgeExists ? '' : ' (MISSING - install the integration files first)'}\n`);
     process.stdout.write(`  marker   : ${MARKER}\n`);
     process.stdout.write(`  events   : ${events.length} (${events.join(', ')})\n`);
-    if (verification && verification.ok) {
+    if (verification?.code === 'verified') {
       process.stdout.write(`  verified : ran the hook command once; it wrote a ${verification.recordKind} record\n`);
     }
     if (plan.untouchedOwnedEvents.length > 0) {

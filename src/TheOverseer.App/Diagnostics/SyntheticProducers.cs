@@ -230,6 +230,9 @@ internal static class SyntheticProducers
         /// <summary>The spool directory this producer publishes into.</summary>
         public string SpoolDirectory => _directory;
 
+        /// <summary>Backdate invented evidence without changing the production clock.</summary>
+        public DateTimeOffset? Timestamp { get; set; }
+
         private string EventsPath => Path.Combine(_directory, "events.jsonl");
 
         private string CurrentPath => Path.Combine(_directory, "current.json");
@@ -238,7 +241,7 @@ internal static class SyntheticProducers
 
         public void Start(string sessionId, string projectRoot)
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = Timestamp ?? DateTimeOffset.UtcNow;
             _sessions[sessionId] = new SessionState
             {
                 ProjectRoot = projectRoot,
@@ -266,7 +269,7 @@ internal static class SyntheticProducers
             string? outcome = null, string? category = null)
         {
             var state = _sessions[sessionId];
-            var now = DateTimeOffset.UtcNow;
+            var now = Timestamp ?? DateTimeOffset.UtcNow;
             state.Sequence++;
             state.Records++;
             state.LastObservedUtc = now;
@@ -329,7 +332,7 @@ internal static class SyntheticProducers
 
         private void WriteCurrent()
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = Timestamp ?? DateTimeOffset.UtcNow;
             var document = JsonSerializer.Serialize(new
             {
                 schemaVersion = 1,
@@ -366,7 +369,7 @@ internal static class SyntheticProducers
 
         private void WriteHealth()
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = Timestamp ?? DateTimeOffset.UtcNow;
             var document = JsonSerializer.Serialize(new
             {
                 version = 1,

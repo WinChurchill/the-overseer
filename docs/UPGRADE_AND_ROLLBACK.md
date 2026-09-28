@@ -36,6 +36,13 @@ against a copy of what the candidate wrote (the rollback leg). Every run uses
 windowed comparison is deferred unless `-AllowVisibleChecksOnPrimary` is passed
 (`-KeepExtraction` keeps the extracted packages).
 
+Run again with `-WindowView` and a separate evidence directory to check the resizable
+window mode as well as the default HUD mode. Both runs keep display topology fixed.
+The previous build first restores/clamps the seed on that display; its saved result
+is the upgrade baseline. Candidate and rollback must preserve that actual result.
+`scripts/Test-ReleaseUpgradeComparison.ps1` supplies negative controls for corruption
+and deletion; it runs without opening windows.
+
 `config.json` and `state.json` are flattened to one leaf per scalar and compared by exact
 JSON path (89 paths with the current seed). A difference fails the run unless it is an
 *addition* or is covered by a recorded `normalizationJustification`. Nothing is silently
@@ -52,10 +59,10 @@ case-insensitively); array order and length are.
   `voice.events` overrides and every `voice.clips` assignment; `project` mappings (3),
   aliases (3), maxAncestorChecks, maxCacheEntries; `disabledHarnessSources` (3);
   `harnessRoots` (3); `maximumHarnessSources`.
-- `state.json`: `version`, `isExpanded`, `monitorDevice` and the window view/pinned mode
-  are compared strictly. Saved offsets, `savedAtUtc` and window geometry are re-derived by
-  whichever HUD runs, so those are reported as *explained* with a justification, not
-  ignored.
+- `state.json`: all saved settings, including offsets, monitor, window size, position,
+  maximization and mode are compared strictly. Only a change between valid
+  `savedAtUtc` timestamps is explained; missing or malformed timestamps still fail.
+  Changed display topology needs separate qualification rather than a blanket waiver.
 - Every file under `voicepacks/` is byte-identical (sha256), so a custom recording and the
   clip files it references survive.
 - The bridge spool keeps its content, not just its files: each seeded `events.jsonl`

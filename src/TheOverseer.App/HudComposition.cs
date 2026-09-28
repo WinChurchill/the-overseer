@@ -20,19 +20,13 @@ namespace TheOverseer.App;
 /// <remarks>
 /// These exist so a check can exercise the REAL composition - startup configuration
 /// loading, harness discovery, provider selection and controller construction - while
-/// substituting only the monitor's producer side and the few services that would
+/// reading invented producer files and substituting only services that would
 /// otherwise touch the user's machine (the startup registry entry, a window).
 /// Nothing here changes production behaviour: <see cref="HudComposition.CreateAsync"/>
 /// passes no overrides at all.
 /// </remarks>
 internal sealed record HudCompositionOverrides
 {
-    /// <summary>
-    /// Monitor adapters to use instead of the discovered set. Source discovery still
-    /// runs; a caller that wants the real set leaves this null.
-    /// </summary>
-    public IReadOnlyList<IAgentMonitorAdapter>? Adapters { get; init; }
-
     /// <summary>Replaces the real Run-key registration (never touch the user's entry in a check).</summary>
     public IStartupRegistration? Startup { get; init; }
 
@@ -42,12 +36,12 @@ internal sealed record HudCompositionOverrides
     /// <summary>Replaces the real clipboard.</summary>
     public IClipboardWriter? Clipboard { get; init; }
 
-    /// <summary>Replaces the HUD window factory; a check creates no visible window.</summary>
+    /// <summary>Replaces the HUD window factory for isolated, non-activating checks.</summary>
     public Func<HudWindow>? WindowFactory { get; init; }
 
     /// <summary>
     /// Replaces the window state loaded from disk. Only used to steer a windowed check
-    /// off the display in use; it is never persisted.
+    /// off the display in use; shutdown persists only to the check's isolated directory.
     /// </summary>
     public HudWindowState? WindowState { get; init; }
 
@@ -142,9 +136,7 @@ internal static class HudComposition
         // One HUD-facing monitor over every enabled source: Codex plus each bridge
         // spool that is actually installed. A source failure stays local.
         //
-        // Discovery always runs here, so a caller that substitutes the adapters still
-        // exercises the real startup discovery path and simply publishes different
-        // producers. Production passes no substitution and gets exactly this set.
+        // Diagnostics also use this exact discovery and adapter-construction path.
         var discovery = HarnessSources.DiscoverDetailed(
             dataDirectory,
             config.DisabledHarnessSources,
@@ -152,23 +144,13 @@ internal static class HudComposition
                 MaximumSources: config.MaximumHarnessSources,
                 ConfiguredRoots: config.HarnessRoots));
 
-        IReadOnlyList<IAgentMonitorAdapter> adapters;
-        if (overrides?.Adapters is { } substituted)
+        var adapters = new List<IAgentMonitorAdapter>
         {
-            adapters = substituted;
-        }
-        else
+            new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
+        };
+        foreach (var source in discovery.Sources)
         {
-            var built = new List<IAgentMonitorAdapter>
-            {
-                new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
-            };
-            foreach (var source in discovery.Sources)
-            {
-                built.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
-            }
-
-            adapters = built;
+            adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
         }
 
         // One aggregate per-pass allowance is shared by every source rather than

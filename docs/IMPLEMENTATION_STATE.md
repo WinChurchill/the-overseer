@@ -1,5 +1,26 @@
 # OVERSEER Implementation State
 
+## Astra corrective implementation — 2026-09-27 — candidate verification pending
+
+User authorized implementing the five review solutions. They are now implemented:
+shared authorized-monitor setup plus actual bounds checks for every composition;
+validation before every mutating Claude install; strict persisted-window comparisons;
+WPF voice-error notifications; real adapter construction on restart and source-failure/
+recovery/removal checks. No new dependency or product redesign.
+
+Release build/test: **704 passed, 0 failed, 0 skipped**. Claude **29/29**, dsh **30/30**;
+pure upgrade-comparison negative controls **55/55**; mocked upgrade placement **3/3**.
+Real composition on DISPLAY2: **42/42**, including seven placement assertions.
+Evidence: `artifacts/astra-fixes/composition-a411b299/run-20260928T045245Z-07d80842/composition-report.json`.
+An earlier development run exposed three overly strict new test assertions: recovery
+must restore current coverage while retaining observed history gaps. Corrected those
+assertions without weakening production history semantics; final run passed.
+
+Clean RC7 packaging and strict real-archive upgrade/rollback in both modes are next.
+Public-release gates and actual interactive/audio/clean-machine qualification remain
+open. Live HUD/settings, shortcut, startup registration and real harness profiles
+are unchanged. The historical review and execution evidence follow below.
+
 ## Astra review — 2026-09-27 — CHANGES REQUIRED
 
 Reviewed `65a3c15..7ee1c16`: eight commits, 32 files. The branch-wide architecture

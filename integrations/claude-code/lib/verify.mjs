@@ -107,7 +107,7 @@ function newestRecord(directory, depth = 0) {
  * @param {string} [options.spoolRoot] temporary spool root (defaults to a new temp dir)
  * @param {boolean} [options.keepSpool] keep the temporary spool (used by tests)
  */
-export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolRoot, keepSpool = false }) {
+export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolRoot, keepSpool = false, execute = true }) {
   if (typeof bridgePath !== 'string' || bridgePath.length === 0) {
     return probeFailure('bridge-path-empty', 'no bridge path was given');
   }
@@ -127,6 +127,10 @@ export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolR
 
   if (!stat.isFile()) {
     return probeFailure('bridge-not-a-file', `the hook path is not a regular file: ${bridgePath}`);
+  }
+
+  if (!execute) {
+    return { ok: true, code: 'file-only', message: 'regular file exists; execution was explicitly skipped' };
   }
 
   const ownedTemp = spoolRoot === undefined;

@@ -61,6 +61,7 @@ public sealed class StartupArguments
     /// the user is not working on; it changes no setting and persists nothing.
     /// </summary>
     public string? PlacementMonitor { get; private init; }
+    public bool AllowPrimaryPlacement { get; private init; }
 
     public bool IsFixtureInvocation =>
         HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || HudCompositionCheck || VoiceSmoke || VoicePackCheck;
@@ -88,6 +89,7 @@ public sealed class StartupArguments
         DataDirectory = dataDirectory,
         OutputDirectory = OutputDirectory,
         PlacementMonitor = PlacementMonitor,
+        AllowPrimaryPlacement = AllowPrimaryPlacement,
     };
 
     public static bool TryParse(IReadOnlyList<string> args, out StartupArguments result, out string error)
@@ -99,6 +101,7 @@ public sealed class StartupArguments
         var startupCheck = false;
         var integrationCheck = false;
         var compositionCheck = false;
+        var allowPrimaryPlacement = false;
         var voiceSmoke = false;
         var voicePackCheck = false;
         var audible = false;
@@ -129,6 +132,9 @@ public sealed class StartupArguments
                     break;
                 case "--hud-composition-check":
                     compositionCheck = true;
+                    break;
+                case "--allow-primary-placement":
+                    allowPrimaryPlacement = true;
                     break;
                 case "--voice-smoke":
                     voiceSmoke = true;
@@ -223,6 +229,7 @@ public sealed class StartupArguments
             DataDirectory = dataDirectory,
             OutputDirectory = outputDirectory,
             PlacementMonitor = placementMonitor,
+            AllowPrimaryPlacement = allowPrimaryPlacement,
         };
         return true;
     }
@@ -238,7 +245,8 @@ public sealed class StartupArguments
        TheOverseer.App --voice-pack-check [--data-directory PATH]
 
        --placement-monitor DEVICE   diagnostics/tests: start the HUD on this monitor
-                                    (for example \\.\DISPLAY2) instead of the saved one";
+                                    (for example \\.\DISPLAY2) instead of the saved one
+       --allow-primary-placement    composition check only: explicitly allow the primary display";
 }
 
 public static class DataDirectoryResolver

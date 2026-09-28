@@ -1,10 +1,11 @@
 # OVERSEER: repository diagnosis and release-candidate plan
 
-Latest Astra review (2026-09-27, implementation HEAD 7ee1c16): **CHANGES REQUIRED**.
-The historical PASS rows below do not supersede the five local findings and ordered
-corrective prompt in IMPLEMENTATION_STATE.md / .agent/HANDOFF.md. In particular,
-secondary-display isolation, complete upgrade placement preservation and full
-normal-composition coverage have not passed review. External release gates remain open.
+Latest Astra correction (2026-09-27): five local findings implemented; final candidate
+verification is pending. Current source checks: 704 .NET tests, 29 Claude/30 dsh bridge
+tests, 55 upgrade-comparison negative controls, 3 placement cases and 42 real-composition
+checks on DISPLAY2 passed. The matrix below is historical RC6 evidence; it does not
+qualify RC7. See the newest IMPLEMENTATION_STATE entry for current evidence and limits.
+External release gates remain open.
 
 
 Current execution packet: **Stage 1 cleanup + Stage 2 implementation**, below.

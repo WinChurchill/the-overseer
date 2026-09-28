@@ -19,6 +19,30 @@ public sealed class UiContractCleanupTests
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 28, 12, 0, 0, TimeSpan.Zero);
 
+    [Fact]
+    public void VoiceFailureBindingsFollowMuteAndCombinedStatusChanges()
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var vm = new HudViewModel(HudSettings.Default);
+            var text = new System.Windows.Controls.TextBlock();
+            System.Windows.Data.BindingOperations.SetBinding(text,
+                System.Windows.Controls.TextBlock.TextProperty,
+                new System.Windows.Data.Binding(nameof(HudViewModel.VoiceFailureLine)) { Source = vm });
+            vm.ApplyActivity(ActivitySeries.Empty(Now), FailedVoice());
+            Assert.Equal(vm.VoiceFailureLine, text.Text);
+            Assert.NotEmpty(text.Text);
+            vm.IsMuted = true;
+            Assert.Empty(text.Text);
+            vm.IsMuted = false;
+            Assert.NotEmpty(text.Text);
+            vm.ApplyActivity(ActivitySeries.Empty(Now), WorkingVoice() with { IsMuted = true });
+            Assert.Empty(text.Text);
+            vm.ApplyActivity(ActivitySeries.Empty(Now), FailedVoice());
+            Assert.Equal(vm.VoiceFailureLine, text.Text);
+        });
+    }
+
     private static AgentTask Task(int number, AgentTaskState state, int minutesAgo) =>
         VoiceTestData.Task(key: VoiceTestData.Key("task-" + number), number: number, state: state)
             with { LastActivityAt = Now.AddMinutes(-minutesAgo) };
