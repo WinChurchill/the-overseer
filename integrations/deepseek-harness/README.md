@@ -5,10 +5,12 @@ inside the user's existing `dsh` process and copies **allowlisted status metadat
 message text — into an OVERSEER-owned local spool. OVERSEER reads the spool as plain files and
 never imports dsh code.
 
-**Status: not yet qualified on a live host.** This directory is the integration asset only. Live
-qualification on the installed `dsh` 0.1.5-rc.3 host is performed by the OVERSEER implementation,
-which owns the end-to-end run, the spool reader, and the acceptance evidence. Nothing in this
-directory was executed against a live `dsh` profile.
+**Status: not yet qualified on a live host.** This directory is the integration asset only. Nothing
+in this directory has been executed against a live `dsh` profile, and no OVERSEER end-to-end run has
+observed a real `dsh` session. The pinned source below is version **0.1.7-rc.1**; the build installed
+on the machine where this asset was prepared reports **0.1.7-rc.2**, and the two agree on every host
+seam this plugin uses (they differ only in skipped-bundle reporting and an extra run-record file).
+Until a live attach is observed, this integration stays **experimental** regardless of that match.
 
 ---
 
@@ -230,20 +232,44 @@ Configuration is environment-only by design; the shipped bundle row carries no `
 plugin's `apply(ctx, config)` also accepts the same values programmatically (used by the tests), and
 `dsh` passes a row `config` through unchanged if a deployment chooses to set one.
 
-## 8. Install (opt-in, previewable, reversible)
+## 8. Install (opt-in, reversible)
 
 This package is a `dsh` **profile bundle**: `package.json` declares `dsh.bundle.patch` and
 `cordis.patch.yml` inserts exactly one row (id `overseer-dsh-observer`, module
 `overseer-dsh-observer`). Installing it makes it a dependency of one profile and selects it as a
 bundle layer for that profile. Nothing is installed by reading this document.
 
-Preview before installing — there is no dry-run flag, so read what would change:
+### What `dsh plugin add` actually does with a local path
+
+`dsh plugin` is a thin forwarder to `pnpm`; it declares no install logic of its own. A bare
+directory path is treated by pnpm as a `link:` dependency, so:
+
+- **the directory is linked, not copied.** On Windows the profile gets a directory junction at
+  `<profile>/node_modules/overseer-dsh-observer` pointing at the absolute path you passed, and the
+  plugin loads from that original directory at runtime;
+- **you must keep that directory where it is.** If you move or delete it, the link dangles, `dsh`
+  still starts but skips the bundle with `dsh: skipping profile bundle "…"` on stderr, and its rows
+  never load. A later `dsh plugin` run in that profile can also fail while reconciling the missing
+  dependency. Install from a permanent location (for example under your user profile), not from a
+  temporary extraction you intend to clean up;
+- if you need a copy that survives the source tree being removed, use pnpm's copy form
+  (`dsh plugin --profile <name> add "file:<absolute path>"`) or a registry/git source instead. That
+  is pnpm's `file:` protocol, not an OVERSEER feature.
+
+### Preview
+
+**There is no dry-run flag.** `dsh plugin` forwards unknown flags to pnpm, so `--dry-run` would not
+be a dsh preview. The only read-only inspection `dsh` implements is its plugin-manager `inspect()`
+API, which is what the Web install dialog calls; it is not exposed as a CLI flag. To preview
+manually, read what would change:
 
 1. This package: `package.json` (`dsh.bundle.patch`) and `cordis.patch.yml` (one inserted row).
 2. The target profile's current state: `dsh plugin --profile <name> list`.
 3. In the GUI, the Plugins page lists installed bundles and the rows a bundle would add.
 
-Install (run by the user, never by this repository):
+### Install
+
+Run by the user, never by this repository:
 
 ```sh
 dsh plugin --profile <profile-name> add "<absolute path to this directory>"
@@ -260,20 +286,23 @@ Confirm the observer is alive by reading `<spoolRoot>/dsh/<sourceInstanceId>/hea
 (`lastWrite` advances, `queueDepth` returns to 0) and `events.jsonl` (a `snapshot` record with
 `hydration: true` at attach, then `heartbeat` records).
 
-Uninstall:
+### Uninstall
 
 ```sh
 dsh plugin --profile <profile-name> remove overseer-dsh-observer
 ```
 
-Removal deselects the bundle, unloads its row, and removes the dependency from that profile. Nothing
-else is touched: no other profile, no `~/.dsh` file outside that profile's own package manifest, no
-host configuration. As a manual fallback, delete the `overseer-dsh-observer` row from the profile's
-`cordis.patch.yml` and the name from `dsh.profile.bundles` in its `package.json`. Spool files are
-OVERSEER-owned data and are simply left behind; delete the adapter directory to remove them.
+Removal deselects the bundle, unloads its row, and removes the dependency from that profile. Because
+the install was a link and not a copy, `remove` deletes only the link — your checkout is left
+untouched. Nothing else is touched either: no other profile, no `~/.dsh` file outside that profile's
+own package manifest, no host configuration. As a manual fallback, delete the
+`overseer-dsh-observer` row from the profile's `cordis.patch.yml` and the name from
+`dsh.profile.bundles` in its `package.json`. Spool files are OVERSEER-owned data and are simply left
+behind; delete the adapter directory to remove them.
 
 Never hand-edit `~/.dsh` in this repository's automation, and never read the harness credential
 store.
+
 
 ## 9. Privacy statement
 
@@ -318,7 +347,7 @@ a worker-thread reader; `fixtures/` holds sanitized synthetic event shapes.
 
 ## 11. Known limitations
 
-- **`input/asked` and `input/answered` are reserved, not emitted.** `dsh` 0.1.5-rc.3 logs no session
+- **`input/asked` and `input/answered` are reserved, not emitted.** The pinned `dsh` logs no session
   event for a human question: the only input seam is the user-question waterfall, which this
   observer must not intercept. The kinds stay in the allowlist for a future emit-mode seam.
 - **`thinking` is reserved, not emitted.** Reasoning text is never read, so the observer cannot

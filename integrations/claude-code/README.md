@@ -280,9 +280,34 @@ Options:
 | `[settingsPath]` | settings file to edit; default `~/.claude/settings.json`; a missing file is created on `--apply` |
 | `--apply` | actually write; without it the run is a preview |
 | `--events=A,B,...` | wire only the listed events (default: the 15 documented events above) |
-| `--bridge=<path>` | override the recorded hook script path (default: this checkout's `bridge.mjs`) |
+| `--bridge=<path>` | override the recorded hook script path (default: this directory's `bridge.mjs`) |
 | `--json` | machine-readable plan on stdout (tests use this) |
 | `--dry-run` | explicit preview (same as omitting `--apply`) |
+| `--no-verify` | skip the pre-write execution probe described below (advanced; the recorded path is then unproven) |
+
+### Keep the bridge somewhere permanent
+
+Claude Code stores an **absolute path** to `bridge.mjs` in your settings file. If you install from a
+release archive you later delete, that path dangles and Claude Code reports a hook error on every
+event. So `--apply` **executes the hook command it is about to record** once, against a throwaway
+spool, and refuses to write anything (exit 2, no backup, no change) unless that run succeeds:
+
+- a missing or unreadable path is refused;
+- a path that is a directory is refused;
+- a command that exits non-zero is refused;
+- a command that exits 0 but publishes no spool record is refused, because it would silently
+  observe nothing.
+
+The probe runs only when the run would record a bridge path the settings file does not already
+point at, so re-running an unchanged install stays idempotent and cheap. Copy this integration to a
+directory you intend to keep, then install from there:
+
+```text
+node install.mjs "C:\Users\you\.claude\settings.json" --bridge="C:\Tools\overseer-claude\bridge.mjs" --apply
+```
+
+Paths containing spaces and non-ASCII characters are supported: the recorded handler passes
+`command` and `args` as a direct argument vector, so nothing is re-parsed by a shell.
 
 Guarantees:
 
@@ -295,7 +320,9 @@ Guarantees:
 * the run is idempotent: a second `--apply` reports "already installed" and writes nothing and no
   second backup;
 * ownership is identified by the marker string `overseer-claude-bridge` inside the handler
-  `args`, so nothing else in your settings can be mistaken for an OVERSEER entry.
+  `args`, so nothing else in your settings can be mistaken for an OVERSEER entry;
+* rebinding rewrites every owned handler to the new path and removes duplicates, rather than adding
+  a second handler per event.
 
 Each installed event gets one matcher-less group (which the docs define as "every occurrence"):
 
@@ -336,8 +363,10 @@ node integrations/claude-code/uninstall.mjs "C:\Users\you\.claude\settings.json"
 * rollback: restore any `<file>.overseer-backup-<utcstamp>` over the settings file, or run the
   uninstaller. Removing the integration directory without running the uninstaller leaves
   dangling handler entries (and a "hook error" notice in Claude Code) - uninstall first.
-* moving this directory invalidates the recorded absolute `bridge.mjs` path; re-run
-  `install.mjs ... --apply` afterwards to update it.
+* moving this directory invalidates the recorded absolute `bridge.mjs` path. Rebind instead of
+  reinstalling: `node install.mjs "<settings.json>" --bridge="<new path>\bridge.mjs" --apply`
+  rewrites every owned handler and verifies the new path first. If the old location is already
+  gone, `--apply` is still the right command - it never needs the previous path to exist.
 
 ## Tests
 
