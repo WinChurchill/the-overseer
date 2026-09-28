@@ -1,5 +1,85 @@
 # OVERSEER Implementation State
 
+## Astra corrective implementation — 2026-09-27
+
+User authorized fixing the re-review findings here. All three are implemented:
+startup guard cancellation is synchronous on explicit show/input/shutdown, cleanup
+is scheduled even without a prior foreground window, and only the guard-owned style
+bit is removed. SourceHealth now uses nullable, source-local evidence and renders
+missing evidence as unknown. Upgrade checks emit deferred evidence and exit before
+launching either apphost when no display is authorized.
+
+Verification: Release build/test **686 passed, 0 failed, 0 skipped**. Five new
+deterministic regressions cover guard cancellation/timeout/style ownership and
+unknown/source-local freshness. `scripts/Test-ReleaseUpgradePlacement.ps1` executes
+the real upgrade script with only display discovery and process launch mocked:
+**3/3 passed**, including zero launches and exit 1 for the deferred branch, secondary
+placement for both builds, and explicit primary opt-in. No new test dependency.
+Fresh candidate packaging/isolated runtime verification follows this source commit.
+The preceding review findings remain below as historical evidence. The live app,
+user settings, shortcut and harness configuration are unchanged.
+
+## Astra re-review — 2026-09-27 — CHANGES REQUIRED
+
+Reviewed `af4d42f..b700bf5` on `ux/first-use` (22 files, eight commits).
+Scope remains aligned with the previous fix packet. The history recursion, old
+attention filtering and project-disappearance episode reproductions now pass.
+Typed source health correctly separates instances and explicit evidence timestamps.
+Three remaining findings require a small corrective continuation:
+
+1. **MAJOR / P2 — startup activation guard does not honor explicit show intent.**
+   `HudApplicationController.RequestShow` activates the HUD without stopping the
+   guard or restoring the temporary no-activate style. A tray/second-launch request
+   during the first two seconds can therefore be undone by the next timer tick.
+   Only preview mouse/key events set `_userTookFocus`, contrary to the guard's
+   documented explicit-show exception. Also, `StartForegroundGuard` returns when
+   the captured foreground handle is zero *after* the no-activate style was added,
+   leaving no timer to remove that style. Centralize guard cancellation/restoration:
+   explicit show must do it before activation; absent prior foreground must still
+   have bounded cleanup; shutdown must cancel pending work. Cover these branches
+   with deterministic tests rather than only passive foreground sampling. These
+   paths were found by code inspection, not by seizing the user's live focus.
+2. **MAJOR / P2 — upgrade-test deferral is only a message.**
+   `scripts/Test-ReleaseUpgrade.ps1:187` marks no-secondary-display runs deferred,
+   but execution falls through to both `Invoke-PackagedRun` calls at lines 253/264.
+   Without `-AllowVisibleChecksOnPrimary`, this still opens the old and new HUDs
+   on the primary display. Guard/return before either launch and emit honest deferred
+   evidence. Add a mocked no-secondary test that proves zero process launches, plus
+   tests for explicit primary opt-in and secondary placement. No monitor was removed
+   and this unsafe branch was not executed on the user's desktop during review.
+3. **MINOR / P2 — missing source evidence still advances with the composite clock.**
+   `SourceHealth.From` uses its `observedAt` argument (the composite's current time)
+   when `EvidenceAt` is default. A not-started source initialized at MinValue thus
+   looks freshly timestamped on every publication; a source with an older ObservedAt
+   and default EvidenceAt also loses its own fallback time. A nonvisual probe confirms
+   three minutes of freshness advancement without any source change. Preserve the
+   source's own EffectiveEvidenceAt, and display genuinely absent evidence as unknown
+   rather than year-one age or current time. Test both missing and explicit evidence.
+
+Independent verification this round: Release build/test **681 passed, 0 failed,
+0 skipped**; dsh **30/30**, Claude **21/21**. The existing isolated view-model probe
+now reports history rebuild survived, old pending input visible with RecentHours=2,
+and a returning attention project expanded. Probe output is in ignored
+`artifacts/astra-review-20260927/rereview-probe.txt`; its aggregate-only legacy health
+line is not a test of the new typed source path. The added missing-evidence probes
+exercise `SourceHealth.From` directly.
+
+RC4 ZIP SHA-256 independently matches
+`E6101FA471657DC11C5FCAA184A59CB6F1D8A4A75AAF623122FDCF747A5C31DE`;
+manifest source `c18822d21a28083c4e596314a320d50d1c6c178a`, clean source tree,
+ProductVersion `1.0.0-rc.4+c18822d`. Existing package **41/41** and upgrade **9/9**
+evidence was inspected, not rerun in full. The health-popup PNG was visually checked.
+No new visible smoke or interactive focus test was run because the focus guard is
+itself under review. The user's running app, settings, shortcut and displays remain
+untouched. Git was clean at review start; only this review ledger is changed in
+tracked files. `.agent/HANDOFF.md` contains the updated ordered continuation.
+
+Next action: fix the three findings on the same branch, rerun targeted/full tests,
+republish and refresh isolated package evidence, then request Astra re-review.
+External clean-Windows, live-harness, signing/terms, physical display/audio and rollback
+qualification gaps remain unchanged. No merge, push, live replacement or public
+release is approved by this review.
+
 ## Astra review — 2026-09-27 — CHANGES REQUIRED
 
 Reviewed DeepSeek's candidate changes `7ac5768..af4d42f` on `ux/first-use`

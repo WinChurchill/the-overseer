@@ -187,6 +187,19 @@ try {
     if ($visibleChecksDeferred) {
         Add-Check 'visible-checks-placement' $false (
             'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so the windowed upgrade comparison was not run')
+        $evidencePath = Join-Path $evidenceRoot ('upgrade-evidence-' + $stamp + '.json')
+        [ordered]@{
+            product = 'OVERSEER'
+            check = 'release-upgrade'
+            previousArchive = $previousArchive
+            candidateArchive = $candidateArchive
+            visibleChecksDeferred = $true
+            visibleCheckMonitor = ''
+            generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+            checks = @($script:Checks)
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidencePath -Encoding utf8
+        Write-Host ('evidence: ' + $evidencePath)
+        exit 1
     } else {
         Add-Check 'visible-checks-placement' $true (
             $(if ($secondaryMonitor) { 'secondary monitor=' + $secondaryMonitor } else { 'primary display explicitly allowed by request' }))

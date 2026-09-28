@@ -18,7 +18,7 @@ public sealed record SourceHealth(
     MonitoringHealthLevel Level,
     IReadOnlyList<string> Reasons,
     bool CoverageComplete,
-    DateTimeOffset EvidenceAt,
+    DateTimeOffset? EvidenceAt,
     MonitorCapabilities Capabilities)
 {
     /// <summary>True when this source produced an observation at all.</summary>
@@ -33,17 +33,16 @@ public sealed record SourceHealth(
         (Reasons.Count == 0 ? string.Empty : " [" + string.Join(',', Reasons) + "]");
 
     /// <summary>
-    /// Builds the entry for one source. Evidence time falls back to the observation
-    /// instant only when the source never reported one, so an idle source cannot claim
-    /// to be freshly read.
+    /// Uses this source's own evidence or observation time. A source that has never
+    /// published has unknown freshness; the composite's clock is never substituted.
     /// </summary>
-    public static SourceHealth From(SourceSnapshot snapshot, DateTimeOffset observedAt) => new(
+    public static SourceHealth From(SourceSnapshot snapshot) => new(
         snapshot.Source.HarnessId,
         snapshot.Source.SourceInstanceId,
         snapshot.Source.DisplayName,
         snapshot.Health,
         snapshot.HealthReasons,
         snapshot.CoverageComplete,
-        snapshot.EvidenceAt == default ? observedAt : snapshot.EvidenceAt,
+        snapshot.EffectiveEvidenceAt == default ? null : snapshot.EffectiveEvidenceAt,
         snapshot.Capabilities);
 }

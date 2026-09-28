@@ -352,7 +352,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 // Typed per-source health for consumers that need source-specific detail.
                 // The evidence time is this source's own, so a fresh peer can never
                 // renew a stalled source's displayed freshness.
-                perSource.Add(SourceHealth.From(source, now));
+                perSource.Add(SourceHealth.From(source));
             }
 
             // Deterministic order: harness, then instance identity.

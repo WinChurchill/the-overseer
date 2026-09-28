@@ -1,5 +1,14 @@
 # OVERSEER changelog
 
+## Unreleased — 2026-09-27 (review corrections)
+
+- Explicit show and user input now end the startup focus guard immediately; timeout
+  and shutdown clean up only its temporary no-activate flag, preserving other styles.
+- Source health keeps missing evidence unknown and uses the source's own fallback
+  observation time, so unchanged sources cannot appear freshly read by a peer update.
+- Upgrade qualification now exits with deferred evidence before launching any window
+  when no secondary display exists and primary-display testing was not enabled.
+
 ## Unreleased — 2026-09-26 (usable release candidate: simplified HUD, packaged bridges, candidate verification)
 
 Internal release candidate `1.0.0-rc.1` on `ux/first-use`. It is **not** a public

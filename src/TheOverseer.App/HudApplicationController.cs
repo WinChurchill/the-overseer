@@ -230,6 +230,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private void CreateWindow()
     {
+        var foregroundBeforeShow = NativeMethods.GetForegroundWindow();
         _window = _dependencies.WindowFactory();
         _window.Icon = AppIcon.WindowImage;
         _window.DataContext = ViewModel;
@@ -271,14 +272,12 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         // even when it is shown without activation and even while it stays hidden. A
         // HUD that owns the foreground silently swallows the user's typing, so the
         // window that had focus is remembered here and the guard below returns it.
-        var foregroundBeforeShow = NativeMethods.GetForegroundWindow();
-        _originalExStyle = NativeMethods.GetWindowLongPtr(_handle, NativeMethods.GwlExStyle);
-        _ = NativeMethods.SetWindowLongPtr(
-            _handle,
-            NativeMethods.GwlExStyle,
-            new IntPtr(_originalExStyle.ToInt64() | NativeMethods.WsExNoActivate));
+        _activationGuard = new StartupActivationGuard(
+            () => NativeMethods.GetWindowLongPtr(_handle, NativeMethods.GwlExStyle).ToInt64(),
+            style => NativeMethods.SetWindowLongPtr(_handle, NativeMethods.GwlExStyle, new IntPtr(style)),
+            () => RestoreForegroundIfTaken(foregroundBeforeShow));
         ApplyGeometry(show: false);
-        StartForegroundGuard(foregroundBeforeShow);
+        StartForegroundGuard();
         if (!_dependencies.StartHidden)
         {
             _window.Show();
@@ -304,9 +303,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     }
 
     private System.Windows.Threading.DispatcherTimer? _foregroundGuard;
-    private bool _userTookFocus;
-    private IntPtr _originalExStyle;
-    private bool _exStyleRestored;
+    private StartupActivationGuard? _activationGuard;
 
     /// <summary>
     /// Bounded startup guard: while the HUD is starting up it must never keep a focus
@@ -315,17 +312,17 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     /// for good as soon as the user interacts with the HUD or asks for it to be shown —
     /// an explicit request is intent, and the HUD keeps that activation.
     /// </summary>
-    private void StartForegroundGuard(IntPtr foregroundBeforeShow)
+    private void StartForegroundGuard()
     {
-        if (_window is null || foregroundBeforeShow == IntPtr.Zero)
+        if (_window is null)
         {
+            StopForegroundGuard();
             return;
         }
 
-        _window.PreviewMouseDown += (_, _) => _userTookFocus = true;
-        _window.PreviewKeyDown += (_, _) => _userTookFocus = true;
+        _window.PreviewMouseDown += OnStartupMouseInput;
+        _window.PreviewKeyDown += OnStartupKeyInput;
 
-        var ticks = 0;
         _foregroundGuard = new System.Windows.Threading.DispatcherTimer(
             System.Windows.Threading.DispatcherPriority.Background, _window.Dispatcher)
         {
@@ -333,16 +330,14 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         };
         _foregroundGuard.Tick += (_, _) =>
         {
-            var guard = _foregroundGuard;
-            if (guard is null || _shuttingDown || _userTookFocus || ++ticks > 20)
+            if (_shuttingDown)
             {
-                guard?.Stop();
-                _foregroundGuard = null;
-                RestoreActivationStyle();
+                StopForegroundGuard();
                 return;
             }
 
-            RestoreForegroundIfTaken(foregroundBeforeShow);
+            _activationGuard?.Tick();
+            if (_activationGuard?.IsActive != true) StopForegroundGuard();
         };
         _foregroundGuard.Start();
     }
@@ -351,16 +346,21 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     /// Removes the startup no-activate style once the HUD has settled, so ordinary
     /// interaction (clicking a control, Alt+Tab, keyboard access) behaves normally.
     /// </summary>
-    private void RestoreActivationStyle()
+    private void StopForegroundGuard()
     {
-        if (_exStyleRestored || _handle == IntPtr.Zero)
+        _foregroundGuard?.Stop();
+        _foregroundGuard = null;
+        _activationGuard?.Stop();
+        _activationGuard = null;
+        if (_window is not null)
         {
-            return;
+            _window.PreviewMouseDown -= OnStartupMouseInput;
+            _window.PreviewKeyDown -= OnStartupKeyInput;
         }
-
-        _exStyleRestored = true;
-        _ = NativeMethods.SetWindowLongPtr(_handle, NativeMethods.GwlExStyle, _originalExStyle);
     }
+
+    private void OnStartupMouseInput(object sender, System.Windows.Input.MouseButtonEventArgs e) => StopForegroundGuard();
+    private void OnStartupKeyInput(object sender, System.Windows.Input.KeyEventArgs e) => StopForegroundGuard();
 
     /// <summary>
     /// Returns focus to the window that had it before the HUD was created. It never
@@ -369,7 +369,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     /// </summary>
     private void RestoreForegroundIfTaken(IntPtr foregroundBeforeShow)
     {
-        if (_handle == IntPtr.Zero || foregroundBeforeShow == _handle)
+        if (_handle == IntPtr.Zero || foregroundBeforeShow == IntPtr.Zero || foregroundBeforeShow == _handle)
         {
             return;
         }
@@ -532,6 +532,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                 return;
             }
 
+            StopForegroundGuard();
             if (!_window.IsVisible)
             {
                 _window.Show();
@@ -569,6 +570,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
         else
         {
+            StopForegroundGuard();
             _window.Show();
             ApplyGeometry(show: false);
         }
@@ -1431,6 +1433,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         _shuttingDown = true;
+        StopForegroundGuard();
         _chrome?.Dispose();
         _chrome = null;
         _notificationSettings?.Close();
