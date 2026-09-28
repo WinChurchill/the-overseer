@@ -1,11 +1,27 @@
 # OVERSEER: repository diagnosis and release-candidate plan
 
-Latest Astra correction (2026-09-27): five local findings implemented; final candidate
-verification is pending. Current source checks: 704 .NET tests, 29 Claude/30 dsh bridge
-tests, 55 upgrade-comparison negative controls, 3 placement cases and 42 real-composition
-checks on DISPLAY2 passed. The matrix below is historical RC6 evidence; it does not
-qualify RC7. See the newest IMPLEMENTATION_STATE entry for current evidence and limits.
-External release gates remain open.
+Latest Astra correction (2026-09-27): **PASS WITH NONBLOCKING NOTES** for the five
+local review findings, fixed in `5aba6c2`. Current checks: 704 .NET tests, 29 Claude/
+30 dsh bridge tests, 55 upgrade-comparison negative controls and 3 mocked placement
+cases passed. Clean RC7 has been built and verified as follows; the older 28-row
+matrix later in this document remains historical RC6 evidence, not an RC7 gate total.
+
+| RC7 verification | Result | Evidence under `artifacts/rc7/` |
+| --- | --- | --- |
+| Clean package identity | `1.0.0-rc.7+5aba6c2`, unsigned, 568 files / 75 integration assets | `build-manifest.json`, `astra-packaged/identity.json` |
+| Extracted real composition with invented sources | 42/42; seven window-placement assertions on DISPLAY2 | `astra-packaged/composition/run-20260928T045928Z-f563f2a5/composition-report.json` |
+| Extracted monitoring-to-UI integration | 14/14 on DISPLAY2 | `astra-packaged/integration/run-20260928T050003Z-65249048/integration-report.json` |
+| Silent voice mechanics | PASS, offline synthesis/preview and owned loopback | `astra-packaged/voice/stdout.log` |
+| Real RC6 -> RC7 upgrade/rollback, HUD | 25/25; strict saved-window comparison | `upgrade-hud/run-20260928T045527Z-32c2c0fd/upgrade-evidence-20260928T045527Z.json` |
+| Real RC6 -> RC7 upgrade/rollback, Window view | 25/25; strict saved-window comparison | `upgrade-window/run-20260928T045628Z-7f638b8b/upgrade-evidence-20260928T045628Z.json` |
+
+RC7 archive SHA-256:
+`88531C43F86071E6F7F4581C03FB30818404D874A484B668C50935FF5D93EC74`.
+Full interactive RC7 lifecycle smoke was not repeated because second-launch restore
+intentionally activates the window. Existing RC6 lifecycle evidence is unchanged.
+Live-host, audible-audio, physical-display, clean-machine and distribution gates
+remain open; public-release readiness is not claimed. See the newest
+IMPLEMENTATION_STATE entry for full evidence and limits.
 
 
 Current execution packet: **Stage 1 cleanup + Stage 2 implementation**, below.

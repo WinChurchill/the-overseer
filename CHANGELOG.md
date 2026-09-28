@@ -2,6 +2,11 @@
 
 ## 1.0.0-rc.7 — review corrections
 
+Internal candidate built from clean source `5aba6c2`. All five local findings closed:
+704 .NET tests, Claude 29/29, dsh 30/30; extracted composition 42/42, integration 14/14,
+silent voice smoke, and real RC6 upgrade/rollback 25/25 in both HUD and Window modes.
+External qualification remains open; this candidate has not replaced the live app.
+
 - Composition diagnostics now require an authorized display before creating windows,
   seed both window modes in every scenario, and assert the resulting bounds.
 - Restarts use production adapter discovery/construction. Added applied-HUD checks

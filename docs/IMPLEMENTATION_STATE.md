@@ -1,6 +1,6 @@
 # OVERSEER Implementation State
 
-## Astra corrective implementation — 2026-09-27 — candidate verification pending
+## Astra corrective implementation — 2026-09-27 — PASS WITH NONBLOCKING NOTES
 
 User authorized implementing the five review solutions. They are now implemented:
 shared authorized-monitor setup plus actual bounds checks for every composition;
@@ -16,10 +16,40 @@ An earlier development run exposed three overly strict new test assertions: reco
 must restore current coverage while retaining observed history gaps. Corrected those
 assertions without weakening production history semantics; final run passed.
 
-Clean RC7 packaging and strict real-archive upgrade/rollback in both modes are next.
-Public-release gates and actual interactive/audio/clean-machine qualification remain
-open. Live HUD/settings, shortcut, startup registration and real harness profiles
-are unchanged. The historical review and execution evidence follow below.
+All five local review findings are closed in source commit `5aba6c2`; final diff
+review found no additional blocking defect in these corrections. Both the working
+diff and `git diff --check 65a3c15..HEAD` are clean. Branch remains `ux/first-use`.
+
+Clean internal candidate `1.0.0-rc.7+5aba6c2`:
+`artifacts/rc7/OVERSEER-1.0.0-rc.7-win-x64.zip`, SHA-256
+`88531C43F86071E6F7F4581C03FB30818404D874A484B668C50935FF5D93EC74`.
+Manifest records clean source, 568 payload files and 75 integration assets; the
+apphost is unsigned. Independently extracted identity is recorded in
+`artifacts/rc7/astra-packaged/identity.json`.
+
+Extracted-package verification, with invented producer data and isolated settings:
+- Composition **42/42**, including all seven actual window-placement assertions:
+  `artifacts/rc7/astra-packaged/composition/run-20260928T045928Z-f563f2a5/composition-report.json`.
+- Monitoring-to-UI integration **14/14**:
+  `artifacts/rc7/astra-packaged/integration/run-20260928T050003Z-65249048/integration-report.json`.
+- Silent voice smoke **PASS**, including real offline synthesis/preview, dedupe,
+  mute, no backlog replay and owned loopback failure cases:
+  `artifacts/rc7/astra-packaged/voice/stdout.log`. This is not audible qualification.
+- Real RC6 -> RC7 upgrade and rollback **25/25 in each mode**, with all 89 JSON
+  paths compared strictly except valid save timestamps, five custom WAVs and spool
+  documents preserved. HUD evidence:
+  `artifacts/rc7/upgrade-hud/run-20260928T045527Z-32c2c0fd/upgrade-evidence-20260928T045527Z.json`.
+  Window-view evidence:
+  `artifacts/rc7/upgrade-window/run-20260928T045628Z-7f638b8b/upgrade-evidence-20260928T045628Z.json`.
+
+Visible checks used DISPLAY2. Full interactive RC7 lifecycle smoke was not rerun:
+its second-launch restore intentionally activates the window. Historical RC6
+lifecycle evidence remains separately labeled. Public-release gates and actual
+interactive/audio/clean-machine qualification remain open. Live HUD/settings,
+shortcut, startup registration and real harness profiles are unchanged. No merge,
+push or public upload. The historical review and execution evidence follow below;
+their CHANGES REQUIRED verdict and corrective prompt are superseded for these five
+findings by this entry.
 
 ## Astra review — 2026-09-27 — CHANGES REQUIRED
 
