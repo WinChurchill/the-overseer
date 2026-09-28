@@ -1,5 +1,20 @@
 # OVERSEER Implementation State
 
+## Six-area automated pre-user pass — 2026-09-27 — validation in progress
+
+Added `scripts/Test-PreUserRelease.ps1` to compose existing build/tests, packaged
+checks, bridge suites, both upgrade/rollback modes and native scaling into one
+sequential run. The report retains six areas and their remaining manual/external
+gates. Default visible checks stay on a secondary display; only the intentional
+second-launch activation checks defer. No live profiles/settings/shortcut changes.
+
+Expanded packaged integration to cover async partial/full answers and rearming.
+Fixed a false-positive degradation predicate that accepted healthy `live` state;
+the corrected check requires limited coverage with truncation/stale evidence.
+Scaling probe cleanup now terminates only its owned process if orderly exit hangs.
+Initial Release build: 0 warnings/errors; .NET tests: 722 passed, none failed/skipped.
+Candidate package verification is pending; no public release or merge authorized.
+
 ## Codex async answer fix — 2026-09-27 — implemented; approval connection blocked
 
 User authorized fixing the live-test findings. Added a bounded parser for the exact

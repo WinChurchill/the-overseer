@@ -246,6 +246,11 @@ try {
     if (-not $process.HasExited) {
         $window = [ScalingProbe]::Find($process.Id)
         if ($window -ne [IntPtr]::Zero) { [void][ScalingProbe]::PostMessage($window, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) }
-        if (-not $process.WaitForExit(5000)) { $process.WaitForExit(50000) | Out-Null }
+        if (-not $process.WaitForExit(5000) -and -not $process.WaitForExit(50000)) {
+            # A failed probe must not leave its own diagnostic window behind.
+            $process.Kill($true)
+            [void]$process.WaitForExit(10000)
+        }
     }
+    $process.Dispose()
 }

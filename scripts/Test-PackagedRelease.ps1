@@ -27,6 +27,9 @@ param(
     [ValidateRange(6, 6)][int] $FixtureMinimumRenders = 6,
     [switch] $AllowUnavailableMonitor,
     [switch] $SkipHudLifecycle,
+    # The two second-instance checks intentionally activate the HUD. Defer only
+    # those when someone is working on the other display; keep all other lifecycle checks.
+    [switch] $SkipActivationChecks,
     [switch] $SkipBridgeTests,
     # Run only the headless checks. Every windowed check is then recorded as deferred
     # with a reason instead of being silently dropped, so a headless run is still
@@ -54,6 +57,11 @@ function Add-Check([string] $name, [bool] $passed, [string] $detail) {
     $entry = [ordered]@{ check = $name; status = $(if ($passed) { 'pass' } else { 'fail' }); detail = $detail }
     [void]$script:Checks.Add($entry)
     Write-Host (('[{0}] {1} - {2}' -f $entry.status.ToUpperInvariant(), $name, $detail))
+}
+
+function Add-DeferredCheck([string] $name, [string] $detail) {
+    [void]$script:Checks.Add([ordered]@{ check = $name; status = 'deferred'; detail = $detail })
+    Write-Host ('[DEFERRED] ' + $name + ' - ' + $detail)
 }
 
 function Write-Step([string] $message) { Write-Host ('==> ' + $message) }
@@ -487,7 +495,7 @@ if ($visibleChecksDeferred) {
 if (-not $visibleChecksDeferred) {
     $integrationPassed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check PASS ')).Count
     $integrationFailed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check FAIL ')).Count
-    Add-Check 'hud-integration-check' ($integrationCheck.ExitCode -eq 0 -and $integrationFailed -eq 0 -and $integrationPassed -ge 14) (
+    Add-Check 'hud-integration-check' ($integrationCheck.ExitCode -eq 0 -and $integrationFailed -eq 0 -and $integrationPassed -ge 17) (
         'exit=' + $integrationCheck.ExitCode + ' passed=' + $integrationPassed + ' failed=' + $integrationFailed)
 }
 
@@ -735,9 +743,13 @@ if ($visibleChecksDeferred) {
     $focusTransitions | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $logRoot 'focus-transitions.json') -Encoding utf8
 
     if ($alive) {
-        # Second instance must exit by itself without disturbing the first.
-        $second = Invoke-FiniteMode $executable 'second-instance' @('--data-directory', $liveData) $sanitized.Environment $workingDirectory $logRoot 60 @(0)
-        Add-Check 'second-instance-still-alive' (-not $live.HasExited) ('first-alive=' + (-not $live.HasExited))
+        if ($SkipActivationChecks) {
+            Add-DeferredCheck 'second-instance' 'intentional activation deferred to protect the current foreground work'
+            Add-DeferredCheck 'second-instance-still-alive' 'requires the deferred second-instance launch'
+        } else {
+            $second = Invoke-FiniteMode $executable 'second-instance' @('--data-directory', $liveData) $sanitized.Environment $workingDirectory $logRoot 60 @(0)
+            Add-Check 'second-instance-still-alive' (-not $live.HasExited) ('first-alive=' + (-not $live.HasExited))
+        }
 
         # Close now hides to the tray, so the packaged check verifies the hide first.
         # This cannot double as graceful-exit evidence: while a working tray exists
@@ -754,11 +766,15 @@ if ($visibleChecksDeferred) {
         Add-Check 'hud-live-close-hides-to-tray' $hideVerified ('posted=' + $posted + ' alive=' + $hiddenAlive + ' visible=' + $hiddenVisible)
 
         # A second normal launch must restore the same window and session.
-        $restoreHandle = Start-PackagedProcess $executable @('--data-directory', $liveData) $sanitized.Environment $workingDirectory
-        $restore = Complete-PackagedProcess $restoreHandle 60 (Join-Path $logRoot 'restore-instance.log')
-        Start-Sleep -Seconds 3
-        $restoredVisible = [OverseerWindows]::AnyVisibleWindowOf($livePid)
-        Add-Check 'hud-live-second-launch-restores' ($restore.ExitCode -eq 0 -and -not $live.HasExited -and $restoredVisible) ('secondExit=' + $restore.ExitCode + ' firstAlive=' + (-not $live.HasExited) + ' visible=' + $restoredVisible)
+        if ($SkipActivationChecks) {
+            Add-DeferredCheck 'hud-live-second-launch-restores' 'intentional activation deferred to protect the current foreground work'
+        } else {
+            $restoreHandle = Start-PackagedProcess $executable @('--data-directory', $liveData) $sanitized.Environment $workingDirectory
+            $restore = Complete-PackagedProcess $restoreHandle 60 (Join-Path $logRoot 'restore-instance.log')
+            Start-Sleep -Seconds 3
+            $restoredVisible = [OverseerWindows]::AnyVisibleWindowOf($livePid)
+            Add-Check 'hud-live-second-launch-restores' ($restore.ExitCode -eq 0 -and -not $live.HasExited -and $restoredVisible) ('secondExit=' + $restore.ExitCode + ' firstAlive=' + (-not $live.HasExited) + ' visible=' + $restoredVisible)
+        }
 
         # End the run. The packaged UI has no scriptable Exit while a tray exists, so
         # terminating the process is timeout cleanup, not graceful-exit evidence. That
@@ -923,7 +939,8 @@ if ($visibleChecksDeferred) {
 }
 
 # ---- evidence + verdict ------------------------------------------------------
-$failed = @($script:Checks | Where-Object { $_.status -ne 'pass' })
+$failed = @($script:Checks | Where-Object { $_.status -eq 'fail' })
+$deferred = @($script:Checks | Where-Object { $_.status -eq 'deferred' })
 $evidence = [ordered]@{
     product = 'OVERSEER'
     version = $release.version
@@ -943,6 +960,8 @@ $evidence = [ordered]@{
     hudSeconds = $HudSeconds
     monitorSeconds = $MonitorSeconds
     hudLifecycleSkipped = [bool]$SkipHudLifecycle
+    activationChecksSkipped = [bool]$SkipActivationChecks
+    deferredChecks = $deferred.Count
     visibleChecksSkipped = [bool]$SkipVisibleChecks
     visibleChecksDeferred = [bool]$visibleChecksDeferred
     visibleChecksSkipReason = $visibleChecksSkipReason
@@ -970,7 +989,7 @@ $evidencePath = Join-Path $evidenceRoot ('smoke-evidence-' + $stamp + '.json')
 $evidence | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidencePath -Encoding utf8
 
 Write-Host ''
-Write-Host ('checks  : ' + $script:Checks.Count + ' total, ' + $failed.Count + ' failed')
+Write-Host ('checks  : ' + $script:Checks.Count + ' total, ' + $failed.Count + ' failed, ' + $deferred.Count + ' deferred')
 Write-Host ('evidence: ' + $evidencePath)
 Write-Host ('logs    : ' + $logRoot)
 
@@ -979,7 +998,8 @@ if ($failed.Count -gt 0) {
     exit 1
 }
 
-Write-Host 'packaged smoke: passed'
+if ($deferred.Count -gt 0) { Write-Host 'packaged smoke: executed checks passed; activation qualification remains deferred' }
+else { Write-Host 'packaged smoke: passed' }
 exit 0
 } finally {
     # Even a script exception must not leave a HUD, hidden tray or child server

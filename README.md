@@ -252,6 +252,32 @@ task state, so a broken monitor is never shown as zero tasks, stale tasks are ex
 authoritative counts (which are reported as partial, `1+` / `?`), and every source carries its own
 health, freshness and coverage within one shared per-pass read allowance.
 
+## Automated pre-user testing
+
+With .NET 10, Node and PowerShell 7 available, run the six-area checks against two
+trusted local packages (replace these archive paths for a newer candidate):
+
+```powershell
+pwsh -NoProfile -File scripts/Test-PreUserRelease.ps1 `
+  -CandidateArchivePath artifacts/rc8/OVERSEER-1.0.0-rc.8-win-x64.zip `
+  -PreviousArchivePath artifacts/rc7/OVERSEER-1.0.0-rc.7-win-x64.zip
+```
+
+The runner builds/tests source, tests the extracted package and both bridges, runs
+upgrade/rollback in HUD and Window modes, and exercises native scaling. It creates
+a fresh `artifacts/pre-user/run-*/pre-user-report.json` with logs and six-area results.
+It retains the isolated extraction for investigation. A non-primary display is required
+for visible checks; no personal settings, startup entries or harness profiles are changed.
+The two second-launch scenarios deliberately activate the HUD, so they are deferred
+by default. Add `-IncludeActivationChecks` when the desktop is idle to exercise them.
+Other lifecycle checks still run. Source and archive commit/hash identities are recorded
+separately; testing current source does not certify an older binary.
+
+An automated pass is **not** full release qualification. The report retains clean-machine
+download/SmartScreen, live harness setup, Codex approval observability, physical
+display/sleep/Snap, Windows logon/tray interaction and audible voice checks as remaining
+work. Synthetic events and silent audio checks are labeled accordingly.
+
 ## Historical release evidence
 
 Everything below belongs to an earlier revision and is **not** a claim about the current working

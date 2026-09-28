@@ -83,9 +83,37 @@ internal static class SyntheticProducers
         /// The asynchronous input tool call the desktop client persists: attention
         /// arrives while the turn itself keeps working.
         /// </summary>
-        public void RequestAsyncInput(string callId) => Append(ResponseItem("function_call", callId, "request_user_input_async"));
+        public void RequestAsyncInput(string callId, int questionCount = 1) =>
+            Append(ResponseItem("function_call", callId, "request_user_input_async", questionCount));
 
-        public void AnswerAsyncInput(string callId) => Append(ResponseItem("function_call_output", callId, null));
+        public void AcknowledgeAsyncInput(string callId) => Append(ResponseItem("function_call_output", callId, null));
+
+        public void AnswerAsyncInput(string callId, int questionIndex) => Append(JsonSerializer.Serialize(new
+        {
+            type = "response_item",
+            timestamp = Iso(DateTimeOffset.UtcNow),
+            payload = new
+            {
+                type = "message",
+                role = "user",
+                content = new[]
+                {
+                    new
+                    {
+                        type = "input_text",
+                        text = "<send_user_message_question_reply>\n" + JsonSerializer.Serialize(new[]
+                        {
+                            new
+                            {
+                                questionItemId = JsonSerializer.Serialize(new object[] { "request_user_input_async", callId, questionIndex }),
+                                question = "Synthetic question",
+                                answer = "Synthetic answer",
+                            },
+                        }) + "\n</send_user_message_question_reply>",
+                    },
+                },
+            },
+        }));
 
         /// <summary>
         /// Replaces the rollout with unreadable content. A real truncated or partially
@@ -165,7 +193,7 @@ internal static class SyntheticProducers
             }));
         }
 
-        private static string ResponseItem(string type, string callId, string? name) =>
+        private static string ResponseItem(string type, string callId, string? name, int questionCount = 1) =>
             JsonSerializer.Serialize(new
             {
                 type = "response_item",
@@ -175,7 +203,10 @@ internal static class SyntheticProducers
                     type,
                     name,
                     call_id = callId,
-                    arguments = type == "function_call" ? "synthetic structural arguments" : null,
+                    arguments = type == "function_call" ? JsonSerializer.Serialize(new
+                    {
+                        questions = Enumerable.Range(0, questionCount).Select(static index => new { title = "Synthetic question " + index }),
+                    }) : null,
                     output = type == "function_call_output" ? "synthetic response accepted" : null,
                 },
             });

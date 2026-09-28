@@ -1,5 +1,15 @@
 # OVERSEER changelog
 
+## Unreleased — automated pre-user checks
+
+- Added one sequential runner reporting all six pre-user test areas, with source and
+  package identities, individual logs and explicit remaining manual qualification.
+- Packaged integration now exercises partial answers, full answers while working,
+  and a new question after an answer. Source degradation must show real limited
+  coverage; the previous predicate incorrectly accepted a healthy `live` source.
+- Package lifecycle tests can defer only intentional activation while keeping other
+  checks on a secondary display. Scaling probes clean up their own hung process.
+
 ## Unreleased — Codex question-answer correlation
 
 - Answered asynchronous questions now clear their own attention flag during the

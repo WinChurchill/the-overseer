@@ -140,18 +140,32 @@ internal static class HudIntegrationCheckRunner
                 row.Key.HarnessId == HarnessIds.Dsh && !row.NeedsHuman && row.TaskState == AgentTaskState.Working), 30);
             Check("bridge-answer-clears-attention", answered, Summarize(viewModel));
 
-            codex.RequestAsyncInput("call-async-1");
+            codex.RequestAsyncInput("call-async-1", questionCount: 2);
             var asyncAttention = await WaitAsync(() => viewModel.Tasks.Any(static row =>
                 row.Key.HarnessId == HarnessIds.Codex && row.NeedsHuman && row.TaskState == AgentTaskState.Working), 30);
             Check("async-attention-while-working", asyncAttention, Summarize(viewModel));
 
-            // An unrelated tool output cannot answer a persisted async request: the
-            // turn boundary is the observable resolution. This is asserted rather than
-            // assumed, because clearing it in the UI alone would be a lie.
-            codex.AnswerAsyncInput("call-async-1");
+            // The tool acknowledgement only confirms question delivery. Actual user
+            // replies resolve individual questions while the same turn keeps working.
+            codex.AcknowledgeAsyncInput("call-async-1");
             var stillWaiting = !await WaitAsync(() => viewModel.Tasks.Any(static row =>
                 row.Key.HarnessId == HarnessIds.Codex && !row.NeedsHuman), 6);
             Check("async-attention-survives-unrelated-output", stillWaiting, Summarize(viewModel));
+
+            codex.AnswerAsyncInput("call-async-1", 0);
+            var partiallyAnswered = !await WaitAsync(() => viewModel.Tasks.Any(static row =>
+                row.Key.HarnessId == HarnessIds.Codex && !row.NeedsHuman), 6);
+            Check("async-partial-answer-keeps-attention", partiallyAnswered, Summarize(viewModel));
+
+            codex.AnswerAsyncInput("call-async-1", 1);
+            var allAnswered = await WaitAsync(() => viewModel.Tasks.Any(static row =>
+                row.Key.HarnessId == HarnessIds.Codex && !row.NeedsHuman && row.TaskState == AgentTaskState.Working), 30);
+            Check("async-full-answer-clears-during-working-turn", allAnswered, Summarize(viewModel));
+
+            codex.RequestAsyncInput("call-async-2");
+            var rearmed = await WaitAsync(() => viewModel.Tasks.Any(static row =>
+                row.Key.HarnessId == HarnessIds.Codex && row.NeedsHuman), 30);
+            Check("async-new-question-rearms-attention", rearmed, Summarize(viewModel));
 
             codex.Complete();
             var completed = await WaitAsync(() => viewModel.Tasks.Any(static row =>
@@ -164,7 +178,9 @@ internal static class HudIntegrationCheckRunner
             codex.BreakFile();
             var reported = await WaitAsync(() => viewModel.HealthDetails.Any(static row =>
                 row.Source.Contains("Codex", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(row.State, "reporting", StringComparison.Ordinal)), 45);
+                row.State.StartsWith("limited", StringComparison.Ordinal) &&
+                (row.State.Contains(HealthReasons.FileTruncated, StringComparison.Ordinal) ||
+                 row.State.Contains(HealthReasons.StaleTasks, StringComparison.Ordinal))), 45);
             codex.RemoveFile();
             var peerSurvived = viewModel.Tasks.Any(static row => row.Key.HarnessId == HarnessIds.Dsh);
             Check("codex-degradation-is-disclosed", reported, Summarize(viewModel));
