@@ -436,7 +436,12 @@ Add-Check 'child-environment-sanitized' ($sanitized.Leaks.Count -eq 0) ('removed
 # is deferred with an explicit gap instead of appearing on the display in use.
 $secondaryMonitor = if ($SkipVisibleChecks) { '' } else { Resolve-VisibleCheckMonitor $VisibleCheckMonitor }
 $visibleChecksDeferred = $SkipVisibleChecks -or (-not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary)
-$visibleChecksSkipReason = if ($SkipVisibleChecks) {
+# The reason is only a deferral reason when something was actually deferred. Recording
+# the "no non-primary display" text on a fully windowed successful run would put a false
+# statement in the evidence JSON, so the non-deferred case says so plainly instead.
+$visibleChecksSkipReason = if (-not $visibleChecksDeferred) {
+    'not deferred: every windowed check ran on the selected display'
+} elseif ($SkipVisibleChecks) {
     'skipped: -SkipVisibleChecks was passed, so no windowed check was opened'
 } else {
     'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so no windowed check was opened on the display in use'
