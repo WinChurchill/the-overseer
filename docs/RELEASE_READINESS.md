@@ -523,3 +523,67 @@ review-ready branch. Stay off the user's primary work surface and do not seize i
 Do not replace their app, edit real host settings, purchase services, merge, push or
 publish publicly. Local internal-candidate packaging is required. Return implementation status separately from public-release gate status,
 with concrete evidence and the exact remaining environment/owner needs.
+
+---
+
+# Clean-machine qualification protocol
+
+This protocol has **not been executed**. No clean Windows machine, VM or disposable
+account was available in this round, so every row that depends on one is `BLOCKED`
+with the exact prerequisite below rather than `PASS`. The procedure is written so it
+can be run without the author's checkout, SDK or cached packages.
+
+## Prerequisites the runner must supply
+
+| Prerequisite | Why | If missing |
+| --- | --- | --- |
+| The candidate ZIP and its `.sha256` sidecar, obtained by **browser download** from an owner-approved channel | Proves the archive survives the real download path, including browser reputation handling | Upload is not authorized by this packet. Mark the download rows `BLOCKED (no approved channel)` and test from a copied file instead, recording that distinction. |
+| A Windows machine or VM with no .NET SDK, no repository checkout, and no `%USERPROFILE%\.nuget\packages` cache | The self-contained claim is exactly "runs without a developer machine" | If the machine has any SDK, remove `DOTNET_ROOT` and any `dotnet` directory from `PATH` and record that it was not a pristine image. |
+| A **standard user** account (not administrator) | Confirms no elevation is needed | Record the account type actually used. |
+| The OS build, display scale and (for harness rows) the host version | Evidence is only meaningful with its environment | Record them from `winver`, the display settings page, and `dsh --version` / `claude --version`. |
+| A disposable/independent machine for the second pass | Catches author-machine caching | If unavailable, the independent-machine rows stay `BLOCKED`. |
+
+## Procedure
+
+1. **Verify the download.** Record the browser, the channel URL and the downloaded
+   file name. Compare SHA-256 against the published value:
+   ```powershell
+   Get-FileHash .\OVERSEER-1.0.0-rc.6-win-x64.zip -Algorithm SHA256
+   ```
+   Record the actual signature state; do not assume it matches the build machine:
+   ```powershell
+   Get-AuthenticodeSignature .\OVERSEER-1.0.0-rc.6-win-x64.zip | Select-Object Status, StatusMessage
+   ```
+   A browser reputation warning is an *observation to record*, not a test failure.
+2. **Extract as a standard user** into a normal user-writable location. Include a path
+   with a space in it at least once. Confirm `TheOverseer.App.exe` and `release.json`
+   are present and that `release.json` records the expected version and source commit.
+3. **First run, empty machine.** With no harness installed and no existing data
+   directory, launch the executable. Expect: the HUD appears, is **muted**, reports
+   unknown/limited health rather than a healthy zero, invents no tasks, and offers a
+   setup action in *Projects & sources*. Record what the health control says.
+4. **Native prerequisites.** Confirm the app starts with no .NET runtime installation
+   and no SDK present. If it fails, record the exact missing component — a
+   self-contained publish bundles .NET, not every OS/native dependency.
+5. **Optional harness setup.** Only if a host is available, install a bridge using the
+   integration README for that host, restart both host and OVERSEER, and confirm a
+   synthetic or real session appears. Until this is done for a given host version,
+   that integration stays **experimental**.
+6. **Profile paths.** Record where the data directory and each spool actually landed
+   (`%LOCALAPPDATA%\OVERSEER`, `...\bridges\<harness>\<instance>`,
+   `...\spool\claude\<instance>`), and confirm they are outside the extracted folder.
+7. **Update.** Extract a newer candidate into a *different* folder, run it against the
+   same data directory, and confirm settings, recordings, project mappings, disabled
+   sources, placement and spools survive.
+8. **Rollback.** Follow `docs/UPGRADE_AND_ROLLBACK.md`. Record whether the documented
+   boundary held on a real machine, not just in `scripts/Test-ReleaseUpgrade.ps1`.
+9. **Remove.** Uninstall each installed bridge, confirm the host's unrelated settings
+   are unchanged, delete the extracted folder, and confirm nothing in the user's
+   profile references it any more.
+
+## What this protocol cannot establish
+
+Physical keyboard/Alt+Tab/Snap/drag behaviour, audible playback by ear, sleep/wake,
+monitor removal/reconnect and mixed-DPI movement are **not** covered by the steps
+above. They need a person at a real machine and remain separate rows.
+

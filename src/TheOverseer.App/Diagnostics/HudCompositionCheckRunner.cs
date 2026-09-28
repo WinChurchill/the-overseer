@@ -57,16 +57,24 @@ internal static class HudCompositionCheckRunner
         Console.WriteLine("placement monitor: " + (string.IsNullOrWhiteSpace(arguments.PlacementMonitor) ? "(saved or primary)" : arguments.PlacementMonitor));
 
         // Hard guard: this check composes the real graph four times and lets a real
-        // controller save its state on shutdown. It must never resolve to the user's own
-        // data directory, because that would write to live settings and read their real
-        // harness configuration.
+        // controller save its state on shutdown. It must never read or write the user's
+        // own data directory. An explicit request for it is refused; no request at all
+        // is satisfied with an isolated directory under the evidence root instead of
+        // silently falling back to the live one.
         var realDataDirectory = DataDirectoryResolver.Resolve(null);
-        if (PathsEqual(DataDirectoryResolver.Resolve(arguments.DataDirectory), realDataDirectory))
+        var requestedDataDirectory = string.IsNullOrWhiteSpace(arguments.DataDirectory)
+            ? null
+            : DataDirectoryResolver.Resolve(arguments.DataDirectory);
+        if (requestedDataDirectory is not null && PathsEqual(requestedDataDirectory, realDataDirectory))
         {
-            Console.WriteLine("refusing to run: the resolved data directory is the user's live OVERSEER directory (" + realDataDirectory + ")");
-            Console.WriteLine("pass --data-directory PATH pointing inside a disposable evidence directory");
+            Console.WriteLine("refusing to run: the requested data directory is the user's live OVERSEER directory (" + realDataDirectory + ")");
+            Console.WriteLine("omit --data-directory to use an isolated directory under --output-directory");
             return 2;
         }
+
+        var dataDirectory = requestedDataDirectory ?? Path.Combine(root, "isolated-data");
+        Directory.CreateDirectory(dataDirectory);
+        arguments = arguments.WithPaths(arguments.CodexHome, dataDirectory);
 
         // The window is created without activation. Composition still runs for real;
         // this only stops an automated check from taking the user's focus.

@@ -28,11 +28,19 @@ param(
     [switch] $AllowUnavailableMonitor,
     [switch] $SkipHudLifecycle,
     [switch] $SkipBridgeTests,
+    # Run only the headless checks. Every windowed check is then recorded as deferred
+    # with a reason instead of being silently dropped, so a headless run is still
+    # honest about what it did not prove.
+    [switch] $SkipVisibleChecks,
     [switch] $KeepExtraction,
     # Visible checks normally run on a non-primary display so a user working on the
     # primary one is never disturbed. Pass this only on a machine where nothing else
     # is using the primary display (for example a clean qualification VM).
-    [switch] $AllowVisibleChecksOnPrimary
+    [switch] $AllowVisibleChecksOnPrimary,
+    # Pin the display the windowed checks use, instead of taking the first
+    # non-primary one. A qualification VM with several displays uses this to steer
+    # them off the display a person is actually looking at.
+    [string] $VisibleCheckMonitor = ''
 )
 
 Set-StrictMode -Version Latest
@@ -67,17 +75,58 @@ function Get-SecondaryMonitor {
     return ''
 }
 
+# Resolves the display windowed checks may use. An explicit request is honoured only
+# when it names a display that really exists and is not the primary one; anything else
+# falls back to the automatic choice so a typo cannot silently move windows onto the
+# display in use.
+function Resolve-VisibleCheckMonitor([string] $requested) {
+    if (-not $requested) { return (Get-SecondaryMonitor) }
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $match = [System.Windows.Forms.Screen]::AllScreens |
+            Where-Object { $_.DeviceName -eq $requested } |
+            Select-Object -First 1
+        if (-not $match) {
+            Write-Warning ('requested visible-check monitor was not found: ' + $requested)
+            return (Get-SecondaryMonitor)
+        }
+        if ($match.Primary) {
+            Write-Warning ('requested visible-check monitor is the primary display; falling back to the automatic choice: ' + $requested)
+            return (Get-SecondaryMonitor)
+        }
+
+        return [string]$match.DeviceName
+    } catch {
+        Write-Warning ('display enumeration failed: ' + $_.Exception.Message)
+        return ''
+    }
+}
+
 # Seeds an isolated run's saved placement so its window opens on the chosen display.
 # It never touches the user's real data directory or any system display setting.
+#
+# Both presentation modes are seeded, because they read different fields: the
+# collapsed HUD places by `monitorDevice` + `offsetXDips/YDips`, while the window view
+# places by `WindowMonitor` + `WindowX/Y` relative to that monitor's origin. Seeding
+# only one of them silently falls back to the primary display.
 function Set-IsolatedPlacement([string] $dataDirectory, [string] $monitorDevice) {
     if (-not $monitorDevice) { return }
     New-Item -ItemType Directory -Force -Path $dataDirectory | Out-Null
+    $offsetDips = 80.0
     $state = [ordered]@{
         version = 1
         isExpanded = $false
+        WindowPinned = $false
+        WindowMaximized = $false
+        WindowMonitor = $monitorDevice
+        WindowX = $offsetDips
+        WindowY = $offsetDips
+        WindowWidth = 480
+        WindowHeight = 640
+        WindowDpi = 1.0
         monitorDevice = $monitorDevice
-        offsetXDips = 80
-        offsetYDips = 100
+        offsetXDips = $offsetDips
+        offsetYDips = 100.0
         dpiScale = 1.0
         savedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     }
@@ -385,11 +434,15 @@ Add-Check 'child-environment-sanitized' ($sanitized.Leaks.Count -eq 0) ('removed
 # ---- visible-check placement -------------------------------------------------
 # Every check that opens a window runs on a display the user is not working on, or it
 # is deferred with an explicit gap instead of appearing on the display in use.
-$secondaryMonitor = Get-SecondaryMonitor
-$visibleChecksDeferred = -not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary
+$secondaryMonitor = if ($SkipVisibleChecks) { '' } else { Resolve-VisibleCheckMonitor $VisibleCheckMonitor }
+$visibleChecksDeferred = $SkipVisibleChecks -or (-not $secondaryMonitor -and -not $AllowVisibleChecksOnPrimary)
+$visibleChecksSkipReason = if ($SkipVisibleChecks) {
+    'skipped: -SkipVisibleChecks was passed, so no windowed check was opened'
+} else {
+    'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so no windowed check was opened on the display in use'
+}
 if ($visibleChecksDeferred) {
-    Add-Check 'visible-checks-placement' $false (
-        'deferred: no non-primary display was found and -AllowVisibleChecksOnPrimary was not passed, so no windowed check was opened on the display in use')
+    Add-Check 'visible-checks-placement' $false $visibleChecksSkipReason
 } else {
     Add-Check 'visible-checks-placement' $true (
         $(if ($secondaryMonitor) { 'secondary monitor=' + $secondaryMonitor } else { 'primary display explicitly allowed by request' }))
@@ -410,7 +463,7 @@ $largeRenders = @($renders | Where-Object { $_.Length -gt 1024 })
 Add-Check 'hud-fixture-renders' ($renders.Count -ge $FixtureMinimumRenders -and $largeRenders.Count -eq $renders.Count) ('renders=' + $renders.Count + ' nonEmpty=' + $largeRenders.Count + ' minimum=' + $FixtureMinimumRenders)
 
 if ($visibleChecksDeferred) {
-    Add-Check 'hud-smoke' $false 'deferred: no non-primary display available for a windowed run'
+    Add-Check 'hud-smoke' $false $visibleChecksSkipReason
 } else {
     $hudSmokeArguments = @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', (Join-Path $evidenceRoot 'hud-smoke-data'))
     if ($secondaryMonitor) { $hudSmokeArguments += @('--placement-monitor', $secondaryMonitor) }
@@ -420,7 +473,7 @@ if ($visibleChecksDeferred) {
 # Production-path integration check: invented Codex and bridge producer files
 # through the real readers, composite and controller, asserting the applied state.
 if ($visibleChecksDeferred) {
-    Add-Check 'hud-integration-check' $false 'deferred: no non-primary display available for a windowed run'
+    Add-Check 'hud-integration-check' $false $visibleChecksSkipReason
 } else {
     $integrationArguments = @('--hud-integration-check', '--output-directory', (Join-Path $evidenceRoot 'integration-check'))
     if ($secondaryMonitor) { $integrationArguments += @('--placement-monitor', $secondaryMonitor) }
@@ -431,6 +484,26 @@ if (-not $visibleChecksDeferred) {
     $integrationFailed = ([regex]::Matches($integrationCheck.Stdout, '(?m)^check FAIL ')).Count
     Add-Check 'hud-integration-check' ($integrationCheck.ExitCode -eq 0 -and $integrationFailed -eq 0 -and $integrationPassed -ge 14) (
         'exit=' + $integrationCheck.ExitCode + ' passed=' + $integrationPassed + ' failed=' + $integrationFailed)
+}
+
+# Normal-composition check: the integration check builds its own dependency graph, so
+# it proves the monitor-to-UI pipeline but not what the app assembles at startup. This
+# one drives the real HudComposition - startup configuration, discovery, provider
+# selection and controller construction - and asserts the applied HUD state.
+if ($visibleChecksDeferred) {
+    Add-Check 'hud-composition-check' $false $visibleChecksSkipReason
+} else {
+    $compositionArguments = @('--hud-composition-check',
+        '--output-directory', (Join-Path $evidenceRoot 'composition-check'),
+        # A real controller saves state on shutdown, so this must never resolve to a
+        # live data directory.
+        '--data-directory', (Join-Path $evidenceRoot 'composition-check-data'))
+    if ($secondaryMonitor) { $compositionArguments += @('--placement-monitor', $secondaryMonitor) }
+    $compositionCheck = Invoke-FiniteMode $executable 'hud-composition-check' $compositionArguments $sanitized.Environment $workingDirectory $logRoot 300 @(0)
+    $compositionPassed = ([regex]::Matches($compositionCheck.Stdout, '(?m)^check PASS ')).Count
+    $compositionFailed = ([regex]::Matches($compositionCheck.Stdout, '(?m)^check FAIL ')).Count
+    Add-Check 'hud-composition-check' ($compositionCheck.ExitCode -eq 0 -and $compositionFailed -eq 0 -and $compositionPassed -ge 24) (
+        'exit=' + $compositionCheck.ExitCode + ' passed=' + $compositionPassed + ' failed=' + $compositionFailed)
 }
 
 # The shipped bridge assets must be usable from the extraction alone.
@@ -540,7 +613,7 @@ $legacyWavHash = (Get-FileHash -LiteralPath $legacyWav -Algorithm SHA256).Hash
 # seeded legacy monitor is deliberately unknown; the placement argument keeps the
 # window off the display in use while the legacy state is still read and validated.
 if ($visibleChecksDeferred) {
-    Add-Check 'upgrade-legacy-settings' $false 'deferred: no non-primary display available for a windowed run'
+    Add-Check 'upgrade-legacy-settings' $false $visibleChecksSkipReason
     Add-Check 'upgrade-settings-preserved' $false 'deferred with the legacy run'
     Add-Check 'upgrade-project-and-source-settings-preserved' $false 'deferred with the legacy run'
     Add-Check 'upgrade-placement-file-stays-valid' $false 'deferred with the legacy run'
@@ -590,16 +663,17 @@ Add-Check 'upgrade-bridge-spool-is-data-directory-rooted' ([bool]$spoolKept) ('p
 
 # ---- normal HUD lifecycle ----------------------------------------------------
 if ($visibleChecksDeferred) {
-    Add-Check 'hud-live-process-alive' $false 'deferred: no non-primary display available for a windowed run'
-    Add-Check 'hud-live-window-visible' $false 'deferred with the live run'
-    Add-Check 'hud-live-no-focus-steal' $false 'deferred with the live run'
-    Add-Check 'hud-live-second-instance' $false 'deferred with the live run'
-    Add-Check 'hud-live-graceful-close' $false 'deferred with the live run'
-    Add-Check 'hud-live-persisted-state' $false 'deferred with the live run'
-    Add-Check 'hud-tray-hidden-startup' $false 'deferred with the live run'
-    Add-Check 'hud-tray-close-keeps-session' $false 'deferred with the live run'
-    Add-Check 'hud-no-tray-visible-fallback' $false 'deferred with the live run'
-    Add-Check 'hud-no-tray-graceful-close' $false 'deferred with the live run'
+    Add-Check 'hud-live-process-alive' $false $visibleChecksSkipReason
+    Add-Check 'hud-live-window-visible' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-live-no-focus-steal' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-live-second-instance' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-live-graceful-exit' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-live-graceful-close' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-live-persisted-state' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-tray-hidden-startup' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-tray-close-keeps-session' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-no-tray-visible-fallback' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
+    Add-Check 'hud-no-tray-graceful-close' $false ('deferred with the live run: ' + $visibleChecksSkipReason)
 } elseif (-not $SkipHudLifecycle) {
     $liveData = Join-Path $evidenceRoot 'hud-live-data'
     # The isolated run's own saved placement targets the display the user is not on.
@@ -659,15 +733,19 @@ if ($visibleChecksDeferred) {
         $second = Invoke-FiniteMode $executable 'second-instance' @('--data-directory', $liveData) $sanitized.Environment $workingDirectory $logRoot 60 @(0)
         Add-Check 'second-instance-still-alive' (-not $live.HasExited) ('first-alive=' + (-not $live.HasExited))
 
-        # Close now hides to the tray (explicit Exit is covered by unit tests and
-        # has no scriptable path), so the packaged check verifies the hide first.
+        # Close now hides to the tray, so the packaged check verifies the hide first.
+        # This cannot double as graceful-exit evidence: while a working tray exists
+        # every close path hides by design, and no script can click the tray's Exit.
+        # The dedicated exit proof below uses a normal-composition run with the tray
+        # disabled, where the same close path runs the orderly shutdown.
         $window = [OverseerWindows]::AnyWindowOf($livePid)
         $posted = $false
         if ($window -ne [IntPtr]::Zero) { $posted = [OverseerWindows]::PostMessage($window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) }
         Start-Sleep -Seconds 3
         $hiddenAlive = -not $live.HasExited
         $hiddenVisible = [OverseerWindows]::AnyVisibleWindowOf($livePid)
-        Add-Check 'hud-live-close-hides-to-tray' ($posted -and $hiddenAlive -and -not $hiddenVisible) ('posted=' + $posted + ' alive=' + $hiddenAlive + ' visible=' + $hiddenVisible)
+        $hideVerified = $posted -and $hiddenAlive -and -not $hiddenVisible
+        Add-Check 'hud-live-close-hides-to-tray' $hideVerified ('posted=' + $posted + ' alive=' + $hiddenAlive + ' visible=' + $hiddenVisible)
 
         # A second normal launch must restore the same window and session.
         $restoreHandle = Start-PackagedProcess $executable @('--data-directory', $liveData) $sanitized.Environment $workingDirectory
@@ -676,8 +754,9 @@ if ($visibleChecksDeferred) {
         $restoredVisible = [OverseerWindows]::AnyVisibleWindowOf($livePid)
         Add-Check 'hud-live-second-launch-restores' ($restore.ExitCode -eq 0 -and -not $live.HasExited -and $restoredVisible) ('secondExit=' + $restore.ExitCode + ' firstAlive=' + (-not $live.HasExited) + ' visible=' + $restoredVisible)
 
-        # End the run: the packaged UI has no scriptable Exit, so the script
-        # terminates only the process it started.
+        # End the run. The packaged UI has no scriptable Exit while a tray exists, so
+        # terminating the process is timeout cleanup, not graceful-exit evidence. That
+        # evidence is collected separately by 'hud-live-graceful-exit' below.
         if (-not $live.HasExited) { try { $live.Kill($true) } catch { } }
         [void]$live.WaitForExit(10000)
 
@@ -722,6 +801,70 @@ if ($visibleChecksDeferred) {
         $stateDetail = $stateDetail + ' theme=' + $themeValue + ' muted=' + $muteValue
         Add-Check 'hud-live-persisted-state' ($validState -and $configExists -and $themeValue -eq 'light' -and $muteValue -is [bool] -and $muteValue) $stateDetail
 
+        # ---- packaged graceful Exit, through the real composition ----------------
+        # The tray run above can only prove "close hides", because a working tray makes
+        # every close path hide by design. This run uses the SAME normal-mode
+        # composition, the same real monitors and the same controller, with the tray
+        # disabled: there the close path runs the unconditional orderly shutdown. A
+        # synthetic --hud-smoke run would not be equivalent - it builds its own
+        # dependencies - and a forced kill would prove nothing at all.
+        Write-Step 'hud-exit: normal composition with the tray disabled must exit gracefully'
+        $exitData = Join-Path $evidenceRoot 'hud-exit-data'
+        Set-IsolatedPlacement $exitData $secondaryMonitor
+        Set-Content -LiteralPath (Join-Path $exitData 'config.json') -Value '{"hud":{"theme":"light"},"voice":{"muted":true}}' -Encoding utf8
+        $exitHandle = Start-PackagedProcess $executable @('--no-tray', '--data-directory', $exitData) $sanitized.Environment $workingDirectory
+        $exitProcess = $exitHandle.Process
+        $exitDeadline = (Get-Date).AddSeconds(45)
+        $exitWindowSeen = $false
+        while ((Get-Date) -lt $exitDeadline -and -not $exitProcess.HasExited) {
+            Start-Sleep -Milliseconds 200
+            if ([OverseerWindows]::AnyVisibleWindowOf($exitProcess.Id)) { $exitWindowSeen = $true; break }
+        }
+
+        $exitPosted = $false
+        $exitClosed = $false
+        $exitCode = -1
+        $exitStateValid = $false
+        if ($exitWindowSeen -and -not $exitProcess.HasExited) {
+            $exitWindow = [OverseerWindows]::AnyWindowOf($exitProcess.Id)
+            if ($exitWindow -ne [IntPtr]::Zero) {
+                $exitPosted = [OverseerWindows]::PostMessage($exitWindow, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+            }
+
+            $exitClosed = $exitProcess.WaitForExit(45000)
+            if ($exitClosed) { $exitCode = $exitProcess.ExitCode }
+        }
+
+        # Only timeout cleanup may kill: it is recorded, never counted as an exit.
+        $exitKilled = $false
+        if (-not $exitProcess.HasExited) {
+            $exitKilled = $true
+            try { $exitProcess.Kill($true) } catch { }
+            [void]$exitProcess.WaitForExit(10000)
+        }
+
+        $exitStatePath = Join-Path $exitData 'state.json'
+        if ($exitClosed -and (Test-Path -LiteralPath $exitStatePath)) {
+            try {
+                $exitStateJson = Get-Content -LiteralPath $exitStatePath -Raw | ConvertFrom-Json
+                # A graceful shutdown flushes the placement it captured, so a monitor
+                # and finite offsets are on disk. A killed process leaves the default.
+                $exitStateValid = -not [string]::IsNullOrWhiteSpace($exitStateJson.monitorDevice) -and
+                    [double]::IsFinite([double]$exitStateJson.offsetXDips) -and
+                    [double]::IsFinite([double]$exitStateJson.offsetYDips)
+            } catch {
+                $exitStateValid = $false
+            }
+        }
+
+        try { [void]$exitHandle.Stdout.GetAwaiter().GetResult() } catch { }
+
+        Add-Check 'hud-live-graceful-exit' (
+            $exitWindowSeen -and $exitPosted -and $exitClosed -and $exitCode -eq 0 -and -not $exitKilled -and $exitStateValid) (
+            'windowSeen=' + $exitWindowSeen + ' posted=' + $exitPosted + ' exited=' + $exitClosed +
+            ' exitCode=' + $exitCode + ' forcedKill=' + $exitKilled +
+            ' placementFlushed=' + $exitStateValid + ' trayRunHideVerified=' + $hideVerified)
+
         # Tray start: hidden, alive, still no focus steal. Closing a hidden window
         # keeps the process alive by design, so the script ends only what it started.
         Write-Step 'hud-tray: hidden startup'
@@ -760,6 +903,7 @@ if ($visibleChecksDeferred) {
         try { [void]$noTrayHandle.Stdout.GetAwaiter().GetResult() } catch { }
     } else {
         Add-Check 'hud-live-second-instance' $false 'skipped: the live HUD exited early'
+        Add-Check 'hud-live-graceful-exit' $false 'skipped: the live HUD exited early'
         Add-Check 'hud-live-graceful-close' $false 'skipped: the live HUD exited early'
         Add-Check 'hud-live-persisted-state' $false 'skipped: the live HUD exited early'
         Add-Check 'hud-tray-hidden-startup' $false 'skipped: the live HUD exited early'
@@ -769,6 +913,7 @@ if ($visibleChecksDeferred) {
     }
 } else {
     Write-Step 'HUD lifecycle checks skipped by request'
+    Add-Check 'hud-live-graceful-exit' $false 'skipped: -SkipHudLifecycle was passed'
 }
 
 # ---- evidence + verdict ------------------------------------------------------
@@ -792,16 +937,25 @@ $evidence = [ordered]@{
     hudSeconds = $HudSeconds
     monitorSeconds = $MonitorSeconds
     hudLifecycleSkipped = [bool]$SkipHudLifecycle
+    visibleChecksSkipped = [bool]$SkipVisibleChecks
     visibleChecksDeferred = [bool]$visibleChecksDeferred
+    visibleChecksSkipReason = $visibleChecksSkipReason
     visibleCheckMonitor = $secondaryMonitor
     focusTakeovers = @($focusTransitions)
     realMonitorUnavailable = $realDebug.ExitCode -eq 2
     fullDurationChecks = $HudSeconds -ge 60 -and $MonitorSeconds -ge 60 -and $HudSmokeSeconds -ge 15 -and $SyntheticMonitorSeconds -ge 15
+    # Recorded so a reader does not mistake a forced kill for a graceful exit, and does
+    # not mistake a passing windowed run for physical interaction evidence.
+    gracefulExitEvidence = @(
+        'hud-live-graceful-exit proves a normal-composition process exits with code 0 after WM_CLOSE with the tray disabled, and flushes its placement; it is not a human tray-menu click',
+        'hud-live-graceful-close is a placeholder that is never satisfied in a passing run: while a working tray exists every close path hides by design and no script can click the tray Exit menu'
+    )
     physicalChecksNotPerformed = @(
         'physical sleep/wake (suspend/resume)',
         'monitor disconnect/reconnect and mixed-DPI movement',
         'human tray interaction and acoustic playback by ear',
-        'clean machine without a global .NET runtime'
+        'clean machine without a global .NET runtime',
+        'native Snap, drag and keyboard/Alt+Tab qualification'
     )
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
     checks = @($script:Checks)

@@ -13,9 +13,16 @@ $repo = Split-Path -Parent $PSScriptRoot
 $root = Join-Path $repo (Join-Path $EvidenceDirectory ([Guid]::NewGuid().ToString('N')))
 $payload = Join-Path $root 'payload'
 New-Item -ItemType Directory -Path $payload -Force | Out-Null
-$apphost = Join-Path $repo 'src/TheOverseer.App/bin/Release/net10.0-windows/win-x64/TheOverseer.App.exe'
+$releaseDirectory = Join-Path $repo 'src/TheOverseer.App/bin/Release/net10.0-windows/win-x64'
+$apphost = Join-Path $releaseDirectory 'TheOverseer.App.exe'
 if (-not (Test-Path -LiteralPath $apphost)) { throw 'Build Release before running this check.' }
-Copy-Item -LiteralPath $apphost -Destination $payload
+# A package-shaped payload: the apphost, the assemblies the startup-helper probe
+# references, and the shipped integration the fixture package is expected to carry.
+foreach ($file in @('TheOverseer.App.exe', 'TheOverseer.App.dll', 'TheOverseer.Core.dll', 'TheOverseer.UI.dll')) {
+    Copy-Item -LiteralPath (Join-Path $releaseDirectory $file) -Destination $payload
+}
+New-Item -ItemType Directory -Path (Join-Path $payload 'integrations/claude-code') -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repo 'integrations/claude-code/bridge.mjs') -Destination (Join-Path $payload 'integrations/claude-code')
 @{version='fixture';sourceCommit='fixture';sourceShortCommit=''} | ConvertTo-Json |
     Set-Content -LiteralPath (Join-Path $payload 'release.json') -Encoding utf8
 $archive = Join-Path $root 'fixture.zip'
@@ -28,16 +35,19 @@ $mockLaunch = @'
 function Invoke-PackagedRun([string] $executable, [string] $name, [string[]] $arguments, [System.Collections.IDictionary] $environment, [string] $workingDirectory, [string] $logDirectory, [int] $timeoutSeconds) {
     $dataIndex = [Array]::IndexOf($arguments, '--data-directory')
     $state = Get-Content -LiteralPath (Join-Path $arguments[$dataIndex + 1] 'state.json') -Raw | ConvertFrom-Json
-    @{name=$name;arguments=$arguments;monitor=$state.monitorDevice} | ConvertTo-Json -Compress |
+    @{name=$name;arguments=$arguments;monitor=$state.monitorDevice;executable=$executable} | ConvertTo-Json -Compress |
         Add-Content -LiteralPath (Join-Path (Split-Path -Parent $workingDirectory) 'mock-launches.jsonl')
     return @{ExitCode=0;TimedOut=$false;Stdout='mocked'}
 }
 '@
 
+# Three launches are expected once the windowed comparison runs: the previous build on
+# the seeded data directory, the candidate on a copy of it, and the previous build
+# again on a copy of what the candidate wrote (the rollback run).
 foreach ($case in @(
     @{Name='no-secondary';Monitor='';OptIn=$false;Expected=0},
-    @{Name='secondary';Monitor='\\.\DISPLAY2';OptIn=$false;Expected=2},
-    @{Name='primary-opt-in';Monitor='';OptIn=$true;Expected=2}
+    @{Name='secondary';Monitor='\\.\DISPLAY2';OptIn=$false;Expected=3},
+    @{Name='primary-opt-in';Monitor='';OptIn=$true;Expected=3}
 )) {
     $tokens = $null; $errors = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseInput($original, [ref]$tokens, [ref]$errors)
@@ -78,6 +88,46 @@ foreach ($case in @(
         }
         if ($launches[0].arguments -contains '--placement-monitor') { throw 'Old package received unsupported argument.' }
         if ($case.Monitor -and $launches[1].arguments -notcontains '--placement-monitor') { throw 'Candidate placement argument missing.' }
+
+        # Check names the qualification contract depends on, including the ones the
+        # earlier version of the script already published.
+        $names = @($report.checks | ForEach-Object { $_.check })
+        foreach ($required in @(
+            'visible-checks-placement', 'both-packaged-apphosts-present', 'candidate-has-release-identity',
+            'previous-build-runs', 'candidate-build-runs', 'candidate-preserves-previous-settings',
+            'candidate-preserves-custom-recording', 'candidate-keeps-data-directory-spool',
+            'candidate-preserves-spool-event-records', 'candidate-preserves-spool-current-state',
+            'integration-recorded-executable-reference-resolves', 'startup-command-uses-production-helper',
+            'rollback-previous-build-runs', 'rollback-preserves-candidate-settings',
+            'pre-update-backup-restores-previous-data', 'candidate-identity-differs-from-previous')) {
+            if ($names -notcontains $required) { throw ($case.Name + ': missing check ' + $required) }
+        }
+
+        # The third launch is the rollback: the previous package, against a copy of the
+        # candidate data directory, and never with the candidate-only argument.
+        if ($launches.Count -eq 3) {
+            if ([string]$launches[2].name -ne 'rollback-run') { throw 'The third launch must be the rollback run.' }
+            if ([string]$launches[2].executable -ne [string]$launches[0].executable) { throw 'The rollback run must use the previous package.' }
+            if ($launches[2].arguments -contains '--placement-monitor') { throw 'The rollback run received the candidate-only placement argument.' }
+            $candidateDataIndex = [Array]::IndexOf($launches[1].arguments, '--data-directory') + 1
+            $rollbackDataIndex = [Array]::IndexOf($launches[2].arguments, '--data-directory') + 1
+            if ($launches[1].arguments[$candidateDataIndex] -eq $launches[2].arguments[$rollbackDataIndex]) {
+                throw 'The rollback run must not reuse the candidate data directory in place.'
+            }
+            if (-not $report.rollback.performed) { throw 'The rollback run must be recorded in the evidence.' }
+            if (-not $report.rollback.backupRestoreVerified) { throw 'The backup/restore boundary must be recorded as verified.' }
+            if (@($report.failingDifferences).Count -ne 0) { throw 'Mocked runs must not report failing differences.' }
+            if ([int]$report.comparedPathCount -lt 60) { throw ('The comparison covered only ' + $report.comparedPathCount + ' JSON paths.') }
+            if (@($report.checksNotPerformed).Count -lt 5) { throw 'checksNotPerformed must be recorded in the evidence.' }
+            if (@($report.normalizationJustifications).Count -lt 10) { throw 'Every normalization justification must be recorded.' }
+            if (-not $report.startupTarget.helperExecuted) { throw 'The production StartupRegistration helper was not executed.' }
+            if (-not $report.startupTarget.requestedByProbe.staleDetected) { throw 'The production helper must report the stale recorded path after the move.' }
+            if (-not $report.startupTarget.requestedByProbe.optInPreserved) { throw 'The opt-in state must survive the move.' }
+            if (-not $report.shortcut.created -or -not $report.shortcut.isEvidenceCopy) { throw 'The shortcut must be created inside the evidence directory only.' }
+            if (-not $report.shortcut.followsCandidateDirectory) { throw 'The copied shortcut must follow the candidate directory.' }
+            if ([string]$report.spool.recordsAfterCandidate -ne '6') { throw ('The seeded spool must keep its 6 records, saw ' + $report.spool.recordsAfterCandidate) }
+            if (-not $report.integrationRecord.fixtureUnchangedByRuns) { throw 'The integration record must not be rewritten by the runs.' }
+        }
     }
     Write-Host ('PASS ' + $case.Name + ': launches=' + $launches.Count + ', exit=' + $code)
 }
