@@ -1,5 +1,116 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.6 — 2026-09-28 (composition verification, bridge install hardening, lifecycle qualification, UI contract fixes)
+
+Source changes for the next internal candidate on `ux/first-use`. No `artifacts/rc6/` archive
+exists in this tree yet, so this section records source changes and the local evidence named
+with them, not a packaged qualification.
+
+- **Normal-composition verification.** New finite mode `--hud-composition-check` drives the real
+  `HudComposition` graph — startup configuration loading, harness discovery, provider selection and
+  controller construction — and asserts the state that reaches the real HUD view model: an empty
+  first run (muted, `Monitoring offline`, no invented rows, clean shutdown), no harness installed,
+  valid mixed sources, a bridge added while running (picked up only at the next start, as
+  documented) and an existing configuration staying authoritative. It isolates itself under the
+  evidence root by default and refuses an explicit request for the live data directory, because it
+  composes a controller that saves state on shutdown. Recorded: 26/26 checks,
+  `artifacts/composition-check-noarg/run-20260928T014636Z-a097864a/composition-report.json`.
+- **One composition seam.** The integration check's invented producers moved out of
+  `HudIntegrationCheckRunner` into `SyntheticProducers`, and `HudComposition` gained the seam that
+  lets a diagnostic compose the same dependency graph the app uses instead of building its own.
+- **The Claude installer refuses a path it has not executed.** `install.mjs --apply` now runs the
+  hook command it is about to record once, with a synthetic payload against a throwaway spool root,
+  and refuses to write (exit 2, no backup, no change) when the recorded path is missing, is not a
+  runnable file, exits non-zero or publishes no record. The probe only runs when the run would
+  record a path the settings file does not already point at, so re-applying an unchanged install
+  stays idempotent. New `lib/verify.mjs` owns the probe; `bridge.mjs` never imports it.
+  `test/installer.binding.test.mjs` covers a missing payload, a non-runnable file, a successful
+  rebind to a new extraction whose generated command really publishes a record, and a refused
+  rebind that leaves the old settings intact.
+- **Rebinding is the documented recovery path.** The integration docs now state the per-host truth:
+  `dsh plugin add "<path>"` is a `pnpm` forwarder, so a bare directory path becomes a `link:`
+  dependency (a directory junction on Windows) rather than a copy, and it declares no dry-run flag;
+  deleting the extracted directory makes `dsh` skip the bundle or the recorded Claude hook dangle;
+  recovery is `install.mjs --bridge="<new path>" --apply` on one side and the host's own
+  `dsh plugin` command on the other. `integrations/README.md` and both integration READMEs were
+  corrected to say this, including that the extracted integration directory must be kept.
+- **UI contract fixes** (audited carryover defects, regressions in
+  `tests/TheOverseer.Tests/UiContractCleanupTests.cs`). The Recent-hours selector is bound to
+  `SelectedRecentHours`, which never notified, so a window chosen from the header menu left the
+  selector showing the previous value while the list already used the new one. `LeftAccentVisible`
+  was raised by nothing, so the left state accent never followed the light toggle in either
+  direction. A task history strip could be disclosed with every project history closed yet render
+  without the shared hour axis and legend, which now appear for either disclosure. `VoiceStatusLine`
+  was computed but rendered nowhere, so with notifications explicitly enabled a failed provider
+  changed nothing on screen; the health detail now carries a failure-only line that is absent while
+  muted or healthy. Status feedback (tray, startup, navigation and "settings or position could not
+  be saved") reached `FooterHint`, which no surface rendered; it now has a subdued footer at the end
+  of the scrolled content, hidden entirely when there is nothing to report.
+- **Upgrade and rollback qualification.** `scripts/Test-ReleaseUpgrade.ps1` now seeds a complete
+  previous-release state and compares 89 JSON paths semantically (monitor roots and limits, logging
+  fields, HUD settings and window modes, voice provider/endpoint/events/clips, project mappings and
+  aliases, disabled sources, saved placement), plus the spool documents (`events.jsonl` records,
+  `current.json`, `health.json`) and recordings by SHA-256.
+- **The rollback boundary is exercised, not asserted.** The previous build runs against a copy of
+  the data directory the candidate wrote and never reuses another run's directory in place, and the
+  pre-update backup route is verified by damaging the candidate-written copy (`config.json` and
+  `bridges/` removed), restoring the backup over it and comparing the result with the pre-update
+  data.
+- **Update targets are checked through production code.** A probe drives the real
+  `StartupRegistration` helper against a file-backed fake registry store (the user's `HKCU\…\Run`
+  value is never read or written) and checks the quoted candidate executable with
+  `--start-in-tray`, that `dotnet.exe` is rejected, that a moved package's recorded path is reported
+  stale, and that the opt-in survives; a copied `.lnk` in the evidence directory must follow the
+  candidate directory.
+- **The integration hook reference is recorded honestly.** The same check writes an integration
+  record and reports that the shipped Claude installer stores an absolute path outside the data
+  directory, so extracting a new version into a new directory leaves that path pointing at the old
+  one; it fails when the candidate does not ship the same relative integration path. Rebind after
+  upgrading.
+- **The mocked placement harness follows the three-launch contract.**
+  `scripts/Test-ReleaseUpgradePlacement.ps1` mocks only display discovery and process launches and
+  now asserts the launcher names, executables and arguments, the recorded rollback, the verified
+  backup/restore and the startup/shortcut evidence fields. Its recorded run
+  (`artifacts/upgrade-placement-tests/33c099b52c714915b2c4282cec15b0aa/`) passes 25/25 checks in the
+  secondary-display and explicit-primary cases; the no-secondary case is deferred and fails
+  qualification by design. The comparison helpers themselves are unit-exercised (71 assertions,
+  including 43 single-field mutations reported at their exact JSON path), and the seeded schema was
+  probe-verified (9 voice events, 5 clips, 3 roots/harness roots/disabled sources/mappings/aliases
+  loaded and round-tripped).
+- **Lifecycle qualification is now safe to run.** `Test-PackagedRelease.ps1` gained
+  `-SkipVisibleChecks` and `-VisibleCheckMonitor` plus one shared deferral reason: a headless run
+  records every windowed check as skipped-with-a-reason and exits `1` instead of silently dropping
+  it, and a requested display is honoured only when it exists and is not the primary one.
+  `scripts/Test-WindowScaling.ps1` was rewritten to choose a target display explicitly, seed the
+  isolated run's saved placement for it, assert that the window really opened there, and skip the
+  primary display in the per-monitor loop unless `-IncludePrimaryDisplay` is passed.
+- **Packaged graceful Exit is proven through the normal composition.** A new
+  `hud-live-graceful-exit` check launches the app with the tray disabled, where WM_CLOSE runs the
+  unconditional orderly shutdown, and requires exit code 0 with the placement flushed and no forced
+  kill; the forced kill in the tray run is now documented as timeout cleanup rather than as exit
+  evidence.
+- **Two real defects found while making those checks runnable.** Placement seeding wrote only
+  `monitorDevice`/`offsetXDips`, which the collapsed HUD reads, while the window view places by
+  `WindowMonitor`/`WindowX`, so a window-view run silently opened on the primary display; both modes
+  are seeded now and the scaling check fails loudly when the window is not on its target. The
+  normal-composition check also fell back to the user's live data directory when no
+  `--data-directory` was given.
+- **Dead UI code removed after the carryover audit.** `CycleRecentWindowCommand` (the superseded
+  cycling gesture, never bound in XAML), `SetHealthBrush` (no caller, and it fought the XAML style
+  triggers), a no-op `MinHeight` ternary and an empty resource dictionary were deleted; no XAML
+  binding target was missing and no handler was wired twice. All 46 fixture renders are recorded as
+  byte-identical afterwards.
+- **Documentation.** New [docs/UPGRADE_AND_ROLLBACK.md](docs/UPGRADE_AND_ROLLBACK.md) states the
+  supported upgrade path, both tested rollback routes, the exit codes and what is not verified; the
+  clean-machine qualification protocol was added to `docs/RELEASE_READINESS.md` and is explicitly
+  **not executed**.
+- **Qualification status.** These checks have not been rerun against the real published archives
+  (`rc.4 → rc.5` was measured with the earlier comparison script), the bridge suites and the full
+  .NET suite have no stored run log at this revision, and no packaged smoke has been recorded since
+  the lifecycle rework. No `1.0.0-rc.6` archive has been published, so its upgrade comparison against
+  `rc.5` has not been run. Clean-machine, live-host, signing/terms and physical display/audio gates
+  remain open and are tracked in `docs/RELEASE_READINESS.md`.
+
 ## Unreleased — 2026-09-27 (review corrections)
 
 - Explicit show and user input now end the startup focus guard immediately; timeout

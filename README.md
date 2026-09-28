@@ -1,675 +1,263 @@
 # THE OVERSEER PROJECT
 
-**OVERSEER** is a private Windows desktop companion for Codex sessions.
-Repository: `the-overseer`. Solution: `TheOverseer.sln`.
-User-facing changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+**OVERSEER** is a private, local Windows desktop HUD that answers two questions while
+you work: *what are my agents doing?* and *does an agent need me?* One always-visible
+window summarises work from **Codex**, **DeepSeek Harness (`dsh`)** and **Claude Code**,
+groups it by project, and says plainly when it cannot see something. It is read-only:
+OVERSEER never answers an approval, never sends a prompt and never writes into a
+harness's data. Runtime data stays in `%LOCALAPPDATA%\OVERSEER`.
 
-Plan 1 (Foundation and Monitoring) is merged into `main`: a bounded, read-only
-local monitor that turns Codex rollout records into normalized task state,
-current-action labels, attention transitions and explicit monitoring health.
+- Repository `the-overseer`, solution `TheOverseer.sln`; user-facing changes are recorded in
+  [CHANGELOG.md](CHANGELOG.md). Current status, evidence and known limits:
+  [docs/IMPLEMENTATION_STATE.md](docs/IMPLEMENTATION_STATE.md); release gates and the acceptance
+  matrix: [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md).
+- The next internal candidate identity is `1.0.0-rc.6`, but **no `artifacts/rc6/` archive exists
+  yet**, so nothing here is a packaged-qualification claim for it. Public release is **not**
+  claimed: clean-machine, live-harness, signing/terms/distribution and physical display/audio
+  gates are still open.
 
-Plan 2 (Complete Usable HUD) is reviewed and merged into `main`: normal startup
-runs one small persistent WPF HUD backed by that live monitor, with honest
-collapsed counts, a bounded expanded task list, shared Light/Dark website
-themes, drag placement with recovery, a tray menu, opt-in current-user startup
-and safe task navigation.
+## Install and run
 
-Plan 3 (Activity and Voice) is reviewed and merged into `main`: a bounded
-60-minute working-count sparkline, and meaningful attention notifications that
-speak once per condition through a validated local WAV pack or one configured
-generic TTS endpoint, with completion aggregation, cooldown, instant persistent
-mute and local fallback.
+Unzip `OVERSEER-<version>-win-x64.zip` into a per-user folder (no elevation needed), keep the
+extracted folder together, and run `TheOverseer.App.exe`. It is a self-contained `win-x64` folder
+build: it loads the .NET runtime from its own directory and needs no system .NET, no SDK and no
+repository checkout. Runtime data lives under `%LOCALAPPDATA%\OVERSEER` (`config.json`,
+`state.json`, `voicepacks/`, `voiceclips/`, `bridges/`, `spool/`, `logs/`); pass
+`--data-directory PATH` to run fully isolated.
 
-Plan 4 (Hardening and Release) passed Astra Review 4 with nonblocking notes on
-`impl/p4-release`: suspend/resume and window-DPI handling, failure-matrix
-regressions, an original opt-in example voice pack, and a self-contained
-`OVERSEER-v1-win-x64.zip` built and smoke-tested from a fresh extraction by the
-scripts in `scripts/`. The reviewed candidate is under `artifacts/review4-final/`;
-398 tests and 28 packaged smoke checks passed. Physical sleep/wake and multi-monitor
-qualification remain unverified. Merging and tagging `v1.0.0` are separate steps.
+The archive contains the complete publish output plus `README.md`, `CHANGELOG.md`,
+`THIRD_PARTY_NOTICES.md`, `release.json`, `licenses/`, `examples/voicepacks/example/` and
+`integrations/` (both optional bridges with notices, installers and tests). No repository files,
+caches, logs or private data are included.
 
-The subsequent user-directed first-use update on `ux/first-use` adds taskbar/Alt+Tab
-visibility, three task views and clearer visual status. Its candidate is under
-`artifacts/first-use-release/`: 405 tests and all 28 packaged checks passed.
+**Supported platform.** Self-contained `win-x64` ZIP for a standard (non-elevated) Windows user,
+no .NET SDK required. The runs recorded in this repository were made on one development machine
+at 100% display scale, and **no OS build number is recorded in that evidence**, so no specific
+Windows edition or version is claimed. ARM64, WOW64/x86, WSL-hosted, macOS and Linux are neither
+supported nor tested.
 
-## Naming and frozen sources
+## Controls
 
-The application/product name is **OVERSEER**. **THE OVERSEER PROJECT** is the
-project-level name only. The requested `TheOverseer.*` project and namespace
-identifiers remain unchanged. Internal components retain descriptive names.
+Every control below is inside a window that is shown with `ShowActivated=false`, so status updates,
+theme changes and notifications never take your focus.
 
-`AGENTS.md` and `docs/V1_2_IMPLEMENTATION_SPEC.md` are preserved byte-for-byte
-from the supplied documents. Their older product naming is superseded by the
-user's naming direction above; the V1 scope is unchanged. Runtime data lives under
-`%LOCALAPPDATA%\OVERSEER` (config and logs), not under the older spec path.
-
-The original light/dark PNG references are in `design/reference/`.
-Detailed visual refinement is deferred in `docs/UI_SPEC_v0.2.md`.
-
-## Projects
-
-- `TheOverseer.App`: Windows x64 WPF application entry point; references Core and UI.
-  Owns platform services (tray, placement, startup registry, shell navigation),
-  the HUD lifetime controller, the voice I/O adapters (pack reader, generic TTS
-  client, WAV playback) and the diagnostics fixtures; also hosts the finite
-  `--monitor-debug` console harness and the optional read-only Windows
-  state-store activity source.
-- `TheOverseer.Core`: plain .NET library with `Models/`, `Monitoring/`,
-  `Configuration/`, `Diagnostics/`, `History/` (rolling activity trace) and
-  `Voice/` (policy, manager, pack validation, notification text); no WPF or
-  WinForms dependency and no network or audio code.
-- `TheOverseer.UI`: WPF presentation library; references Core. Contains the single
-  `HudWindow`, the `HudViewModel` projection and the WebsiteLight/WebsiteDark
-  resource dictionaries.
-- `TheOverseer.Tests`: xUnit tests; references Core, UI and App. Tests cover the bounded
-  readers, discovery, identity, titles, parser, reducer, classifier, attention,
-  health, monitor composition, configuration, logging and privacy rules.
-
-The stack is C# / .NET 10 LTS / WPF / xUnit. No runtime NuGet package, database or
-new project was added.
-
-## Build and test
-
-On Windows x64 with the .NET 10 SDK on PATH, from this repository root:
-
-```powershell
-dotnet restore
-dotnet build
-dotnet test
-dotnet run --project src/TheOverseer.App
-```
-
-For this bootstrap workspace, the SDK is installed outside Git in `../.tools/dotnet`.
-If it is not already on PATH, initialize the current PowerShell session with:
-
-```powershell
-$env:DOTNET_ROOT = (Resolve-Path '../.tools/dotnet').Path
-$env:PATH = "$env:DOTNET_ROOT;$env:PATH"
-$env:DOTNET_CLI_HOME = [IO.Path]::GetFullPath('../.tools/cli-home')
-$env:NUGET_PACKAGES = [IO.Path]::GetFullPath('../.tools/nuget-packages')
-```
-
-## Running the HUD
-
-```powershell
-dotnet run --project src/TheOverseer.App                      # HUD with the real monitor
-dotnet run --project src/TheOverseer.App -- --start-in-tray   # start hidden, tray only
-```
-
-Controls:
-
-| Action | Result |
+| Control | What it does |
 | --- | --- |
-| Drag anywhere in the upper summary or expanded status area | Moves the HUD; the position is saved (debounced). Mute/expand remain clickable. |
-| Click the chevron | Expands or collapses the task list. |
-| Click the status line | Opens the expanded Now view. |
-| Now / Recent / This session | Shows current work, recent activity, or tasks touched since OVERSEER launched. |
-| Hour button in Recent | Cycles the recent window through 1, 2, 4, 8 and 24 hours. |
-| `Escape` | Collapses the list. |
-| Click a task row | Requests the validated `codex://threads/<id>` route for a resolved Desktop task. |
-| Right-click a task row, then Copy task id | Copies only the selected task id. |
-| `Enter`/`Space` on a focused row | Same as clicking it. |
-| Right-click the HUD header | Display settings, expansion, startup, reset position, Monitoring details and Exit; available even without a tray. |
-| Tray icon | Show/Hide, Light/Dark, Always on top, opacity presets, Start with Windows, Reset position, monitoring status, Exit. |
-| Close (×/Alt+F4/system menu) | Hides to the tray and keeps the session running; use Exit to quit completely. |
-
-The visible HUD appears in the Windows taskbar and Alt+Tab. Now is the default
-task view: live work and attention, plus completions/errors from the last ten
-minutes. Recent defaults to two hours; This session uses observed activity since
-this app launch. Headline counts always cover all monitored work, independently
-of the selected view. Older and stale rows remain accessible in Recent when
-within its time window. The selected view and recent window are saved.
-
-A prominent text and color status shows Working, Needs you, Task failed,
-Idle, Limited visibility or Monitor offline. When approval/input
-detection is unsupported, the attention count is `?` (or a known lower bound
-such as `1+`), and a compact monitoring label discloses that limitation.
-Working is green, confirmed attention/errors are red, and uncertain activity is
-amber. An incomplete zero is labeled "Limited visibility". Full explanations of
-unread history, stale activity and input detection are available in status tooltips
-and the header's Monitoring details menu; missing data is never treated as idle.
-Always on top remains enabled by default and can be toggled in the header/tray menu.
-Active-row timers show elapsed time for the current turn, including waiting time;
-action changes do not reset them. Hover for last-activity freshness. A missing
-start timestamp displays a dash. Settled rows show time since their last activity.
-
-The executable, taskbar/window and tray use the user-supplied OVERSEER artwork.
-The original is preserved in `design/branding/overseer-source.png`; the embedded
-Windows icon contains transparent 16, 24, 32, 48, 64, 128 and 256 pixel frames.
-
-The HUD never activates itself: it is shown with `ShowActivated=false` and the
-window is positioned without activation, so monitoring updates, theme changes and
-completion events never steal focus. Closing the window (×, Alt+F4 or the system
-menu) **hides it to the tray** while a working tray exists, so the HUD is never lost
-by accident; **Exit** in the header or tray menu runs the full orderly shutdown,
-Windows logoff/shutdown is never cancelled, and without a tray the close runs the
-same orderly shutdown instead of hiding an unreachable process. A second normal
-launch asks the running instance to restore its window and session, then exits
-quietly without touching its monitor, tray or settings.
-
-### Settings and state
-
-`config.json` gains an additive `hud` section; every existing monitor field is
-preserved when the HUD saves:
-
-```json
-"hud": {
-  "theme": "dark",
-  "alwaysOnTop": true,
-  "opacity": 0.96,
-  "startWithWindows": false,
-  "taskView": "now",
-  "recentHours": 2
-}
-```
-
-Opacity is clamped to 0.65–1.0 and only `light`/`dark` themes are accepted.
-Task views accept `now`, `recent`, or `session`; recent hours are clamped to 1–24.
-`state.json` stores placement as display independent pixels relative to the saved
-monitor's working area plus the DPI scale in effect, so a DPI change keeps the
-same physical spot and a removed monitor is clamped back onto a reachable one.
-Corrupt or oversized files fall back to defaults without deleting the original.
-Writes are debounced and serialized off the UI thread through a same-directory temporary file. Exit waits a bounded time for persistence; a stalled disk can leave the most recent changes unsaved.
-
-Start with Windows is an opt-in current-user entry (`HKCU\...\Run\OVERSEER`) with a
-quoted real executable path and `--start-in-tray`. It is never enabled
-automatically, needs no elevation, and disabling removes only that value.
-
-### Task navigation
-
-Only a resolved Desktop task with a UUID-shaped conversation id produces a route.
-CLI, VS Code, provisional-identity and non-default-profile tasks keep an honest
-"open it manually" fallback, and the id can be copied instead. If the `codex:` protocol has no registered handler — the case on the machine used for Plan 2 —
-the HUD reports that instead of claiming the task opened.
-
-## Monitor debug harness
-
-The existing App project hosts the finite Plan 1 harness; no extra project exists
-for it. It never opens a WPF window and exits cleanly.
-
-```powershell
-dotnet run --project src/TheOverseer.App -- --monitor-debug --duration 60 --redact-labels --data-directory artifacts/smoke-data
-```
-
-Flags:
-
-| Flag | Meaning |
-| --- | --- |
-| `--monitor-debug` | Run the finite console monitor instead of the scaffold window. |
-| `--duration SECONDS` | Run length, default 60, maximum 3600. |
-| `--codex-home PATH` | Override `CODEX_HOME` / `%USERPROFILE%\.codex`. |
-| `--data-directory PATH` | Override `%LOCALAPPDATA%\OVERSEER` for config and logs. |
-| `--redact-labels` | Redact task labels and paths in console output. |
-
-Exit codes: `0` monitoring was readable for at least one cycle (unsupported
-optional capabilities are still disclosed), `2` essential monitoring was
-unavailable for the whole run, `1` bad arguments or an unhandled failure.
-
-The harness prints capabilities, health with reason codes and freshness, the
-actual `N working · N needs you` summary, one row per task
-(`#number label / STATE / action / surface / evidence`), the spec-shaped
-per-task blocks, the record/byte counters observed in that run, and the honest
-limitations of the installed Codex version.
-
-## HUD diagnostics fixtures
-
-These explicit, isolated, finite modes never register startup, never read real
-rollout files and never replace production input:
-
-```powershell
-# Render synthetic previews (light/dark x collapsed/Now/Recent/Session + empty/unavailable)
-dotnet run --project src/TheOverseer.App -- --hud-fixture --output-directory artifacts/p2-ui
-
-# Full production composition against a synthetic monitor, then a clean exit
-dotnet run --project src/TheOverseer.App -- --hud-smoke --duration 15 --data-directory artifacts/p2-hud-fixture
-
-# Reversible live check of OVERSEER's own Run entry (restores the original state)
-dotnet run --project src/TheOverseer.App -- --hud-startup-check
-
-# Finite voice smoke: synthetic tones plus an owned loopback TTS endpoint
-dotnet run --project src/TheOverseer.App -- --voice-smoke --data-directory artifacts/p3-voice
-dotnet run --project src/TheOverseer.App -- --voice-smoke --audible --data-directory artifacts/p3-voice
-```
-
-```powershell
-# Silent check of the pack selected in the isolated data directory's config.json
-dotnet run --project src/TheOverseer.App -- --voice-pack-check --data-directory artifacts/p4-pack-check
-```
-
-The voice smoke is silent by default and proves the pack, policy, aggregation,
-mute and TTS contracts with generated PCM tones and a loopback HTTP server it
-owns; `--audible` additionally sends the clips to the real sound device and
-reports that observation separately from API success. No remote account,
-credential or spoken sample is required or used.
-
-`--voice-pack-check` plays nothing and is the packaged-asset check:
-`--voice-smoke` generates its own pack, so it cannot prove that the pack shipped
-inside a release archive loads. This mode loads `<data-directory>/voicepacks/<packId>`
-through the same provider the HUD uses, resolves all five event keys, validates
-every WAV and exits `0`/`1`.
-
-## Activity history and voice
-
-### Rolling history and sparkline
-
-The HUD keeps an in-memory rolling trace of the last 60 minutes: one bucket per
-second (maximum 3,601), each holding the working and needs-human `CountValue`
-from the newest snapshot in that second. Nothing is persisted and no labels or
-conversation data are stored. Unknown samples and gaps longer than 10 seconds
-break the line, partial counts keep a distinct dashed style, and the x-axis is a
-fixed 60 minutes with a zero baseline and a `max(1, peak)` y-range. The count graph
-is retained internally but is **not** rendered in the default project view: the
-project and task hour strips are the one activity display, so there are never two
-competing unexplained charts. The collapsed HUD focuses on the current status.
-
-### Voice notifications
-
-Open **Light & voice…** from the HUD header's right-click menu or the tray menu.
-The HUD header has a visible **LIGHT ON / LIGHT OFF** toggle beside mute.
-The header menu also exposes **Status light**, with position and width presets.
-Choose Off/Top/Bottom/Left/Right and a 6–128 DIP size for the steady status strip.
-It uses the HUD's status palette and adds space around the HUD without covering
-the controls. The default is Right at 32 DIPs; placement and size are saved.
-Drag the colored light itself to resize it; its cursor shows the resize direction.
-
-The same panel lists all nine notification situations, suggested recording text,
-trigger descriptions, enable switches and clip availability. **Assign WAV…** copies
-a validated recording into `%LOCALAPPDATA%\OVERSEER\voiceclips` and takes precedence
-over the selected provider for that event. **Use pack / TTS** removes the assignment
-without deleting your recordings. **Preview** explicitly plays even while muted;
-Stop preview, closing the panel or muting stops it. Normal notifications do not
-overlap a preview, and events occurring during preview do not replay afterward.
-Opening the panel validates local clips but does not contact TTS or play audio.
-
-The original five event codes remain supported, with four additive codes:
-
-| Event code | Trigger | Default |
-| --- | --- | --- |
-| `monitoring_lost` | Monitoring unavailable for 10 seconds; once per outage | Enabled |
-| `monitoring_restored` | Monitoring available again after the loss cue successfully played | Enabled |
-| `still_waiting` | One reminder after five minutes of a fresh, observable unresolved request | Disabled |
-| `system_online` | Once when monitoring becomes available at app launch | Disabled |
-
-Routine UI actions, user cancellation and immediate work resumption do not speak.
-Mute, preview, sleep and settings changes discard pending notifications; enabling
-an event or unmuting does not replay old activity. Missing/invalid clips stay silent
-and can be inspected in the panel. These controls do not improve upstream Codex
-approval/input observability: those events still require available evidence.
-
-Voice starts **muted**; nothing is ever spoken until the user unmutes from the
-header button, the header context menu or the tray menu, except an explicit Preview.
-
-Notifications come only from normalized attention transitions, and each active
-condition speaks once:
-
-| Condition | Speaks while | Re-arms when |
-| --- | --- | --- |
-| Approval needed | the task is `NEEDS_APPROVAL` | approval is resolved and the condition reappears, or a new turn starts |
-| Input needed | `NEEDS_INPUT`, or an explicit non-blocking needs-human request | the request resolves and the condition reappears, or a new turn starts |
-| Task error | the task is `ERROR` in that turn | a new turn or a fresh error episode |
-| Task finished | `DONE` (aggregated for 2 seconds) | a new completion episode |
-
-A pending approval announces itself once even though it is also a human need; the
-input latch stays held (without a second cue) while approval owns the state.
-Defaults: 10-second per-task/per-kind cooldown, 1-second minimum spacing between
-utterances, 32-entry queue with permission/input/error ahead of completions,
-30-second candidate lifetime, 2-second completion aggregation where a valid
-all-complete notice replaces the individual completions. Muting stops current
-audio and clears queued work immediately, fences late provider results, and never
-replays a backlog on unmute.
-
-### Packs and TTS
-
-`<data-directory>/voicepacks/<packId>/manifest.json` follows the frozen §10
-shape (id/name/language/version 1 plus the five event keys). Manifests are capped
-at 64 KiB, 16 clips per event, 4 MiB and 15 seconds per clip, and every clip must
-be a validated RIFF/WAVE PCM file inside the pack root — absolute, traversal,
-UNC, alternate-stream and reparse-point paths are rejected. Variants are chosen
-round-robin per event.
-
-Provider, pack and endpoint can be chosen in **Light & voice…**; a provider change
-applies to the next cue without a restart. Editing `config.json` by hand still
-requires closing OVERSEER first. Mute changes take effect immediately through the HUD.
-
-### Offline baseline voice
-
-The default provider for a **new** data directory is the offline Windows speech
-baseline, still muted. It synthesizes the nine fixed catalog scripts through the
-installed English system voice into validated WAV bytes and hands them to the same
-playback path: it never speaks to the speakers directly, never downloads a model and
-never sends task text anywhere (the script is a catalog constant). Work runs on at
-most two bounded STA workers; every call observes cancellation and its deadline while
-waiting, and each worker deletes its own temporary WAV in its own cleanup, so a hung
-engine cannot leak files or threads. A machine with no English voice reports a
-specific `speech-*` code instead of guessing, and the panel shows it.
-
-An existing `config.json` is never reset: a file without a `provider` key keeps the
-previous pack behaviour, and explicit provider, mute, pack, endpoint, per-event
-switches and assigned recordings are all preserved.
-
-TTS is opt-in and only ever used when both the provider is set to `tts` and an
-endpoint is configured (https anywhere, or http on loopback). The request body is
-exactly `{"text":…,"event":…,"task":…}` with a short `Task N` alias — never a
-title, id, path, prompt, question, answer or command — and the response must be
-`audio/wav`, streamed with a 4 MiB hard cap, a linked timeout (1–15 s, default 5)
-and no redirects. There is **no automatic cross-provider fallback**: the selected
-provider is the only one used, a failing provider stays silent and is reported, and
-an assigned recording for that event still wins. Missing assigned clips fall back to
-the selected provider, never to a different provider.
-
-```json
-"voice": {
-  "muted": true,
-  "provider": "pack",
-  "packId": "example",
-  "endpoint": null,
-  "timeoutSeconds": 5
-}
-```
-
-## Release package
-
-Build the release using PowerShell 7 and the .NET 10 SDK from committed source (the script refuses a dirty tree unless
-`-AllowDirtyTree` is passed). The version may carry a semantic prerelease suffix:
-
-```powershell
-pwsh -NoProfile -File scripts/Publish-Release.ps1 -Version 1.0.0-rc.1 `
-    -ArchiveName OVERSEER-1.0.0-rc.1-win-x64.zip -OutputDirectory artifacts/rc1
-pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 `
-    -ArchivePath artifacts/rc1/OVERSEER-1.0.0-rc.1-win-x64.zip `
-    -EvidenceDirectory artifacts/rc1/smoke
-```
-
-`Publish-Release.ps1` runs the documented self-contained publish
-(`Release`, `win-x64`, `PublishSingleFile=false`, `PublishTrimmed=false`,
-`PublishAot=false`), assembles an explicit payload and records
-`build-manifest.json` with the source commit, SDK version, included frameworks,
-payload file list and archive SHA-256. The process is repeatable and validated,
-not byte-identical: archive timestamps differ between runs.
-
-### Release identity
-
-A release has two identities, and both are checked after publishing:
-
-| Value | Example | Meaning |
-| --- | --- | --- |
-| File/assembly version | `1.0.0.0` | Numeric, four parts, valid for Windows file metadata |
-| Release identifier | `1.0.0-rc.1` | What the archive is called and what `release.json` records |
-| Informational version | `1.0.0-rc.1+<short commit>` | Release identifier plus the exact source commit |
-
-The archive also contains `release.json` with those values, the full source commit,
-the SDK version, the runtime identifier and the list of shipped integration files. A
-semantic prerelease suffix is never a valid file version, which is why the numeric and
-informational values are separate; the candidate binaries are still `NotSigned`.
-
-### Install and run
-
-1. Unzip `OVERSEER-v1-win-x64.zip` anywhere (a per-user folder needs no
-   elevation) and keep the extracted folder together.
-2. Run `TheOverseer.App.exe`. It is a self-contained x64 folder build: it loads
-   the .NET runtime from its own directory and does not need a system .NET
-   installation, `dotnet run`, the SDK or this repository.
-3. Runtime data stays in `%LOCALAPPDATA%\OVERSEER` (`config.json`,
-   `state.json`, logs). Pass `--data-directory PATH` for an isolated run.
-
-Archive contents: the complete publish output, `README.md`, `CHANGELOG.md`,
-`THIRD_PARTY_NOTICES.md`, `release.json`, `licenses/` (the upstream codex-monitor-hud
-MIT license and the licenses/notices from the exact .NET and Windows Desktop runtime
-packages redistributed), `examples/voicepacks/example/` and `integrations/` (both
-optional bridges with their notices, installers and test suites). No repository files,
-build caches, logs or private data are included.
-
-### Optional integrations in the archive
-
-`integrations/README.md` is the index. Each bridge is opt-in, previewed by default and
-reversible; both are runnable from the extracted archive with no repository checkout:
-
-```powershell
-cd integrations/deepseek-harness; node --test    # Node 20+
-cd integrations/claude-code;      node --test    # Node 18+
-```
-
-The spool a bridge writes lives under OVERSEER's **data directory**
-(`%LOCALAPPDATA%\OVERSEER\bridges\…` and `…\spool\claude\…`), not under the
-extracted application folder, so installing a later version cannot move or orphan it.
-Discovery happens when the monitor is composed at startup: restart OVERSEER after
-installing or removing a bridge.
-
-### Example voice pack (opt-in)
-
-`examples/voicepacks/example/` contains original synthetic PCM tones (not
-speech, no third-party assets) for the five known events. Copy it to
-`%LOCALAPPDATA%\OVERSEER\voicepacks\example`, set `"provider": "pack"` and
-`"packId": "example"` under `voice` in `config.json`, restart and unmute. The
-manifest cannot escape the pack directory, and OVERSEER never installs or
-replaces a pack by itself. See `examples/voicepacks/example/README.md`.
-
-### Smoke evidence and known limits
-
-`Test-PackagedRelease.ps1` extracts the ZIP into a fresh directory, verifies the
-payload, the release identity and the shipped integrations, removes workspace SDK paths
-from the child environment, and runs the extracted apphost from an unrelated working
-directory with isolated data directories: the HUD fixture renders, `--hud-smoke`,
-`--hud-integration-check` (invented Codex and bridge producers through the real
-monitor, composite and controller), `node --test` for both shipped bridges,
-`--voice-smoke` (owned loopback endpoint), `--voice-pack-check` against the shipped
-pack, deterministic `--monitor-debug` against a synthetic Codex home, one read-only
-real-monitor run, the legacy-settings upgrade checks, a 60-second normal HUD run (no
-foreground change, no window while started in the tray, second instance exits politely,
-graceful close and persisted state) and the `--start-in-tray --no-tray` visible
-fallback. It writes `smoke-evidence-<timestamp>.json` and fails on any failed check.
-
-With the scoped single-instance identity, the lifecycle checks use their own data
-directory and therefore their own instance slot: they no longer require your running
-HUD to be closed (pass `-SkipHudLifecycle` to leave them out anyway).
-
-Not covered by that script and still listed as unverified in
-`docs/IMPLEMENTATION_STATE.md`: physical sleep/wake, monitor disconnect and
-movement across monitors with different DPI, human tray interaction, acoustic
-playback by ear, and a clean machine that has no global .NET runtime installed.
-Approval and input attention remain unsupported in the installed Codex version.
-
-## Project identity and observed activity
-
-The project-centered round on `ux/first-use` is implemented and displayed: projects
-are the primary grouping in the HUD, with per-project and per-task activity strips.
-
-- **Project identity.** A task can be attributed to a project by explicit assignment,
-  the longest configured root, a locally verified Git repository root, or the
-  normalized workspace root, otherwise *Unassigned*. Comparison uses complete path
-  segments, so a sibling folder is never merged into a project, two folders with the
-  same leaf name stay distinct, and relative or device paths never resolve against
-  the process working directory. Linked worktrees of one repository group through
-  verified Git metadata while independent clones stay separate, and WSL/POSIX roots
-  join Windows projects only through an explicit alias. Roots stay local: summaries
-  emit a name and a stable hash, never a path.
-- **Harness-qualified identity.** A task key carries the harness (`codex`, `dsh`,
-  `claude`) plus a stable source-instance id, so identical conversation ids from
-  different harnesses can never collapse into one task.
-- **Observed activity.** A bounded in-memory history records what a source actually
-  reported: confirmed action intervals, a bounded ten-second belief window marked as
-  inferred, and explicit **unknown coverage** where nothing was observed. Idle is
-  shown only when inactivity was confirmed, the last action is never extended
-  indefinitely, completion/error markers close the action timeline without erasing
-  it, project activity is the union of overlapping intervals rather than a sum, and
-  capacity is bounded (512 histories, 2,048 intervals per task, 100,000 total).
-  `TaskActivityRecorder` fills the history from normalized snapshots on the
-  producer side (before UI coalescing), so an active turn with no structured action
-  is *inferred* thinking, an explicit plan detail is planning, attention is waiting,
-  and stale or unhydrated tasks stay unknown instead of idle.
-- **Wired into the runtime.** The Codex pipeline retains each session's normalized
-  workspace root and resolves its project at admission; `AgentTask` now carries both
-  the local root and the assigned project, and the additive `project` config section
-  supports root mappings, path aliases and cache bounds.
-
-### Harness integrations (external assets)
-
-Two metadata-only bridges live outside the desktop app and are installed only by an
-explicit, reversible opt-in step:
-
-- `integrations/claude-code/` — a Node hook bridge plus `install.mjs`/`uninstall.mjs`
-  for the documented Claude Code hook events. The helper reads at most 1 MiB of hook
-  stdin with a hard two-second deadline, writes one bounded normalized record per
-  event into `<spool>/claude/<sourceInstanceId>/events.jsonl` with a single locked
-  append, always exits 0 with empty stdout, and never returns a permission decision.
-  The installer previews by default, backs up the settings file before writing and
-  removes only OVERSEER-owned entries. The **Claude Code CLI is not installed** on
-  this machine: there is no `claude` on PATH, no `~/.claude/settings.json`, no
-  npm-global package and no CLI binary inside the installed package. The **Claude
-  desktop app (2.9939.2.0, MSIX, "Cowork") is installed and running**, and its bundle
-  contains a Hooks surface listing the same nine event names (PreToolUse, PostToolUse,
-  Notification, UserPromptSubmit, SessionStart, SessionEnd, Stop, SubagentStop,
-  PreCompact) — but none of its JSON configuration files contains a hooks section, and
-  the documented Claude Code payload fields (`hook_event_name`, `transcript_path`)
-  do not appear in its bundle at all. Its hook payload is therefore **not verified** to
-  match the contract this bridge implements, so the bridge stays contract-tested and
-  has never received a live hook. Qualifying it live needs either the Claude Code CLI
-  or the bridge registered through the desktop app's own Hooks settings.
-- `integrations/deepseek-harness/` — a small host-native observer plugin for the
-  official DeepSeek Harness. It runs inside the user's existing `dsh` host, exports
-  only allowlisted status metadata to `<spool>/dsh/<sourceInstanceId>/`, never
-  throws into the host and never intercepts approval/request decisions. dsh keeps its
-  own compressed session storage; OVERSEER never reads or migrates it.
-
-- **Consumed by the app.** The composite monitor treats each installed spool as a
-  source: it reads only new records, consumes the producer's authoritative
-  `current.json` to resynchronize, keeps one shared per-pass read budget across every
-  source, and reports per-harness health, freshness and capabilities. Codex, dsh and
-  Claude Code tasks therefore appear in one project list with harness badges, while a
-  failing source can never erase another source's work. `Projects & sources…` lists
-  the discovered harness sources and lets you disable one; a disable takes effect the
-  next time OVERSEER starts, and the window says so.
-- **Live qualification.** Codex is monitored live on this machine. The DeepSeek
-  Harness CLI is installed (`dsh 0.1.5-rc.3`) and its session package declares the
-  exact observer seams the plugin subscribes to, but the observer has not been
-  attached to a live host: that needs the opt-in plugin install into the user's own
-  dsh profile plus a real model-backed session. Claude Code is not installed here, so
-  its bridge remains contract-tested only. Neither gap is presented as live support.
-
-## Project-first HUD
-
-Expanding a project shows its individual tasks. Each project row carries its name,
-harness badges, working/needs-you counts, a chevron and a last-hour strip; each task
-row carries the harness, state, action, turn elapsed time and its own strip.
-
-- **Grouping and order.** Projects are ordered attention → active → recent with stable
-  identity tie-breaks, so rows never jitter between snapshots and two projects with the
-  same display name stay separate. Collapsing a project hides its rows without
-  stopping observation, history, attention or voice.
-- **The strip.** One cell per minute for the last hour, now at the right. Categories
-  are Thinking, Planning, Working, Waiting, Error, Complete and Idle, and **Unknown is
-  drawn differently** (a hatch) because it means "nothing was observed", not idle.
-  Inferred activity gets a distinguishing cap. A tooltip and the row's automation name
-  give the category, interval, duration, evidence strength and coverage, so colour is
-  never the only signal, and the legend spells the same thing out.
-- **Header and menu.** The top-level menu is Always on top (checked), Theme, View,
-  Light & voice…, Projects & sources…, Hide to tray (only while a tray can restore the
-  window) and Exit. The ✕ hides to tray when a tray exists and its tooltip says so.
-  The header stays pinned while content scrolls, branding collapses before the
-  controls, and targets stay at least 24 DIP at every supported size.
-- **Navigation is harness-qualified.** A Codex task opens its validated `codex://`
-  thread; a task from another harness offers its id for copying instead of pretending
-  an unsupported route works.
+| Summary half `N NEED YOU` / `N WORKING` | Switches to the matching **Needs you** or **Working** filter and expands the list. |
+| Health control (dot + label) | Opens per-source detail: each source's own state, freshness, capabilities and one next action. |
+| `LIGHT ON` / `LIGHT OFF` | Turns the status light on or off; its colour matches the current status. |
+| Mute button (`M` muted / `V` unmuted) | Mutes or unmutes voice immediately. |
+| Expand / collapse button, or `Escape` | Expands or collapses the task list (`Escape` collapses it in the compact view). |
+| Maximize button (`□` / `❐`) | Maximizes or restores; hover it for Windows Snap layouts (or use Win+Z / Win+Arrow). |
+| Menu button (`⋯`) | Opens the header menu below; available even without a tray. |
+| Close (`✕`, Alt+F4, system menu) | Hides to the tray while a working tray can restore it (the tooltip says so); without a tray it runs the same orderly shutdown. |
+| Any drag strip (header, expanded meta line) | Moves the HUD and saves the position; buttons and the summary keep their clicks. |
+| Status light, or the outer 6 DIP border | Drag the light to resize it (6–128 DIP), the border to resize the window. |
+| Project header row, or a `History` toggle | Expands or collapses that project's tasks, or discloses that project's or task's hour strip without activating it; observation, history and voice keep running while collapsed. |
+| Task row, or right-click → `Copy task id` | Activates a resolved Desktop task through its validated `codex://threads/<id>` route (other harnesses offer the id for copying instead), or copies just the id. A focused row activates with Enter or Space. |
+
+The header menu (`⋯`) contains **Always on top** (checkable), **Theme** (Dark / Light), **View**
+▸ *Recent interval* (1 / 2 / 4 / 8 / 24 hours), *Reset position*, *Opacity* (75 / 85 / 96 /
+100%), *Status light* (Right / Left / Top / Bottom / Off, then *Width* 24 / 32 / 48 / 64 / 96 /
+128), *Expand all projects*, *Collapse all projects*, *Compact / expanded HUD*, *Maximize /
+restore*, *Minimize*, *Start with Windows* and *Monitoring details*; then **Light & voice…**,
+**Projects & sources…** (lists discovered bridge sources and can disable one, applied at the next
+start), **Hide to tray** (enabled only while a tray can restore the window) and **Exit**. The tray
+icon offers Show/Hide HUD (double-click toggles it), Light/Dark mode, Always on top, Opacity presets,
+Mute voice, Start with Windows, Reset position, a monitoring status line, Light & voice… and Exit.
+
+### Views, counts and history
+
+**Now** (default) shows current work and attention plus completions and errors from the last ten
+minutes; **Recent** shows tasks with observed activity in the last 1, 2, 4, 8 or 24 hours, chosen
+from the **Recent hours** selector next to the view tabs (visible only while Recent is selected);
+**This session** shows tasks touched since OVERSEER started. The selected view and window are saved.
+Below the tabs, the **All / Needs you / Working** chips filter which rows are listed, with All
+always present as the explicit reset. Headline counts always describe *all* monitored work,
+independently of the selected view, and the Needs-you filter spans the whole snapshot so an old
+pending request is never hidden behind a time window.
+
+Project rows carry harness badges, working/needs-you counts and a last-hour strip; task rows carry
+harness, state, action, turn elapsed time and their own strip. The shared hour axis and legend
+appear whenever any project *or* task history is disclosed, and Unknown is drawn as a hatch because
+it means "nothing was observed", never idle.
+
+### First run
+
+A brand-new data directory starts **muted**, with the offline Windows speech provider as the
+baseline: the nine fixed catalog phrases are synthesised locally through the installed English
+voice, nothing is downloaded and no task text leaves the machine. With no harness installed the HUD
+shows honest unknown health (`Monitoring offline`, `?` counts) and a setup action in
+**Projects & sources…** — never a fabricated zero. An existing `config.json` is **never reset**:
+provider, mute, pack, endpoint, per-event switches, assigned recordings, roots, mappings and window
+state are preserved.
+
+## Optional harness integrations (experimental)
+
+[integrations/README.md](integrations/README.md) is the index. Both bridges are opt-in,
+metadata-only and reversible, and both are **experimental**: each is contract-tested, and
+neither has been exercised against a live host here, so no host version is claimed as supported.
+
+| Directory | Harness | Needs | Install |
+| --- | --- | --- | --- |
+| `integrations/deepseek-harness/` | DeepSeek Harness (`dsh`) | Node.js 20+ in the host | `dsh plugin --profile <name> add "<absolute path>"` |
+| `integrations/claude-code/` | Claude Code | Node.js 18+ | `node install.mjs "<settings.json>" --apply` (without `--apply` it only previews) |
+
+Three things matter before you install one:
+
+- **Restart OVERSEER after installing, changing or removing a bridge.** Discovery runs when
+  the monitor is composed at startup; hot attach is not implemented.
+- **Keep the extracted integration directory somewhere permanent.** Neither host copies the
+  bridge: `dsh` links the directory (a junction on Windows), and the Claude installer records
+  an absolute path to `bridge.mjs` in your settings file. Read
+  [integrations/deepseek-harness/README.md](integrations/deepseek-harness/README.md) first —
+  the `dsh` side has no preview flag.
+- **Rebinding is the recovery path once that path moves**:
+  `node install.mjs "<settings.json>" --bridge="<new path>\bridge.mjs" --apply`. `--apply`
+  refuses to write unless the hook command it is about to record has actually run against a
+  throwaway spool, so a settings file can never point at a missing or non-runnable bridge.
+
+Both spools live inside OVERSEER's data directory (`%LOCALAPPDATA%\OVERSEER\bridges\…` and
+`…\spool\claude\…`), so installing a later OVERSEER version cannot move or orphan a bridge's data.
+Only metadata is written — session identity, turn and tool boundaries, request ids, plan changes and
+outcomes; prompts, tool arguments, file contents and credentials are never read or stored.
+
+## Update, rollback and what is tested
+
+Runtime data is separate from the application folder, so updating means extracting the new version
+into its own new folder and starting that copy — never extract over the running installation.
+**Take a copy of `%LOCALAPPDATA%\OVERSEER` before updating**, then re-point your shortcut and repair
+the startup entry once; keep the old folder until the new version is accepted. Both rollback routes
+are written up in
+[docs/UPGRADE_AND_ROLLBACK.md](docs/UPGRADE_AND_ROLLBACK.md): the tested *older build on newer data*
+route, and the preferred *pre-update backup/restore* route. `scripts/Test-ReleaseUpgrade.ps1`
+exercises both on copies only: it seeds one isolated data directory with the complete previous-release
+state (every monitor root and limit, logging field, HUD setting, window mode, voice setting, project
+mapping, alias, disabled source and saved placement, plus a custom recording and a populated bridge
+spool); runs the previous build, copies the data directory, runs the candidate on the copy and
+compares every JSON leaf of `config.json`, `state.json` and the spool documents by exact JSON path
+(89 paths) plus recordings by SHA-256; runs the **previous build again against a copy of the data the
+candidate wrote**; and verifies the backup route by damaging the candidate-written copy
+(`config.json` and `bridges/` removed), restoring the pre-update backup over it and comparing the
+result with the pre-update data. With no non-primary display and no `-AllowVisibleChecksOnPrimary` it
+launches nothing, writes deferred evidence and exits `1` — read the evidence, not the exit code
+alone.
+
+The same script checks update targets: the production `StartupRegistration` helper is driven
+through a probe against a file-backed fake registry store (never the real `HKCU\…\Run` value) to
+confirm the recorded command quotes the candidate executable, carries `--start-in-tray`, rejects
+`dotnet.exe`, reports a stale recorded path after a package move and preserves the opt-in, and a
+copied `.lnk` inside the evidence directory must follow the candidate directory; your real shortcut
+and startup entry are never read or written.
+`scripts/Test-ReleaseUpgradePlacement.ps1` runs the same comparison with display discovery and
+launches mocked in three cases (no secondary display → deferred and failing qualification;
+secondary display → three launches; explicit `-AllowVisibleChecksOnPrimary` opt-in); the recorded
+run in `artifacts/upgrade-placement-tests/33c099b52c714915b2c4282cec15b0aa/` passes 25/25 checks in
+both windowed cases.
+
+A bridge installed from the old folder keeps the absolute path it recorded, and an archive
+extraction cannot rewrite a hook setting — re-run the shipped installer (or rebind) after the move.
+Not covered, and not claimed: an in-place upgrade over an installed folder, a data directory moved to
+a different absolute path, live bridge rebinding on a real host (a stable spool proves the data
+survived, not that a real hook still fires), physical sleep/wake, monitor removal/reconnection, mixed
+DPI, audible playback by ear, and a machine with no .NET runtime. `1.0.0-rc.6` has not been published,
+so its comparison against `1.0.0-rc.5` has not been run here either.
+
+## Build and test from source
+
+On Windows x64 with the .NET 10 SDK on `PATH`, from this repository root:
+`dotnet restore; dotnet build; dotnet test; dotnet run --project src/TheOverseer.App`. The workspace
+SDK lives outside Git in `../.tools/dotnet`; if it is not on `PATH`, set `DOTNET_ROOT`, prepend it to
+`PATH`, and point `DOTNET_CLI_HOME` and `NUGET_PACKAGES` at `../.tools/cli-home` and
+`../.tools/nuget-packages`. `scripts/Publish-Release.ps1` publishes `win-x64` self-contained and
+records `build-manifest.json` (source commit, SDK version, payload list, archive SHA-256; it refuses
+a dirty tree unless `-AllowDirtyTree`), while `scripts/Test-PackagedRelease.ps1` extracts a ZIP into a
+fresh directory and runs the packaged checks with a sanitized child environment (a headless run
+records every windowed check as skipped with a reason and exits `1` instead of dropping it).
+
+## Diagnostics modes
+
+Finite modes that use an isolated data directory when you pass one and never replace production
+input: `--monitor-debug [--duration N] [--redact-labels]` runs the console monitor (capabilities,
+health with reason codes, real counts, one row per task; exit `0` readable, `2` essential monitoring
+unavailable, `1` bad arguments); `--hud-fixture --output-directory DIR` renders the synthetic preview
+and window-size matrix; `--hud-smoke [--duration N] [--no-tray]` composes production against a
+synthetic monitor and exits cleanly; `--hud-integration-check` drives invented Codex and bridge
+producers through the real readers, composite and controller, and `--hud-composition-check` drives
+the real startup composition (config load, discovery, provider selection, controller), isolating
+itself under the evidence root and refusing an explicit request for your live data directory;
+`--hud-startup-check` reversibly checks OVERSEER's own Run entry; `--voice-smoke [--audible]` proves
+the pack, policy and TTS contracts with synthetic tones and an owned loopback endpoint, and
+`--voice-pack-check` loads and validates the pack in your data directory without playing anything.
+`--placement-monitor DEVICE` starts the HUD on a specific monitor for diagnostics, and
+`scripts/Test-WindowScaling.ps1` exercises native resize, maximize/restore, bound persistence and the
+Snap hover target on a display you name, deferring instead of moving windows onto the display you are
+using.
 
 ## Configuration and logs
 
-`%LOCALAPPDATA%\OVERSEER\config.json` (System.Text.Json) is optional:
+`%LOCALAPPDATA%\OVERSEER\config.json` is optional; every limit is clamped, and a malformed file
+is preserved as `config.json.corrupt-<timestamp>` before defaults are used. Keys include
+`codexHome`, `additionalRoots`, `limits`, `logging`, `disabledHarnessSources`,
+`maximumHarnessSources`, `harnessRoots` and `hud`:
 
 ```json
 {
-  "codexHome": null,
-  "additionalRoots": [],
   "limits": { "maxTrackedFiles": 64, "globalBytesPerPass": 4194304, "staleLeaseMinutes": 15 },
   "logging": { "enabled": true, "maxBytes": 1048576, "level": "info" },
-  "runtimeActivitySource": true,
-  "disabledHarnessSources": [],
-  "maximumHarnessSources": 8,
-  "harnessRoots": [{ "harnessId": "dsh", "path": "D:\\shared\\overseer-spool" }]
+  "hud": { "theme": "dark", "alwaysOnTop": true, "opacity": 0.96, "taskView": "now", "recentHours": 2 }
 }
 ```
 
-`disabledHarnessSources` lists discovered bridge sources to leave out as
-`harness/sourceInstance` (a disabled source is excluded from monitored totals and
-labelled disabled rather than offline). `maximumHarnessSources` caps how many source
-instances are monitored at once, and `harnessRoots` adds explicitly configured bridge
-roots outside the data directory; discovery is bounded per root and in total.
+HUD defaults: dark theme, always on top, 96% opacity, Now view, 2-hour Recent window, a right-side
+light 32 DIP wide. Opacity is clamped to 0.65–1.0, the light to 6–128 DIP and Recent hours to
+1–24. `state.json` stores placement as display-independent pixels relative to the saved monitor's
+working area plus the DPI scale, so a DPI change keeps the same physical spot and a removed
+monitor is clamped back onto a reachable one. Editing `config.json` by hand requires closing
+OVERSEER first. Logs go to `logs\overseer.log` with one rolling backup and contain only stable
+codes, counters and numbers — never titles, paths, prompts, assistant text, questions, answers,
+command lines or credentials.
 
-Every limit is clamped into a bounded range. A malformed file is preserved as
-`config.json.corrupt-<timestamp>` and the defaults are used. Logs are written to
-`logs\overseer.log` with one rolling backup and contain only stable codes,
-counters and numbers — never titles, paths, prompts, assistant text, questions,
-answers, command lines or credentials.
+## Project layout
 
-## Monitoring rules that matter for review
+`TheOverseer.App` is the WPF entry point and owns platform services (tray, placement, startup
+registry, shell navigation), the HUD lifetime controller, the voice I/O adapters and the diagnostics
+modes. `TheOverseer.Core` holds models, monitoring, configuration, diagnostics, rolling history and
+voice policy, with no WPF/WinForms and no network or audio code. `TheOverseer.UI` contains the single
+`HudWindow`, the `HudViewModel` projection and the Light/Dark resource dictionaries;
+`TheOverseer.Tests` is the xUnit suite across readers, discovery, identity, parser, reducer,
+classifier, attention, health, composition, configuration, logging, privacy and the HUD contract. The
+stack is C# / .NET 10 LTS / WPF / xUnit / System.Text.Json with no additional runtime dependency.
 
-- Identity is the normalized profile root plus conversation id; several rollout
-  files (rollover, continuation, another client surface) collapse into one
-  numbered task. A `parent_thread_id` alone is not internal-session evidence;
-  explicit `thread_source`/`source.subagent` markers are.
-- Canonical states are exactly WORKING, NEEDS_INPUT, NEEDS_APPROVAL, ERROR, DONE,
-  IDLE. Monitoring health (HEALTHY/DEGRADED/UNAVAILABLE) is separate, so a broken
-  monitor can never be displayed as zero tasks.
-- Starts and completions do not require tokens or assistant text. Duplicate
-  replay, old-turn evidence and evidence for a terminal turn are rejected.
-  Cancellation becomes IDLE with a cancellation marker, not DONE. A failed tool
-  is not a failed task.
-- A non-blocking input request does not turn WORKING into NEEDS_INPUT; it raises
-  attention and sets the needs-human flag independently. An immediate async tool
-  return is not a user answer.
-- Nothing is inferred from silence, locks or database timestamps. Tasks without
-  recent evidence keep their last-known state, are flagged stale and are excluded
-  from authoritative counts, which are then reported as partial.
-- Approval and input events are transient inside Codex and are not persisted in
-  rollouts. The monitor reports those capabilities as `unsupported` rather than
-  guessing, and their normalized contracts are covered by synthetic tests.
-- **Every source carries its own health, freshness and coverage.** One aggregate
-  per-pass read allowance (default 4 MiB) and one tracked-item allowance are divided
-  between the enabled sources rather than multiplied by them, at most eight source
-  instances are monitored at once, and a share is never reduced below the floor that
-  lets a source make progress.
-- **Freshness is the producer's evidence time, not the adapter's poll time.** An idle
-  spool that is polled for an hour never looks freshly read, and a healthy source
-  publishing new work can neither refresh a dead peer's evidence nor its own
-  capabilities: capability sets are merged across readable sources with a per-harness
-  note, and an unavailable source contributes nothing.
-- **An external metadata bridge recovers current state from the producer's own
-  snapshot.** Each producer atomically publishes `current.json`; when OVERSEER reads
-  it, sessions the bridge actually observed are known again even after a late attach,
-  a dropped record or a rotated event file. Coverage is split in two: recoverable
-  *current state* and a permanent *history gap*. A gap is never rewritten as observed
-  activity, and it stops degrading a source only once it is older than the displayed
-  activity window.
-- **Liveness and action evidence are separate.** A heartbeat proves the host is
-  attached; it never renews a stale action and never overwrites an observed category.
-  An action older than ten seconds becomes *unknown coverage* while the task may still
-  be working, a `turn/end` with a missing or unrecognized outcome is *not* a
-  completion, and a tool start or plan marker observed while an approval or input
-  request is unanswered does not hide the fact that a human is still the blocker.
+`AGENTS.md` and `docs/V1_2_IMPLEMENTATION_SPEC.md` are preserved byte-for-byte from the supplied
+documents; their older product naming is superseded and the V1 scope is unchanged. Monitoring
+plumbing is adapted from `https://github.com/LH-03/codex-monitor-hud` at revision
+`df1d5b9e3d4b701de979b5c84a006db7cca5112f` (MIT) — see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `third_party/codex-monitor-hud/LICENSE`; the
+artwork is preserved in `design/branding/overseer-source.png`. Monitoring health is separate from
+task state, so a broken monitor is never shown as zero tasks, stale tasks are excluded from
+authoritative counts (which are reported as partial, `1+` / `?`), and every source carries its own
+health, freshness and coverage within one shared per-pass read allowance.
 
-## Upstream reuse
+## Historical release evidence
 
-Monitoring plumbing adapted from `https://github.com/LH-03/codex-monitor-hud` at
-revision `df1d5b9e3d4b701de979b5c84a006db7cca5112f` (MIT). Exact source paths,
-adaptations and the full license are recorded in `THIRD_PARTY_NOTICES.md` and
-`third_party/codex-monitor-hud/LICENSE`. The upstream presentation layer,
-accounting, allowance reader, settings host, animation machinery and MCP display
-were not imported.
+Everything below belongs to an earlier revision and is **not** a claim about the current working
+tree; each item names the source commit recorded in its evidence.
 
-## Next action
+- `1.0.0-rc.4` (source `c18822d`): 41 packaged checks passed, including lifecycle, voice and
+  legacy-settings upgrade checks — `artifacts/rc4/smoke/run-20260927T232228Z-5d48094d/`.
+- `1.0.0-rc.5` (source `389cb15`): 14/14 production-path integration checks and 9/9
+  `rc.4 → rc.5` upgrade checks under `artifacts/rc5/`, the latter with the earlier comparison
+  script, which recorded rollback, shortcut and startup-entry checks as not performed.
+- Earlier candidates (`artifacts/rc1`…`artifacts/rc3`, `artifacts/review4-final`) are superseded.
 
-The HUD keeps its own header at every size. Use the triangle to expand/collapse,
-the square to maximize/restore, and the ellipsis for the menu. Hover over the
-square for Windows Snap layouts, or use Win+Arrow / Win+Z. Drag the outer edges
-to resize and the plain header to move; double-click the header to maximize.
-Compact and larger layouts remember separate geometry and pin preferences.
-A narrow window temporarily limits the light to keep content readable without
-changing its saved width. Short layouts and Light & voice settings scroll.
-See `docs/WINDOW_SCALING_PLAN.md` and the latest implementation ledger entry for
-the scope and verification qualifications of this newer work.
-
-Plan 4 passed **Astra Review 4 with nonblocking notes** after fixes on
-`impl/p4-release`. Build, 398 tests and 28 final packaged smoke checks passed.
-Use `artifacts/review4-final/OVERSEER-v1-win-x64.zip`; earlier candidates are
-superseded. Integration and tagging `v1.0.0` remain separate steps. Physical
-sleep/wake, mixed-DPI/monitor-removal, acoustic and clean-machine checks remain
-explicit qualifications in `docs/IMPLEMENTATION_STATE.md`.
+Current-tree evidence is the normal-composition check (26/26,
+`artifacts/composition-check-noarg/`), the mocked upgrade/rollback placement run (25/25 per windowed
+case, `artifacts/upgrade-placement-tests/33c099b52c714915b2c4282cec15b0aa/`), the isolated window
+scaling run (`artifacts/scaling-dev2-184414/window-scaling-evidence.json`) and the 46 HUD renders in
+`artifacts/ui-cleanup-renders/`. Outstanding gates are tracked in
+[docs/IMPLEMENTATION_STATE.md](docs/IMPLEMENTATION_STATE.md),
+[docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md),
+[docs/UPGRADE_AND_ROLLBACK.md](docs/UPGRADE_AND_ROLLBACK.md) and
+[docs/WINDOW_SCALING_PLAN.md](docs/WINDOW_SCALING_PLAN.md), with deferred visual work in
+[docs/UI_SPEC_v0.2.md](docs/UI_SPEC_v0.2.md).
