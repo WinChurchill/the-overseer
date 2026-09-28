@@ -1,5 +1,185 @@
 # OVERSEER Implementation State
 
+## DeepSeek implementation — 2026-09-28 — stage-1 cleanup + stage-2 implementation
+
+**Status: local implementation complete for everything executable on this machine; the
+branch is review-ready. Public-release qualification is BLOCKED and is not claimed.**
+
+Two outcomes, reported separately as the packet requires:
+
+| Outcome | Verdict |
+| --- | --- |
+| Local implementation of the combined packet | **complete** |
+| Public-release qualification | **blocked** — external environments and owner decisions outstanding |
+
+Branch `ux/first-use`. Planning baseline `171f556`; this round's base `65a3c15`.
+Candidate archive built from source `9f805c85b3bc9ef8147923c214b0ec2f4b84643a`; the
+documentation commits that follow are not part of the archive payload.
+
+### Commits this round
+
+```text
+64ce198 fix: refuse unrunnable bridge payloads and expose the real composition seam
+3f51e68 feat: verify normal composition and fix audited UI contract defects
+5d3cf35 docs: correct integration install semantics from verified host evidence
+c98b13a feat: make lifecycle qualification safe and prove packaged graceful exit
+c69d51b refactor: remove demonstrated dead UI code found by the carryover audit
+9f805c8 docs: consolidate the current guide, changelog and acceptance matrix
+```
+
+### Stage-1 carryover: closed
+
+Nine UI contract defects were reproduced against the accepted contract and fixed; nine
+regressions in `tests/TheOverseer.Tests/UiContractCleanupTests.cs` cover them.
+
+1. The Recent-hours ComboBox was bound to `SelectedRecentHours`, which nothing raised, so
+   choosing a window from the header menu left the selector showing the previous value
+   while the list already used the new one.
+2. The left state accent never followed the light toggle (`LeftAccentVisible` was raised by
+   nothing), so a redundant accent stayed visible and a wanted one never appeared until the
+   view model was rebuilt.
+3. A task history strip was reachable with every project history closed but rendered
+   without the shared hour axis and legend.
+4. A voice failure was computed into `VoiceStatusLine` and rendered nowhere: with
+   notifications enabled, a failed provider changed nothing on screen. The health detail
+   now carries a failure-only line.
+5. Status feedback — tray, startup, navigation, and "settings or position could not be
+   saved" — reached `FooterHint`, which no surface rendered, so real failures were
+   invisible. There is now a subdued footer at the end of the scrolled content, hidden
+   entirely when there is nothing to report.
+
+Demonstrated dead code removed: the superseded `CycleRecentWindowCommand` cycling gesture
+(kept alive only by its own test, which now drives the real selector), `SetHealthBrush`
+(no caller, and it would have fought the XAML style triggers), a no-op ternary, and an
+empty resource dictionary. No XAML binding target was missing and no handler was wired
+twice. All 46 fixture renders are byte-identical before and after.
+
+The verification gap is closed: `--hud-composition-check` drives the **real**
+`HudComposition` graph four times — startup configuration loading, harness discovery,
+voice-provider selection and controller construction — and asserts the state that reaches
+the real HUD view model. It covers an empty first run, no harness installed, valid mixed
+sources, a bridge added while running (restart required, as documented), and an existing
+configuration staying authoritative. 26 checks pass.
+
+### Stage 2: delivered
+
+- **Bridge install hardening.** `install.mjs --apply` now executes the hook command it is
+  about to record against a throwaway spool and refuses (exit 2, no write, no backup) on a
+  missing payload, a directory, a non-zero exit or a run that publishes no record. The
+  probe runs only when recording a path the settings file does not already point at, so
+  re-running unchanged stays idempotent. Regressions prove executable binding after
+  rebinding to a new extraction whose path contains spaces and non-ASCII characters, that
+  the generated command actually publishes a record when invoked with its own argument
+  vector, and that a refused rebind leaves a working install intact. Claude suite 21 → 25.
+- **dsh install semantics verified, not guessed.** Read from the pinned checkout
+  `46a7f68b` and the installed `0.1.7-rc.2` build: `dsh plugin` is a pnpm forwarder, a bare
+  local path becomes a `link:` dependency materialised as a Windows directory junction, the
+  plugin loads from the original directory, deleting it makes dsh skip the bundle, and
+  there is **no dry-run flag**. The integration READMEs and the index were corrected
+  accordingly and the "both installers preview" generalisation was removed.
+- **Upgrade/rollback.** `Test-ReleaseUpgrade.ps1` seeds and deep-compares every supported
+  setting by JSON path, adds a candidate→previous rollback run and a pre-update
+  backup/restore boundary, compares a populated spool record-by-record, and forces the
+  startup target through the real `StartupRegistration` helper against a fake registry and
+  a copied `.lnk`. Its comparison helpers are unit-exercised with 71 assertions including
+  43 single-field mutations, each reported at its exact JSON path.
+- **Lifecycle safety and graceful exit.** `Test-PackagedRelease.ps1` gained
+  `-SkipVisibleChecks`, `-VisibleCheckMonitor` and a shared deferral reason; a requested
+  display is honoured only when it exists and is not the primary one. `Test-WindowScaling.ps1`
+  was rewritten to choose a display explicitly, seed the isolated run's placement for it,
+  assert the window really opened there, and skip the primary display in its transition
+  loop unless explicitly allowed. A new `hud-live-graceful-exit` proves a
+  normal-composition process exits 0 through the controller with its placement flushed and
+  no forced kill.
+- **Documents.** `README.md` is now one consistent current guide (675 → 268 lines) with
+  the obsolete Codex-only framing, superseded counts and non-existent controls removed.
+  `docs/UPGRADE_AND_ROLLBACK.md` is new. `docs/RELEASE_READINESS.md` carries the
+  clean-machine protocol and a 28-gate acceptance matrix.
+
+### Candidate identity
+
+```text
+archive : artifacts/rc6/OVERSEER-1.0.0-rc.6-win-x64.zip
+sha256  : 2ECD384070FE21F8D4E694250B399C2664CEAFC3A276F5873B58BE05F9BA5931
+bytes   : 76837418    entries: 568    payload: 568 files, 75 integration assets
+identity: FileVersion 1.0.0.0, ProductVersion 1.0.0-rc.6+9f805c8, signing NotSigned
+source  : 9f805c85b3bc9ef8147923c214b0ec2f4b84643a (ux/first-use), sourceTreeDirty=false
+manifest: artifacts/rc6/build-manifest.json
+```
+
+### Verification for the exact rc.6 archive
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Release build | 0 warnings / 0 errors | `artifacts/rc6/verification/build.log` |
+| .NET tests | **695 passed**, 0 failed, 0 skipped | `artifacts/rc6/verification/dotnet-test.log` |
+| dsh bridge suite | **30/30** | `artifacts/rc6/verification/bridge-dsh-isolated.log` |
+| Claude bridge suite | **25/25** | `artifacts/rc6/verification/bridge-claude.log` |
+| Packaged smoke (windowed, DISPLAY2) | **44/44, no skipped block** | `artifacts/rc6/smoke/run-20260928T032046Z-a64bf4b5/smoke-evidence-20260928T032046Z.json` |
+| Composition check, in the archive | **26/26** | `artifacts/rc6/verification/composition-check-packaged.log` |
+| Production-path integration check | **14/14** | `artifacts/rc6/verification/integration-check-packaged.log` |
+| rc.5 → rc.6 upgrade + rollback | **25/25**, 89 JSON paths preserved both ways | `artifacts/rc6/upgrade/run-20260928T032514Z-7fcf50d0/upgrade-evidence-20260928T032514Z.json` |
+| Upgrade placement (mocked) | **3/3** | `artifacts/upgrade-placement-tests/33c099b52c714915b2c4282cec15b0aa` |
+| Window scaling / DPI (DISPLAY2) | native resize, maximize, restore, bounds, Snap hit target | `artifacts/scaling-dev2-184414/window-scaling-evidence.json` |
+| Renders | **46 PNGs**, both themes | `artifacts/rc6/smoke/.../hud-fixture` |
+| Focus during the live run | 548 samples, **0 owned-foreground**, 0 takeovers | smoke evidence above |
+| `git diff --check` | clean | — |
+
+### Defects found and fixed by this round's own checks
+
+1. **The composition check wrote to the user's live data directory.** It composed a real
+   controller that saves state on shutdown, and with no `--data-directory` it resolved to
+   `%LOCALAPPDATA%\OVERSEER`. It re-saved `state.json` with identical values (same
+   `monitorDevice`, same `isExpanded`); `config.json` was untouched. The captured timestamp
+   was restored to its pre-run default and the check now isolates itself under the evidence
+   root by default and **refuses** an explicit request for the live directory. Recorded here
+   because a check that touches live state is exactly the kind of thing this packet forbids.
+2. **Placement seeding silently targeted the primary display.** Both `Test-WindowScaling.ps1`
+   and `Set-IsolatedPlacement` seeded only `monitorDevice`/`offsetXDips`, which the collapsed
+   HUD reads, while the window view places by `WindowMonitor`/`WindowX`. A window-view run
+   therefore opened on the display in use. Both modes are now seeded, and the scaling check
+   fails loudly if the window is not on its target.
+3. **The silent dsh contention flake.** One concurrent dsh run reported a failure in
+   `concurrent writers produce whole, non-interleaved lines` while a packaged windowed suite
+   was loading the machine; the suite passes 30/30 in isolation, before and after. Recorded
+   as a contention-sensitive test rather than hidden.
+
+### Known limitations and deferred checks
+
+- **`hud-live-graceful-close` is never satisfied in a passing run.** While a working tray
+  exists every close path hides by design and no script can click the tray's Exit menu. The
+  evidence JSON now says so, and `hud-live-graceful-exit` provides the real proof instead.
+- The real `rc.5 → rc.6` comparison ran with windowed checks on the secondary display only.
+  A machine with a single display defers instead, which is covered by the mocked placement
+  harness (0 launches, exit 1), not by a real single-display run.
+- `ActivitySparkline` and `ActivitySegments`/`ActivityTooltip` remain in the tree with no
+  XAML consumer. They are covered by their own tests, so they were left rather than removed
+  in a way that would delete tested behaviour; they are recorded here instead of being
+  presented as production UI.
+- Existing product limitations now recorded rather than papered over: an
+  integration-recorded absolute `bridge.mjs` path does not follow a versioned-directory
+  move (re-run the shipped installer or rebind), and a moved install reports `StalePath`
+  until the user re-toggles "Start with Windows".
+
+### External qualification gates (BLOCKED, not PASS)
+
+No clean Windows machine/VM or independent account; no browser download through an
+owner-approved channel; no live `dsh` or Claude Code host session, so both integrations
+stay **experimental**; no signing, distribution-terms or channel decision; no physical
+keyboard/Alt+Tab/Snap/drag, mixed-DPI, monitor reconnect, sleep/wake or audible-playback
+check. `docs/RELEASE_READINESS.md` lists all 28 gates with each row's exact missing
+prerequisite. Nothing unexecuted is recorded as PASS, and public-release readiness is not
+claimed.
+
+### Ready for review
+
+Branch `ux/first-use` is review-ready: all local build, test, bridge, packaged, upgrade and
+lifecycle checks pass for the exact rc.6 archive, no merge, tag, push or public upload was
+performed, and no destructive Git command was used. The user's running HUD, settings,
+shortcut, startup entry and real harness configuration were not replaced. One transient
+exception is disclosed above: the composition check re-saved `state.json` with identical
+values before it was fixed, and the captured timestamp was restored.
+
 ## Astra planning — 2026-09-27 — stage-1 cleanup + stage-2 implementation
 
 Stage-entry verdict: **PASS WITH NONBLOCKING NOTES** for starting the combined

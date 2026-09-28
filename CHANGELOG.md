@@ -2,9 +2,10 @@
 
 ## 1.0.0-rc.6 — 2026-09-28 (composition verification, bridge install hardening, lifecycle qualification, UI contract fixes)
 
-Source changes for the next internal candidate on `ux/first-use`. No `artifacts/rc6/` archive
-exists in this tree yet, so this section records source changes and the local evidence named
-with them, not a packaged qualification.
+Source changes for internal candidate `1.0.0-rc.6` on `ux/first-use`. The archive is
+`artifacts/rc6/OVERSEER-1.0.0-rc.6-win-x64.zip`, built from source `9f805c8` with a clean tree.
+It is an internal candidate, not a published release: the qualification status at the end of this
+section records exactly which gates were exercised and which remain external.
 
 - **Normal-composition verification.** New finite mode `--hud-composition-check` drives the real
   `HudComposition` graph — startup configuration loading, harness discovery, provider selection and
@@ -104,12 +105,18 @@ with them, not a packaged qualification.
   supported upgrade path, both tested rollback routes, the exit codes and what is not verified; the
   clean-machine qualification protocol was added to `docs/RELEASE_READINESS.md` and is explicitly
   **not executed**.
-- **Qualification status.** These checks have not been rerun against the real published archives
-  (`rc.4 → rc.5` was measured with the earlier comparison script), the bridge suites and the full
-  .NET suite have no stored run log at this revision, and no packaged smoke has been recorded since
-  the lifecycle rework. No `1.0.0-rc.6` archive has been published, so its upgrade comparison against
-  `rc.5` has not been run. Clean-machine, live-host, signing/terms and physical display/audio gates
-  remain open and are tracked in `docs/RELEASE_READINESS.md`.
+- **Qualification status.** Measured on this machine for the exact rc.6 archive: packaged smoke
+  **44/44 with no skipped block** (two displays; every windowed check on `\\.\DISPLAY2`), the
+  packaged composition check **26/26** and production-path integration check **14/14** from inside
+  the extracted archive, the real `rc.5 → rc.6` upgrade comparison **25/25** including a
+  candidate→previous rollback run and a pre-update backup/restore boundary, three mocked upgrade
+  placement cases **3/3**, Release build **0 warnings / 0 errors**, **695** .NET tests, and the
+  shipped bridge suites **dsh 30/30** and **Claude 25/25**.
+  Still open, and not claimed: browser download on a clean machine with no .NET runtime, a clean
+  VM or independent machine, live per-version `dsh`/Claude-host evidence (both integrations stay
+  experimental), signing/distribution/terms decisions, and physical keyboard/Snap/DPI/sleep-wake
+  and audible-playback checks. `docs/RELEASE_READINESS.md` tracks each with its exact missing
+  prerequisite.
 
 ## Unreleased — 2026-09-27 (review corrections)
 
