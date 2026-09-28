@@ -1,5 +1,116 @@
 # OVERSEER Implementation State
 
+## Astra review — 2026-09-27 — CHANGES REQUIRED
+
+Reviewed `65a3c15..7ee1c16`: eight commits, 32 files. The branch-wide architecture
+and frozen source boundaries remain intact; no significant scope divergence or new
+framework was found. Stage-1 cleanup and substantial stage-2 implementation landed,
+but the claim that all locally executable work is complete is not yet supported.
+
+Actionable findings (the ordered corrective prompt follows below):
+
+1. **MAJOR / P1 — composition checks can open on the primary display.** Three graphs
+   in HudCompositionCheckRunner (lines 134, 184, 292) omit WindowState/placement and
+   the shared platform overrides. HudComposition does not consume PlacementMonitor
+   itself; the controller shows the window using default primary placement. Passing
+   `--placement-monitor` from the package script therefore does not constrain every
+   window. This is code-path evidence; the unsafe visible check was not rerun.
+2. **MAJOR / P2 — installer writes new hooks to a missing same-path bridge.** After
+   a successful one-event install, renaming the fixture bridge away and applying
+   another event returns exit 0/applied=true and writes that event's broken hook.
+   The `recordPathIsNew` gate skips validation despite a real settings mutation.
+3. **MAJOR / P2 — upgrade checks waive placement loss.** Path-only exemptions accept
+   invalid dimensions/coordinates, the wrong monitor, lost maximization and even
+   deleted fields. Independent helper probes changed six saved-window fields and
+   then removed them: both yielded zero failing differences. Current 25/25 evidence
+   cannot establish complete saved-window preservation.
+4. **MINOR / P2 — muting does not update bound voice failure text/visibility.**
+   A real WPF TextBlock binding keeps the failure text after IsMuted=true although
+   the computed getter is empty. Dependent PropertyChanged notifications are missing;
+   the new test checks only the computed value and misses the rendered behavior.
+5. **MAJOR / P2 — normal-composition coverage remains incomplete.** Restart creates
+   its own adapters and injects them into ComposeAsync, bypassing the production
+   construction the check is meant to protect. Source removal/restart and the
+   promised unsupported/unreadable/stale-recovery normal-composition cases are absent.
+   These are locally executable gaps, not external-machine blockers.
+
+Independent verification: Release build/test **695 passed, 0 failed, 0 skipped**;
+Claude **25/25**, dsh **30/30**, upgrade-placement **3/3**. The first sandboxed build
+was denied access to a markup cache; the authorized rerun built and passed. RC6 ZIP
+SHA-256 independently matches `2ECD384070FE21F8D4E694250B399C2664CEAFC3A276F5873B58BE05F9BA5931`.
+Its manifest names clean product source `9f805c8`; HEAD also changes the smoke script,
+so source/script/evidence identities must remain distinct. Existing RC6 44-check smoke
+evidence and narrow fixture renders were inspected, not rerun or newly qualified.
+`git diff --check 65a3c15..7ee1c16` reports new trailing blank lines in two Markdown
+files; a clean unstaged diff alone did not check the implementation range.
+
+Reproductions: ignored `artifacts/astra-stage2-review/` contains installer result,
+WPF binding probe and upgrade-comparison probe. Placement evidence:
+`artifacts/upgrade-placement-tests/d43122f0e07041a4bb3dcb2967158b96`.
+No product fix, live HUD/config/shortcut change or visible launch was made in this
+review. External qualification remains open, separately from these local findings.
+
+## Astra review continuation — 2026-09-27 — CHANGES REQUIRED
+
+Act as DeepSeek implementation on ux/first-use. Review base is 65a3c15 and reviewed
+HEAD is 7ee1c16; RC6 product source is 9f805c8. This is one corrective continuation
+of the combined stage-1 cleanup/stage-2 goal, not a new plan. Read AGENTS.md and
+the newest IMPLEMENTATION_STATE entry, then complete the following in order:
+
+1. Fix composition-check placement/isolation before any visible rerun.
+   HudCompositionCheckRunner's empty-first-run, no-harness and post-restart graphs
+   omit the shared Overrides helper and its WindowState placement seed. Apply the
+   same isolated platform services and requested monitor to EVERY graph. Verify
+   the prepared state before showing and actual bounds after showing. If the
+   requested display is absent/unauthorized, defer before launch, not on primary.
+   Add deterministic coverage for all scenarios, no-secondary and invalid targets.
+   Keep the user's HUD, live data, startup registry and main display untouched.
+
+2. Close the Claude installer same-path validation hole. Repro: install SessionStart
+   to a valid copied bridge, rename bridge.mjs away, then apply SessionStart,Stop
+   with the same --bridge path. Current result: exit 0, applied=true, missing path,
+   new Stop hook written. Validate every settings-mutating apply, not only a path
+   different from the first existing owned handler. Require file validity even for
+   any retained --no-verify option; do not exempt missing payloads. Preserve true
+   unchanged-run idempotence and unrelated hooks, with no write/backup on refusal.
+   Regress same-path missing/broken payload, added event and mixed old hook paths.
+
+3. Make upgrade/rollback placement comparison detect loss. The global path-only
+   normalization exemptions classify arbitrary corruption AND missing-after for
+   WindowWidth/Height/X/Y/Monitor/Maximized as explained. A probe replacing width/
+   height with 1, coordinates with 99999 and monitor with WRONG reports zero failures;
+   deleting all six also reports zero failures. Require persisted fields and validate
+   expected restored/clamped values with a documented tolerance from the actual test
+   display; only accept scenario-proven normalization. Test unchanged topology and
+   both HUD/window modes, plus negative mutations/deletions and legitimate clamping.
+   Check in the comparator regressions and correct the acceptance claims accordingly.
+
+4. Repair voice-error WPF notifications. IsMuted must raise VoiceFailed and
+   VoiceFailureLine when their value changes; ApplyActivity must publish consistent
+   final dependent values when detail/mute change together. Bound TextBlock repro:
+   after a failure, setting IsMuted=true gives VoiceFailureLine="" but the binding
+   still displays the old error. Existing test checks the getter only. Add binding
+   or PropertyChanged regression assertions for mute/unmute and simultaneous changes.
+
+5. Finish the promised normal-composition coverage. The restart scenario manually
+   constructs adapters and injects them into ComposeAsync, bypassing production
+   adapter creation for the newly discovered Claude source. Use real discovery/
+   construction on both starts; substitute invented producer files/platform side
+   effects only. Add the locally executable remove/restart and missing/unsupported/
+   unreadable source plus stale/recovery cases from the packet, asserting applied
+   source/task health and healthy-peer survival. Do not mark these missing tests as
+   external host limitations. Keep synthetic versus live evidence clearly labeled.
+
+Run full Release build/tests, both bridge suites, placement/comparator regressions
+and corrected isolated composition/integration/package/upgrade checks. Visible runs
+must remain on an authorized secondary monitor without intentional focus takeover;
+defer actual interactive checks if no safe test session exists. Publish a new unused
+internal candidate from clean source, not overwrite RC6; record source/hash and which
+scripts produced evidence. Update ledger/changelog/release matrix; remove introduced
+EOF whitespace reported by git diff --check 65a3c15..HEAD. Report local completion
+separately from remaining external gates. No merge, push, public upload, live app
+replacement or real harness-setting changes. Return one review-ready continuation.
+
 ## DeepSeek implementation — 2026-09-28 — stage-1 cleanup + stage-2 implementation
 
 **Status: local implementation complete for everything executable on this machine; the

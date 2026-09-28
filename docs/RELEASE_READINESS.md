@@ -1,5 +1,12 @@
 # OVERSEER: repository diagnosis and release-candidate plan
 
+Latest Astra review (2026-09-27, implementation HEAD 7ee1c16): **CHANGES REQUIRED**.
+The historical PASS rows below do not supersede the five local findings and ordered
+corrective prompt in IMPLEMENTATION_STATE.md / .agent/HANDOFF.md. In particular,
+secondary-display isolation, complete upgrade placement preservation and full
+normal-composition coverage have not passed review. External release gates remain open.
+
+
 Current execution packet: **Stage 1 cleanup + Stage 2 implementation**, below.
 The original diagnosis/iteration plan remains as a historical baseline; current
 verification and scope are in that packet and IMPLEMENTATION_STATE.md.
@@ -670,5 +677,3 @@ audible-audio or signing/terms gate has passed. The local implementation evidenc
 first run, applied monitoring state, UI renders, native window behaviour, the bridge suites,
 upgrade preservation and rollback; the remaining gates are missing prerequisites, not hidden
 defects.
-
-
