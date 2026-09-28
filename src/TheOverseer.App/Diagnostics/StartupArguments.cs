@@ -25,6 +25,13 @@ public sealed class StartupArguments
     /// </summary>
     public bool HudIntegrationCheck { get; private init; }
 
+    /// <summary>
+    /// Finite normal-composition check: the real HudComposition object graph, real
+    /// startup discovery and provider selection, invented producers, asserting the
+    /// applied HUD state for an empty first run and for valid mixed sources.
+    /// </summary>
+    public bool HudCompositionCheck { get; private init; }
+
     /// <summary>Finite Plan 3 voice smoke (silent unless --audible is given).</summary>
     public bool VoiceSmoke { get; private init; }
 
@@ -56,7 +63,32 @@ public sealed class StartupArguments
     public string? PlacementMonitor { get; private init; }
 
     public bool IsFixtureInvocation =>
-        HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || VoiceSmoke || VoicePackCheck;
+        HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || HudCompositionCheck || VoiceSmoke || VoicePackCheck;
+
+    /// <summary>
+    /// Copy with different Codex home and data directory. Diagnostics checks invent both
+    /// so they never read or write the user's real sessions or settings; production
+    /// never calls this.
+    /// </summary>
+    internal StartupArguments WithPaths(string? codexHome, string? dataDirectory) => new()
+    {
+        HudFixture = HudFixture,
+        HudSmoke = HudSmoke,
+        HudStartupCheck = HudStartupCheck,
+        HudIntegrationCheck = HudIntegrationCheck,
+        HudCompositionCheck = HudCompositionCheck,
+        VoiceSmoke = VoiceSmoke,
+        Audible = Audible,
+        VoicePackCheck = VoicePackCheck,
+        StartInTray = StartInTray,
+        NoTray = NoTray,
+        RedactLabels = RedactLabels,
+        Duration = Duration,
+        CodexHome = codexHome,
+        DataDirectory = dataDirectory,
+        OutputDirectory = OutputDirectory,
+        PlacementMonitor = PlacementMonitor,
+    };
 
     public static bool TryParse(IReadOnlyList<string> args, out StartupArguments result, out string error)
     {
@@ -66,6 +98,7 @@ public sealed class StartupArguments
         var smoke = false;
         var startupCheck = false;
         var integrationCheck = false;
+        var compositionCheck = false;
         var voiceSmoke = false;
         var voicePackCheck = false;
         var audible = false;
@@ -93,6 +126,9 @@ public sealed class StartupArguments
                     break;
                 case "--hud-integration-check":
                     integrationCheck = true;
+                    break;
+                case "--hud-composition-check":
+                    compositionCheck = true;
                     break;
                 case "--voice-smoke":
                     voiceSmoke = true;
@@ -175,6 +211,7 @@ public sealed class StartupArguments
             HudSmoke = smoke,
             HudStartupCheck = startupCheck,
             HudIntegrationCheck = integrationCheck,
+            HudCompositionCheck = compositionCheck,
             VoiceSmoke = voiceSmoke,
             VoicePackCheck = voicePackCheck,
             Audible = audible,
@@ -196,6 +233,7 @@ public sealed class StartupArguments
        TheOverseer.App --hud-fixture --output-directory DIR [--data-directory PATH]
        TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)
        TheOverseer.App --hud-integration-check [--output-directory DIR]   (invented producers through the real monitor and HUD)
+       TheOverseer.App --hud-composition-check [--output-directory DIR]   (the real startup composition and discovery, invented producers)
        TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]
        TheOverseer.App --voice-pack-check [--data-directory PATH]
 

@@ -361,9 +361,17 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             {
                 Raise(nameof(CollapsedStatusLine));
                 Raise(nameof(FooterHint));
+                Raise(nameof(HasStatus));
             }
         }
     }
+
+    /// <summary>
+    /// True while there is something to tell the user. The feedback for navigation,
+    /// tray, startup and save failures is routed here, so it has to be rendered
+    /// somewhere: a failed save that nothing shows is not discoverable.
+    /// </summary>
+    public bool HasStatus => StatusMessage.Length > 0;
 
     /// <summary>Resolved monitor device name, for diagnostics only.</summary>
     public string PlacementLine
@@ -814,7 +822,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             _openTaskHistory.Remove(task.Key);
         }
 
-        RefreshActivityNow();
+        OnTaskHistoryChanged();
     }
 
     private static (AgentTask Task, ProjectGroup Group)[] GroupRows(IReadOnlyList<AgentTask> tasks, IReadOnlyList<AgentTask> allTasks)

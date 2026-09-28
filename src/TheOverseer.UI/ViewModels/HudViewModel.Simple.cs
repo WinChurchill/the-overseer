@@ -284,8 +284,16 @@ public sealed partial class HudViewModel
     /// <summary>True while at least one project's history is disclosed.</summary>
     public bool AnyProjectHistoryOpen => Projects.Any(static project => project.IsHistoryOpen);
 
-    /// <summary>The shared hour axis/legend is only shown with an open history area.</summary>
-    public bool ShowHistoryLegend => AnyProjectHistoryOpen;
+    /// <summary>True while at least one task's history is disclosed.</summary>
+    public bool AnyTaskHistoryOpen => Tasks.Any(static task => task.IsHistoryOpen);
+
+    /// <summary>
+    /// The shared hour axis/legend is shown whenever any disclosed history is on screen.
+    /// A task's strip is reachable with every project history closed, and it uses the same
+    /// axis and legend, so leaving a bare strip without them would contradict the
+    /// disclosure contract.
+    /// </summary>
+    public bool ShowHistoryLegend => AnyProjectHistoryOpen || AnyTaskHistoryOpen;
 
     /// <summary>Called by a project row when its history disclosure changes.</summary>
     internal void OnProjectHistoryChanged()
@@ -293,6 +301,14 @@ public sealed partial class HudViewModel
         Raise(nameof(AnyProjectHistoryOpen));
         Raise(nameof(ShowHistoryLegend));
         // Opening history must not wait for the next tick to show real bins.
+        RefreshActivityNow();
+    }
+
+    /// <summary>Called by a task row when its history disclosure changes.</summary>
+    internal void OnTaskHistoryChanged()
+    {
+        Raise(nameof(AnyTaskHistoryOpen));
+        Raise(nameof(ShowHistoryLegend));
         RefreshActivityNow();
     }
 

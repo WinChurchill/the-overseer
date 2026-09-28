@@ -49,8 +49,26 @@ public sealed partial class HudViewModel
     public string VoiceStatusLine
     {
         get => _voiceStatusLine;
-        private set => Set(ref _voiceStatusLine, value);
+        private set
+        {
+            if (Set(ref _voiceStatusLine, value))
+            {
+                Raise(nameof(VoiceFailed));
+                Raise(nameof(VoiceFailureLine));
+            }
+        }
     }
+
+    /// <summary>
+    /// True when voice is enabled and the last attempted notification did not speak.
+    /// A failure must be discoverable without opening the voice settings window, and it
+    /// must not become a permanent sentence when nothing is wrong.
+    /// </summary>
+    public bool VoiceFailed =>
+        !IsMuted && VoiceStatusLine.StartsWith("Voice unavailable", StringComparison.Ordinal);
+
+    /// <summary>The failure text, or empty when voice is fine or muted.</summary>
+    public string VoiceFailureLine => VoiceFailed ? VoiceStatusLine : string.Empty;
 
     public bool IsMuted
     {

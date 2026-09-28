@@ -68,6 +68,14 @@ public partial class App : Application
                 return;
             }
 
+            if (arguments.HudCompositionCheck)
+            {
+                // Finite normal-composition check: the real HudComposition graph, real
+                // startup discovery and provider selection over invented producers.
+                Shutdown(await HudCompositionCheckRunner.RunAsync(arguments, Dispatcher));
+                return;
+            }
+
             if (arguments.HudFixture)
             {
                 HudFixtureRunner.StartFixture(arguments, Dispatcher);

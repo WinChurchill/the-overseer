@@ -39,6 +39,14 @@
     <Using Include="System.IO" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Tests live in this repository's own test project and exercise internal
+         composition seams (HudComposition.ComposeAsync, the diagnostics runners)
+         directly. Nothing is published from this assembly. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>TheOverseer.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="Assets\overseer.ico" LogicalName="TheOverseer.App.Assets.overseer.ico" />
     <ProjectReference Include="..\TheOverseer.Core\TheOverseer.Core.csproj" />
     <ProjectReference Include="..\TheOverseer.UI\TheOverseer.UI.csproj" />

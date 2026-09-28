@@ -36,7 +36,10 @@ public sealed partial class HudViewModel
     public double LightExtraHeight => LightVisible && LightDock is Dock.Top or Dock.Bottom ? LightSize : 0;
     private void LightChanged()
     {
-        foreach (var name in new[] { nameof(LightVisible), nameof(LightDock), nameof(LightWidth), nameof(LightHeight), nameof(LightExtraWidth), nameof(LightExtraHeight), nameof(LightResizeCursor), nameof(LightToggleText), nameof(LightToggleTooltip) }) Raise(name);
+        // LeftAccentVisible is part of this group: the accent is redundant exactly while
+        // the light is on, so toggling the light has to re-evaluate it or the accent
+        // keeps whatever visibility it had when the view model was built.
+        foreach (var name in new[] { nameof(LightVisible), nameof(LightDock), nameof(LightWidth), nameof(LightHeight), nameof(LightExtraWidth), nameof(LightExtraHeight), nameof(LightResizeCursor), nameof(LightToggleText), nameof(LightToggleTooltip), nameof(LeftAccentVisible) }) Raise(name);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 }

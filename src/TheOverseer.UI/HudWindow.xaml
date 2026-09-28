@@ -653,7 +653,8 @@
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid x:Name="ExpandedDragRegion" Grid.Row="0" Margin="14,8,14,4" Background="Transparent" Cursor="SizeAll"
@@ -726,6 +727,16 @@
                        Foreground="{DynamicResource MutedBrush}" />
           </Grid>
         </Grid>
+
+        <!-- Feedback for navigation, tray, startup and save failures. It sits at the
+             end of the scrolled content so it never becomes a permanent instruction
+             line, and it is hidden entirely when there is nothing to report. -->
+        <TextBlock x:Name="StatusLine" Grid.Row="5" Text="{Binding FooterHint}" Margin="14,2,14,8" TextWrapping="Wrap"
+                   Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}"
+                   automation:AutomationProperties.Name="{Binding FooterHint}"
+                   FontFamily="{DynamicResource PrimaryFontFamily}"
+                   FontSize="{DynamicResource FontSizeMeta}"
+                   Foreground="{DynamicResource MutedBrush}" />
       </Grid>
       </ScrollViewer>
     </Grid>
@@ -755,6 +766,15 @@
                        FontFamily="{DynamicResource MetadataFontFamily}"
                        FontSize="{DynamicResource FontSizeMeta}"
                        Foreground="{DynamicResource MutedBrush}" />
+            <!-- Failure-only: rendered when notifications are enabled and the last
+                 attempt did not speak. Nothing appears while voice is muted or working,
+                 so this is not a permanent status sentence. -->
+            <TextBlock x:Name="VoiceFailureText" Text="{Binding VoiceFailureLine}" TextWrapping="Wrap" Margin="0,6,0,0"
+                       Visibility="{Binding VoiceFailed, Converter={StaticResource BoolToVisibility}}"
+                       automation:AutomationProperties.Name="{Binding VoiceFailureLine}"
+                       FontFamily="{DynamicResource PrimaryFontFamily}"
+                       FontSize="{DynamicResource FontSizeMeta}"
+                       Foreground="{DynamicResource UnavailableBrush}" />
           </StackPanel>
         </Border>
       </Popup>

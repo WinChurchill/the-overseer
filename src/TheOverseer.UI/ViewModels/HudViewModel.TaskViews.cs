@@ -37,6 +37,11 @@ public sealed partial class HudViewModel
         {
             if (!Set(ref _recentHours, Math.Clamp(value, 1, 24))) return;
             Raise(nameof(RecentWindowLabel));
+            // The selector is bound to SelectedRecentHours, so a change made from the
+            // header menu has to notify it too: otherwise the ComboBox keeps showing the
+            // previous window while the list already uses the new one, and re-selecting
+            // the displayed value raises no SelectionChanged to correct it.
+            Raise(nameof(SelectedRecentHours));
             RefreshTaskView();
             SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
