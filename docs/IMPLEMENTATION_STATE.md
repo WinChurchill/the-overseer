@@ -1,6 +1,6 @@
 # OVERSEER Implementation State
 
-## Astra corrective implementation — 2026-09-27
+## Astra corrective implementation — 2026-09-27 — PASS WITH NONBLOCKING NOTES
 
 User authorized fixing the re-review findings here. All three are implemented:
 startup guard cancellation is synchronous on explicit show/input/shutdown, cleanup
@@ -15,9 +15,30 @@ unknown/source-local freshness. `scripts/Test-ReleaseUpgradePlacement.ps1` execu
 the real upgrade script with only display discovery and process launch mocked:
 **3/3 passed**, including zero launches and exit 1 for the deferred branch, secondary
 placement for both builds, and explicit primary opt-in. No new test dependency.
-Fresh candidate packaging/isolated runtime verification follows this source commit.
-The preceding review findings remain below as historical evidence. The live app,
-user settings, shortcut and harness configuration are unchanged.
+Source commit: `389cb15074c287c9a241fd1c5eba045e8cbadad7`. Final diff review found no
+remaining blocker within these three fixes. Built clean self-contained internal
+candidate `artifacts/rc5/OVERSEER-1.0.0-rc.5-win-x64.zip`, ProductVersion
+`1.0.0-rc.5+389cb15`, 566 payload files including 73 integration assets. SHA-256:
+`7D3B393F962D93FFFBCB1F7B276CD99AD144B9B25110A01452D5E17480C4E9A0`.
+Manifest: `artifacts/rc5/build-manifest.json` (`sourceTreeDirty=false`).
+
+Packaged verification on DISPLAY2 with isolated data:
+- **14/14** real-reader/composite/controller integration checks, exit 0, including
+  requests, answers, completion, peer survival, recovery and freshness. Evidence:
+  `artifacts/rc5/astra-check/integration/run-20260928T011022Z-3f69ec33/integration-report.json`.
+- **9/9** RC4 -> RC5 upgrade checks, exit 0. Settings, custom WAV and spool preserved.
+  Evidence: `artifacts/rc5/upgrade/run-20260928T011100Z-282e54ee/upgrade-evidence-20260928T011100Z.json`.
+- Three mocked upgrade placement cases: no-secondary (0 launches, exit 1), secondary
+  and explicit primary opt-in (2 launches each, exit 0). Evidence directory:
+  `artifacts/upgrade-placement-tests/30927e4c07ce4b12bf7419326e7b294a`.
+
+These are targeted candidate checks, not a rerun of the full 41-check RC4 smoke or
+physical keyboard/Alt+Tab focus qualification. Interactive focus checks remain deferred
+to avoid interrupting the user's work. External clean-machine/live-harness, signing,
+physical display/audio and rollback gates remain open; this verdict covers the fixes,
+not public-release approval. The preceding findings remain below as historical evidence.
+Changelog and current handoff updated; no DeepSeek fix continuation is needed for these
+three findings. The live app, settings, shortcut and harness configuration are unchanged.
 
 ## Astra re-review — 2026-09-27 — CHANGES REQUIRED
 
