@@ -1,6 +1,6 @@
 # OVERSEER Implementation State
 
-## Six-area automated pre-user pass — 2026-09-27 — validation in progress
+## Six-area automated pre-user pass — 2026-09-27 — PASS WITH DEFERRED QUALIFICATION
 
 Added `scripts/Test-PreUserRelease.ps1` to compose existing build/tests, packaged
 checks, bridge suites, both upgrade/rollback modes and native scaling into one
@@ -12,8 +12,33 @@ Expanded packaged integration to cover async partial/full answers and rearming.
 Fixed a false-positive degradation predicate that accepted healthy `live` state;
 the corrected check requires limited coverage with truncation/stale evidence.
 Scaling probe cleanup now terminates only its owned process if orderly exit hangs.
-Initial Release build: 0 warnings/errors; .NET tests: 722 passed, none failed/skipped.
-Candidate package verification is pending; no public release or merge authorized.
+Release build: **0 warnings/errors; 722 .NET tests passed, none failed/skipped**.
+Clean private **RC8**, source `f14dc47`, includes the previous async-answer fix.
+Archive SHA256: `CB55897A6A75F4B5CBDF975D904DEDCE08347B8BE1F96C7793C726A22461BA93`.
+Full six-area run: `artifacts/pre-user/run-20260928T065109Z-aab5b5d0/`, with
+`pre-user-report.json` as its index. Results:
+
+- Packaged smoke: **41 passed / 0 failed / 3 deferred** (two intentional activation
+  scenarios and the dependent first-instance survival check). Full-duration checks;
+  60-second HUD run had 544 foreground samples, zero owned-foreground samples/takeovers.
+- Extracted integration **17/17**, real composition with invented sources **42/42**;
+  DeepSeek bridge **30/30**, Claude bridge **29/29**. Read-only live Codex monitor passed.
+- **46** fixture renders generated; light collapsed and dark expanded spot-checked.
+  Native resize/maximize/restore/persistence passed on DISPLAY2 at 96 DPI.
+- Real RC7 -> RC8 upgrade AND rollback **25/25 in each HUD/Window mode**, comparing
+  89 settings paths per run. Comparison controls **55/55**, mocked placement **3/3**.
+- Silent voice smoke passed, including actual offline English synthesis/preview,
+  dedupe/cooldown and failure handling; all **9** voice-pack events resolved.
+- Subsequent test-runner review fixed empty-evidence handling and made unexpected
+  statuses fail closed. **7 report controls passed** separately; future combined
+  runs include them. These script-only corrections do not change RC8's app binaries.
+
+Verdict: the automated portions pass; this is not full release qualification.
+Still needed: clean Windows/browser download/SmartScreen and another machine/account;
+real Claude/dsh host setup, interaction and teardown; correlated Codex approval
+integration; physical DPI/Snap/drag/unplug/sleep; tray/logon and audible/device checks.
+Run the command in README; opt into `-IncludeActivationChecks` only on an idle desktop.
+No live app replacement, user-setting/harness edits, merge or public upload occurred.
 
 ## Codex async answer fix — 2026-09-27 — implemented; approval connection blocked
 

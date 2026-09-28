@@ -1,5 +1,18 @@
 # OVERSEER: repository diagnosis and release-candidate plan
 
+Latest automated evidence (2026-09-27): private **RC8**, source `f14dc47`, includes the
+async answer fix. `scripts/Test-PreUserRelease.ps1` now runs the six test areas in one
+sequential pass. Evidence index: `artifacts/pre-user/run-20260928T065109Z-aab5b5d0/pre-user-report.json`.
+Build clean; 722 .NET tests; 41 packaged checks passed, zero failed, three intentional
+activation checks deferred; integration 17/17, composition 42/42, bridges 30/29,
+upgrade/rollback 25/25 per mode, native scaling and silent voice passed. Seven further
+report controls ensure missing/failed/unknown results cannot masquerade as success.
+No new product defect was found by this pass; test reliability/cleanup defects were fixed.
+**Manual/external qualification remains open** as recorded in each of the six report
+areas, including live harness setup, clean-machine/download behavior, physical display
+and lifecycle checks, audible voice and the unresolved Codex approval connection.
+Older RC7/RC6 evidence below is historical; no live installation was replaced.
+
 Current-source follow-up: the async answer-clearing defect below is fixed and verified
 live during the active turn (Needs you -> Working on the actual answer); Release
 suite **722/722 passed**. This source is newer than packaged RC7. The user confirmed

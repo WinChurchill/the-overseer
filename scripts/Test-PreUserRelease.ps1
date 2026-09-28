@@ -85,6 +85,7 @@ Run 'build' $dotnet @('build', 'TheOverseer.sln', '-c', 'Release', '--nologo')
 Run 'unit-tests' $dotnet @('test', 'TheOverseer.sln', '-c', 'Release', '--no-build', '--nologo', '--logger', 'trx', '--results-directory', (Join-Path $root 'test-results'))
 RunScript 'upgrade-comparison-controls' 'Test-ReleaseUpgradeComparison.ps1' @()
 RunScript 'upgrade-placement-controls' 'Test-ReleaseUpgradePlacement.ps1' @()
+RunScript 'report-controls' 'Test-PreUserReport.ps1' @()
 
 $smokeArguments = @('-ArchivePath', $candidate, '-EvidenceDirectory', (Join-Path $root 'package'), '-KeepExtraction')
 if (-not $IncludeActivationChecks) { $smokeArguments += '-SkipActivationChecks' }
@@ -103,9 +104,9 @@ foreach ($mode in @('hud', 'window')) {
 }
 
 function Area([int] $number, [string] $name, [string] $pattern, [string[]] $sourceSteps, [string[]] $remaining) {
-    $checks = if ($null -ne $smoke) { @($smoke.checks | Where-Object { $_.check -match $pattern }) } else { @() }
+    $checks = @(if ($null -ne $smoke) { $smoke.checks | Where-Object { $_.check -match $pattern } })
     $related = @($steps | Where-Object { $_.name -in $sourceSteps })
-    $failed = @($checks | Where-Object status -eq 'fail').Count + @($related | Where-Object status -eq 'fail').Count
+    $failed = @($checks | Where-Object { $_.status -notin @('pass', 'deferred') }).Count + @($related | Where-Object status -ne 'pass').Count
     $deferred = @($checks | Where-Object status -eq 'deferred')
     [ordered]@{
         number = $number; area = $name
@@ -123,7 +124,7 @@ $areas = @(
     Area 5 'Scaling/monitors/recovery' 'hud-fixture|hud-smoke|hud-live-focus' @('scaling') @('Physical pointer drag, menus, Snap keys, 100/125/150/200% display settings, unplug/replug and sleep/wake. Existing display topology only is automated.')
     Area 6 'Voice' 'voice' @('unit-tests') @('Hear baseline and custom clips, check volume/quality and device absence/change. Automated smoke intentionally does not produce audible alerts.')
 )
-$failedSteps = @($steps | Where-Object status -eq 'fail').Count
+$failedSteps = @($steps | Where-Object status -ne 'pass').Count
 $failedAreas = @($areas | Where-Object automatedStatus -eq 'fail').Count
 $report = [ordered]@{
     product = 'OVERSEER'; check = 'six-area-pre-user'; generatedAtUtc = [DateTime]::UtcNow.ToString('o')

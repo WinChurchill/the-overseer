@@ -9,6 +9,9 @@
   coverage; the previous predicate incorrectly accepted a healthy `live` source.
 - Package lifecycle tests can defer only intentional activation while keeping other
   checks on a secondary display. Scaling probes clean up their own hung process.
+- Report controls reject missing, failed and unknown evidence while preserving
+  deferred checks and manual qualification gaps. Private RC8 passed the automated
+  six-area run; detailed counts and remaining release checks are in IMPLEMENTATION_STATE.
 
 ## Unreleased — Codex question-answer correlation
 

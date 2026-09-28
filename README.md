@@ -263,7 +263,7 @@ pwsh -NoProfile -File scripts/Test-PreUserRelease.ps1 `
   -PreviousArchivePath artifacts/rc7/OVERSEER-1.0.0-rc.7-win-x64.zip
 ```
 
-The runner builds/tests source, tests the extracted package and both bridges, runs
+The runner builds/tests source, validates report/comparison controls, tests the extracted package and both bridges, runs
 upgrade/rollback in HUD and Window modes, and exercises native scaling. It creates
 a fresh `artifacts/pre-user/run-*/pre-user-report.json` with logs and six-area results.
 It retains the isolated extraction for investigation. A non-primary display is required
