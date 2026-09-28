@@ -1,5 +1,9 @@
 # OVERSEER: repository diagnosis and release-candidate plan
 
+Current execution packet: **Stage 1 cleanup + Stage 2 implementation**, below.
+The original diagnosis/iteration plan remains as a historical baseline; current
+verification and scope are in that packet and IMPLEMENTATION_STATE.md.
+
 Planning baseline: `075356e`, branch `ux/first-use`, 2026-09-26.
 Status: proposal and implementation handoff; no product changes or public release
 authorized by this document alone. User requested a concrete diagnosis and plan.
@@ -185,3 +189,337 @@ Work that does not depend on them can proceed when implementation is authorized.
 
 Frozen AGENTS.md and V1_2_IMPLEMENTATION_SPEC.md are unchanged. This is the user's
 post-V1 usability/public-release direction, not a retrospective rewrite of V1.
+
+---
+
+# Plan Handoff — Stage 1 cleanup + Stage 2 implementation
+
+## Identity
+Plan: Post-V1 broadened implementation, stage 2 of 2.
+Goal: Close remaining stage-1 cleanup and implement the locally executable bulk of stage 2: distribution, update/rollback and compatibility qualification.
+Branch: ux/first-use.
+Base commit: 171f556.
+Current head at planning: 171f556; the documentation-only handoff commit follows it.
+Accepted product source: 389cb15074c287c9a241fd1c5eba045e8cbadad7.
+Role: Astra planning; this packet is ready for DeepSeek execution when instructed.
+Product: OVERSEER. Project: THE OVERSEER PROJECT.
+This is not original V1 Plan 2 and does not alter the frozen four-plan specification.
+One implementation goal spanning cleanup and stage-2 delivery, internal checkpoints,
+then one Astra review. Do not stop after cleanup, a diagnostic pass or a test plan.
+
+## End State
+Remaining stage-1 defects and documentation gaps are closed, stage-2 code/scripts are
+implemented, and a fresh self-contained win-x64 candidate has a qualification procedure,
+with safe bridge installation/rebinding, tested update/rollback boundaries, accurate
+first-run guidance, verified normal startup and explicit evidence per advertised
+platform/harness. Complete all locally executable work; external gates may remain
+blocked with exact prerequisites. Never equate implementation complete with public
+release approved. No redesign or new feature family.
+
+## Repository Facts
+- Four projects: Core owns normalized models/state/history/voice policy; App owns
+  composition, bridges and Windows I/O; UI owns WPF presentation; Tests owns xUnit.
+  Keep C#/.NET 10/WPF/System.Text.Json/HttpClient/WAV, no additional framework.
+- RC5: artifacts/rc5/OVERSEER-1.0.0-rc.5-win-x64.zip; source 389cb15;
+  SHA-256 7D3B393F962D93FFFBCB1F7B276CD99AD144B9B25110A01452D5E17480C4E9A0.
+  566 files, 73 integration assets, clean source manifest. Unsigned internal RC.
+- Final stage-entry pass reran Release build/tests: 686/686; placement script 3/3.
+  RC5 prior independently executed evidence: packaged integration 14/14, RC4->RC5
+  upgrade 9/9. These are not a full RC5 lifecycle, physical or clean-machine pass.
+  Bridge suites last verified 30/30 dsh and 21/21 Claude; rerun after changes.
+- Corrected and protected: task-history rebuild recursion; old/stale attention
+  accessibility; full-snapshot attention episodes; typed source health/freshness;
+  startup focus guard lifetime; no-secondary upgrade deferral. Keep regressions.
+- App.OnStartup -> HudComposition.CreateAsync/Prepare -> CodexMonitorAdapter +
+  BridgeMonitorAdapter -> CompositeMonitorSource -> HudApplicationController.
+  NotificationCoordinator records/evaluates before UI coalescing.
+- HudIntegrationCheckRunner uses real readers/composite/controller but builds its
+  own dependencies. Its 14 checks do NOT establish normal HudComposition wiring.
+- HarnessSources discovery happens during composition; new bridge discovery requires
+  OVERSEER restart. Do not add hot discovery in this stage.
+- VoiceSettings.BaselineDefault selects offline speech, muted, for missing config.
+  Existing preferences remain authoritative. Assigned recordings override selected
+  provider; do not silently introduce cross-provider fallback.
+- Path inventory in this planning session found codex.exe and node.exe on PATH;
+  dsh and claude were not resolved there. Earlier dsh 0.1.5-rc.3 evidence is historical,
+  not proof of current availability. Recheck actual installed host versions safely.
+- Read-only dsh checkout: ../.tools/deepseek-harness-reference, verified commit
+  46a7f68b0922371ce7144b668b90e377d8e799f4. Do not edit it.
+- HANDOFF is ignored; this same packet is tracked in docs/RELEASE_READINESS.md.
+  Prior handoff backup: artifacts/planning-stage2/HANDOFF-before-stage2.md.
+
+## Scope and stage boundary
+This is an implementation handoff, not a qualification-only assignment. The user
+explicitly requests remaining stage-1 cleanup AND the bulk of stage-2 implementation
+in one execution/review round. Treat stage 1 as a usable baseline, not as a claim that
+every original presentation, normal-composition or physical-check criterion passed.
+
+Stage-1 carryover to close first:
+- Reconcile the original Iteration 1/UI contract in RELEASE_READINESS with the current
+  implementation: single summary/scroller, optional history, stable project expansion,
+  pending-input visibility, source-aware health, narrow layouts and header hit regions.
+  Inspect current renders and regressions; fix reproducible defects in those existing
+  behaviors. Do not replace the accepted design or reopen fixes already covered.
+- Close the real HudComposition verification gap (checklist step 4) and stale README/
+  controls/status guidance (step 6). These are carryover work, not optional polish.
+- Review the resulting diff for stale bindings, duplicate state/handlers, unreachable
+  controls and test-only paths masquerading as production evidence; remove only
+  demonstrated dead/duplicate implementation. No speculative large refactor.
+
+Stage 2 then delivers installer/rebind hardening, complete upgrade/rollback and
+startup/shortcut checks, safe package/lifecycle tools, first-run compatibility tests,
+the release evidence matrix and a new candidate. Tests must drive fixes; documenting
+a known local defect does not satisfy this goal.
+Missing external machines/hosts/audio sessions or owner distribution decisions may
+block their particular qualification rows; they must not block the remaining code.
+
+## Confirmed cleanup and stage-2 work, not already completed by green tests
+1. Bridge DATA lives outside the app folder, but Claude install.mjs defaults its
+   hook argument to bridge.mjs beside that installer. Removing an old extraction
+   can invalidate that command. Test executable binding, not merely spool existence.
+   --apply currently reports a missing bridge path yet can still write settings.
+2. integrations/README.md incorrectly generalizes both integrations as having a
+   preview installer; dsh uses its host plugin command and documents no dry-run flag.
+3. Upgrade comparison covers a subset: not all roots/aliases/event overrides/clip
+   assignments/window modes/close behavior. Placement keys are ignored; rollback
+   and shortcut/startup rebinding remain untested. The spool assertion is existence,
+   not preservation of populated producer data and executable references.
+4. Package lifecycle currently force-terminates the owned tray process after restore;
+   that is cleanup, not proof of packaged graceful Exit. It intentionally activates
+   on second launch. Secondary placement alone does not make that nondisruptive.
+5. Test-WindowScaling.ps1 starts unseeded WindowView and moves across every display.
+   It must not run unchanged while the primary monitor is in use.
+6. README begins with obsolete Codex-only/old-test summaries and old controls (e.g.
+   cycling Recent hours), despite later newer sections. Consolidate the current guide.
+7. No clean-OS/browser-download/independent-machine qualification or live dsh/Claude
+   end-to-end acceptance has been demonstrated. No product distribution terms/signing
+   decision has been made. No LICENSE or GitHub workflow is currently present.
+
+## Relevant Code Map
+### READ
+- AGENTS.md; docs/V1_2_IMPLEMENTATION_SPEC.md; newest docs/IMPLEMENTATION_STATE.md;
+  docs/RELEASE_READINESS.md; README.md; CHANGELOG.md; THIRD_PARTY_NOTICES.md.
+- src/TheOverseer.App/App.xaml.cs, HudComposition.cs, HudApplicationController.cs,
+  HudApplicationController.WindowView.cs, Desktop/StartupRegistration.cs,
+  Desktop/StartupActivationGuard.cs, Desktop/InstanceScope.cs.
+- src/TheOverseer.App/Diagnostics/{StartupArguments,HudPlacementOptions,
+  HudIntegrationCheckRunner,HudFixtureRunner,VoiceSmokeRunner}.cs.
+- src/TheOverseer.App/Monitoring/{CompositeMonitorSource,BridgeMonitorAdapter}.cs;
+  src/TheOverseer.App/Monitoring/HarnessSources.cs and its discovery tests.
+- src/TheOverseer.Core/Configuration/{MonitorConfig,MonitorConfigStore,HudSettings,
+  HudWindowState,HudStateStore,VoiceSettings,ProjectSettings}.cs.
+- src/TheOverseer.Core/Voice/NotificationCoordinator.cs;
+  src/TheOverseer.App/Voice/VoiceProviderFactory.cs and
+  Voice/Speech/{WindowsSpeechVoiceProvider,SapiSpeechSynthesisEngine}.cs.
+- integrations/README.md and both integrations' README/NOTICE/tests; Claude
+  install.mjs, uninstall.mjs, lib/settings.mjs; dsh package.json/cordis.patch.yml.
+- scripts/Publish-Release.ps1, Test-PackagedRelease.ps1, Test-ReleaseUpgrade.ps1,
+  Test-ReleaseUpgradePlacement.ps1, Test-WindowScaling.ps1.
+- tests/TheOverseer.Tests: BaselineVoiceTests, VoiceSetupIntegrationTests,
+  VoiceLifecycleTests, StartupRegistrationTests, StartupActivationGuardTests,
+  SourceHealthTests, HudDispatchTests, HarnessBridgeTests, ProjectResolverTests,
+  WindowPlacementTests, CompositeMonitorTests, HudViewModelTests.
+
+- src/TheOverseer.UI/HudWindow.xaml and HudWindow.xaml.cs;
+  ViewModels/{HudViewModel,HudViewModel.Simple,HudViewModel.TaskViews,
+  HudViewModel.Activity,HudText,ProjectRowViewModel,TaskRowViewModel}.cs;
+  tests/TheOverseer.Tests/{HudWindowTests,HudViewModelTests,SourceHealthTests}.cs.
+
+### MODIFY
+Above scripts, release/user/integration docs, targeted installer/helper tests.
+Targeted UI/view-model cleanup for reproduced stage-1 contract defects is in scope.
+Modify App/config/platform code for a reproduced carryover/qualification defect or a
+small isolated diagnostic seam needed to exercise real composition/graceful exit.
+Keep raw machine details and evidence in ignored artifacts, not user-facing copy.
+
+### CREATE
+Only useful existing-project regression tests and narrowly scoped qualification
+scripts. Extend current release documents instead of creating per-check Markdown.
+A local clean-machine checklist/evidence manifest belongs in RELEASE_READINESS.
+No installer service, updater, new project, database or privileged helper.
+
+### DO NOT TOUCH
+Frozen AGENTS/spec/reference images; unrelated work; live HUD/data/shortcuts/startup
+registry; real harness profiles, hooks or credentials; unrelated local applications.
+No tool should alter these during automated fixture work.
+
+## Architecture Invariants
+- Monitoring failure is unknown/partial, never healthy zero. Peer publication cannot
+  refresh another source; absent evidence remains unknown.
+- Attention is evidence-backed; pending input, async needs-human and unsupported
+  detection stay distinct. Preserve turn timers, episode identity and history bounds.
+- Adapters observe only; never answer approval/question hooks, alter task execution
+  policy or copy prompt/transcript/tool data into spools, logs or release evidence.
+- Shared monitoring budgets, stable project/task/source identity, one notification
+  coordinator, bounded I/O, voice dedupe/cooldown/mute and StartAsync vs Completion.
+- Muted first run; user-triggered actions silent except explicit preview/opted startup.
+- Same-scope restore is intentional activation; passive startup/updates cannot steal
+  focus. Isolated scope never restores or exits the user's running instance.
+
+## Upstream Reuse Map
+- Reuse this repo's installer/settings planners, bridge normalizers and fixture suites.
+  Extend ownership-aware rebind/removal, not unrelated host hooks or host internals.
+- Read dsh pinned packages/core/session/src/{index,types,known-event-types}.ts for
+  event vocabulary and packages/boot/plugin-manager/src/install-spec.ts plus its
+  actual install implementation to determine local-path copy/link behavior. Adapt
+  integration installation tests/docs; do not vendor the host. Human-question input
+  was unobservable at this pin; do not fabricate an input signal.
+- Claude primary contract: https://code.claude.com/docs/en/hooks
+  Planning checked its command-hook fields: command + args is a documented direct
+  executable form. Keep that form; do not mistake it for an invalid configuration.
+  Verify exact target-version support and payloads on the actual host before claiming
+  compatibility. Official reference supports schema expectations, not live evidence.
+- Reuse StartupRegistration's IStartupRegistry seam for temporary target tests;
+  a copied .lnk in a test directory can test shortcut paths without editing Desktop.
+- Reuse current SAPI engine/provider and voice policy. No cloud account/model download.
+- No old upstream HUD presentation, new adapter protocols or new provider integrations.
+
+## Ordered Implementation Checklist
+0. Complete the stage-1 carryover pass above and fix supported findings immediately.
+   Use the original UI contract as the bounded checklist; attach a regression or
+   render/runtime evidence appropriate to each fix. Record already-passing items
+   without reimplementing them. Continue directly into all stage-2 work below.
+1. Freeze baseline facts and establish one release acceptance matrix. Each entry has
+   gate ID, candidate source/hash, environment/OS/build/scale/host version, command or
+   steps, expected result, observed result, evidence path and status
+   PASS/FAIL/BLOCKED/NOT RUN/UNSUPPORTED. Synthetic, live and physical evidence are
+   distinct. Never turn missing prerequisites or skipped tests into PASS.
+2. Finish reversible bridge installation/update/removal using isolated profiles:
+   default to an explicit rebind workflow, using existing installers/host APIs;
+   avoid inventing a full app installer. For Claude, refuse apply to missing payloads,
+   preserve unrelated hooks, preview/apply/idempotent/rebind/remove, and invoke the
+   actual generated command with an invented payload. Include spaces/non-ASCII paths.
+   Rebind from old to new extraction, make old location unavailable, verify new hook
+   runs and unrelated settings survive, then rollback/rebind/remove. For dsh verify
+   host path semantics before writing instructions; if not testable, mark that gate
+   blocked and retain experimental status. Stable spools alone are insufficient.
+3. Strengthen candidate update/rollback checks on populated copies. Seed complete
+   monitor roots/limits, harness roots/disables, project aliases/mappings, all relevant
+   HUD settings and window modes/restore bounds, voice provider/mute/events/clip map/
+   custom WAVs. Compare semantically; justify normalization instead of ignoring fields.
+   Exercise RC5->new candidate->RC5. If backward writes lose data, provide and test a
+   pre-update backup/restore rollback boundary, not an unqualified compatibility claim.
+   Test copied shortcut and fake-registry startup targets across versioned directories;
+   verify quoted executable + start-in-tray args and user opt-in preservation.
+4. Cover normal composition, empty first run and restart. Drive startup configuration,
+   discovery and provider selection through HudComposition (reuse/refactor a small
+   dependency preparation seam if needed), not just manually assembled test adapters.
+   Test no harness installed, missing/unsupported/unreadable source, valid mixed sources,
+   bridge add/restart/remove/restart, stale/recovery. Require actual applied UI states.
+   No automatic global harness installation and no hot discovery feature.
+5. Close lifecycle/voice evidence gaps. Separate passive runs from tests intentionally
+   activating windows. Add packaged graceful Exit evidence through the existing
+   controller/UI path in a safe test session; forced kill remains timeout cleanup.
+   Test startup guard zero prior foreground, explicit early show, normal timeout,
+   user interaction and shutdown. Add display-selection/defer controls to scaling
+   tests; do not iterate the user's primary screen implicitly. Prepare physical
+   keyboard/Alt+Tab, drag/menu, Snap, 100/125/150/200% DPI, short/narrow/tall, max light,
+   sleep/wake and monitor reconnect cases; do not change display settings on this
+   machine to satisfy the matrix. Test baseline speech in isolated new/missing-voice
+   profiles, real audible preview/notification when a test session is available,
+   persistent immediate mute, no backlog replay, and silent user-driven actions.
+6. Consolidate current README/UI/integration/setup/update/removal/rollback guidance.
+   Put current project-first behavior first; label historical release evidence clearly.
+   Correct spool-vs-hook path claims and dsh preview instructions. Keep optional
+   integrations experimental until per-version live tests pass. Do not imply all
+   Windows editions/harness versions are supported; record tested versions only.
+7. Complete all available local tests, inspect relevant renders, commit source, then
+   publish a NEW unused RC identity (rc.6 if free). Build from clean Git. Verify exact
+   ZIP contents, no private payload, checksums/version/source, notices and actual
+   Authenticode status. Re-run package checks after source/script changes that affect
+   them. Any intentionally skipped interactive block remains an open gate.
+8. Prepare an exact clean-machine protocol using that ZIP: browser download from an
+   owner-approved channel when available, standard-user extraction/run without SDK,
+   checkout or author's cached dependencies, empty-machine behavior, native prerequisites,
+   optional host/Node setup, profile paths and update/rollback. Execute on an available
+   disposable Windows environment and independent machine/account; record their actual
+   OS builds. Reverify vendor support before declaring supported OS versions.
+   No environment available: finish the runnable protocol and mark only those rows
+   blocked. No public upload, account signup or purchase just to unblock testing.
+9. Update ledger/changelog and report two separate outcomes: local implementation
+   complete or incomplete; public qualification ready or blocked. Produce one
+   review-ready branch with concrete owner/environment requests at the end.
+   Do not abandon steps 1-7 because step 8 lacks a machine.
+
+## Acceptance Criteria
+- Stage-1 carryover audit is recorded and all reproduced local defects are fixed;
+  cleanup alone is not completion. Stage-2 implementation must also be delivered.
+- All available local regression/build/bridge/packaged tests pass for exact new source.
+  No remaining ordinary code defect is called an external qualification blocker.
+- Installer preview changes nothing; apply/rebind/remove preserves unrelated data;
+  missing executable is rejected; generated hook runs after old path is unavailable.
+- Full supported settings/recordings survive upgrade and the documented rollback
+  route; shortcut/startup/bridge commands resolve to valid intended targets.
+- Empty first run is usable, muted and honest. Offline voice availability is disclosed;
+  existing preferences never silently reset. Normal composition is exercised.
+- Stage-1 HUD/history/attention/focus regressions stay green; no new UI redesign.
+- Every matrix row has evidence or an exact missing prerequisite. All advertised
+  supported integrations have live per-version evidence; others remain experimental.
+- Public readiness requires all release gates including clean download/external
+  Windows, physical/audio, distribution/terms/signing decision; blocked is not PASS.
+  Local implementation can finish with those explicitly external gates still open.
+
+## Tests and Smoke Checks
+Windows PowerShell from repository root, SDK on PATH:
+    dotnet restore
+    dotnet build TheOverseer.sln -c Release --no-restore
+    dotnet test TheOverseer.sln -c Release --no-build
+    pwsh -NoProfile -File scripts/Test-ReleaseUpgradePlacement.ps1
+    node --test                 # run separately inside each integration directory
+    git diff --check
+Workspace SDK if needed: ../.tools/dotnet; set DOTNET_ROOT/PATH and task-local
+DOTNET_CLI_HOME=../.tools/cli-home, NUGET_PACKAGES=../.tools/nuget-packages.
+
+After committing source, using an unused candidate version:
+    pwsh -NoProfile -File scripts/Publish-Release.ps1 -Version 1.0.0-rc.6 -ArchiveName OVERSEER-1.0.0-rc.6-win-x64.zip -OutputDirectory artifacts/rc6
+    pwsh -NoProfile -File scripts/Test-ReleaseUpgrade.ps1 -PreviousArchivePath artifacts/rc5/OVERSEER-1.0.0-rc.5-win-x64.zip -CandidateArchivePath artifacts/rc6/OVERSEER-1.0.0-rc.6-win-x64.zip -EvidenceDirectory artifacts/rc6/upgrade
+    pwsh -NoProfile -File scripts/Test-PackagedRelease.ps1 -ArchivePath artifacts/rc6/OVERSEER-1.0.0-rc.6-win-x64.zip -EvidenceDirectory artifacts/rc6/smoke
+The last script CURRENTLY intentionally activates the HUD in lifecycle checks and
+creates fixture popups; inspect/adapt its safe-run controls before invoking while
+the user works. --placement-monitor does not itself prevent focus changes.
+For passive isolated checks use extracted app --hud-integration-check with
+--placement-monitor followed by the observed secondary device and a fresh output
+directory. Do not assume that device is always DISPLAY2 on another machine.
+Run full intentional-interaction checks only in an available test session that does
+not disrupt the user. Report deferred checks explicitly; no false full-suite pass.
+The existing scaling script needs modification per step 5 before use on this desktop.
+
+## Risks / Uncertainties
+- Clean VM/physical machine or live host missing: finish local work and state precisely
+  which environment/version/event cannot be exercised. PATH absence is not proof the
+  program is absent; locate known installs read-only before reporting availability.
+- No owner distribution/license/signing choice: keep private unsigned internal RC;
+  prepare factual options in release docs, do not invent redistribution rights.
+- Host observability/version drift: retain unsupported capability and experimental
+  label; only an architecture-changing upstream constraint warrants replanning.
+- Windows/audio actions could disrupt work: isolate/defer, never fake observations.
+- Credentials/real sessions are not test fixtures; use invented projects and approved
+  host test profiles. Do not access credential stores or start paid model runs.
+- Context capacity is not an environment blocker: commit coherent progress and record
+  exact remaining checklist if a continuation is needed; do not call the packet done.
+
+## Git Contract
+Stay on ux/first-use; preserve unrelated changes. No force push, rewrite, merge, tag,
+upload or deployment. Small logical commits; publish only clean source and record
+package source separately from later doc-only HEAD. Never commit artifacts, local
+paths/session content/credentials. Keep frozen sources byte-for-byte.
+This handoff replaces historical fix prompts; no separate human micro-goals.
+The user's current HUD, shortcuts, startup entry and real harness settings stay untouched.
+
+## DEEPSEEK EXECUTION PROMPT
+Act as DeepSeek implementation for OVERSEER: stage-1 cleanup plus the bulk of
+stage-2 implementation for distribution and compatibility
+qualification. Read AGENTS.md, this entire packet and the newest IMPLEMENTATION_STATE.
+The accepted baseline is RC5 source 389cb15, planning HEAD 171f556 plus documentation;
+686 tests pass, packaged integration 14/14 and upgrade 9/9. Execute the whole ordered
+checklist, starting with stage-1 cleanup and continuing directly into stage 2. Do not
+stop after cleanup or merely author test plans. Preserve the accepted HUD and monitoring
+architecture. Prioritize real bridge executable rebinding, complete settings/rollback,
+normal composition/first-run, safe lifecycle qualification and current user docs.
+Do all available local work before reporting external gaps. Verify exact candidate
+identity and tests; never confuse synthetic evidence with live, physical or clean-OS
+qualification. Produce a new clean internal RC, honest acceptance matrix and one
+review-ready branch. Stay off the user's primary work surface and do not seize input.
+Do not replace their app, edit real host settings, purchase services, merge, push or
+publish publicly. Local internal-candidate packaging is required. Return implementation status separately from public-release gate status,
+with concrete evidence and the exact remaining environment/owner needs.

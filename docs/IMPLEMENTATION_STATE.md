@@ -1,5 +1,38 @@
 # OVERSEER Implementation State
 
+## Astra planning — 2026-09-27 — stage-1 cleanup + stage-2 implementation
+
+Stage-entry verdict: **PASS WITH NONBLOCKING NOTES** for starting the combined
+implementation goal, not full stage-1 acceptance or public-release approval.
+User clarified that this handoff must close remaining stage-1 cleanup and deliver
+the bulk of stage-2 implementation in one DeepSeek execution/review round.
+
+Planning baseline: `171f556`; accepted product source `389cb15`. Re-ran Release
+build/tests: **686 passed, 0 failed, 0 skipped**, and upgrade-placement control
+tests: **3/3 passed**. Placement evidence:
+`artifacts/upgrade-placement-tests/76b07269a76f4514a18b6cf4d514f679`.
+Independently rechecked RC5 ZIP SHA-256 against the recorded manifest; it matches.
+Product source is unchanged since the verified RC5 correction. Prior packaged
+integration 14/14 and upgrade 9/9 remain prior evidence, not rerun this pass.
+
+Current executable packet: `.agent/HANDOFF.md`; identical tracked copy appended
+to `docs/RELEASE_READINESS.md`. Previous handoff preserved in ignored
+`artifacts/planning-stage2/HANDOFF-before-stage2.md`.
+Carryover includes a bounded UI/interaction cleanup pass, normal HudComposition
+verification and stale user guidance. Stage 2 implements bridge rebind/install
+hardening, complete settings upgrade/rollback and executable-path checks, safe
+lifecycle/display test controls, first-run qualification and a new clean candidate.
+Claude's installer currently permits apply despite a missing payload; stable spool
+paths do not prove installed hook commands survive removal of an old extraction.
+The handoff treats these as implementation work, not documentation-only caveats.
+
+Clean-machine/browser-download, live host, physical display/audio and owner
+distribution/signing/terms gates remain explicit. Missing external prerequisites
+must not stop locally executable work or be recorded as passing. No product code,
+live HUD, shortcut, user settings or harness configuration changed in this pass.
+Next action: DeepSeek executes the combined packet, then Astra reviews the diff
+and evidence. Implementation is pending; the planning pass did not dispatch it.
+
 ## Astra corrective implementation — 2026-09-27 — PASS WITH NONBLOCKING NOTES
 
 User authorized fixing the re-review findings here. All three are implemented:
