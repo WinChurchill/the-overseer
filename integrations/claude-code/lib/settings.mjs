@@ -320,11 +320,12 @@ export function writeSettings(filePath, text) {
 }
 
 export function parseArgs(argv) {
-  const options = { settingsPath: null, apply: false, json: false, events: null, bridgePath: null, prune: false, unknown: [] };
+  const options = { settingsPath: null, apply: false, json: false, events: null, bridgePath: null, prune: false, noVerify: false, unknown: [] };
   for (const arg of argv) {
     if (arg === '--apply') options.apply = true;
     else if (arg === '--json') options.json = true;
     else if (arg === '--dry-run') options.apply = false;
+    else if (arg === '--no-verify') options.noVerify = true;
     else if (arg.startsWith('--events=')) options.events = arg.slice('--events='.length).split(',').map((s) => s.trim()).filter(Boolean);
     else if (arg.startsWith('--bridge=')) options.bridgePath = arg.slice('--bridge='.length);
     else if (arg.startsWith('--settings=')) options.settingsPath = arg.slice('--settings='.length);

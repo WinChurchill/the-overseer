@@ -15,6 +15,50 @@ using TheOverseer.UI;
 namespace TheOverseer.App;
 
 /// <summary>
+/// Narrow substitution points for the normal-mode object graph.
+/// </summary>
+/// <remarks>
+/// These exist so a check can exercise the REAL composition - startup configuration
+/// loading, harness discovery, provider selection and controller construction - while
+/// substituting only the monitor's producer side and the few services that would
+/// otherwise touch the user's machine (the startup registry entry, a window).
+/// Nothing here changes production behaviour: <see cref="HudComposition.CreateAsync"/>
+/// passes no overrides at all.
+/// </remarks>
+internal sealed record HudCompositionOverrides
+{
+    /// <summary>
+    /// Monitor adapters to use instead of the discovered set. Source discovery still
+    /// runs; a caller that wants the real set leaves this null.
+    /// </summary>
+    public IReadOnlyList<IAgentMonitorAdapter>? Adapters { get; init; }
+
+    /// <summary>Replaces the real Run-key registration (never touch the user's entry in a check).</summary>
+    public IStartupRegistration? Startup { get; init; }
+
+    /// <summary>Replaces the real Codex task launch.</summary>
+    public ITaskNavigator? Navigator { get; init; }
+
+    /// <summary>Replaces the real clipboard.</summary>
+    public IClipboardWriter? Clipboard { get; init; }
+
+    /// <summary>Replaces the HUD window factory; a check creates no visible window.</summary>
+    public Func<HudWindow>? WindowFactory { get; init; }
+
+    /// <summary>
+    /// Replaces the window state loaded from disk. Only used to steer a windowed check
+    /// off the display in use; it is never persisted.
+    /// </summary>
+    public HudWindowState? WindowState { get; init; }
+
+    /// <summary>
+    /// Label used for the shared per-pass monitor budget. It appears only in
+    /// diagnostics, so a check can name itself without changing any bound.
+    /// </summary>
+    public string? BudgetLabel { get; init; }
+}
+
+/// <summary>
 /// Builds the normal-mode object graph. App owns platform services; the
 /// controller owns lifetime; the UI owns presentation only.
 /// </summary>
@@ -24,12 +68,33 @@ internal static class HudComposition
         StartupArguments arguments,
         Dispatcher dispatcher)
     {
-        var prepared = await Task.Run(() => Prepare(arguments, dispatcher));
+        var prepared = await Task.Run(() => Prepare(arguments, dispatcher, overrides: null));
         return (new HudApplicationController(prepared.Dependencies), prepared.Config, prepared.State);
     }
 
+    /// <summary>
+    /// Composes the normal object graph with named substitutions and returns the
+    /// dependency record instead of a controller. Diagnostics checks and tests use
+    /// this to prove the real composition wiring; production uses CreateAsync.
+    /// </summary>
+    internal static async Task<PreparedComposition> ComposeAsync(
+        StartupArguments arguments,
+        Dispatcher dispatcher,
+        HudCompositionOverrides? overrides)
+    {
+        var prepared = await Task.Run(() => Prepare(arguments, dispatcher, overrides));
+        return new PreparedComposition(new HudApplicationController(prepared.Dependencies), prepared.Config, prepared.State, prepared.Dependencies);
+    }
+
+    /// <summary>The composed graph, its loaded configuration and its loaded window state.</summary>
+    internal sealed record PreparedComposition(
+        HudApplicationController Controller,
+        ConfigLoadResult Config,
+        HudStateLoadResult State,
+        HudControllerDependencies Dependencies);
+
     private static (HudControllerDependencies Dependencies, ConfigLoadResult Config, HudStateLoadResult State) Prepare(
-        StartupArguments arguments, Dispatcher dispatcher)
+        StartupArguments arguments, Dispatcher dispatcher, HudCompositionOverrides? overrides)
     {
         var dataDirectory = DataDirectoryResolver.Resolve(arguments.DataDirectory);
         Directory.CreateDirectory(dataDirectory);
@@ -76,19 +141,34 @@ internal static class HudComposition
 
         // One HUD-facing monitor over every enabled source: Codex plus each bridge
         // spool that is actually installed. A source failure stays local.
-        var adapters = new List<IAgentMonitorAdapter>
-        {
-            new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
-        };
+        //
+        // Discovery always runs here, so a caller that substitutes the adapters still
+        // exercises the real startup discovery path and simply publishes different
+        // producers. Production passes no substitution and gets exactly this set.
         var discovery = HarnessSources.DiscoverDetailed(
             dataDirectory,
             config.DisabledHarnessSources,
             new HarnessDiscoveryOptions(
                 MaximumSources: config.MaximumHarnessSources,
                 ConfiguredRoots: config.HarnessRoots));
-        foreach (var source in discovery.Sources)
+
+        IReadOnlyList<IAgentMonitorAdapter> adapters;
+        if (overrides?.Adapters is { } substituted)
         {
-            adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
+            adapters = substituted;
+        }
+        else
+        {
+            var built = new List<IAgentMonitorAdapter>
+            {
+                new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
+            };
+            foreach (var source in discovery.Sources)
+            {
+                built.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));
+            }
+
+            adapters = built;
         }
 
         // One aggregate per-pass allowance is shared by every source rather than
@@ -97,10 +177,11 @@ internal static class HudComposition
         var monitorSource = new CompositeMonitorSource(adapters, log, TimeProvider.System, new SourceBudget(
             config.Limits.GlobalBytesPerPass,
             Math.Max(SourceBudget.MinimumSessions, config.Limits.MaxTrackedFiles * 16),
-            "config-aggregate"), discoveryIncomplete: discovery.Capped);
+            overrides?.BudgetLabel ?? "config-aggregate"), discoveryIncomplete: discovery.Capped);
         var executablePath = Environment.ProcessPath ?? string.Empty;
-        var startup = new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
-        var navigator = new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));
+        var startup = overrides?.Startup
+            ?? new StartupRegistrationAdapter(new StartupRegistration(new WindowsStartupRegistry(), executablePath));
+        var navigator = overrides?.Navigator ?? new TaskNavigatorAdapter(new CodexTaskNavigator(new ShellTaskLaunchBoundary()));
 
         var notifications = CreateNotifications(dataDirectory, config.Voice, log);
 
@@ -110,12 +191,12 @@ internal static class HudComposition
             new WindowsWindowPlacementService(),
             navigator,
             startup,
-            new WpfClipboardWriter(),
+            overrides?.Clipboard ?? new WpfClipboardWriter(),
             log,
             config,
-            stateResult.State,
+            overrides?.WindowState ?? stateResult.State,
             new HudControllerPaths(dataDirectory, configPath, statePath),
-            () => new HudWindow(),
+            overrides?.WindowFactory ?? (() => new HudWindow()),
             TimeProvider.System,
             arguments.StartInTray,
             !arguments.NoTray,
