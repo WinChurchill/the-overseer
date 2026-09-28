@@ -1,5 +1,16 @@
 # OVERSEER changelog
 
+## Unreleased — Codex question-answer correlation
+
+- Answered asynchronous questions now clear their own attention flag during the
+  active turn. Partial answers keep unanswered questions visible; unrelated output,
+  quoted envelopes, stale replies and duplicate answers cannot dismiss other work.
+- Only bounded question counts, call IDs and question indices are retained. Question
+  and answer text remain absent from normalized state, logs and notifications.
+- Codex approval detection remains unavailable through the current rollout source.
+  Diagnostics now describe that source limitation rather than asserting that Codex
+  exposes no approval events through any interface.
+
 ## 1.0.0-rc.7 — review corrections
 
 Internal candidate built from clean source `5aba6c2`. All five local findings closed:

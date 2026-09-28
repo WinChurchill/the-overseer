@@ -1172,7 +1172,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
 
         var permission = observation.PermissionRequestRecords > 0
             ? new CapabilityStatus(CapabilitySupport.LiveObserved, "permission-requests", "structured approval request observed live")
-            : new CapabilityStatus(CapabilitySupport.Unsupported, "permission-requests", "Codex keeps approval events transient; no durable record exists to observe");
+            : new CapabilityStatus(CapabilitySupport.Unsupported, "permission-requests", "No structured approval request observed in this rollout source; no live approval-event connection configured");
 
         var input = observation.InputRequestRecords > 0
             ? new CapabilityStatus(CapabilitySupport.LiveObserved, "input-requests", "structured input request observed live")

@@ -172,11 +172,22 @@ public static class CodexEventParser
             "function_call_output" or "custom_tool_call_output" => BuildToolCompletion(payload, in context),
             "reasoning" => Build(RawCodexEventKind.ItemActivity, in context, payload,
                 ToolCallCategory.Reasoning, AgentActionKind.Thinking, "reasoning"),
-            "message" => Build(RawCodexEventKind.ItemActivity, in context, payload,
-                ToolCallCategory.Message, GetString(payload, "role", 32) == "assistant" ? AgentActionKind.Thinking : null, "message"),
+            "message" => ParseMessage(payload, in context),
             "compaction" => Build(RawCodexEventKind.HistoryCompacted, in context, payload),
             _ => new ParseResult(null, ParseOutcome.UnknownSchema),
         };
+    }
+
+    private static ParseResult ParseMessage(JsonElement payload, in ParseContext context)
+    {
+        var answers = CodexInputReplyParser.ReadAnswers(payload);
+        if (answers.Count > 0)
+        {
+            var result = Build(RawCodexEventKind.InputResolved, in context, payload);
+            return result with { Event = result.Event! with { InputAnswers = answers } };
+        }
+        return Build(RawCodexEventKind.ItemActivity, in context, payload,
+            ToolCallCategory.Message, GetString(payload, "role", 32) == "assistant" ? AgentActionKind.Thinking : null, "message");
     }
 
     private static ParseResult BuildToolCall(JsonElement payload, in ParseContext context)
@@ -189,8 +200,9 @@ public static class CodexEventParser
         if (name is "requestuserinput" or "functionsrequestuserinput" or
             "requestuserinputasync" or "functionsrequestuserinputasync")
         {
-            return Build(RawCodexEventKind.InputRequested, in context, payload,
+            var result = Build(RawCodexEventKind.InputRequested, in context, payload,
                 detailCode: "input-tool-call", isBlocking: !name.EndsWith("async", StringComparison.Ordinal));
+            return result with { Event = result.Event! with { InputQuestionCount = CodexInputReplyParser.ReadQuestionCount(payload) } };
         }
 
         // An opaque wrapper's payload is never evaluated or searched. Known

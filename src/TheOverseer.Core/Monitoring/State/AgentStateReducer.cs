@@ -335,6 +335,18 @@ public sealed class AgentStateReducer
             RememberMarker(task, marker);
         }
 
+        // A reply resolves an existing question; it cannot establish a new turn.
+        // In particular, a stale envelope must not adopt a turn and clear requests.
+        if (codexEvent.Kind == RawCodexEventKind.InputResolved && codexEvent.InputAnswers.Count > 0)
+        {
+            if (codexEvent.TurnId.Length > 0 && codexEvent.TurnId != task.TurnId)
+            {
+                rejectCode = "input-answer-turn-mismatch";
+                return false;
+            }
+            return true;
+        }
+
         if (codexEvent.TurnId.Length == 0)
         {
             if (task.Turns.TryGetValue(task.TurnId, out var terminal) && terminal.Terminal &&
@@ -671,8 +683,9 @@ public sealed class AgentStateReducer
             RequestId = requestId,
             IsPermission = isPermission,
             IsBlocking = isBlocking,
-            TurnId = codexEvent.TurnId,
+            TurnId = codexEvent.TurnId.Length > 0 ? codexEvent.TurnId : task.TurnId,
             Since = codexEvent.EventTime ?? codexEvent.ObservedAt,
+            QuestionCount = codexEvent.InputQuestionCount,
         };
         while (task.Requests.Count > task.RequestLimit)
         {
@@ -686,6 +699,22 @@ public sealed class AgentStateReducer
 
     private static bool RemoveRequest(MutableTask task, in RawCodexEvent codexEvent)
     {
+        if (codexEvent.InputAnswers.Count > 0)
+        {
+            var removed = false;
+            foreach (var answer in codexEvent.InputAnswers)
+            {
+                if (!task.Requests.TryGetValue(answer.CallId, out var request) || request.IsPermission || request.IsBlocking ||
+                    request.QuestionCount is not (> 0 and <= 64) || answer.QuestionIndex < 0 || answer.QuestionIndex >= request.QuestionCount ||
+                    (codexEvent.EventTime ?? codexEvent.ObservedAt) < request.Since ||
+                    (request.TurnId.Length > 0 && codexEvent.TurnId.Length > 0 && request.TurnId != codexEvent.TurnId))
+                    continue;
+                request.AnsweredQuestions.Add(answer.QuestionIndex);
+                if (request.AnsweredQuestions.Count == request.QuestionCount)
+                    removed |= task.Requests.Remove(answer.CallId);
+            }
+            return removed;
+        }
         if (codexEvent.RequestId is { Length: > 0 } requestId && task.Requests.Remove(requestId))
         {
             return true;
@@ -919,6 +948,8 @@ public sealed class AgentStateReducer
         public bool IsBlocking;
         public string TurnId = string.Empty;
         public DateTimeOffset Since;
+        public int? QuestionCount;
+        public readonly HashSet<int> AnsweredQuestions = new();
     }
 
     private sealed class TurnRecord

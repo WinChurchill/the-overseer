@@ -1,5 +1,24 @@
 # OVERSEER: repository diagnosis and release-candidate plan
 
+Current-source follow-up: the async answer-clearing defect below is fixed and verified
+live during the active turn (Needs you -> Working on the actual answer); Release
+suite **722/722 passed**. This source is newer than packaged RC7. The user confirmed
+the earlier real approval dialog: that path is still not observable by the current
+monitor and requires a correlated live event bridge. Full evidence and the connection
+blocker are in the newest IMPLEMENTATION_STATE entry. Public attention support is
+not fully qualified; question detection/clearing and approval detection are separate.
+
+Live attention follow-up (2026-09-27, RC7 assemblies, installed Codex CLI
+`0.158.0-alpha.2.1`): a real async multiple-choice request reached the monitor and
+HUD view model as "Needs you". Its answer did **not** clear the flag during the
+ongoing turn. A subsequent approval-test invocation yielded zero permission-request
+records; the user subsequently confirmed manually approving its dialog. Evidence and
+scope are in the newest IMPLEMENTATION_STATE entry and
+`artifacts/live-attention-rc7/results.json`. No visible HUD or audio was qualified.
+The historical R-09 statement below that *all* input events are unavailable is
+incorrect and superseded: async input detection works; answer resolution and
+approval detection need separate treatment before making release claims.
+
 Latest Astra correction (2026-09-27): **PASS WITH NONBLOCKING NOTES** for the five
 local review findings, fixed in `5aba6c2`. Current checks: 704 .NET tests, 29 Claude/
 30 dsh bridge tests, 55 upgrade-comparison negative controls and 3 mocked placement

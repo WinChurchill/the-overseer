@@ -11,10 +11,11 @@ harness's data. Runtime data stays in `%LOCALAPPDATA%\OVERSEER`.
   [CHANGELOG.md](CHANGELOG.md). Current status, evidence and known limits:
   [docs/IMPLEMENTATION_STATE.md](docs/IMPLEMENTATION_STATE.md); release gates and the acceptance
   matrix: [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md).
-- The current internal candidate is `1.0.0-rc.6`:
-  `artifacts/rc6/OVERSEER-1.0.0-rc.6-win-x64.zip`, SHA-256
-  `2ECD384070FE21F8D4E694250B399C2664CEAFC3A276F5873B58BE05F9BA5931`, built from source
-  `9f805c8` with a clean tree, 568 payload files including 75 integration assets, unsigned.
+- The current packaged internal candidate is `1.0.0-rc.7`:
+  `artifacts/rc7/OVERSEER-1.0.0-rc.7-win-x64.zip`, SHA-256
+  `88531C43F86071E6F7F4581C03FB30818404D874A484B668C50935FF5D93EC74`, built from source
+  `5aba6c2` with a clean tree, 568 payload files including 75 integration assets, unsigned.
+  The question-answer clearing fix in current source is newer than this archive.
   It is an **internal candidate**, not a published release. Public release is **not** claimed:
   clean-machine/browser-download, live-harness, signing/terms/distribution and physical
   display/audio gates are still open, and
@@ -98,6 +99,14 @@ provider, mute, pack, endpoint, per-event switches, assigned recordings, roots, 
 state are preserved.
 
 ## Optional harness integrations (experimental)
+
+**Codex attention limits.** Async questions can be detected from tool-call metadata.
+Current source also matches the desktop's structured answer envelope to individual
+questions, clearing attention once that request's questions are answered. Unknown or
+oversized envelopes retain the existing turn-boundary fallback. Approval dialogs
+are not detected by the current Codex rollout source; an ordinary command/tool call
+is not treated as proof of a pending approval. See Monitoring details for capability
+status. No question or answer text is retained.
 
 [integrations/README.md](integrations/README.md) is the index. Both bridges are opt-in,
 metadata-only and reversible, and both are **experimental**: each is contract-tested, and

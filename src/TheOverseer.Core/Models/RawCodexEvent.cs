@@ -71,9 +71,14 @@ public sealed record RawCodexEvent(
     int SourceGeneration,
     bool IsHydration)
 {
+    // Only structural question identities survive normalization; never answer text.
+    public int? InputQuestionCount { get; init; }
+    public IReadOnlyList<InputAnswerReference> InputAnswers { get; init; } = Array.Empty<InputAnswerReference>();
     public TaskKey Key => new(ProfileId, ConversationId);
 
     public static RawCodexEvent Unknown(string profileId, string conversationId, DateTimeOffset observedAt) =>
         new(RawCodexEventKind.Unknown, profileId, conversationId, string.Empty, null, null,
             ToolCallCategory.None, null, null, null, null, null, observedAt, null, 0, 0, 0, 0, false);
 }
+
+public sealed record InputAnswerReference(string CallId, int QuestionIndex);

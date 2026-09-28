@@ -1,5 +1,74 @@
 # OVERSEER Implementation State
 
+## Codex async answer fix — 2026-09-27 — implemented; approval connection blocked
+
+User authorized fixing the live-test findings. Added a bounded parser for the exact
+desktop user-reply envelope: only tool-call IDs, question indices and the original
+question count reach the reducer. It clears matching async questions without waiting
+for turn completion; multiple calls and partial replies remain independently pending.
+Acknowledgements, unrelated output, duplicate/old/wrong-turn replies, malformed or
+oversized envelopes and unknown question counts cannot dismiss other attention.
+Answer references cannot clear permission requests or establish a new task turn.
+No prose or command body is retained; no new dependency or frozen-document change.
+
+Verification: Release build with **0 warnings/errors**, **722 tests passed, 0 failed,
+0 skipped**. Live read-only monitor + HUD-view-model retest also passed: the new
+question raised attention at 06:32:05.834 UTC and the user's actual answer cleared it
+to Working at 06:34:19.734 UTC, during the same active turn. Evidence and observer
+source: ignored `artifacts/live-attention-fix/`. This is not a rendered/audio check.
+Final code review included partial/batched answers, replay/hydration, privacy,
+bounded input sizes and approval isolation; no remaining defect found in this fix.
+
+The user confirmed seeing and manually approving the previous timestamp dialog:
+the zero permission-request records from that live test are a confirmed limitation,
+not a missing human confirmation. **Approval detection is not fixed.** The desktop
+app-server processes expose only stdio in the observed configuration, and the existing
+daemon's read-only version query could not connect. Read-only schema inspection found
+no pending-approval table in the existing state/queue/history stores; this does not
+claim no future version can expose one. Official app-server approval requests and
+`serverRequest/resolved` provide suitable correlated signals, but no accessible
+connection to this desktop session was established. A second independent server
+would not observe approvals owned by this process. PermissionRequest hooks alone
+lack the matching resolution identity needed to clear concurrent approvals reliably.
+
+Remaining work requires an explicit Codex event bridge/host integration that forwards
+request and resolution metadata, including source/session/turn/request identities,
+with disconnect handling and restart hydration. It must never answer approvals, infer
+them from command text/timing, or clear them on an unrelated tool completion. Do not
+claim this source supported until the bridge is installed and qualified live. Official
+contracts: https://learn.chatgpt.com/docs/app-server and https://learn.chatgpt.com/docs/hooks.
+Diagnostics now describe the rollout-source limit instead of making a universal
+claim that no approval events exist. Live app/settings/shortcut and Codex settings
+remain unchanged; no package replacement, merge or public upload.
+
+## Live Codex attention test — 2026-09-27 — input clearing requires work
+
+Tested RC7's shipped Core/UI assemblies with a read-only live observer of this chat,
+using the actual CodexMonitor and HudViewModel. Installed Codex CLI reports
+`0.158.0-alpha.2.1`. No visible HUD, audio, live settings or harness profiles changed.
+Evidence: ignored `artifacts/live-attention-rc7/` (observer source, timestamped
+state samples, structural metadata only, and `results.json`).
+
+- Async multiple-choice request: **PASS for detection**. At 06:16:55.813 UTC,
+  NeedsHuman changed false -> true, capability became LiveObserved, and the HUD
+  view-model headline became "Needs you". Unrelated work did not clear it.
+- Answer clearing: **FAIL for immediate clearing**. The real answer arrived at
+  06:17:50.169 UTC; attention remained `input-requested-nonblocking` afterward,
+  including before the approval-test invocation. Current parsing treats the answer
+  as user-message activity; the existing turn-boundary fallback was not exercised
+  in this finite test. This was previously documented as a limitation, not fixed.
+- Approval: request invoked at 06:17:58.501 UTC after the user switched to Ask for
+  approval; the harmless timestamp write completed at 06:18:32.071 UTC. The monitor
+  recorded zero permission requests, capability remained Unsupported, and no
+  structured approval event appeared in that rollout interval. The user subsequently
+  confirmed manually approving that dialog. The earlier input alert is
+  not evidence of approval detection.
+
+Correction: earlier release text claiming all Codex input requests were unobservable
+was stale. Async request detection is live-observed; answer resolution and approval
+are separate limitations. The five RC7 corrective findings remain closed, but this
+test does not qualify the complete attention experience for public release.
+
 ## Astra corrective implementation — 2026-09-27 — PASS WITH NONBLOCKING NOTES
 
 User authorized implementing the five review solutions. They are now implemented:

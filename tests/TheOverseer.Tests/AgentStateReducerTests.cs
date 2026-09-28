@@ -54,6 +54,29 @@ public sealed class AgentStateReducerTests
     private static AgentTask Task(AgentStateReducer reducer, ManualTimeProvider clock, string conversationId = "conversation-1") =>
         reducer.Snapshot(clock.GetUtcNow()).Single(task => task.ConversationId == conversationId);
 
+    [Theory]
+    [InlineData("wrong-turn", 5)]
+    [InlineData("turn-1", -5)]
+    public void AsyncReplyCannotChangeTurnsOrResolveBeforeRequest(string turn, int seconds)
+    {
+        var (reducer, clock) = Create();
+        reducer.Apply(Event(RawCodexEventKind.TaskStarted));
+        reducer.Apply(Event(RawCodexEventKind.InputRequested, turn: "", requestId: "a", blocking: false, order: 2) with { InputQuestionCount = 1 });
+        reducer.Apply(Event(RawCodexEventKind.InputResolved, turn: turn, order: 3, at: Start.AddSeconds(seconds)) with { InputAnswers = new[] { new InputAnswerReference("a", 0) } });
+        Assert.True(Task(reducer, clock).NeedsHuman);
+        Assert.Equal("turn-1", Task(reducer, clock).TurnId);
+    }
+
+    [Fact]
+    public void AsyncReplyCannotResolveAnApprovalWithMatchingId()
+    {
+        var (reducer, clock) = Create();
+        reducer.Apply(Event(RawCodexEventKind.TaskStarted));
+        reducer.Apply(Event(RawCodexEventKind.PermissionRequested, requestId: "a", order: 2) with { InputQuestionCount = 1 });
+        reducer.Apply(Event(RawCodexEventKind.InputResolved, order: 3) with { InputAnswers = new[] { new InputAnswerReference("a", 0) } });
+        Assert.Equal(AgentTaskState.NeedsApproval, Task(reducer, clock).State);
+    }
+
     [Fact]
     public void ExplicitStartBecomesWorkingWithoutTokensOrAssistantText()
     {
