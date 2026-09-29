@@ -105,23 +105,6 @@ public sealed class Plan3ReviewTests
         Assert.Empty(player.Played);
     }
 
-    [Theory]
-    [InlineData(15)] // unknown point hidden within a 15-second display column
-    [InlineData(16)] // unobserved gap hidden by downsampling
-    public void ChartNeverJoinsAcrossUnknownOrMissingObservations(int separation)
-    {
-        var history = new ActivityHistory();
-        history.Record(VoiceTestData.Snapshot(Start, working: CountValue.Known(9)));
-        if (separation == 15)
-        {
-            history.Record(VoiceTestData.Snapshot(Start.AddSeconds(13), working: CountValue.Unknown));
-            history.Record(VoiceTestData.Snapshot(Start.AddSeconds(14), working: CountValue.Known(3)));
-        }
-        history.Record(VoiceTestData.Snapshot(Start.AddSeconds(separation), working: CountValue.Known(3)));
-        var geometry = ActivityChartGeometry.Build(history.Snapshot(Start.AddHours(1)), 240, 30);
-        Assert.DoesNotContain(geometry, segment => segment.Points.Count > 1);
-    }
-
     [Fact]
     public void StoppedHistoryTrimsItsStoredBuckets()
     {

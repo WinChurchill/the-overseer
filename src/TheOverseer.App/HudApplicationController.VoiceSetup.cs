@@ -28,6 +28,13 @@ public sealed partial class HudApplicationController
         var rows = VoiceEventCatalog.All.Select(item => new VoiceSetupRow(item, settings.IsEnabled(item.Kind))).ToArray();
         var window = new NotificationSettingsWindow(ViewModel, rows) { Owner = _window, Icon = AppIcon.WindowImage };
         _notificationSettings = window;
+        window.StartupToggleRequested += ToggleStartWithWindows;
+        window.ResetPositionRequested += ResetPosition;
+        window.MinimizeRequested += () =>
+        {
+            window.Close();
+            if (_window is not null) System.Windows.SystemCommands.MinimizeWindow(_window);
+        };
         var lifetime = new CancellationTokenSource();
 
         void Change(Func<VoiceSettings, VoiceSettings> update)

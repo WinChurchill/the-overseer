@@ -29,16 +29,16 @@ public sealed class UiContractCleanupTests
             System.Windows.Data.BindingOperations.SetBinding(text,
                 System.Windows.Controls.TextBlock.TextProperty,
                 new System.Windows.Data.Binding(nameof(HudViewModel.VoiceFailureLine)) { Source = vm });
-            vm.ApplyActivity(ActivitySeries.Empty(Now), FailedVoice());
+            vm.ApplyVoiceStatus(FailedVoice());
             Assert.Equal(vm.VoiceFailureLine, text.Text);
             Assert.NotEmpty(text.Text);
             vm.IsMuted = true;
             Assert.Empty(text.Text);
             vm.IsMuted = false;
             Assert.NotEmpty(text.Text);
-            vm.ApplyActivity(ActivitySeries.Empty(Now), WorkingVoice() with { IsMuted = true });
+            vm.ApplyVoiceStatus(WorkingVoice() with { IsMuted = true });
             Assert.Empty(text.Text);
-            vm.ApplyActivity(ActivitySeries.Empty(Now), FailedVoice());
+            vm.ApplyVoiceStatus(FailedVoice());
             Assert.Equal(vm.VoiceFailureLine, text.Text);
         });
     }
@@ -161,13 +161,13 @@ public sealed class UiContractCleanupTests
         var vm = new HudViewModel(HudSettings.Default);
 
         // Muted (the first-run default): never a failure banner.
-        vm.ApplyActivity(ActivitySeries.Empty(Now), VoiceStatus.Initial);
+        vm.ApplyVoiceStatus(VoiceStatus.Initial);
         Assert.True(vm.IsMuted);
         Assert.False(vm.VoiceFailed);
         Assert.Empty(vm.VoiceFailureLine);
 
         // Enabled and working: still nothing.
-        vm.ApplyActivity(ActivitySeries.Empty(Now), WorkingVoice());
+        vm.ApplyVoiceStatus(WorkingVoice());
         Assert.False(vm.IsMuted);
         Assert.False(vm.VoiceFailed);
         Assert.Empty(vm.VoiceFailureLine);
@@ -175,7 +175,7 @@ public sealed class UiContractCleanupTests
         // Enabled and failing: the failure has to be visible somewhere.
         var raised = new List<string>();
         ((INotifyPropertyChanged)vm).PropertyChanged += (_, e) => raised.Add(e.PropertyName ?? string.Empty);
-        vm.ApplyActivity(ActivitySeries.Empty(Now), FailedVoice());
+        vm.ApplyVoiceStatus(FailedVoice());
 
         Assert.True(vm.VoiceFailed);
         Assert.Equal("Voice unavailable: provider-unavailable.", vm.VoiceFailureLine);
@@ -187,7 +187,7 @@ public sealed class UiContractCleanupTests
     public void MutingClearsAnExistingVoiceFailureLine()
     {
         var vm = new HudViewModel(HudSettings.Default);
-        vm.ApplyActivity(ActivitySeries.Empty(Now), FailedVoice());
+        vm.ApplyVoiceStatus(FailedVoice());
         Assert.True(vm.VoiceFailed);
 
         vm.IsMuted = true;

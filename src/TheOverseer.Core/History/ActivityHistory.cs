@@ -10,19 +10,9 @@ public readonly record struct ActivitySample(DateTimeOffset Timestamp, CountValu
     public bool IsPartial => Working.IsKnown && !Working.IsComplete;
 }
 
-public enum ActivitySegmentKind
-{
-    Complete,
-    Partial,
-}
-
-public sealed record ActivityChartPoint(double X, double Y, int Working, int NeedsHuman, bool IsPartial, DateTimeOffset Timestamp);
-
-public sealed record ActivityChartSegment(ActivitySegmentKind Kind, IReadOnlyList<ActivityChartPoint> Points);
-
 /// <summary>
 /// The bounded latest-hour view: samples inside the window plus the derived
-/// extents the renderer needs. Gaps are simply absent samples.
+/// count and observation-quality summaries. Gaps are simply absent samples.
 /// </summary>
 public sealed record ActivitySeries(
     IReadOnlyList<ActivitySample> Samples,

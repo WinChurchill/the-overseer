@@ -84,7 +84,6 @@ internal static class HudFixtureRunner
     {
         Directory.CreateDirectory(outputDirectory);
         var scenarios = SyntheticHudScenarios.Create();
-        var activity = SyntheticHudScenarios.CreateActivitySeries();
         var voiceStatus = new VoiceStatus(false, "pack", "ok", 0, 2, 0, 0, 0, false, "Spoken 2.");
         var rendered = new List<string>();
 
@@ -102,7 +101,7 @@ internal static class HudFixtureRunner
                 var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
                 viewModel.UseActivitySource(fixtureActivity.Source);
                 viewModel.ApplySnapshot(scenarios[0]);
-                viewModel.ApplyActivity(activity, theme == HudTheme.Light && expanded ? VoiceStatus.Initial : voiceStatus);
+                viewModel.ApplyVoiceStatus(theme == HudTheme.Light && expanded ? VoiceStatus.Initial : voiceStatus);
                 viewModel.IsExpanded = expanded;
                 var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-" +
                     (expanded ? "expanded" : "collapsed") + ".png");
@@ -124,7 +123,7 @@ internal static class HudFixtureRunner
                 var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
                 viewModel.UseActivitySource(fixtureActivity.Source);
                 viewModel.ApplySnapshot(snapshot);
-                viewModel.ApplyActivity(activity, VoiceStatus.Initial);
+                viewModel.ApplyVoiceStatus(VoiceStatus.Initial);
                 viewModel.IsExpanded = true;
                 if (collapsed)
                 {
@@ -151,7 +150,7 @@ internal static class HudFixtureRunner
             var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0, TaskView = "recent" });
             viewModel.UseActivitySource(hourActivity.Source);
             viewModel.ApplySnapshot(hour[^1]);
-            viewModel.ApplyActivity(activity, VoiceStatus.Initial);
+            viewModel.ApplyVoiceStatus(VoiceStatus.Initial);
             viewModel.IsExpanded = true;
             var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-activity-hour.png");
             Render(viewModel, theme, path);
@@ -166,7 +165,7 @@ internal static class HudFixtureRunner
             var filtered = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
             filtered.UseActivitySource(fixtureActivity.Source);
             filtered.ApplySnapshot(scenarios[0]);
-            filtered.ApplyActivity(activity, VoiceStatus.Initial);
+            filtered.ApplyVoiceStatus(VoiceStatus.Initial);
             filtered.IsExpanded = true;
             filtered.TaskFilter = "attention";
             var filteredPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-filter-attention.png");
@@ -176,7 +175,7 @@ internal static class HudFixtureRunner
             var history = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
             history.UseActivitySource(hourActivity.Source);
             history.ApplySnapshot(hour[^1]);
-            history.ApplyActivity(activity, VoiceStatus.Initial);
+            history.ApplyVoiceStatus(VoiceStatus.Initial);
             history.IsExpanded = true;
             history.TaskFilter = "all";
             if (history.Projects.Count > 0)
@@ -212,7 +211,7 @@ internal static class HudFixtureRunner
         {
             var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
             viewModel.ApplySnapshot(snapshot);
-            viewModel.ApplyActivity(TheOverseer.Core.History.ActivitySeries.Empty(snapshot.GeneratedAt), VoiceStatus.Initial);
+            viewModel.ApplyVoiceStatus(VoiceStatus.Initial);
             viewModel.IsExpanded = true;
             var path = Path.Combine(outputDirectory, name);
             Render(viewModel, HudTheme.Dark, path);
@@ -225,7 +224,7 @@ internal static class HudFixtureRunner
             var viewModel = new HudViewModel(HudSettings.Default with { Opacity = 1, TaskView = taskView },
                 sessionStartedAt: scenarios[0].GeneratedAt.AddMinutes(-10));
             viewModel.ApplySnapshot(scenarios[0]);
-            viewModel.ApplyActivity(activity, VoiceStatus.Initial);
+            viewModel.ApplyVoiceStatus(VoiceStatus.Initial);
             viewModel.IsExpanded = true;
             var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-" + taskView + ".png");
             Render(viewModel, theme, path);
@@ -245,7 +244,7 @@ internal static class HudFixtureRunner
             }
             HudThemeManager.Apply(Application.Current, theme);
             var rows = VoiceEventCatalog.All.Select(item => new VoiceSetupRow(item, item.DefaultEnabled) { Status = "No usable recording — assign a WAV." }).ToArray();
-            var settings = new NotificationSettingsWindow(new HudViewModel(HudSettings.Default), rows)
+            var settings = new NotificationSettingsWindow(new HudViewModel(HudSettings.Default with { ThemeName = theme == HudTheme.Light ? "light" : "dark" }), rows)
             {
                 ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -4000, Top = -4000,
@@ -263,7 +262,7 @@ internal static class HudFixtureRunner
             HudThemeManager.Apply(Application.Current, theme);
             var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, LightSize = 128 });
             vm.ApplySnapshot(scenarios[0]);
-            vm.ApplyActivity(activity, voiceStatus);
+            vm.ApplyVoiceStatus(voiceStatus);
             var window = new HudWindow { DataContext = vm, ShowActivated = false, ShowInTaskbar = false,
                 Left = -4000, Top = -4000, Width = size.Item1, Height = size.Item2 };
             window.SetWindowView(true);

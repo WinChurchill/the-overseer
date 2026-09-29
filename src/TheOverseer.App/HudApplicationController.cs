@@ -103,8 +103,6 @@ public sealed record HudControllerDependencies(
 public sealed partial class HudApplicationController : IAsyncDisposable
 {
     private static readonly HudSize ExpandedSize = new(360, 480);
-    private const double ActivityChartWidth = 330;
-    private const double ActivityChartHeight = 30;
 
     private readonly HudControllerDependencies _dependencies;
     private readonly SnapshotPump _pump;
@@ -190,6 +188,8 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     }
 
     public HudViewModel ViewModel { get; }
+
+    public HudMenuState MenuState { get; } = new();
 
     public HudWindow? Window => _window;
 
@@ -872,15 +872,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         var callbacks = new TrayCallbacks(
-            ToggleVisibility,
-            ToggleTheme,
-            ToggleTopmost,
-            SetOpacity,
-            ToggleStartWithWindows,
-            ToggleMute,
-            ResetPosition,
+            ToggleVisibility, ToggleTopmost, ToggleMute,
             () => ExitRequested?.Invoke(this, EventArgs.Empty),
-            OpenNotificationSettings);
+            OpenNotificationSettings, OpenProjectSources);
         var (service, availability) = TrayService.TryCreate(callbacks);
         _tray = service;
         TrayAvailable = availability == TrayAvailability.Available;
@@ -906,175 +900,39 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         ViewModel.NotifyStatus("Tray unavailable — right-click the header for controls.");
     }
 
-    /// <summary>
-    /// Clean top-level menu: Always on top, Theme, View, Light &amp; voice…,
-    /// Projects &amp; sources…, Hide to tray, Exit. Opacity, light presets, layout and
-    /// diagnostics live in submenus instead of crowding the top level.
-    /// </summary>
+    /// <summary>Eight daily actions; appearance and startup options live in settings.</summary>
     private void CreateWindowMenu()
     {
         var menu = new System.Windows.Controls.ContextMenu { Cursor = System.Windows.Input.Cursors.Arrow, ForceCursor = true };
-        void Add(string label, Action action)
+        System.Windows.Controls.MenuItem Add(string label, Action action)
         {
             var item = new System.Windows.Controls.MenuItem { Header = label };
             item.Click += (_, _) => action();
             menu.Items.Add(item);
-        }
-
-        System.Windows.Controls.MenuItem Item(string label, Action action, bool checkable = false)
-        {
-            var item = new System.Windows.Controls.MenuItem { Header = label, IsCheckable = checkable };
-            item.Click += (_, _) => action();
             return item;
         }
 
-        System.Windows.Controls.MenuItem Parent(string header, params object[] children)
-        {
-            var item = new System.Windows.Controls.MenuItem { Header = header };
-            foreach (var child in children)
-            {
-                item.Items.Add(child);
-            }
-
-            return item;
-        }
-
-        var pin = Item("Always on top", ToggleTopmost, checkable: true);
-        menu.Items.Add(pin);
-
-        var dark = Item("Dark", () => ViewModel.Theme = HudTheme.Dark, checkable: true);
-        var light = Item("Light", () => ViewModel.Theme = HudTheme.Light, checkable: true);
-        var theme = Parent("Theme", dark, light);
-        theme.SubmenuOpened += (_, _) =>
-        {
-            dark.IsChecked = ViewModel.Theme == HudTheme.Dark;
-            light.IsChecked = ViewModel.Theme == HudTheme.Light;
-        };
-        menu.Items.Add(theme);
-
-        var recent = new System.Windows.Controls.MenuItem { Header = "Recent interval" };
-        var hourItems = new List<System.Windows.Controls.MenuItem>();
-        foreach (var hours in new[] { 1, 2, 4, 8, 24 })
-        {
-            var value = hours;
-            var item = Item(value + (value == 1 ? " hour" : " hours"), () => ViewModel.RecentHours = value, checkable: true);
-            hourItems.Add(item);
-            recent.Items.Add(item);
-        }
-
-        var opacity = new System.Windows.Controls.MenuItem { Header = "Opacity" };
-        var opacityItems = new List<System.Windows.Controls.MenuItem>();
-        foreach (var value in new[] { 0.75, 0.85, 0.96, 1.0 })
-        {
-            var target = value;
-            var item = Item((int)Math.Round(target * 100) + "%", () => SetOpacity(target), checkable: true);
-            opacityItems.Add(item);
-            opacity.Items.Add(item);
-        }
-
-        var statusLight = new System.Windows.Controls.MenuItem { Header = "Status light" };
-        var positionItems = new List<System.Windows.Controls.MenuItem>();
-        foreach (var position in new[] { "right", "left", "top", "bottom", "off" })
-        {
-            var target = position;
-            var item = Item(char.ToUpperInvariant(target[0]) + target[1..], () => ViewModel.LightPosition = target, checkable: true);
-            positionItems.Add(item);
-            statusLight.Items.Add(item);
-        }
-
-        statusLight.Items.Add(new System.Windows.Controls.Separator());
-        var sizeItems = new List<System.Windows.Controls.MenuItem>();
-        foreach (var size in new[] { 24, 32, 48, 64, 96, 128 })
-        {
-            var target = size;
-            var item = Item("Width " + target, () => ViewModel.LightSize = target, checkable: true);
-            sizeItems.Add(item);
-            statusLight.Items.Add(item);
-        }
-
-        var monitoring = new System.Windows.Controls.MenuItem { Header = "Monitoring details" };
-        foreach (var property in new[] { nameof(HudViewModel.MonitoringDisclosure), nameof(HudViewModel.AttentionDisclosure), nameof(HudViewModel.HealthLine) })
-        {
-            var detail = new System.Windows.Controls.MenuItem { IsEnabled = false };
-            detail.SetBinding(System.Windows.Controls.HeaderedItemsControl.HeaderProperty,
-                new System.Windows.Data.Binding(property) { Source = ViewModel });
-            monitoring.Items.Add(detail);
-        }
-
-        var view = Parent("View",
-            recent,
-            Item("Reset position", ResetPosition),
-            new System.Windows.Controls.Separator(),
-            opacity,
-            statusLight,
-            new System.Windows.Controls.Separator(),
-            Item("Expand all projects", () => ViewModel.SetAllProjectsExpanded(true)),
-            Item("Collapse all projects", () => ViewModel.SetAllProjectsExpanded(false)),
-            new System.Windows.Controls.Separator(),
-            Item("Compact / expanded HUD", ToggleWindowView),
-            Item("Maximize / restore", ToggleMaximize),
-            Item("Minimize", () => SystemCommands.MinimizeWindow(_window!)),
-            Item("Start with Windows", ToggleStartWithWindows, checkable: true),
-            monitoring);
-        view.SubmenuOpened += (_, _) =>
-        {
-            foreach (var item in hourItems)
-            {
-                item.IsChecked = Equals(item.Header, ViewModel.RecentHours + (ViewModel.RecentHours == 1 ? " hour" : " hours"));
-            }
-
-            foreach (var item in opacityItems)
-            {
-                item.IsChecked = Equals(item.Header, ((int)Math.Round(ViewModel.Opacity * 100)).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%");
-            }
-
-            foreach (var item in positionItems)
-            {
-                item.IsChecked = Equals(item.Header, char.ToUpperInvariant(ViewModel.LightPosition[0]) + ViewModel.LightPosition[1..]);
-            }
-
-            foreach (var item in sizeItems)
-            {
-                item.IsChecked = Equals(item.Header, "Width " + ViewModel.LightSize);
-            }
-        };
-        menu.Items.Add(view);
-
+        var pin = Add("Always on top", ToggleTopmost);
+        pin.IsCheckable = true;
+        pin.SetBinding(System.Windows.Controls.MenuItem.IsCheckedProperty,
+            new System.Windows.Data.Binding("Snapshot.AlwaysOnTop") { Source = MenuState, Mode = System.Windows.Data.BindingMode.OneWay });
+        Add("Expand all projects", () => ViewModel.SetAllProjectsExpanded(true));
+        Add("Collapse all projects", () => ViewModel.SetAllProjectsExpanded(false));
+        Add("Compact / expanded HUD", ToggleWindowView);
         Add("Light & voice…", OpenNotificationSettings);
         Add("Projects & sources…", OpenProjectSources);
-        var hide = Item("Hide to tray", HideToTray);
-        menu.Items.Add(hide);
+        var hide = Add("Hide to tray", HideToTray);
+        hide.SetBinding(System.Windows.Controls.MenuItem.IsEnabledProperty,
+            new System.Windows.Data.Binding("Snapshot.CanHideToTray") { Source = MenuState });
         Add("Exit", () => ExitRequested?.Invoke(this, EventArgs.Empty));
-
-        menu.Opened += (_, _) => RefreshWindowMenu(pin, hide);
         _window!.ContextMenu = menu;
-        _windowMenuPin = pin;
-        _windowMenuHide = hide;
-        RefreshWindowMenu(pin, hide);
+        RefreshWindowMenu();
     }
 
-    private System.Windows.Controls.MenuItem? _windowMenuPin;
-    private System.Windows.Controls.MenuItem? _windowMenuHide;
-
-    /// <summary>
-    /// Keeps the checkable and availability state honest without opening the menu:
-    /// "Always on top" mirrors the live pin, and "Hide to tray" is only enabled while
-    /// a working tray can restore the window.
-    /// </summary>
-    private void RefreshWindowMenu(System.Windows.Controls.MenuItem? pin = null, System.Windows.Controls.MenuItem? hide = null)
-    {
-        var pinItem = pin ?? _windowMenuPin;
-        var hideItem = hide ?? _windowMenuHide;
-        if (pinItem is not null)
-        {
-            pinItem.IsChecked = _state.WindowView ? _state.WindowPinned : ViewModel.AlwaysOnTop;
-        }
-
-        if (hideItem is not null)
-        {
-            hideItem.IsEnabled = CanHideToTray;
-        }
-    }
+    private void RefreshWindowMenu() => MenuState.Update(new HudMenuSnapshot(
+        _window?.IsVisible ?? false,
+        _state.WindowView ? _state.WindowPinned : ViewModel.AlwaysOnTop,
+        ViewModel.StartWithWindows, ViewModel.IsMuted, CanHideToTray));
 
     // ---- projects and sources ---------------------------------------------------
 
@@ -1195,6 +1053,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private void RefreshTrayState()
     {
+        RefreshWindowMenu();
         if (_tray is null || _window is null)
         {
             return;
@@ -1208,7 +1067,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             status += " · voice on";
         }
 
-        _tray.UpdateState(_window.IsVisible, ViewModel.Theme, _state.WindowView ? _state.WindowPinned : ViewModel.AlwaysOnTop, ViewModel.StartWithWindows, ViewModel.IsMuted, status);
+        _tray.UpdateState(MenuState.Snapshot, status);
     }
 
     // ---- timers, persistence ----------------------------------------------------
@@ -1227,7 +1086,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     /// <summary>
     /// Timer-driven Plan 3 projection: flush completion aggregation and pending
-    /// cooldowns, then project history/voice onto the UI. Cheap, coalesced and
+    /// cooldowns, then project voice status onto the UI. Task history uses the strip source. Cheap, coalesced and
     /// on the UI thread only.
     /// </summary>
     public void RefreshActivity(DateTimeOffset now)
@@ -1239,8 +1098,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         notifications.Pump();
-        var series = notifications.History(now);
-        ViewModel.ApplyActivity(series, notifications.Status, ActivityChartWidth, ActivityChartHeight);
+        ViewModel.ApplyVoiceStatus(notifications.Status);
     }
 
     private void OnSaveTick(object? sender, EventArgs e)

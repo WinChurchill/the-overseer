@@ -37,12 +37,12 @@ public sealed class ActivityHistoryTests
     }
 
     [Fact]
-    public void UnknownIsNotZeroOnTheChart()
+    public void UnknownIsNotRecordedAsKnownZero()
     {
         var history = new ActivityHistory();
         history.Record(VoiceTestData.Snapshot(Start, working: CountValue.Unknown));
-        var segments = ActivityChartGeometry.Build(history.Snapshot(Start), 100, 30);
-        Assert.Empty(segments);
+        var sample = Assert.Single(history.Snapshot(Start).Samples);
+        Assert.False(sample.Working.IsKnown);
     }
 
     [Fact]
@@ -112,37 +112,11 @@ public sealed class ActivityHistoryTests
         var series = history.Snapshot(Start.AddMinutes(30));
         Assert.True(series.HasGap);
 
-        var segments = ActivityChartGeometry.Build(series, 300, 30);
-        Assert.Equal(2, segments.Count);
-        foreach (var segment in segments)
-        {
-            Assert.Single(segment.Points);
-        }
+        Assert.Equal(2, series.SampleCount);
     }
 
     [Fact]
-    public void EmptyAndConstantSeriesAreFinite()
-    {
-        var history = new ActivityHistory();
-        var empty = ActivityChartGeometry.Build(history.Snapshot(Start), 200, 28);
-        Assert.Empty(empty);
-
-        history.Record(VoiceTestData.Snapshot(Start, working: CountValue.Known(0)));
-        var constant = ActivityChartGeometry.Build(history.Snapshot(Start), 200, 28);
-        Assert.NotEmpty(constant);
-        foreach (var segment in constant)
-        {
-            foreach (var point in segment.Points)
-            {
-                Assert.True(double.IsFinite(point.X) && double.IsFinite(point.Y));
-                Assert.InRange(point.X, 0, 200);
-                Assert.InRange(point.Y, 0, 28);
-            }
-        }
-    }
-
-    [Fact]
-    public void OneHundredThousandSamplesStayBoundedAndLegible()
+    public void OneHundredThousandSamplesStayBounded()
     {
         var history = new ActivityHistory();
         for (var index = 0; index < 100_000; index++)
@@ -151,26 +125,21 @@ public sealed class ActivityHistoryTests
         }
 
         var series = history.Snapshot(Start.AddSeconds(1000));
-        var segments = ActivityChartGeometry.Build(series, 320, 30);
-        var points = segments.Sum(segment => segment.Points.Count);
-        Assert.True(points <= ActivityChartGeometry.DefaultMaximumColumns, "points: " + points);
         Assert.True(series.SampleCount <= ActivityHistory.MaximumBuckets);
     }
 
     [Fact]
-    public void PartialColumnsUseTheDistinctSegmentStyle()
+    public void PartialAndCompleteSamplesRetainTheirQuality()
     {
         var history = new ActivityHistory();
-        // The axis is a fixed 60 minutes, so complete and partial observations
-        // must land in different columns to be styled differently.
+        // Quality stays attached to each observation throughout the hour.
         history.Record(VoiceTestData.Snapshot(Start, working: CountValue.Partial(2)));
         history.Record(VoiceTestData.Snapshot(Start.AddMinutes(30), working: CountValue.Known(5)));
         history.Record(VoiceTestData.Snapshot(Start.AddMinutes(60), working: CountValue.Known(1)));
 
-        var segments = ActivityChartGeometry.Build(history.Snapshot(Start.AddMinutes(60)), 200, 30);
-
-        Assert.Contains(segments, segment => segment.Kind == ActivitySegmentKind.Partial);
-        Assert.Contains(segments, segment => segment.Kind == ActivitySegmentKind.Complete);
+        var series = history.Snapshot(Start.AddMinutes(60));
+        Assert.Contains(series.Samples, sample => sample.IsPartial);
+        Assert.Contains(series.Samples, sample => sample.Working.IsKnown && !sample.IsPartial);
 
         // Latest observation wins inside one second bucket, so a superseded
         // partial sample is not retained as a stale lower bound.
@@ -182,19 +151,4 @@ public sealed class ActivityHistoryTests
         Assert.True(sameBucketSeries.Samples[0].Working.IsComplete);
     }
 
-    [Fact]
-    public void TooltipIsBoundedAndHonest()
-    {
-        var history = new ActivityHistory();
-        var tooltip = ActivityChartGeometry.Tooltip(history.Snapshot(Start), Start);
-        Assert.Contains("No activity", tooltip, StringComparison.Ordinal);
-
-        history.Record(VoiceTestData.Snapshot(Start, working: CountValue.Partial(3)));
-        history.Record(VoiceTestData.Snapshot(Start.AddMinutes(20), working: CountValue.Known(1)));
-        var series = history.Snapshot(Start.AddMinutes(20));
-        var text = ActivityChartGeometry.Tooltip(series, Start.AddMinutes(20));
-        Assert.True(text.Length <= 240, "tooltip length " + text.Length);
-        Assert.Contains("partial", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("gaps", text, StringComparison.OrdinalIgnoreCase);
-    }
 }

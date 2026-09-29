@@ -35,6 +35,10 @@ public partial class NotificationSettingsWindow : Window
 
     public event Action? StopRequested;
 
+    public event Action? StartupToggleRequested;
+    public event Action? ResetPositionRequested;
+    public event Action? MinimizeRequested;
+
     /// <summary>Raised with "pack", "speech" or "tts" when the user picks a provider.</summary>
     public event Action<string>? ProviderChangeRequested;
 
@@ -78,5 +82,13 @@ public partial class NotificationSettingsWindow : Window
     private void OnPreview(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is VoiceSetupRow row) PreviewRequested?.Invoke(row); }
     private void OnClear(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is VoiceSetupRow row) ClearRequested?.Invoke(row); }
     private void OnStop(object sender, RoutedEventArgs e) => StopRequested?.Invoke();
+    private void OnStartup(object sender, RoutedEventArgs e)
+    {
+        StartupToggleRequested?.Invoke();
+        // A rejected registration must still show the confirmed state.
+        StartupBox.GetBindingExpression(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)?.UpdateTarget();
+    }
+    private void OnResetPosition(object sender, RoutedEventArgs e) => ResetPositionRequested?.Invoke();
+    private void OnMinimize(object sender, RoutedEventArgs e) => MinimizeRequested?.Invoke();
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 }

@@ -570,20 +570,25 @@ public sealed class HudDispatchTests
             var items = menu.Items.Cast<System.Windows.Controls.MenuItem>().ToArray();
 
             Assert.Equal(
-                new[] { "Always on top", "Theme", "View", "Light & voice…", "Projects & sources…", "Hide to tray", "Exit" },
+                new[] { "Always on top", "Expand all projects", "Collapse all projects", "Compact / expanded HUD",
+                    "Light & voice…", "Projects & sources…", "Hide to tray", "Exit" },
                 items.Select(item => item.Header!.ToString()).ToArray());
-
-            // Presets and layout live in submenus, not as many top-level entries.
-            var view = items.Single(item => Equals(item.Header, "View"));
-            var nested = view.Items.Cast<object>().Select(entry => entry is System.Windows.Controls.MenuItem item ? item.Header!.ToString() : null).ToArray();
-            Assert.Contains("Recent interval", nested);
-            Assert.Contains("Reset position", nested);
-            Assert.Contains("Opacity", nested);
-            Assert.Contains("Status light", nested);
-            Assert.Contains("Expand all projects", nested);
-            Assert.Contains("Collapse all projects", nested);
-
+            Assert.All(items, item => Assert.Empty(item.Items));
+            // Check state changes immediately, even with the menu closed and no actual tray.
             var pin = items.Single(item => Equals(item.Header, "Always on top"));
+            Assert.True(pin.IsChecked);
+            withTray.ToggleTopmost();
+            Assert.False(pin.IsChecked);
+            Assert.False(withTray.MenuState.Snapshot.AlwaysOnTop);
+            withTray.ToggleWindowView();
+            Assert.False(pin.IsChecked);
+            withTray.ToggleTopmost();
+            Assert.True(pin.IsChecked);
+            Assert.True(withTray.MenuState.Snapshot.AlwaysOnTop);
+            withTray.ToggleWindowView();
+            Assert.False(pin.IsChecked);
+            withTray.ToggleTopmost();
+
             Assert.True(pin.IsChecked);
             Assert.True(items.Single(item => Equals(item.Header, "Hide to tray")).IsEnabled);
 

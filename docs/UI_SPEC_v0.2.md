@@ -67,3 +67,18 @@ tall, with the light at maximum width, the attention filter applied and a histor
 disclosure open. Behaviour is pinned by the WPF and view-model test suites; the
 production path (real readers, composite, controller and applied UI state) is pinned
 by `--hud-integration-check`.
+
+## Menu and settings (2026-09-29 remediation)
+
+The header has eight leaf actions and no nested preset menus: Always on top,
+Expand all projects, Collapse all projects, Compact / expanded HUD, Light & voice,
+Projects & sources, Hide to tray and Exit. The tray retains restore, pin, mute,
+the two settings surfaces, status and Exit. Their pin/mute/availability state is
+derived from one controller snapshot, including the separate window-view pin.
+
+Theme, opacity, status light, startup, reset and minimize live in Light & voice.
+Recent hours remain next to the Recent view selector; monitoring details remain
+on the health control; maximize/restore remains on the header. Startup reflects
+the confirmed registration result, including a refused change. The unused
+count-chart control and projection were removed; project/task hour strips are
+the only history rendering and their recording/quality semantics are preserved.

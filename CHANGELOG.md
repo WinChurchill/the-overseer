@@ -1,5 +1,19 @@
 # OVERSEER changelog
 
+## Unreleased — repository assessment remediation
+
+- Reduced the header menu to eight daily actions and the tray menu to six actions.
+  Both read the same actual pin/visibility/mute state. Appearance, startup, reset
+  and minimize controls remain available in Light & voice settings.
+- Removed the unused count-chart renderer and projection; live task/project history
+  strips, bounded history collection and voice status remain.
+- Added Windows CI and a documented SDK/Node/PowerShell build path. Archived the
+  previous execution ledger intact and reconciled the current RC8 documentation.
+- Licensed original code and documentation under MIT, retained codex-monitor-hud's
+  upstream MIT notices, and included the project license in new archives.
+  Supplied branding/reference images and derived icons remain excluded pending
+  provenance review. Codex approval detection remains explicitly unsupported.
+
 ## Unreleased — automated pre-user checks
 
 - Added one sequential runner reporting all six pre-user test areas, with source and

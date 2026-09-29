@@ -21,56 +21,6 @@ public static class SyntheticHudScenarios
         PartialUnknown(),
     };
 
-    /// <summary>
-    /// Synthetic 60-minute activity series for the fixture: a busy hour with a
-    /// quiet stretch (gap), partial lower bounds and a final peak, sampled at a
-    /// live-monitor cadence so the line renders continuously where observed.
-    /// </summary>
-    public static ActivitySeries CreateActivitySeries()
-    {
-        var history = new ActivityHistory();
-        var end = DateTimeOffset.UtcNow;
-
-        for (var second = 3595; second >= 0; second -= 5)
-        {
-            // A deliberate unobserved stretch between minutes 21 and 35.
-            if (second is <= 2100 and >= 1260)
-            {
-                continue;
-            }
-
-            var at = end.AddSeconds(-second);
-            var minute = second / 60;
-            var working = minute switch
-            {
-                < 10 => 1,
-                < 25 => 3 + (minute % 3),
-                < 45 => 2,
-                _ => 4,
-            };
-            var needsHuman = minute % 7 == 0 ? 1 : 0;
-            var value = minute is >= 40 and < 44 ? CountValue.Partial(working) : CountValue.Known(working);
-            history.Record(new MonitoringSnapshot(
-                at,
-                new MonitoringHealth(MonitoringHealthLevel.Degraded, new[] { "synthetic" }, false, at, at),
-                new MonitoringCounts(
-                    value,
-                    CountValue.Known(needsHuman),
-                    CountValue.Known(0),
-                    CountValue.Known(0),
-                    CountValue.Known(0),
-                    CountValue.Known(0),
-                    CountValue.Known(0),
-                    CountValue.Known(working)),
-                Array.Empty<AgentTask>(),
-                Array.Empty<AttentionEvent>(),
-                MonitorCapabilities.Initial,
-                LiveObservationStats.Empty));
-        }
-
-        return history.Snapshot(end);
-    }
-
     /// <summary>Mixed live-looking state: attention, work, stale, provisional, long labels.</summary>
     public static MonitoringSnapshot Mixed()
     {

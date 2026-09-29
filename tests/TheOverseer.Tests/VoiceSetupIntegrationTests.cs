@@ -320,6 +320,41 @@ public sealed class VoiceSetupIntegrationTests
                 Assert.Equal(new[] { "pack", "speech", "tts" }, providers.Items.OfType<ComboBoxItem>().Select(item => (string)item.Tag).ToArray());
                 Assert.Equal(9, ((ItemsControl)window.FindName("Rows")).Items.Count);
 
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                    () => { }, System.Windows.Threading.DispatcherPriority.DataBind);
+                var theme = (ComboBox)window.FindName("ThemeBox");
+                Assert.Same(viewModel, theme.DataContext);
+                theme.SelectedIndex = 1;
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                    () => { }, System.Windows.Threading.DispatcherPriority.DataBind);
+                Assert.Equal(HudTheme.Light, viewModel.Theme);
+                var opacity = (Slider)window.FindName("OpacitySlider");
+                opacity.SetCurrentValue(System.Windows.Controls.Primitives.RangeBase.ValueProperty, 0.85);
+                Assert.Equal(0.85, viewModel.Opacity, precision: 2);
+                viewModel.Opacity = 0.96;
+                Assert.Equal(0.96, opacity.Value, precision: 2);
+                var startup = (CheckBox)window.FindName("StartupBox");
+                var startupRequests = 0;
+                var allowStartup = false;
+                window.StartupToggleRequested += () =>
+                {
+                    startupRequests++;
+                    if (allowStartup) viewModel.StartWithWindows = !viewModel.StartWithWindows;
+                };
+                // A failed registration never leaves a checked preference on screen.
+                startup.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
+                startup.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.False(startup.IsChecked);
+                Assert.False(viewModel.StartWithWindows);
+                allowStartup = true;
+                startup.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(startup.IsChecked);
+                Assert.Equal(2, startupRequests);
+                var resetRequests = 0;
+                window.ResetPositionRequested += () => resetRequests++;
+                ((Button)window.FindName("ResetPositionButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.Equal(1, resetRequests);
+
                 var requested = new List<string>();
                 var baselineRequests = 0;
                 var stops = 0;
