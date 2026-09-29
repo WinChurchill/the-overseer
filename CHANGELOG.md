@@ -13,6 +13,8 @@
   upstream MIT notices, and included the project license in new archives.
   Supplied branding/reference images and derived icons remain excluded pending
   provenance review. Codex approval detection remains explicitly unsupported.
+- Headless package smoke now initializes its focus observation collection, so deferred
+  visible checks produce a complete evidence report instead of a strict-mode error.
 
 ## Unreleased — automated pre-user checks
 

@@ -52,6 +52,8 @@ $ProgressPreference = 'SilentlyContinue'
 
 $script:Checks = New-Object System.Collections.ArrayList
 $script:OwnedProcesses = New-Object System.Collections.ArrayList
+# Headless/deferred lifecycle runs still serialize an empty focus observation set.
+$focusTransitions = New-Object System.Collections.ArrayList
 
 function Add-Check([string] $name, [bool] $passed, [string] $detail) {
     $entry = [ordered]@{ check = $name; status = $(if ($passed) { 'pass' } else { 'fail' }); detail = $detail }
@@ -708,7 +710,6 @@ if ($visibleChecksDeferred) {
     $alive = $true
     $windowSeen = $false
     $focusStolen = $false
-    $focusTransitions = New-Object System.Collections.ArrayList
     $foregroundSamples = New-Object System.Collections.ArrayList
     $previousForeground = [IntPtr]::Zero
     $deadline = (Get-Date).AddSeconds($HudSeconds)
