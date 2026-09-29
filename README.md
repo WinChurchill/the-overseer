@@ -1,6 +1,6 @@
 # THE OVERSEER PROJECT
 
-**OVERSEER** is a private, local Windows desktop HUD that answers two questions while
+**OVERSEER** is a local Windows desktop HUD that answers two questions while
 you work: *what are my agents doing?* and *does an agent need me?* One always-visible
 window summarises work from **Codex**, **DeepSeek Harness (`dsh`)** and **Claude Code**,
 groups it by project, and says plainly when it cannot see something. It is read-only:
@@ -11,16 +11,20 @@ harness's data. Runtime data stays in `%LOCALAPPDATA%\OVERSEER`.
   [CHANGELOG.md](CHANGELOG.md). Current status, evidence and known limits:
   [docs/IMPLEMENTATION_STATE.md](docs/IMPLEMENTATION_STATE.md); release gates and the acceptance
   matrix: [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md).
-- The current packaged internal candidate is `1.0.0-rc.7`:
-  `artifacts/rc7/OVERSEER-1.0.0-rc.7-win-x64.zip`, SHA-256
-  `88531C43F86071E6F7F4581C03FB30818404D874A484B668C50935FF5D93EC74`, built from source
-  `5aba6c2` with a clean tree, 568 payload files including 75 integration assets, unsigned.
-  The question-answer clearing fix in current source is newer than this archive.
-  It is an **internal candidate**, not a published release. Public release is **not** claimed:
-  clean-machine/browser-download, live-harness, signing/terms/distribution and physical
-  display/audio gates are still open, and
-  [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md) records each one with its exact
-  missing prerequisite.
+- The current packaged internal candidate is `1.0.0-rc.8`:
+  `artifacts/rc8/OVERSEER-1.0.0-rc.8-win-x64.zip`, SHA-256
+  `CB55897A6A75F4B5CBDF975D904DEDCE08347B8BE1F96C7793C726A22461BA93`,
+  source `f14dc47`, clean tree, 568 payload files including 75 integration assets,
+  unsigned. It includes correlated async question-answer clearing.
+  The current remediation source is newer than this archive.
+  It is an **internal candidate**, not a published release. Public release remains
+  unqualified; the [release checklist](docs/RELEASE_READINESS.md) records the gates.
+
+Original project code and documentation use the [MIT license](LICENSE).
+Upstream monitoring adaptations retain their own MIT notice.
+Supplied branding/reference assets are excluded pending provenance review;
+see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the exact scope.
+The project is intended for open-source publication; no public download is configured.
 
 ## Install and run
 
@@ -31,7 +35,7 @@ repository checkout. Runtime data lives under `%LOCALAPPDATA%\OVERSEER` (`config
 `state.json`, `voicepacks/`, `voiceclips/`, `bridges/`, `spool/`, `logs/`); pass
 `--data-directory PATH` to run fully isolated.
 
-The archive contains the complete publish output plus `README.md`, `CHANGELOG.md`,
+New archives contain the complete publish output plus `LICENSE`, `README.md`, `CHANGELOG.md`,
 `THIRD_PARTY_NOTICES.md`, `release.json`, `licenses/`, `examples/voicepacks/example/` and
 `integrations/` (both optional bridges with notices, installers and tests). No repository files,
 caches, logs or private data are included.
@@ -62,15 +66,15 @@ theme changes and notifications never take your focus.
 | Project header row, or a `History` toggle | Expands or collapses that project's tasks, or discloses that project's or task's hour strip without activating it; observation, history and voice keep running while collapsed. |
 | Task row, or right-click → `Copy task id` | Activates a resolved Desktop task through its validated `codex://threads/<id>` route (other harnesses offer the id for copying instead), or copies just the id. A focused row activates with Enter or Space. |
 
-The header menu (`⋯`) contains **Always on top** (checkable), **Theme** (Dark / Light), **View**
-▸ *Recent interval* (1 / 2 / 4 / 8 / 24 hours), *Reset position*, *Opacity* (75 / 85 / 96 /
-100%), *Status light* (Right / Left / Top / Bottom / Off, then *Width* 24 / 32 / 48 / 64 / 96 /
-128), *Expand all projects*, *Collapse all projects*, *Compact / expanded HUD*, *Maximize /
-restore*, *Minimize*, *Start with Windows* and *Monitoring details*; then **Light & voice…**,
-**Projects & sources…** (lists discovered bridge sources and can disable one, applied at the next
-start), **Hide to tray** (enabled only while a tray can restore the window) and **Exit**. The tray
-icon offers Show/Hide HUD (double-click toggles it), Light/Dark mode, Always on top, Opacity presets,
-Mute voice, Start with Windows, Reset position, a monitoring status line, Light & voice… and Exit.
+The header menu (`⋯`) has eight actions: **Always on top**, **Expand all projects**,
+**Collapse all projects**, **Compact / expanded HUD**, **Light & voice…**,
+**Projects & sources…**, **Hide to tray** and **Exit**. **Light & voice…** contains
+theme, opacity, status-light position/size, startup, reset position and minimize,
+plus the existing voice controls. Recent hours stay next to the Recent view selector;
+monitoring details open from the health control. Maximize/restore stays in the header.
+The tray has Show/Hide HUD, Always on top, Mute voice, Light & voice…,
+Projects & sources…, a monitoring status line and Exit. Header and tray checked
+state comes from the same controller snapshot.
 
 ### Views, counts and history
 
@@ -103,8 +107,7 @@ state are preserved.
 **Codex attention limits.** Async questions can be detected from tool-call metadata.
 Current source also matches the desktop's structured answer envelope to individual
 questions, clearing attention once that request's questions are answered. Unknown or
-oversized envelopes retain the existing turn-boundary fallback. Approval dialogs
-are not detected by the current Codex rollout source; an ordinary command/tool call
+oversized envelopes retain the existing turn-boundary fallback. Approval detection is explicitly **unsupported** in the current Codex rollout source; an ordinary command/tool call
 is not treated as proof of a pending approval. See Monitoring details for capability
 status. No question or answer text is retained.
 
@@ -178,15 +181,49 @@ DPI, audible playback by ear, and a machine with no .NET runtime.
 
 ## Build and test from source
 
-On Windows x64 with the .NET 10 SDK on `PATH`, from this repository root:
-`dotnet restore; dotnet build; dotnet test; dotnet run --project src/TheOverseer.App`. The workspace
-SDK lives outside Git in `../.tools/dotnet`; if it is not on `PATH`, set `DOTNET_ROOT`, prepend it to
-`PATH`, and point `DOTNET_CLI_HOME` and `NUGET_PACKAGES` at `../.tools/cli-home` and
-`../.tools/nuget-packages`. `scripts/Publish-Release.ps1` publishes `win-x64` self-contained and
-records `build-manifest.json` (source commit, SDK version, payload list, archive SHA-256; it refuses
-a dirty tree unless `-AllowDirtyTree`), while `scripts/Test-PackagedRelease.ps1` extracts a ZIP into a
-fresh directory and runs the packaged checks with a sanitized child environment (a headless run
-records every windowed check as skipped with a reason and exits `1` instead of dropping it).
+Use Windows x64. Install the [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+(the SDK, not only the runtime), [Node.js 24 LTS](https://nodejs.org/en/download)
+and [PowerShell 7](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows).
+Open a new PowerShell so the installed tools are on PATH. `global.json` requires
+.NET 10.0.100 or a later stable 10.0 feature band; `dotnet --version` should resolve
+that version from the repository root.
+
+Clone the repository from its configured location, change into its root and run:
+
+```powershell
+dotnet restore TheOverseer.sln
+dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers
+dotnet test TheOverseer.sln -c Release --no-build --no-restore
+Push-Location integrations/deepseek-harness
+node --test
+Pop-Location
+Push-Location integrations/claude-code
+node --test
+Pop-Location
+pwsh -NoProfile -File scripts/Test-PreUserReport.ps1
+pwsh -NoProfile -File scripts/Test-ReleaseUpgradeComparison.ps1
+pwsh -NoProfile -File scripts/Test-ReleaseUpgradePlacement.ps1
+```
+
+No `../.tools`, existing OVERSEER installation, recordings or private harness data
+are required to build/test. Both bridge suites are metadata contract tests against
+invented host fixtures; they do not install a bridge. Placement controls mock
+display discovery and app launches. The [.github/workflows/verify.yml](.github/workflows/verify.yml)
+workflow runs these checks on a Windows runner; a hosted run is still pending
+because this local repository has no remote. Its SDK setup reads global.json.
+Run the HUD locally with `dotnet run --project src/TheOverseer.App -c Release`.
+
+This development workspace optionally keeps its SDK and caches outside Git in
+`../.tools`; that is a local convenience. On this machine set DOTNET_ROOT/PATH
+to `../.tools/dotnet` and CLI/package caches to `../.tools/cli-home` and
+`../.tools/nuget-packages` when needed. Stale build processes can be shut down with
+`dotnet build-server shutdown` before retrying an environment permission failure.
+
+`scripts/Publish-Release.ps1` publishes self-contained win-x64, carries project and
+third-party licenses, and records source/SDK/payload/archive identity in
+`build-manifest.json`. It refuses a dirty tree unless `-AllowDirtyTree`.
+`scripts/Test-PackagedRelease.ps1` extracts into a fresh directory and sanitizes
+the child environment; missing prerequisites remain explicit deferred checks.
 
 ## Diagnostics modes
 
@@ -242,8 +279,8 @@ voice policy, with no WPF/WinForms and no network or audio code. `TheOverseer.UI
 classifier, attention, health, composition, configuration, logging, privacy and the HUD contract. The
 stack is C# / .NET 10 LTS / WPF / xUnit / System.Text.Json with no additional runtime dependency.
 
-`AGENTS.md` and `docs/V1_2_IMPLEMENTATION_SPEC.md` are preserved byte-for-byte from the supplied
-documents; their older product naming is superseded and the V1 scope is unchanged. Monitoring
+`docs/V1_2_IMPLEMENTATION_SPEC.md` is preserved byte-for-byte from the supplied
+document; AGENTS.md now explains the post-V1 trunk workflow; their older product naming is superseded and the V1 scope is unchanged. Monitoring
 plumbing is adapted from `https://github.com/LH-03/codex-monitor-hud` at revision
 `df1d5b9e3d4b701de979b5c84a006db7cca5112f` (MIT) — see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `third_party/codex-monitor-hud/LICENSE`; the
@@ -290,7 +327,7 @@ tree; each item names the source commit recorded in its evidence.
   script, which recorded rollback, shortcut and startup-entry checks as not performed.
 - Earlier candidates (`artifacts/rc1`…`artifacts/rc3`, `artifacts/review4-final`) are superseded.
 
-Current-tree evidence is the normal-composition check (26/26,
+Additional historical evidence from prior revisions includes the normal-composition check (26/26,
 `artifacts/composition-check-noarg/`), the mocked upgrade/rollback placement run (25/25 per windowed
 case, `artifacts/upgrade-placement-tests/33c099b52c714915b2c4282cec15b0aa/`), the isolated window
 scaling run (`artifacts/scaling-dev2-184414/window-scaling-evidence.json`) and the 46 HUD renders in

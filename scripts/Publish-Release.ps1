@@ -239,6 +239,7 @@ try {
     Copy-Item -Path (Join-Path $publishRoot '*') -Destination $payloadRoot -Recurse -Force
 
     $requiredPayload = @(
+        @{ Source = (Join-Path $repoRoot 'LICENSE'); Target = 'LICENSE' },
         @{ Source = (Join-Path $repoRoot 'README.md'); Target = 'README.md' },
         @{ Source = (Join-Path $repoRoot 'CHANGELOG.md'); Target = 'CHANGELOG.md' },
         @{ Source = (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md'); Target = 'THIRD_PARTY_NOTICES.md' },
@@ -290,6 +291,8 @@ try {
 
     # ---- machine-readable release identity ----------------------------------
     $release = [ordered]@{
+        projectLicense = 'MIT'
+        licenseScope = 'Original code/docs; supplied branding exclusions and upstream notices are in THIRD_PARTY_NOTICES.md.'
         product = 'OVERSEER'
         project = 'THE OVERSEER PROJECT'
         version = $Version
@@ -326,6 +329,7 @@ try {
 
     foreach ($required in @(
         (Join-Path $payloadRoot $executableName),
+        (Join-Path $payloadRoot 'LICENSE'),
         (Join-Path $payloadRoot 'README.md'),
         (Join-Path $payloadRoot 'THIRD_PARTY_NOTICES.md'),
         (Join-Path $payloadRoot 'release.json'),
@@ -378,6 +382,7 @@ try {
 
     foreach ($required in @(
         $executableName,
+        'LICENSE',
         'README.md',
         'THIRD_PARTY_NOTICES.md',
         'release.json',

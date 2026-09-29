@@ -385,6 +385,14 @@ Add-Check 'extraction-apphost' (Test-Path -LiteralPath $executable) ('exe=' + $e
 $versionInfo = (Get-Item -LiteralPath $executable).VersionInfo
 $releasePath = Join-Path $extractionRoot 'release.json'
 $release = if (Test-Path -LiteralPath $releasePath) { Get-Content -LiteralPath $releasePath -Raw | ConvertFrom-Json } else { $null }
+# Older candidates predate a project-license declaration. New packages must carry it.
+if ($null -ne $release -and $null -ne $release.PSObject.Properties['projectLicense']) {
+    $licensePath = Join-Path $extractionRoot 'LICENSE'
+    $licenseOk = $release.projectLicense -eq 'MIT' -and
+        (Test-Path -LiteralPath $licensePath) -and
+        ((Get-Content -LiteralPath $licensePath -Raw) -match 'Permission is hereby granted')
+    Add-Check 'project-license' ([bool]$licenseOk) ('declared=' + $release.projectLicense + ' LICENSE present and readable')
+}
 $numericFromFile = (($versionInfo.FileVersion -split '\.')[0..2] -join '.')
 $identityOk = $null -ne $release -and
     $versionInfo.FileVersion -eq $release.fileVersion -and

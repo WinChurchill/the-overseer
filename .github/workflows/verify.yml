@@ -1,0 +1,53 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Restore
+        run: dotnet restore TheOverseer.sln
+      - name: Build
+        run: dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false
+      - name: .NET tests
+        run: dotnet test TheOverseer.sln -c Release --no-build --no-restore --logger trx --results-directory TestResults
+      - name: DeepSeek bridge contracts
+        working-directory: integrations/deepseek-harness
+        run: node --test
+      - name: Claude bridge contracts
+        working-directory: integrations/claude-code
+        run: node --test
+      - name: Pre-user report controls
+        run: ./scripts/Test-PreUserReport.ps1
+      - name: Upgrade comparison controls
+        run: ./scripts/Test-ReleaseUpgradeComparison.ps1
+      - name: Mocked upgrade placement controls
+        run: ./scripts/Test-ReleaseUpgradePlacement.ps1

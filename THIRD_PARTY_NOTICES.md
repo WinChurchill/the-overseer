@@ -61,3 +61,26 @@ Exact package versions are pinned in `tests/TheOverseer.Tests/TheOverseer.Tests.
 No runtime NuGet package, database, or framework was added by Plan 1.
 
 The supplied website PNGs in `design/reference/` are user-provided design references.
+
+## Project license and supplied materials
+
+The original OVERSEER source, project documentation (including AGENTS.md and the
+V1 specification) and synthetic example tones are licensed under the root MIT
+LICENSE, at the owner's direction on 2026-09-29. Adapted codex-monitor-hud code
+retains its upstream MIT copyright and license above; it is actual code reuse,
+not solely visual inspiration. Redistributed platform components retain their
+own distributed licenses.
+
+| Material | Provenance / redistribution position |
+| --- | --- |
+| Original code, AGENTS.md, V1 specification and other original docs | Owner-directed work produced with coding assistants; owner selected MIT. |
+| Adapted monitoring readers and Windows activity source | codex-monitor-hud at the pinned revision above; MIT, upstream notice retained. |
+| assets/voicepacks/example | Original generated synthetic PCM tones; covered by project MIT. |
+| design/reference/website-light.png and website-dark.png | Owner-supplied website references; owner describes generated website work inspired by Ryan Lab. Rights have not been independently established; excluded from project MIT pending provenance review. |
+| design/branding/overseer-source.png, overseer-outlined.png and src/TheOverseer.App/Assets/overseer.ico | Supplied/generated branding and derived icons; asset-level provenance and redistribution rights remain unresolved; excluded from project MIT pending review. |
+
+A difference in visual appearance does not establish asset ownership. No Ryan Lab
+code or asset has been identified as copied in this repository's provenance
+record. This is a record of known provenance and exclusions, not a finding that
+the website references or branding are licensed by Ryan Lab. A binary release
+containing the unresolved branding still needs an explicit rights decision.

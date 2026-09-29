@@ -32,7 +32,14 @@ The current plan handoff is:
 
 ## 1. Execution Units
 
-V1 uses exactly:
+The four plans and branches below describe the completed V1 implementation.
+Current work uses `main` as the reviewed trunk and a separate branch per
+remediation plan. The active plan, branch and evidence live in
+`docs/IMPLEMENTATION_STATE.md`; prior execution records live in
+`docs/IMPLEMENTATION_HISTORY.md`. The plan -> implementation -> review loop and
+the merge gate still apply. Historical V1 branch names are retained as references.
+
+V1 used exactly:
 
 ```text
 4 plans
