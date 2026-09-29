@@ -244,7 +244,7 @@ internal static class HudFixtureRunner
             }
             HudThemeManager.Apply(Application.Current, theme);
             var rows = VoiceEventCatalog.All.Select(item => new VoiceSetupRow(item, item.DefaultEnabled) { Status = "No usable recording — assign a WAV." }).ToArray();
-            var settings = new NotificationSettingsWindow(new HudViewModel(HudSettings.Default with { ThemeName = theme == HudTheme.Light ? "light" : "dark" }), rows)
+            var settings = new NotificationSettingsWindow(new HudViewModel(HudSettings.Default with { Theme = theme == HudTheme.Light ? "light" : "dark" }), rows)
             {
                 ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -4000, Top = -4000,
