@@ -4,78 +4,106 @@
 Plan: repository assessment remediation, 2026-09-29.
 Branch: `fix/repo-assessment`.
 Base / main: `82e15e31da1bc3d37a8b080118f85efd9d86cdb4`.
-Status: implementation complete; final checkout and packaging verification in progress.
-Input snapshot: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md).
-Execution packet: ignored `.agent/HANDOFF.md`.
+Status: local remediation complete; ready for Astra review, not merged.
+Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
+Execution packet: ignored `.agent/HANDOFF.md`; completed disposition recorded there.
+Self-review found no remaining local blocker; separate Astra review is pending.
 
 ## Scope and decisions
-- Owner intends an open-source project and selected MIT for original code/docs.
+- Owner selected MIT for original code/docs, including AGENTS.md and the V1 spec.
 - Preserve upstream MIT notices for adapted codex-monitor-hud monitoring code.
-- Supplied/generated branding: owner described original website work inspired by
-  Ryan Lab; no asset-level provenance review establishes redistribution rights yet.
-  Those image/icon assets remain excluded from the project MIT grant pending review.
+  Initialization chat and existing source headers confirm actual code adaptation.
+- Owner described generated website/branding work inspired by Ryan Lab.
+  Asset-level redistribution rights remain unresolved; supplied images and derived
+  icons are explicitly excluded from the project MIT grant pending provenance review.
 - Codex approval detection stays explicitly **Unsupported**, by owner decision.
   Async question detection and correlated answer clearing remain supported.
-- Independent local maintenance proceeds without claiming external qualification.
+- Hosted CI and external release qualification are not claimed as complete.
 
 ## Completed implementation
-- Main fast-forwarded by 146 commits from `663caf5` to `82e15e3`.
-  `ux/first-use` retained; assessment preserved unchanged in `ca9906b`.
-- Added Windows GitHub Actions verification: SDK from global.json, Node 24,
-  build/xUnit, both bridges and existing report/comparison/mocked-placement controls.
-- Header menu reduced to eight actions; header/tray read the same actual menu state.
-  Theme, opacity, light, startup and reset controls are in Light & voice.
-- Removed unused count-chart control, geometry and view-model projection.
-  Live task/project history strips, bounded count history and voice remain.
-- Full previous ledger archived without loss as IMPLEMENTATION_HISTORY.md.
-- README identifies RC8 consistently and documents a build without workspace tools.
-- Original project MIT license added; packaging carries it alongside upstream notices.
+- Main fast-forwarded by 146 commits from `663caf5` to `82e15e3`;
+  `ux/first-use` retained and assessment snapshot committed in `ca9906b`.
+- Added Windows CI: SDK from global.json, Node 24, Release/xUnit, both bridges,
+  report/comparison controls and mocked upgrade-placement controls.
+- Header menu reduced to eight actions; tray to six actions plus status.
+  Both read actual shared menu state. Appearance/startup/reset/minimize are in settings.
+- Removed unused count-chart control, geometry and projection. Bounded history,
+  live task/project hour strips, unknown/partial semantics and voice remain.
+- Archived the entire old ledger intact; current state stays below 200 lines.
+  README consistently identifies RC8 and documents a standard Windows build.
+- Added original-project MIT license and license scope; new archives include LICENSE,
+  upstream MIT and runtime notices. Artwork and frozen specification were not changed.
+- Fixed the existing headless smoke-report error: focus observations are initialized
+  even when visible lifecycle checks are skipped.
 
 ## Verification
-Baseline before changes: Release build 0 warnings/errors; 722 .NET tests,
-dsh 30/30, Claude 29/29, RC8 archive hash matches.
-Remediation: Release build 0 warnings/errors; 715 .NET tests pass, 0 fail/skip.
-Seven obsolete count-chart cases were removed; history and voice regressions pass.
-Both bridge suites pass: dsh 30/30 and Claude 29/29, run sequentially.
-Report controls 7/7; comparison controls 55/55; mocked placement 3/3.
-46 offscreen fixture renders generated; settings in both themes inspected.
-All PowerShell scripts parse; git diff --check passes.
-Evidence: artifacts/remediation-verification/. Development test failures are retained;
-the corrected WPF binding interaction passes the final full suite.
-Hosted CI has not run: no Git remote is configured.
-Fresh-checkout and license-payload verification are pending.
+Verified app/source: `25679762f2cd79b8824336c996897c60d94cc95e`.
+Smoke-report fix: `92a5473`; subsequent closure changes are documentation only.
 
-## Current packaged candidate (historical binary)
-Version: `1.0.0-rc.8+f14dc47`, unsigned; source `f14dc47`.
-Archive: `artifacts/rc8/OVERSEER-1.0.0-rc.8-win-x64.zip`.
+- Baseline: build 0 warnings/errors, 722 .NET tests, dsh 30/30, Claude 29/29.
+- Fresh local clone: restore/build pass, 0 warnings/errors; **715 .NET tests pass,
+  0 fail/skip**. Seven obsolete count-chart cases were removed.
+- Both bridge suites pass sequentially: dsh 30/30, Claude 29/29.
+- Report controls 7/7; comparison controls 55/55; mocked placement cases 3/3.
+- 46 offscreen renders; both settings themes and smallest HUD layouts inspected.
+- PowerShell script parsing, workflow YAML/structure and git diff checks pass.
+- Private packaged integration 17/17 and composition 42/42 pass.
+- Packaged smoke on DISPLAY2: **42 pass, 0 fail, 3 activation checks deferred**,
+  full-duration run, live monitor readable; zero owned-foreground samples / 548.
+  Evidence: private-windowed-smoke/run-20260929T211451Z-286b0cc5/ under the evidence root.
+- Headless negative run writes evidence and exits 1: 20 executed checks pass,
+  21 visible checks intentionally omitted and reported as failures; no skipped check
+  is promoted to a pass. This verifies the repaired report path.
+
+Evidence: `artifacts/remediation-verification/`, including logs, TRX, renders,
+headless/windowed evidence and private-package manifest. Development failures remain.
+Fresh-clone verification uses this machine's installed SDK and existing package cache
+via environment/PATH; the cloned repository needs no adjacent ../.tools directory.
+Hosted CI is pending: the main repository has no configured Git remote.
+
+## Private verification archive
+`1.0.0-dev.remediation+2567976`, unsigned, clean source, 569 payload files,
+75 integration assets; this is a local test artifact, not a replacement release candidate.
+Path: `artifacts/remediation-verification/private-package/OVERSEER-remediation-verification-win-x64.zip`.
+SHA-256: `719E6C3E21D5EB004E785127B8A3D0EC73CE8AC8662FD577D87C8E61EC0E627F`.
+Project LICENSE, THIRD_PARTY_NOTICES and upstream MIT match source bytes exactly.
+
+## Designated packaged candidate (historical binary)
+RC8: `1.0.0-rc.8+f14dc47`, unsigned; source `f14dc47`.
+Path: `artifacts/rc8/OVERSEER-1.0.0-rc.8-win-x64.zip`.
 SHA-256: `CB55897A6A75F4B5CBDF975D904DEDCE08347B8BE1F96C7793C726A22461BA93`.
-Its binaries predate this remediation. No replacement package has been published.
-Evidence index: `artifacts/pre-user/run-20260928T065109Z-aab5b5d0/pre-user-report.json`.
-Recorded RC8 results: 41 packaged checks pass, 3 activation checks deferred;
-integration 17/17, composition 42/42, upgrade/rollback 25/25 per HUD/Window mode,
-native scaling on DISPLAY2 at 96 DPI, silent voice synthesis/policy pass.
-These are revision-specific historical results, not certification of current source.
+Historical six-area evidence:
+`artifacts/pre-user/run-20260928T065109Z-aab5b5d0/pre-user-report.json`.
+Its binaries predate remediation; those results certify that revision only.
+The user's live installation was not replaced and no public artifact was published.
 
-## Repository topology audit
-`git cherry main agent/ui` and `git cherry main agent/voice` report all nine
-commits patch-equivalent to commits on main. Existing worktrees are clean.
-- UI: 64fee13 -> 7e1a6ce; fabfc83 -> aa779e6; 355d4a3 -> 5a4795f;
-  fae8aae -> c8aac75.
-- Voice: cc4e757 -> 37e198a; 15efc5a -> 7775ac7; f324603 -> 628bc32;
-  027f2dd -> b2df643; fe2ff0c -> e2c961a.
-Retirement disposition is pending; no worktree contents or branch commits discarded.
+## Repository topology
+All nine agent/ui and agent/voice commits were verified patch-equivalent to main.
+Original tips `fae8aae` and `fe2ff0c` remain reachable through history-only merges
+`d0186a8` and `9eb6220` on this branch; those merges changed no source files.
+Their worktrees and redundant branches were retired after clean-state checks.
+All 393 qualification files were preserved and hash-verified under
+`artifacts/retired-worktrees/agent-ui/artifacts` and `agent-voice/artifacts`;
+full patch mappings and per-file hashes are in `artifacts/retired-worktrees/preservation.json`.
+Main remains at the accepted baseline; unrelated historical branches are retained.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- Clean Windows/browser download/SmartScreen and no-runtime/independent-machine checks.
-- Real dsh/Claude setup, interaction and teardown (bridges remain experimental).
-- Physical Snap/drag/DPI, sleep/wake, monitor reconnect and mixed-DPI checks.
-- Audible/device checks, Windows logon and interactive tray behavior.
-- Branding redistribution rights, signing/unsigned distribution choice and public channel.
-- Codex approvals intentionally unsupported until a separately qualified event connection.
+- Hosted Windows CI after a remote is configured.
+- Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
+- Real dsh/Claude installation, interaction and teardown; both remain experimental.
+- Physical Snap/drag/DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
+- Intentional activation and human tray interaction; excluded from this smoke run.
+- Branding redistribution rights, signing/distribution choice and public channel.
+- Codex approvals intentionally unsupported pending a separately qualified connection.
 
-## History and next action
-The pre-remediation ledger is preserved in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Prior corrective review: PASS WITH NONBLOCKING NOTES at `5aba6c2`; later
-async-answer and RC8 verification history is in that archive.
-Next: complete verification, record evidence and review the remediation diff against main.
+## Commits and next action
+- `5393442`: menu/settings and dead-chart cleanup.
+- `74bb348`: license, CI, build instructions and documentation/history.
+- `d0186a8`, `9eb6220`: preserve original agent histories without stale source adoption.
+- `2567976`: align the settings fixture with its rendered theme.
+- `92a5473`: fix evidence generation for skipped visible checks.
+
+The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
+Next: Astra reviews this branch against main; merge only after review passes.
+Publication requires the separate remaining release qualification above.

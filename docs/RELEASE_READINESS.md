@@ -38,7 +38,7 @@ live during the active turn (Needs you -> Working on the actual answer); Release
 suite **722/722 passed**. This source is newer than packaged RC7. The user confirmed
 the earlier real approval dialog: that path is still not observable by the current
 monitor and requires a correlated live event bridge. Full evidence and the connection
-blocker are in the newest IMPLEMENTATION_STATE entry. Public attention support is
+blocker are in the archived IMPLEMENTATION_HISTORY entry. Public attention support is
 not fully qualified; question detection/clearing and approval detection are separate.
 
 Live attention follow-up (2026-09-27, RC7 assemblies, installed Codex CLI
@@ -46,7 +46,7 @@ Live attention follow-up (2026-09-27, RC7 assemblies, installed Codex CLI
 HUD view model as "Needs you". Its answer did **not** clear the flag during the
 ongoing turn. A subsequent approval-test invocation yielded zero permission-request
 records; the user subsequently confirmed manually approving its dialog. Evidence and
-scope are in the newest IMPLEMENTATION_STATE entry and
+scope are in the archived IMPLEMENTATION_HISTORY entry and
 `artifacts/live-attention-rc7/results.json`. No visible HUD or audio was qualified.
 The historical R-09 statement below that *all* input events are unavailable is
 incorrect and superseded: async input detection works; answer resolution and
@@ -73,10 +73,10 @@ Full interactive RC7 lifecycle smoke was not repeated because second-launch rest
 intentionally activates the window. Existing RC6 lifecycle evidence is unchanged.
 Live-host, audible-audio, physical-display, clean-machine and distribution gates
 remain open; public-release readiness is not claimed. See the newest
-IMPLEMENTATION_STATE entry for full evidence and limits.
+IMPLEMENTATION_HISTORY entry for full evidence and limits.
 
 
-Current execution packet: **Stage 1 cleanup + Stage 2 implementation**, below.
+Historical execution packet: **Stage 1 cleanup + Stage 2 implementation**, below.
 The original diagnosis/iteration plan remains as a historical baseline; current
 verification and scope are in that packet and IMPLEMENTATION_STATE.md.
 
