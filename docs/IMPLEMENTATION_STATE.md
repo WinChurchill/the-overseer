@@ -2,12 +2,12 @@
 
 ## Current
 Plan: repository assessment remediation, 2026-09-29.
-Branch: `fix/repo-assessment`.
-Base / main: `82e15e31da1bc3d37a8b080118f85efd9d86cdb4`.
-Status: local remediation complete; ready for Astra review, not merged.
+Review branch: `fix/repo-assessment`.
+Baseline main: `82e15e31da1bc3d37a8b080118f85efd9d86cdb4`.
+Status: automated review **PASS WITH NONBLOCKING NOTES**; accepted for local merge.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; completed disposition recorded there.
-Self-review found no remaining local blocker; separate Astra review is pending.
+Review role completed by Codex in this chat; this is not an independent second-agent review.
 
 ## Scope and decisions
 - Owner selected MIT for original code/docs, including AGENTS.md and the V1 spec,
@@ -41,7 +41,8 @@ Self-review found no remaining local blocker; separate Astra review is pending.
 
 ## Verification
 Verified app/source: `25679762f2cd79b8824336c996897c60d94cc95e`.
-Smoke-report fix: `92a5473`; subsequent closure changes are documentation only.
+Smoke-report fix: `92a5473`; subsequent follow-up changes are documentation, bridge
+license files/package metadata and publisher license checks. App/test source is unchanged.
 
 - Baseline: build 0 warnings/errors, 722 .NET tests, dsh 30/30, Claude 29/29.
 - Fresh local clone: restore/build pass, 0 warnings/errors; **715 .NET tests pass,
@@ -71,6 +72,13 @@ Path: `artifacts/remediation-verification/private-package/OVERSEER-remediation-v
 SHA-256: `719E6C3E21D5EB004E785127B8A3D0EC73CE8AC8662FD577D87C8E61EC0E627F`.
 Project LICENSE, THIRD_PARTY_NOTICES and upstream MIT match source bytes exactly.
 
+License/setup verification archive: `1.0.0-dev.desktop+5916556`, clean source,
+571 payload files / 77 integration assets; no app/test source change from the revision above.
+Path: `artifacts/remediation-verification/desktop-followup-package/OVERSEER-desktop-followup-win-x64.zip`.
+SHA-256: `2CB2A075254173771CBAEAD2B25A3D30E08B1236218C1FF9D8FF22355F279CB6`.
+All five project/upstream/bridge license files match source bytes; MIT/artwork scope and
+DSH package license inclusion pass. This archive was not rerun through visible smoke.
+
 ## Designated packaged candidate (historical binary)
 RC8: `1.0.0-rc.8+f14dc47`, unsigned; source `f14dc47`.
 Path: `artifacts/rc8/OVERSEER-1.0.0-rc.8-win-x64.zip`.
@@ -88,7 +96,7 @@ Their worktrees and redundant branches were retired after clean-state checks.
 All 393 qualification files were preserved and hash-verified under
 `artifacts/retired-worktrees/agent-ui/artifacts` and `agent-voice/artifacts`;
 full patch mappings and per-file hashes are in `artifacts/retired-worktrees/preservation.json`.
-Main remains at the accepted baseline; unrelated historical branches are retained.
+The merge gate has passed; unrelated historical branches are retained.
 
 ## Desktop integration follow-up (2026-09-29)
 - Installed DSH Desktop: 0.2.0-rc.2; bundled Node 24.18.1, protocol 4.
@@ -116,13 +124,25 @@ See [release readiness](RELEASE_READINESS.md) for protocols and revision-specifi
 - Signing/distribution choice and public channel, explicitly deferred by owner.
 - Codex approvals intentionally unsupported pending a separately qualified connection.
 
+## Automated review — 2026-09-29
+Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
+- Reviewed menu/state synchronization, startup failure handling, settings bindings,
+  tray fallback, chart removal, retained history/voice behavior and smoke evidence.
+- Monitoring, voice policy, frozen spec, artwork bytes and upstream license are unchanged.
+  All nine retired-branch commits remain reachable; old ledger is preserved byte-for-byte.
+- Fresh build/tests and revision-specific full-duration packaged results support the change.
+  Hosted CI, real desktop session behavior and physical checks remain unexecuted, explicit notes.
+- Final follow-up: both bridge suites pass again; publisher and archive license checks pass.
+  Claude installer preview applied nothing and left Windows user settings absent.
+
 ## Commits and next action
 - `5393442`: menu/settings and dead-chart cleanup.
 - `74bb348`: license, CI, build instructions and documentation/history.
 - `d0186a8`, `9eb6220`: preserve original agent histories without stale source adoption.
 - `2567976`: align the settings fixture with its rendered theme.
 - `92a5473`: fix evidence generation for skipped visible checks.
+- `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: Astra reviews this branch against main; merge only after review passes.
-Publication requires the separate remaining release qualification above.
+Next: hosted Windows CI and real desktop bridge qualification, followed by the owner's
+hands-on and clean-machine tests. Publication remains deferred until those gates pass.

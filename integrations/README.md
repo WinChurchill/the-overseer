@@ -6,8 +6,8 @@ never required to run OVERSEER.
 
 | Directory | Harness | Runtime needed | Status |
 | --- | --- | --- | --- |
-| `deepseek-harness/` | DeepSeek Harness (`dsh`) | Node.js 20 or newer, in the host that runs `dsh` | Contract-tested; **not yet qualified against a live host** |
-| `claude-code/` | Claude Code | Node.js 18 or newer | Contract-tested; **not yet qualified against a live CLI** |
+| `deepseek-harness/` | DSH Desktop / DeepSeek Harness | Node.js 20 or newer in the host; Desktop bundles Node | Contract-tested; **not yet qualified against a live desktop session** |
+| `claude-code/` | Claude Code desktop Code tab / editor / CLI | Node.js 18 or newer in the session environment | Contract-tested; **not yet qualified against a live Code session** |
 
 Both integrations are **experimental**. Neither has been exercised end to end against a
 live host on this machine, so what follows is contract behaviour and documentation, not
@@ -31,34 +31,27 @@ extracted application folder. Installing or removing an OVERSEER version therefo
 never moves or orphans an installed bridge's **data**, and `--data-directory PATH`
 keeps an isolated run completely separate from your real one.
 
-The **integration files are a different matter**, and the two hosts differ:
-
-| | `claude-code` | `deepseek-harness` |
-| --- | --- | --- |
-| What the host stores | an absolute path to `bridge.mjs` in your settings file | a `link:` dependency, materialised as a directory junction |
-| If you delete the directory you installed from | the hook command dangles and Claude Code reports a hook error | `dsh` still starts but **skips the bundle** with a warning on stderr |
-| How to recover | re-run `install.mjs --bridge=<new path> --apply` | re-run `dsh plugin --profile <name> add "<new path>"` |
-
-Neither host copies the bridge into a private location, so **keep the extracted
-integration directory somewhere permanent** (for example under your user profile)
-instead of installing from a temporary extraction you intend to delete.
-
 ## Setup and removal
 
-Follow the README in each integration directory. Both write only OVERSEER-owned
-entries, back up any file they modify, and are reversible:
+Keep the integration directory somewhere permanent before installing it. Claude
+settings record an absolute bridge path; local-path DSH bundles can also depend
+on their original location. A temporary test extraction is unsuitable.
 
-- `integrations/claude-code/README.md` — `node install.mjs <settings.json>` previews;
-  `--apply` writes. It **refuses** to write unless the hook command it is about to
-  record has been executed successfully against a throwaway spool, so a settings file
-  can never be pointed at a missing or non-runnable bridge.
-- `integrations/deepseek-harness/README.md` — install the observer plugin into your
-  `dsh` profile bundle with the host's own `dsh plugin` command.
+Follow the README belonging to the actual host:
 
-**There is no preview command for the `dsh` integration.** `dsh plugin` forwards its
-arguments to `pnpm` and declares no dry-run flag of its own, so a bare-path install
-links the directory immediately. Read the two files named in that README before you
-run it; that is the closest thing to a preview the host offers.
+- [DSH Desktop / DeepSeek Harness](deepseek-harness/README.md): use Desktop's
+  Plugins page, or its bundled CLI with `--profile desktop` while Desktop is fully
+  quit. A separately npm-installed terminal DSH must not manage that profile.
+  Terminal profiles use their own matching manager. Remove with the same manager.
+- [Claude Code](claude-code/README.md): desktop/editor local sessions share Code
+  hook settings. `node install.mjs <settings.json>` previews; `--apply` backs up and
+  writes only OVERSEER entries after an isolated executable probe. Uninstall
+  preserves unrelated settings. Check the session environment's Node/PATH and
+  settings location; WSL/SSH/cloud spool routing is not qualified here.
+
+The installed apps are available for testing; bridge activation and real session
+state transitions still need to be observed. A missing standalone CLI on PATH
+does not establish that a desktop/editor host is unavailable.
 
 **Restart the host after installing or removing a bridge.** OVERSEER discovers spool
 directories when it composes its monitor at startup, so a new bridge is picked up at
@@ -77,3 +70,5 @@ The Claude suite includes installer regressions that delete a bridge from a simu
 extraction and prove that `--apply` refuses, that rebinding to a new directory whose
 path contains spaces and non-ASCII characters rewrites every owned handler, and that
 the command the settings file records actually publishes a record when it is invoked.
+
+Original bridge code is MIT licensed; each bridge directory includes LICENSE.
