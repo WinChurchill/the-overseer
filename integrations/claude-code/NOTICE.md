@@ -30,3 +30,8 @@ no network calls at hook runtime.
 Everything under `fixtures/` is synthetic and sanitized. Session ids, paths, prompts, tool
 arguments, tool outputs, messages and transcripts are invented placeholders (for example
 `SANITIZED_PROMPT_TEXT`). No real session, transcript, credential or user data is included.
+
+## Project license
+
+This original bridge is MIT licensed, copyright (c) 2026 Winston Lin.
+The complete grant is included in the adjacent LICENSE file.

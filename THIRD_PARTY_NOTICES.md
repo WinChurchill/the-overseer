@@ -62,25 +62,24 @@ No runtime NuGet package, database, or framework was added by Plan 1.
 
 The supplied website PNGs in `design/reference/` are user-provided design references.
 
-## Project license and supplied materials
+## Project license and original materials
 
-The original OVERSEER source, project documentation (including AGENTS.md and the
-V1 specification) and synthetic example tones are licensed under the root MIT
-LICENSE, at the owner's direction on 2026-09-29. Adapted codex-monitor-hud code
-retains its upstream MIT copyright and license above; it is actual code reuse,
-not solely visual inspiration. Redistributed platform components retain their
-own distributed licenses.
+Original OVERSEER code, project documentation (including AGENTS.md and the V1
+specification), synthetic example tones, generated website references, branding
+and derived icons are covered by the root MIT LICENSE at the owner's direction
+on 2026-09-29. The owner confirmed that all supplied images were created for this
+work. This provenance record uses that confirmation; it is not an independent
+artwork audit. Adapted monitoring code retains its upstream MIT notice above,
+and redistributed platform components retain their own terms.
 
 | Material | Provenance / redistribution position |
 | --- | --- |
-| Original code, AGENTS.md, V1 specification and other original docs | Owner-directed work produced with coding assistants; owner selected MIT. |
+| Original code, AGENTS.md, V1 specification and other original docs | Owner-directed work produced with coding assistants; project MIT. |
 | Adapted monitoring readers and Windows activity source | codex-monitor-hud at the pinned revision above; MIT, upstream notice retained. |
-| assets/voicepacks/example | Original generated synthetic PCM tones; covered by project MIT. |
-| design/reference/website-light.png and website-dark.png | Owner-supplied website references; owner describes generated website work inspired by Ryan Lab. Rights have not been independently established; excluded from project MIT pending provenance review. |
-| design/branding/overseer-source.png, overseer-outlined.png and src/TheOverseer.App/Assets/overseer.ico | Supplied/generated branding and derived icons; asset-level provenance and redistribution rights remain unresolved; excluded from project MIT pending review. |
+| assets/voicepacks/example | Original generated synthetic PCM tones; project MIT. |
+| design/reference/website-light.png and website-dark.png | Generated website references, confirmed by the owner; project MIT. |
+| design/branding/overseer-source.png, overseer-outlined.png and src/TheOverseer.App/Assets/overseer.ico | Generated branding and derived icons, confirmed by the owner; project MIT. |
 
-A difference in visual appearance does not establish asset ownership. No Ryan Lab
-code or asset has been identified as copied in this repository's provenance
-record. This is a record of known provenance and exclusions, not a finding that
-the website references or branding are licensed by Ryan Lab. A binary release
-containing the unresolved branding still needs an explicit rights decision.
+The owner describes the website as inspired by Ryan Lab. No Ryan Lab code or
+asset has been identified as copied in the repository's provenance record.
+The earlier pending asset exclusions are superseded by the owner's confirmation.

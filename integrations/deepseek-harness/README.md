@@ -5,12 +5,14 @@ inside the user's existing `dsh` process and copies **allowlisted status metadat
 message text — into an OVERSEER-owned local spool. OVERSEER reads the spool as plain files and
 never imports dsh code.
 
-**Status: not yet qualified on a live host.** This directory is the integration asset only. Nothing
-in this directory has been executed against a live `dsh` profile, and no OVERSEER end-to-end run has
-observed a real `dsh` session. The pinned source below is version **0.1.7-rc.1**; the build installed
-on the machine where this asset was prepared reports **0.1.7-rc.2**, and the two agree on every host
-seam this plugin uses (they differ only in skipped-bundle reporting and an extra run-record file).
-Until a live attach is observed, this integration stays **experimental** regardless of that match.
+**Status: experimental; not yet qualified with a live desktop session.** The original
+contract was pinned to 0.1.7-rc.1 below. On 2026-09-29 the target installation was
+confirmed as **DSH Desktop 0.2.0-rc.2**, using its dedicated `desktop` profile.
+The installed session module still exposes `session/created`, `session/event`,
+`session/disposed`, `Session.header`, `Session.seq`, `eventAt()` and
+`ctx.sessions.list()`. This is source inspection, not an end-to-end qualification.
+The desktop profile does not currently list `overseer-dsh-observer` as a dependency
+or bundle. The observer has not been installed into or run against that profile.
 
 ---
 
@@ -234,75 +236,71 @@ plugin's `apply(ctx, config)` also accepts the same values programmatically (use
 
 ## 8. Install (opt-in, reversible)
 
-This package is a `dsh` **profile bundle**: `package.json` declares `dsh.bundle.patch` and
-`cordis.patch.yml` inserts exactly one row (id `overseer-dsh-observer`, module
-`overseer-dsh-observer`). Installing it makes it a dependency of one profile and selects it as a
-bundle layer for that profile. Nothing is installed by reading this document.
+This package is a profile bundle: `package.json` declares `dsh.bundle.patch`, and
+`cordis.patch.yml` inserts one row, `overseer-dsh-observer`. Keep this directory in
+a permanent location before installing it; do not install from a disposable test
+extraction. Nothing is installed by reading these instructions.
 
-### What `dsh plugin add` actually does with a local path
+### DSH Desktop (current target)
 
-`dsh plugin` is a thin forwarder to `pnpm`; it declares no install logic of its own. A bare
-directory path is treated by pnpm as a `link:` dependency, so:
+Desktop owns `$DSH_HOME/profiles/desktop`, separate from terminal profiles. Use its
+Plugins page while it is running. The alternative is the **Desktop-bundled CLI**
+after starting Desktop once and fully quitting it. A separately npm-installed
+`dsh` must not manage the desktop profile. See the
+[official Desktop runtime guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md).
 
-- **the directory is linked, not copied.** On Windows the profile gets a directory junction at
-  `<profile>/node_modules/overseer-dsh-observer` pointing at the absolute path you passed, and the
-  plugin loads from that original directory at runtime;
-- **you must keep that directory where it is.** If you move or delete it, the link dangles, `dsh`
-  still starts but skips the bundle with `dsh: skipping profile bundle "…"` on stderr, and its rows
-  never load. A later `dsh plugin` run in that profile can also fail while reconciling the missing
-  dependency. Install from a permanent location (for example under your user profile), not from a
-  temporary extraction you intend to clean up;
-- if you need a copy that survives the source tree being removed, use pnpm's copy form
-  (`dsh plugin --profile <name> add "file:<absolute path>"`) or a registry/git source instead. That
-  is pnpm's `file:` protocol, not an OVERSEER feature.
+For the default per-user Windows installation, run by the user:
 
-### Preview
-
-**There is no dry-run flag.** `dsh plugin` forwards unknown flags to pnpm, so `--dry-run` would not
-be a dsh preview. The only read-only inspection `dsh` implements is its plugin-manager `inspect()`
-API, which is what the Web install dialog calls; it is not exposed as a CLI flag. To preview
-manually, read what would change:
-
-1. This package: `package.json` (`dsh.bundle.patch`) and `cordis.patch.yml` (one inserted row).
-2. The target profile's current state: `dsh plugin --profile <name> list`.
-3. In the GUI, the Plugins page lists installed bundles and the rows a bundle would add.
-
-### Install
-
-Run by the user, never by this repository:
-
-```sh
-dsh plugin --profile <profile-name> add "<absolute path to this directory>"
+```powershell
+$dshDesktopCli = Join-Path $env:LOCALAPPDATA 'Programs/DeepSeek Harness/resources/runtime/cli/bin/dsh.cmd'
+& $dshDesktopCli plugin --profile desktop list
+& $dshDesktopCli plugin --profile desktop add '<absolute permanent path to this directory>'
 ```
 
-The launcher installs the path into that profile, then selects the bundle (installation enables it
-by default). Restart `dsh`, or let HMR reload if it is enabled in that profile. Verify:
+Use the installed app's matching bundled CLI if its location differs. Fully quit
+Desktop before these CLI operations, then relaunch it. No manual edits to profile
+YAML or package files are needed. Desktop includes its own Node runtime; a `dsh`
+command on the normal PATH is not a prerequisite.
+
+### Terminal profiles (legacy target)
+
+For a separate terminal-hosted profile, use that host's own matching CLI:
 
 ```sh
-dsh plugin --profile <profile-name> list
+dsh plugin --profile <profile-name> add "<absolute permanent path to this directory>"
 ```
 
-Confirm the observer is alive by reading `<spoolRoot>/dsh/<sourceInstanceId>/health.json`
-(`lastWrite` advances, `queueDepth` returns to 0) and `events.jsonl` (a `snapshot` record with
-`hydration: true` at attach, then `heartbeat` records).
+The pinned 0.1.7 contract is retained in section 1. Do not substitute a terminal
+profile for the Desktop profile when qualifying the user's actual workflow.
 
-### Uninstall
+### Confirm the integration
 
-```sh
-dsh plugin --profile <profile-name> remove overseer-dsh-observer
+After installation, verify that the selected profile lists the observer bundle.
+Read `<spoolRoot>/dsh/<sourceInstanceId>/health.json`: `lastWrite` should advance
+and `queueDepth` should return to zero. An empty host should publish a `snapshot`
+with `sessions: []`.
+
+Restart OVERSEER after installing the bridge. In a real Desktop session, check
+working -> waiting for approval/input -> resumed -> completed/aborted, and verify
+that OVERSEER reports those states without capturing message bodies or changing
+any approval decision. Test detach and relaunch as well. Record the exact Desktop
+version and source/spool identity. Until that run exists, the bridge is experimental.
+
+### Remove
+
+Use Desktop's Plugins page, or fully quit Desktop and run:
+
+```powershell
+& $dshDesktopCli plugin --profile desktop remove overseer-dsh-observer
 ```
 
-Removal deselects the bundle, unloads its row, and removes the dependency from that profile. Because
-the install was a link and not a copy, `remove` deletes only the link — your checkout is left
-untouched. Nothing else is touched either: no other profile, no `~/.dsh` file outside that profile's
-own package manifest, no host configuration. As a manual fallback, delete the
-`overseer-dsh-observer` row from the profile's `cordis.patch.yml` and the name from
-`dsh.profile.bundles` in its `package.json`. Spool files are OVERSEER-owned data and are simply left
-behind; delete the adapter directory to remove them.
+For a terminal profile, use its CLI with that profile name instead. Restart the
+host and OVERSEER, verify the bundle is absent, and confirm monitoring degrades
+honestly. Existing OVERSEER spool files are left behind; they can be removed
+separately when the producer is stopped. Keep unrelated profile entries intact.
 
-Never hand-edit `~/.dsh` in this repository's automation, and never read the harness credential
-store.
-
+Repository automation does not install the plugin, edit live `~/.dsh` configuration
+or read the harness credential store. Local contract tests use isolated spools.
 
 ## 9. Privacy statement
 

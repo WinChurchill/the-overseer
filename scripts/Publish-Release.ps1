@@ -292,7 +292,7 @@ try {
     # ---- machine-readable release identity ----------------------------------
     $release = [ordered]@{
         projectLicense = 'MIT'
-        licenseScope = 'Original code/docs; supplied branding exclusions and upstream notices are in THIRD_PARTY_NOTICES.md.'
+        licenseScope = 'Original code, docs and generated artwork: MIT; upstream and runtime terms are in THIRD_PARTY_NOTICES.md.'
         product = 'OVERSEER'
         project = 'THE OVERSEER PROJECT'
         version = $Version
@@ -392,9 +392,11 @@ try {
         'examples/voicepacks/example/permission-1.wav',
         'integrations/deepseek-harness/README.md',
         'integrations/deepseek-harness/NOTICE.md',
+        'integrations/deepseek-harness/LICENSE',
         'integrations/deepseek-harness/src/index.js',
         'integrations/claude-code/README.md',
         'integrations/claude-code/NOTICE.md',
+        'integrations/claude-code/LICENSE',
         'integrations/claude-code/install.mjs',
         'integrations/claude-code/uninstall.mjs')) {
         if ($entries -notcontains $required) { throw ('archive is missing ' + $required) }

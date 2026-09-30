@@ -9,16 +9,18 @@ bounded, metadata-only records appended to an OVERSEER-owned local spool.
 
 ## Qualification status (read this first)
 
-**Not live-qualified here.** On the machine where this asset was built and tested
-(2026-09-24, Windows, Node v24.15.0) Claude Code is not installed:
+**Experimental; not live-qualified here.** The owner uses Claude Code in a desktop
+or editor app. On 2026-09-29 the installed Windows Claude desktop package was
+confirmed as 2.9939.2.0. That is the app package version, not a verified Claude
+Code engine version. No standalone `claude` command was found on PATH; this does
+not establish whether the app/editor's embedded engine is available.
 
-* no `claude` executable on `PATH`;
-* no `~/.claude` directory (`C:\Users\tester\.claude` does not exist);
-* no npm-installed Claude Code shim.
-
-No real Claude Code process has ever invoked `bridge.mjs` in this environment, so every
-statement below is derived from the upstream documentation plus contract tests, not from a
-live session.
+The [official hooks reference](https://code.claude.com/docs/en/hooks) documents
+hooks in terminal, IDE and desktop sessions. Desktop and VS Code share Code hook
+settings with the CLI for the corresponding execution environment. Our generated
+`command: "node"` plus `args` handler matches the documented exec form. These are
+documentation checks; no real app/editor session has invoked this bridge here.
+The original 2026-09-24 test pass covered sanitized fixtures and isolated files.
 
 Verified here:
 
@@ -37,11 +39,12 @@ Not verified here (remains open):
 * real payload variance across Claude Code versions (extra, renamed or removed fields);
 * live interaction with the documented hook `timeout` / matcher evaluation;
 * end-to-end latency of the hook inside a live session;
-* that documented behaviour has not changed since the retrieval date below.
+* the embedded engine version and any version-specific differences from the documented contract.
 
 ## Upstream documentation
 
-Retrieval date: **2026-09-24** (UTC).
+Original mapping retrieval: **2026-09-24** (UTC). Desktop/editor and exec-form
+configuration rechecked against official documentation on **2026-09-29**.
 
 | Source | Used for |
 | :--- | :--- |
@@ -260,6 +263,23 @@ timing, project root paths, and how often tools fail or approvals are requested.
 longer want the bridge.
 
 ## Install
+
+For the desktop **Code tab** or a local editor extension, select the Code settings
+file used by that session (normally `~/.claude/settings.json`), not the desktop
+Chat MCP file `claude_desktop_config.json`. See
+[Desktop shared configuration](https://code.claude.com/docs/en/desktop#shared-configuration)
+and [VS Code settings](https://code.claude.com/docs/en/vs-code#configure-settings).
+Start a new session after changing hook settings.
+
+The embedded engine must be able to resolve `node` and read the permanent bridge
+path. On Windows Desktop, user/system environment variables are inherited;
+PowerShell profile changes alone do not set its PATH. Verify from the session's
+execution environment rather than from an unrelated terminal.
+
+WSL, SSH, containers and cloud sessions run elsewhere. Their settings, Node binary
+and paths belong to that environment; writing Windows settings does not configure
+them. Routing a remote/Linux spool into the Windows OVERSEER monitor is not yet
+qualified. These instructions target a Windows local session.
 
 Preview (writes nothing):
 

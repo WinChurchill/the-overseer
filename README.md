@@ -20,10 +20,9 @@ harness's data. Runtime data stays in `%LOCALAPPDATA%\OVERSEER`.
   It is an **internal candidate**, not a published release. Public release remains
   unqualified; the [release checklist](docs/RELEASE_READINESS.md) records the gates.
 
-Original project code and documentation use the [MIT license](LICENSE).
+Original project code, documentation and generated artwork use the [MIT license](LICENSE).
 Upstream monitoring adaptations retain their own MIT notice.
-Supplied branding/reference assets are excluded pending provenance review;
-see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the exact scope.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and third-party terms.
 The project is intended for open-source publication; no public download is configured.
 
 ## Install and run
@@ -117,18 +116,22 @@ neither has been exercised against a live host here, so no host version is claim
 
 | Directory | Harness | Needs | Install |
 | --- | --- | --- | --- |
-| `integrations/deepseek-harness/` | DeepSeek Harness (`dsh`) | Node.js 20+ in the host | `dsh plugin --profile <name> add "<absolute path>"` |
+| `integrations/deepseek-harness/` | DSH Desktop / DeepSeek Harness | Node.js 20+ in the host | Desktop Plugins page, or its bundled `dsh.cmd` with `--profile desktop` while Desktop is closed; see bridge README |
 | `integrations/claude-code/` | Claude Code | Node.js 18+ | `node install.mjs "<settings.json>" --apply` (without `--apply` it only previews) |
+
+For Claude Code in the desktop Code tab or an editor extension, hooks use the Code
+settings for the session's execution environment. A standalone `claude` command is
+not required. Windows local sessions can use this Windows bridge; WSL/SSH/cloud
+sessions need their own runtime and spool arrangement and remain unqualified here.
 
 Three things matter before you install one:
 
 - **Restart OVERSEER after installing, changing or removing a bridge.** Discovery runs when
   the monitor is composed at startup; hot attach is not implemented.
-- **Keep the extracted integration directory somewhere permanent.** Neither host copies the
-  bridge: `dsh` links the directory (a junction on Windows), and the Claude installer records
-  an absolute path to `bridge.mjs` in your settings file. Read
+- **Keep the extracted integration directory somewhere permanent.** The DSH local-path bundle can depend on that directory, and the Claude installer
+  records an absolute path to `bridge.mjs` in your settings file. Read
   [integrations/deepseek-harness/README.md](integrations/deepseek-harness/README.md) first —
-  the `dsh` side has no preview flag.
+  use the manager belonging to the selected DSH host.
 - **Rebinding is the recovery path once that path moves**:
   `node install.mjs "<settings.json>" --bridge="<new path>\bridge.mjs" --apply`. `--apply`
   refuses to write unless the hook command it is about to record has actually run against a

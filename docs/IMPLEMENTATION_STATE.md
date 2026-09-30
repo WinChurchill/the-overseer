@@ -10,12 +10,15 @@ Execution packet: ignored `.agent/HANDOFF.md`; completed disposition recorded th
 Self-review found no remaining local blocker; separate Astra review is pending.
 
 ## Scope and decisions
-- Owner selected MIT for original code/docs, including AGENTS.md and the V1 spec.
+- Owner selected MIT for original code/docs, including AGENTS.md and the V1 spec,
+  and confirmed that all supplied images were generated for this work. Original
+  artwork/reference images and derived icons are now included in project MIT.
+  Provenance is recorded from owner confirmation; the earlier exclusions are superseded.
 - Preserve upstream MIT notices for adapted codex-monitor-hud monitoring code.
   Initialization chat and existing source headers confirm actual code adaptation.
-- Owner described generated website/branding work inspired by Ryan Lab.
-  Asset-level redistribution rights remain unresolved; supplied images and derived
-  icons are explicitly excluded from the project MIT grant pending provenance review.
+- Ryan Lab is recorded as website inspiration; no copied asset/code was identified.
+- Owner will perform hands-on tests; clean-machine qualification remains a test.
+  Publication, signing and channel choices are deferred until qualification.
 - Codex approval detection stays explicitly **Unsupported**, by owner decision.
   Async question detection and correlated answer clearing remain supported.
 - Hosted CI and external release qualification are not claimed as complete.
@@ -87,14 +90,30 @@ All 393 qualification files were preserved and hash-verified under
 full patch mappings and per-file hashes are in `artifacts/retired-worktrees/preservation.json`.
 Main remains at the accepted baseline; unrelated historical branches are retained.
 
+## Desktop integration follow-up (2026-09-29)
+- Installed DSH Desktop: 0.2.0-rc.2; bundled Node 24.18.1, protocol 4.
+  Dedicated `.dsh/profiles/desktop` currently has no observer dependency/bundle.
+  Installed session emit seams and list/header/sequence APIs match by source inspection.
+  Use Desktop's Plugins page or its matching bundled CLI while fully quit; do not
+  use a separately installed terminal DSH to manage this profile.
+- Owner uses Claude Code in a desktop/editor app. Windows Claude package 2.9939.2.0
+  is installed; this does not establish the embedded Code engine version.
+  Official docs confirm shared Code hook settings and our command/args exec form.
+  A standalone CLI on PATH is not required. WSL/SSH/cloud spool routing is unqualified.
+- Both suites rechecked: DSH 30/30, Claude 29/29. READMEs now target these workflows.
+  No live profile/settings were changed; actual session invocation is still untested.
+- Standalone bridge directories carry MIT LICENSE files, and the DSH package declares
+  MIT and includes its license. Publisher requires both files in new archives.
+
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
 - Hosted Windows CI after a remote is configured.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
-- Real dsh/Claude installation, interaction and teardown; both remain experimental.
+- Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
+  hosts are installed but both bridges remain experimental.
 - Physical Snap/drag/DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
 - Intentional activation and human tray interaction; excluded from this smoke run.
-- Branding redistribution rights, signing/distribution choice and public channel.
+- Signing/distribution choice and public channel, explicitly deferred by owner.
 - Codex approvals intentionally unsupported pending a separately qualified connection.
 
 ## Commits and next action

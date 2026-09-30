@@ -36,3 +36,8 @@ None. `package.json` declares no `dependencies`, no `devDependencies`, and no
 The spool contains status metadata only — no message bodies, no reasoning text, no tool arguments
 or outputs, no credentials (see `README.md` §9). It is written to an OVERSEER-owned directory on
 the local machine and is never transmitted by this plugin.
+
+## Project license
+
+This original bridge is MIT licensed, copyright (c) 2026 Winston Lin.
+The complete grant is included in the adjacent LICENSE file.

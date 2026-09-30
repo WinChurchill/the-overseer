@@ -4,7 +4,7 @@
   "private": true,
   "description": "OVERSEER observer plugin for the official DeepSeek Harness (dsh): publishes allowlisted status metadata into an OVERSEER-owned local spool.",
   "type": "module",
-  "license": "SEE LICENSE IN NOTICE.md",
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
@@ -21,7 +21,8 @@
     "src",
     "cordis.patch.yml",
     "README.md",
-    "NOTICE.md"
+    "NOTICE.md",
+    "LICENSE"
   ],
   "dsh": {
     "bundle": {

@@ -9,10 +9,12 @@
   strips, bounded history collection and voice status remain.
 - Added Windows CI and a documented SDK/Node/PowerShell build path. Archived the
   previous execution ledger intact and reconciled the current RC8 documentation.
-- Licensed original code and documentation under MIT, retained codex-monitor-hud's
-  upstream MIT notices, and included the project license in new archives.
-  Supplied branding/reference images and derived icons remain excluded pending
-  provenance review. Codex approval detection remains explicitly unsupported.
+- Licensed original code, documentation and generated artwork under MIT, retained
+  codex-monitor-hud's upstream MIT notices, and included licenses in new archives
+  and standalone bridge assets. Artwork provenance is recorded from owner confirmation.
+  Codex approval detection remains explicitly unsupported.
+- Corrected setup guidance for DSH Desktop's dedicated plugin profile and Claude Code
+  desktop/editor hooks. Real session qualification remains pending.
 - Headless package smoke now initializes its focus observation collection, so deferred
   visible checks produce a complete evidence report instead of a strict-mode error.
 
