@@ -1,15 +1,35 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: complete pre-publication preparation, planned 2026-10-05.
+Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
 Plan baseline main: `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Prior remediation baseline: `82e15e3`; remediation merged at `fcabe00`.
-Status: **IN PROGRESS**; local preparation authorized 2026-10-05. Publication remains gated.
+Status: **LOCAL PREPARATION COMPLETE; READY FOR OWNER CHECKS.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packet preserved under
 `artifacts/prepublication-planning-20261005/`. Previous remediation review was
 performed in this chat, not by an independent second agent.
+
+## Current execution results
+- Candidate `1.0.0-rc.9`, clean source `61d7d07`, 578 payload / 77 integration files, unsigned.
+- ZIP SHA-256 `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`.
+- Fresh clone: build 0 warnings/errors, 715 tests pass/0 fail/skip; DSH 30, Claude 29.
+- Exact ZIP suite: 42 pass/0 fail/3 activation deferrals; integration 17/17, composition
+  42/42, 46 renders; no focus takeovers/547 samples; secondary-display scaling pass.
+- RC8 upgrade/rollback: 25/25 in HUD and Window; all report/comparison/placement controls pass.
+- Gitleaks 8.30.1: reachable history (191 commits), current tree and extracted ZIP clear.
+  NuGet advisory query clear; redistributed runtime .NET/Desktop 10.0.12 current.
+- README/privacy/community/bug template and static three-page site prepared; 85 local
+  checks + 12 publication controls pass; mobile/tablet/keyboard/contrast reviewed.
+- Five-minute synthetic resource probe: 297 samples, 17.96 MB private / 53.57 MB
+  working-set peak, 1.30s CPU. Source work recovered; watcher honestly fell back to polling.
+- Owner kit: hash/manifest, disposable setup helper (stock PS verified), 16 pending rows,
+  draft notes, automated summary/review/approval packet in artifacts/prepublication/owner-handoff.
+- Same-chat review PASS WITH NONBLOCKING NOTES for local handoff; no independent reviewer.
+- Remaining: H1–H16/live desktop/clean-machine/audible/display/logon/hour stability;
+  GitHub identity + authorized upload/hosted CI/private security route, history exposure
+  and final signing/publication decision. Claude current app/engine needs owner confirmation.
 
 ## Pre-publication plan
 - Owner selected GitHub source/Releases **and a project website**; proposed GitHub Pages.
@@ -159,6 +179,7 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
 - `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: execute P1–P7 from the current handoff as one review unit when authorized.
-L1–L4 prepare the launch; L5 is owner approval of the final packet for public L6–L10.
-This turn prepared the plan and local preflight; it did not rerun product tests.
+Next: Winston runs H1–H16 using .agent/HANDOFF.md and OWNER_CHECKS.csv.
+Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
+Resolve external staging/disclosure/signing inputs, finish hosted/manual qualification,
+then seek L5 approval for public L6–L10. No publication or main merge was performed.

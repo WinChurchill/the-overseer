@@ -2,7 +2,8 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **LOCAL PREPARATION IN PROGRESS; not approved for publication.**
+Status: **LOCAL PREPARATION COMPLETE; READY FOR OWNER CHECKS.**
+Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
 Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
@@ -15,9 +16,55 @@ complete automated and human qualification, accurate public docs/site, and a
 ready-to-publish GitHub release. Making source, release assets and website public
 requires the owner's final approval of that concrete packet.
 
-### Facts and publication/SEO preflight
+### Executed preparation and owner handoff — 2026-10-05
 
-- No Git remote, project website, public URL or hosted CI run is configured.
+- Tested candidate: **1.0.0-rc.9**, unsigned private ZIP, source `61d7d078cb39e58b1fbeb55bba220853d65ed491`.
+  [Application ZIP](../artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip),
+  [hash and setup packet](../artifacts/prepublication/owner-handoff/approval-packet.json),
+  [editable H1–H16 results](../artifacts/prepublication/owner-handoff/OWNER_CHECKS.csv).
+- SHA-256: `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`. Use only these bytes for the owner results.
+- Fresh-clone .NET build/test: 0 warnings/errors, 715 pass, 0 fail/skip. DSH 30 and
+  Claude 29 pass; extracted bridge tests pass too. NuGet advisory scan found no
+  vulnerable packages; bundled .NET/Desktop runtime 10.0.12 matches the current patch.
+- Full-duration package: 42 pass, 0 fail, 3 deliberate activation deferrals;
+  integration 17/17, composition 42/42, 46 fixture renders. No focus takeovers in
+  547 samples. Secondary-display scaling pass; RC8 upgrade/rollback 25/25 in each
+  HUD/Window mode. Report/comparison/placement controls pass.
+- Gitleaks 8.30.1, checksum verified: all reachable local history (191 commits),
+  committed tree and exact extracted payload found no secrets. This is a scanner
+  result, not proof of absence. Current ledger personal path is redacted; original
+  history and three commit-author identities remain for owner disclosure review.
+- New public README/community/privacy/support files and a three-page static site.
+  85 local site checks and 12 publication controls pass. Mobile 390px navigation,
+  768px layout, desktop images/keyboard skip link and sampled contrast passed.
+  Real canonical/download/security-report URLs and search indexing await publication.
+- Five-minute synthetic Codex idle/work/missing/recovery observation: 297 samples,
+  17.96 MB peak private memory, 53.57 MB peak working set, 1.30s CPU.
+  Work resumed after source restore; watcher failure remained honestly degraded to
+  polling. Restart to restore the watcher. This does not satisfy H15's one-hour test.
+- DSH Desktop 0.2.0-rc.2 metadata rechecked. Prior Claude Store package was not
+  rediscovered; H5 must record the actual current app/Code engine and environment.
+  No live host settings, live app, startup registration or primary display changed.
+- Same-chat review: **PASS WITH NONBLOCKING NOTES** for local handoff, not independent
+  review or public release approval. No remote/upload/deployment/public tag created.
+
+Start with ignored `.agent/HANDOFF.md`: it gives the setup and test order. The optional
+[setup helper](../artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1) verifies
+this ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.
+It passed stock Windows PowerShell and a wrong-ZIP/no-write control. Default run
+prepares only; `-Launch` deliberately opens the app. Empty and Live use separate data.
+The Live mode reads default producer spools but stores its own app preferences.
+
+Complete H2/H3, opt-in bridge setup and H4–H15 locally; perform H1/H16 in a clean and
+independent environment. H1's staged browser download and H16's public-link portion
+wait for the configured GitHub route. Do not mark either whole item passed from a
+local file copy or developer-machine run. Hosted CI needs the chosen GitHub repository
+and authorized private upload; final public history/signing/security-route decisions
+can be settled alongside the owner tests. All H1–H16 rows start **PENDING**.
+
+### Original planning preflight (historical; superseded by execution above)
+
+- At planning time no Git remote, project website, public URL or hosted CI run was configured.
 - Local baseline: 715 .NET tests, DSH 30 and Claude 29; full-duration private
   packaged smoke 42 pass / 0 fail / 3 activation checks deferred. These are old
   revision-specific results, not certification of a future release.

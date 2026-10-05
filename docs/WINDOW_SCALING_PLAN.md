@@ -1,6 +1,10 @@
 # OVERSEER — scaling our HUD
 
-Status: implemented on ux/first-use; validation recorded in IMPLEMENTATION_STATE.md.
+Status: implemented and merged into reviewed main; this file preserves the original
+scaling plan and its revision-specific baselines. Current qualification is in
+[RELEASE_READINESS.md](RELEASE_READINESS.md); earlier evidence is historical.
+The current eight-action menu/settings contract is in UI_SPEC_v0.2.md and README.md.
+The unused count-chart renderer was removed; bounded task/project history remains.
 Implementation base: b804274 on ux/first-use.
 This supersedes the standard-title-bar direction of the earlier scaling plan.
 Completed implementation and evidence remain in IMPLEMENTATION_STATE.md.
