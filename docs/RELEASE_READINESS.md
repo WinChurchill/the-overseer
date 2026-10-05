@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **OWNER CORRECTIONS IN VERIFICATION; RC10 REPLACEMENT PENDING.**
+Status: **OWNER CORRECTIONS IN VERIFICATION; RC11 REPLACEMENT PENDING.**
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
@@ -25,9 +25,11 @@ The observer is now installed in the actual Desktop profile after an owner-coord
 quit, with private backups; it produces fresh status and no writer errors after relaunch.
 Real Desktop task/approval/resume behavior still needs retesting after OVERSEER restart.
 The Recent control and standalone managed-workspace grouping are corrected in source.
+Live validation also found DSH input capability was overstated; it is now explicitly
+Unsupported. Current task coverage is complete, with a disclosed late-attach history gap.
 Claude and independent-machine checks remain pending. This chat's attention mark has
 one unanswered optional question, so partial-answer semantics are behaving as intended.
-A new RC10 replaces RC9 only after its own exact-package checks; RC9 results below
+A new RC11 replaces RC9 only after its own exact-package checks; RC9 results below
 remain historical evidence for those bytes, not proof about the replacement.
 
 ### Executed RC9 preparation and owner handoff — 2026-10-05

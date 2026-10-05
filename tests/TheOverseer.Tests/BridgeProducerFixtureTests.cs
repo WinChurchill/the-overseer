@@ -279,7 +279,10 @@ public sealed class BridgeProducerFixtureTests
         // The bridge exports correlated requests and explicit outcomes, so it must
         // not inherit the Codex capability set that calls those unsupported.
         Assert.Equal(CapabilitySupport.Supported, capabilities.PermissionRequests.Support);
-        Assert.Equal(CapabilitySupport.Supported, capabilities.InputRequests.Support);
+        Assert.Equal(CapabilitySupport.Unsupported, capabilities.InputRequests.Support);
+        Assert.Equal("dsh-input-events-unavailable", capabilities.InputRequests.Code);
+        Assert.Contains("not emitted", capabilities.InputRequests.Note, StringComparison.Ordinal);
+        Assert.Equal(CapabilitySupport.Supported, MonitorCapabilities.ForBridge(HarnessIds.Claude, continuousHeartbeat: false).InputRequests.Support);
         Assert.Equal(CapabilitySupport.Supported, capabilities.TaskFailureEvidence.Support);
         Assert.Equal(CapabilitySupport.Unsupported, MonitorCapabilities.Initial.PermissionRequests.Support);
         // What it genuinely cannot provide stays unsupported and says why.

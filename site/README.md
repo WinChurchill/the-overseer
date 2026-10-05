@@ -2,7 +2,7 @@
 
 Three static pages; no browser JavaScript, analytics, external fonts or runtime
 package dependencies. Assets include sanitized compact HUD fixture renders (same
-compact HUD presentation retained in RC10); synthetic counts do not demonstrate live host qualification.
+compact HUD presentation retained in RC11); synthetic counts do not demonstrate live host qualification.
 
 ```powershell
 node scripts/Build-Site.mjs
@@ -14,7 +14,7 @@ Open http://127.0.0.1:8765. Default build is a noindex local draft with no fake
 repository/download URL. Do not upload the draft. For publication, set all URLs:
 
 ```powershell
-node scripts/Build-Site.mjs --base-url=https://OWNER.github.io/REPOSITORY/ --repository-url=https://github.com/OWNER/REPOSITORY --download-url=https://github.com/OWNER/REPOSITORY/releases/download/v1.0.0-rc.10/OVERSEER-1.0.0-rc.10-win-x64.zip --version=1.0.0-rc.10
+node scripts/Build-Site.mjs --base-url=https://OWNER.github.io/REPOSITORY/ --repository-url=https://github.com/OWNER/REPOSITORY --download-url=https://github.com/OWNER/REPOSITORY/releases/download/v1.0.0-rc.11/OVERSEER-1.0.0-rc.11-win-x64.zip --version=1.0.0-rc.11
 node scripts/Check-Site.mjs --publication
 ```
 

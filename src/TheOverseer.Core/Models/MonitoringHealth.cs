@@ -162,10 +162,9 @@ public sealed record MonitorCapabilities(
 
     /// <summary>
     /// What an external metadata bridge (dsh observer or Claude hook bridge)
-    /// actually provides. It is not the Codex capability set: the bridges DO export
-    /// correlated approval/input requests and explicit turn outcomes, so publishing
-    /// the Codex "unsupported" claims would under-report them. Capabilities a bridge
-    /// cannot supply are stated as unsupported instead of being guessed.
+    /// actually provides. Both export approvals and explicit turn outcomes;
+    /// only the current Claude producer exports human-input events. Capabilities
+    /// a producer cannot supply stay unsupported even if the shared parser accepts them.
     /// </summary>
     public static MonitorCapabilities ForBridge(string harnessId, bool continuousHeartbeat)
     {
@@ -177,7 +176,9 @@ public sealed record MonitorCapabilities(
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-lifecycle", source + ": session/turn start and end records"),
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-activity", source + ": tool start/end and plan markers, no content"),
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-permission-requests", source + ": approval asked/decided correlated by request id"),
-            new CapabilityStatus(CapabilitySupport.Supported, "bridge-input-requests", source + ": input asked/answered correlated by request id"),
+            HarnessIds.Normalize(harnessId) == HarnessIds.Dsh
+                ? new CapabilityStatus(CapabilitySupport.Unsupported, "dsh-input-events-unavailable", source + ": human-input events are reserved but not emitted by the current observer")
+                : new CapabilityStatus(CapabilitySupport.Supported, "bridge-input-requests", source + ": input asked/answered correlated by request id"),
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-task-failure", source + ": explicit turn outcome"),
             new CapabilityStatus(CapabilitySupport.Unsupported, "bridge-runtime-activity", source + ": the bridge runs in its own host and cannot report machine activity"),
             new CapabilityStatus(CapabilitySupport.Unsupported, "bridge-session-titles", source + ": titles are conversation content and are never exported"),

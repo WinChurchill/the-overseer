@@ -3,7 +3,7 @@
 ## Current
 Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
-Status: **OWNER CORRECTIONS IN VERIFICATION; RC10 REPLACEMENT PENDING.** Public qualification pending.
+Status: **OWNER CORRECTIONS IN VERIFICATION; RC11 REPLACEMENT PENDING.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -15,14 +15,15 @@ Reviews so far were performed in this chat, not by an independent second agent.
 - DSH observer installed via Desktop bundled manager after owner confirmed full quit,
   with private profile backups. Relaunch now publishes fresh health, no drops/errors.
   Production discovery/reader accepts the live stream (21 records, one session);
-  real work/approval/resume lifecycle remains an owner retest.
+  Adapter reads one idle task with complete current coverage and a late-attach history
+  gap. DSH human-input capability corrected to Unsupported; lifecycle retest pending.
 - Recent ComboBox face/popup/item states themed; standalone Desktop Work managed
   folders resolve to Independent chats, with mappings/Git taking precedence.
 - This chat's needs-you-soon mark corresponds to one unanswered optional question;
   correlated answer/partial-answer tests pass. No attention was suppressed.
 - Claude and independent machine are explicitly not tested by the owner yet.
 - Build: 0 warnings/errors; full suite 727 pass/0 fail/skip, focused suite 100 pass.
-  RC9 stays immutable; clean-source RC10 packaging/exact-package verification next.
+  RC9/RC10 stay immutable; final RC11 exact-package verification next.
 
 ## Current execution results
 - Candidate `1.0.0-rc.9`, clean source `61d7d07`, 578 payload / 77 integration files, unsigned.
