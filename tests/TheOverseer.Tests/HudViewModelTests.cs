@@ -96,7 +96,7 @@ public sealed class HudViewModelTests
         Assert.Equal(AgentTaskState.Working, row.TaskState);
         Assert.True(row.NeedsHuman);
         Assert.Equal("WORKING", row.StateText);
-        Assert.Contains("needs you soon", row.MarksText, StringComparison.Ordinal);
+        Assert.Contains("question pending", row.MarksText, StringComparison.Ordinal);
         Assert.NotEqual("NEEDS_INPUT", row.StateText);
     }
 

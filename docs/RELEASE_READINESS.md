@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **OWNER CORRECTIONS VERIFIED; RC11 READY FOR RETEST.**
+Status: **DSH QUESTION FIX VERIFIED LOCALLY; RC12 PREPARING.**
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
@@ -16,7 +16,24 @@ complete automated and human qualification, accurate public docs/site, and a
 ready-to-publish GitHub release. Making source, release assets and website public
 requires the owner's final approval of that concrete packet.
 
-### Owner feedback corrections — 2026-10-05
+### DSH question follow-up — 2026-10-05
+
+The owner confirmed real permission escalation/resume with the installed DSH observer.
+Observer 1.1.0 now recognizes blocking questions and reads the inspected Desktop
+0.2.0-rc.2 native cache for timed questions. Pending results and completed turns
+retain answerable requests; correlated admitted replies settle them. Current-state
+recovery restores pending IDs silently. Missing/stale/changed/oversized metadata
+reduces coverage; no waterfall, answer or conversation content is intercepted.
+The version-specific native cache is an explicit compatibility limit. Real question
+qualification remains pending even after the isolated installed-code contract check.
+The HUD mark now says `question pending` for an unanswered non-blocking request.
+This chat still has an unanswered app-copy item in an older two-question call;
+its information is superseded, but the log contains no correlated answer/cancellation.
+No answer or cancellation was fabricated. Claude's 15 hooks are installed;
+actual Claude, audible and clean-machine qualification remain pending.
+RC11 and its evidence below remain immutable; RC12 must receive its own hash-bound checks.
+
+### Prior RC11 owner feedback corrections — 2026-10-05
 
 RC9 owner reports: Preview has no playable recording; DSH absent; Recent time control
 uses the wrong dark palette; independent Work chats use prompt-derived project names.

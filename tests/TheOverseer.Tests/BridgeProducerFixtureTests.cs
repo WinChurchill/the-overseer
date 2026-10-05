@@ -19,6 +19,24 @@ public sealed class BridgeProducerFixtureTests
     private static readonly DateTimeOffset ProducerStart = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly SourceInstance DshFixture = new(HarnessIds.Dsh, "dsh-fixture", "DeepSeek Harness");
 
+    [Theory]
+    [InlineData("question-pending", AgentTaskState.NeedsInput, true)]
+    [InlineData("question-unavailable", AgentTaskState.NeedsInput, false)]
+    [InlineData("question-answered", AgentTaskState.Idle, true)]
+    public async Task QuestionProducerCurrentStateRestoresAttentionThroughTheRealAdapter(string name, AgentTaskState expected, bool complete)
+    {
+        using var fixture = BridgeFixture.Create(name);
+        var clock = new ManualTimeProvider(ProducerStart);
+        await using var adapter = fixture.CreateAdapter(clock);
+        await adapter.StartAsync(new CancellationToken(canceled: true));
+        var snapshot = adapter.Poll();
+        Assert.Equal(expected, Assert.Single(snapshot.Tasks).State);
+        Assert.Equal(complete, snapshot.CoverageComplete);
+        Assert.Empty(snapshot.Transitions); // Restart hydration must stay quiet.
+        Assert.Equal(CapabilitySupport.Supported, snapshot.Capabilities.InputRequests.Support);
+        Assert.DoesNotContain("SECRET_", snapshot.ToString() + string.Join("\n", snapshot.Tasks), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task LiveProducerFixtureIsConsumedWithAuthoritativeCoverage()
     {

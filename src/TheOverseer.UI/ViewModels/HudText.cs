@@ -205,7 +205,7 @@ public static class HudText
         var marks = new List<string>(4);
         if (task.NeedsHuman && task.State == AgentTaskState.Working)
         {
-            marks.Add("needs you soon");
+            marks.Add("question pending");
         }
 
         if (task.IsStale)

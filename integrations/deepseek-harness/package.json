@@ -1,6 +1,6 @@
 {
   "name": "overseer-dsh-observer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "OVERSEER observer plugin for the official DeepSeek Harness (dsh): publishes allowlisted status metadata into an OVERSEER-owned local spool.",
   "type": "module",

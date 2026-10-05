@@ -51,6 +51,8 @@ export const MAX_TRACKED_SESSIONS = 512
 export const MAX_ENDED_TURNS = 64
 /** Maximum number of host seq -> sequence mappings remembered per session. */
 export const HOST_SEQ_MEMORY = 1024
+/** Hard bound on concurrently answerable question call IDs per session. */
+export const MAX_PENDING_INPUTS = 32
 /** Key of the source-scoped pseudo session used by session-less heartbeats/snapshots. */
 const SOURCE_SCOPE_KEY = '*'
 
@@ -107,8 +109,13 @@ export function createObserverState(options = {}) {
       hostSeqToSequence: new Map(),
       openTurn: null,
       endedTurns: new Set(),
+      lastEndedTurn: -1,
       planActive: false,
       pendingApprovalRequestId: null,
+      pendingInputs: new Map(),
+      inputStateComplete: false,
+      questionHostSeq: -1,
+      legacyBaselineComplete: true,
       lastKind: null,
       lastEventId: null,
       lastCategory: 'idle',
@@ -168,8 +175,9 @@ export function createObserverState(options = {}) {
    * in `current.json` as the explicit `planMode` flag instead).
    */
   function currentCategory(track) {
-    if (track.disposed || track.openTurn === null) return 'idle'
-    if (track.pendingApprovalRequestId !== null) return 'waiting'
+    if (track.disposed) return 'idle'
+    if (track.pendingApprovalRequestId !== null || track.pendingInputs.size > 0) return 'waiting'
+    if (track.openTurn === null) return 'idle'
     return 'working'
   }
 
@@ -252,7 +260,7 @@ export function createObserverState(options = {}) {
    */
   function membership(track, turnNumber) {
     if (turnNumber === null) return 'unknown'
-    if (track.endedTurns.has(turnNumber)) return 'closed'
+    if (track.endedTurns.has(turnNumber) || turnNumber <= track.lastEndedTurn) return 'closed'
     if (track.openTurn === turnNumber) return 'open'
     if (track.openTurn === null) return 'adopt'
     return turnNumber > track.openTurn ? 'adopt' : 'stale'
@@ -260,6 +268,7 @@ export function createObserverState(options = {}) {
 
   function closeTurn(track, turnNumber) {
     if (turnNumber === null) return
+    track.lastEndedTurn = Math.max(track.lastEndedTurn, turnNumber)
     track.endedTurns.add(turnNumber)
     while (track.endedTurns.size > MAX_ENDED_TURNS) {
       const oldest = track.endedTurns.values().next().value
@@ -321,7 +330,91 @@ export function createObserverState(options = {}) {
     })
     track.disposed = true
     track.pendingApprovalRequestId = null
+    track.pendingInputs.clear()
+    track.inputStateComplete = true
     return record
+  }
+
+  /**
+   * Fold bounded question metadata, never question/answer content. Native cached
+   * active IDs are authoritative for timed calls, including continued waits.
+   * Blocking calls settle on their own result/end. Missing native metadata keeps
+   * known attention and marks current coverage incomplete instead of guessing.
+   */
+  function reconcileQuestions(sessionId, metadata, event = null, hydration = false) {
+    const track = trackFor(sessionId)
+    if (track.disposed) return []
+    const before = new Set(track.pendingInputs.keys())
+    const valid = metadata !== null && metadata !== undefined
+    track.inputStateComplete = valid && (metadata.timed || track.legacyBaselineComplete)
+    const fresh = event !== null && Number.isSafeInteger(event.seq) && event.seq > track.questionHostSeq
+    if (fresh) {
+      track.questionHostSeq = event.seq
+      if (event.type === 'turn/start' && membership(track, event.turn) === 'open') track.legacyBaselineComplete = true
+      const turnState = membership(track, event.turn)
+      if (event.type === 'tool/call' && event.isQuestion && event.callId !== null
+        && turnState !== 'closed' && turnState !== 'stale') {
+        track.pendingInputs.set(event.callId, {
+          mode: valid ? (metadata.timed ? 'timed' : 'legacy') : 'unknown',
+          turn: event.turn, finished: false,
+        })
+      } else if (event.type === 'tool/result') {
+        const pending = track.pendingInputs.get(event.callId)
+        if (pending?.mode === 'legacy') track.pendingInputs.delete(event.callId)
+        else if (pending !== undefined) pending.finished = true
+      } else if (event.type === 'turn/end') {
+        for (const [id, pending] of track.pendingInputs) {
+          if (pending.mode === 'legacy' && pending.turn === event.turn) track.pendingInputs.delete(id)
+        }
+      }
+    }
+    if (valid) {
+      const active = new Set(metadata.activeIds)
+      for (const [id, pending] of track.pendingInputs) {
+        if (pending.mode === 'unknown' && !metadata.timed && !active.has(id)) {
+          pending.mode = 'legacy'
+          if (pending.finished || track.endedTurns.has(pending.turn)) track.pendingInputs.delete(id)
+        } else if ((pending.mode === 'timed' || pending.mode === 'unknown') && !active.has(id)) {
+          track.pendingInputs.delete(id)
+        }
+      }
+      for (const id of active) {
+        track.pendingInputs.set(id, { mode: 'timed', turn: track.openTurn, finished: false })
+      }
+    }
+    if (track.pendingInputs.size > MAX_PENDING_INPUTS) {
+      // Do not publish a truncated set as authoritative. Retain the bounded known
+      // set, disclose missing coverage, and let a later valid cache recover it.
+      track.inputStateComplete = false
+      track.legacyBaselineComplete = false
+      for (const id of track.pendingInputs.keys()) {
+        if (track.pendingInputs.size <= MAX_PENDING_INPUTS) break
+        if (!before.has(id)) track.pendingInputs.delete(id)
+      }
+    }
+    const records = []
+    for (const id of before) {
+      if (!track.pendingInputs.has(id)) records.push(questionRecord(track, 'input/answered', id, hydration))
+    }
+    for (const id of track.pendingInputs.keys()) {
+      if (!before.has(id)) records.push(questionRecord(track, 'input/asked', id, hydration))
+    }
+    return records
+  }
+
+  function questionRecord(track, kind, id, hydration) {
+    return buildRecord(track, {
+      kind, sequence: nextSynthetic(track), eventAtMs: null,
+      turnNumber: track.openTurn, callId: id, requestId: id,
+      category: currentCategory(track), evidence: 'explicit',
+      outcome: kind === 'input/answered' ? 'ok' : null, hydration,
+    })
+  }
+
+  function noteQuestionGap(sessionId) {
+    const track = trackFor(sessionId)
+    track.legacyBaselineComplete = false
+    track.inputStateComplete = false
   }
 
   /**
@@ -418,7 +511,14 @@ export function createObserverState(options = {}) {
     if (meta.parentSessionId !== undefined) track.parentSessionId = clampText(meta.parentSessionId, LIMITS.idChars)
     if (meta.createdAtMs !== undefined) track.createdAtMs = meta.createdAtMs
     if (meta.openTurnNumber !== undefined) track.openTurn = meta.openTurnNumber
+    if (meta.closedTurnNumber !== null && meta.closedTurnNumber !== undefined) closeTurn(track, meta.closedTurnNumber)
     if (meta.planActive !== undefined) track.planActive = meta.planActive === true
+    if (track.records === 0 && meta.questionScanComplete !== undefined) {
+      track.legacyBaselineComplete = meta.questionScanComplete
+      for (const id of meta.blockingInputIds ?? []) {
+        track.pendingInputs.set(id, { mode: 'unknown', turn: track.openTurn, finished: false })
+      }
+    }
     if (typeof meta.lastHostSeq === 'number' && meta.lastHostSeq > track.lastHostSeq && track.records === 0
       && track.hostSeqToSequence.size === 0) {
       track.lastHostSeq = meta.lastHostSeq
@@ -540,6 +640,8 @@ export function createObserverState(options = {}) {
         openTurnId: track.openTurn === null ? null : turnIdFor(track.sessionId, track.openTurn),
         planMode: track.planActive === true,
         pendingApprovalRequestId: track.pendingApprovalRequestId,
+        pendingInputRequestIds: [...track.pendingInputs.keys()],
+        inputStateComplete: track.inputStateComplete,
         category: currentCategory(track),
         disposed: track.disposed,
         lastSequence: track.lastSequence,
@@ -575,6 +677,8 @@ export function createObserverState(options = {}) {
       endedTurns: [...track.endedTurns],
       planActive: track.planActive,
       pendingApprovalRequestId: track.pendingApprovalRequestId,
+      pendingInputRequestIds: [...track.pendingInputs.keys()],
+      inputStateComplete: track.inputStateComplete,
       category: currentCategory(track),
       lastSequence: track.lastSequence,
       lastHostSeq: track.lastHostSeq,
@@ -591,6 +695,8 @@ export function createObserverState(options = {}) {
     sessionStart,
     sessionEnd,
     observe,
+    reconcileQuestions,
+    noteQuestionGap,
     seedSession,
     heartbeats,
     snapshots,

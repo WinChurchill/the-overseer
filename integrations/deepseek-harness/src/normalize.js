@@ -38,7 +38,7 @@ export const SCHEMA_VERSION = 1
 export const HARNESS_ID = 'dsh'
 
 /** Producer string published on every record. */
-export const PRODUCER_VERSION = 'dsh-observer/1.0.0'
+export const PRODUCER_VERSION = 'dsh-observer/1.1.0'
 
 /**
  * The complete and closed key set of one normalized record, in canonical

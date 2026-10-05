@@ -426,7 +426,9 @@ public sealed class HarnessBridgeSession
                 lane.AttentionCode = null;
                 lane.Approvals.Clear();
                 lane.Inputs.Clear();
-                lane.TurnEnded = entry.Disposed;
+                if (!entry.Disposed) foreach (var id in entry.PendingInputRequestIds) lane.Inputs.Add(id);
+                lane.TurnEnded = entry.Disposed || entry.OpenTurnId.Length == 0;
+                lane.TurnOutcome = BridgeTurnOutcome.None;
                 lane.OutcomeUnknown = false;
 
                 if (entry.Disposed)
@@ -450,16 +452,23 @@ public sealed class HarnessBridgeSession
                     lane.DetailCode = entry.PlanMode ? "plan-active" : "turn-active";
                     if (lane.Category is "unknown" or "complete" or "error") lane.Category = "working";
                 }
+                else if (lane.Inputs.Count > 0)
+                {
+                    lane.State = AgentTaskState.NeedsInput;
+                    lane.DetailCode = "waiting-for-input";
+                }
                 else
                 {
                     lane.State = AgentTaskState.Idle;
                     lane.DetailCode = "session-idle";
                 }
 
+                if (!entry.Disposed && lane.Inputs.Count > 0) Settle(lane);
+
                 if (lane.StateSince == default || lane.State != AgentTaskState.Working) lane.StateSince = sessionObserved;
-                lane.CurrentStateComplete = true;
+                lane.CurrentStateComplete = entry.InputStateComplete;
                 applied++;
-                if (!before) recovered++;
+                if (!before && lane.CurrentStateComplete) recovered++;
             }
 
             // A session the producer no longer lists, in the same epoch, at a time
@@ -680,6 +689,8 @@ public sealed class HarnessBridgeSession
                 lane.NeedsHuman = false;
                 lane.AttentionCode = null;
                 lane.TurnEnded = true;
+                lane.Approvals.Clear();
+                lane.Inputs.Clear();
                 return null;
 
             case "turn/start":
@@ -692,6 +703,7 @@ public sealed class HarnessBridgeSession
                 lane.TurnEnded = false;
                 lane.OutcomeUnknown = false;
                 lane.TurnOutcome = BridgeTurnOutcome.None;
+                if (MonitorCapabilities.HasDshQuestionEvents(Source.HarnessId, _producerVersion) && lane.Inputs.Count > 0) Settle(lane);
                 return null;
 
             case "turn/end":
@@ -786,6 +798,8 @@ public sealed class HarnessBridgeSession
                     lane.Inputs.Add(record.RequestId!);
                 }
 
+                Settle(lane);
+
                 return quiet ? null : Edge(lane, record, AttentionEventKind.InputRequired, "input-pending");
 
             case "input/answered":
@@ -838,9 +852,26 @@ public sealed class HarnessBridgeSession
         lane.TurnEnded = true;
         lane.NeedsHuman = false;
         lane.Approvals.Clear();
-        lane.Inputs.Clear();
+        var continuingInput = MonitorCapabilities.HasDshQuestionEvents(Source.HarnessId, _producerVersion) && lane.Inputs.Count > 0;
+        if (!continuingInput) lane.Inputs.Clear();
         lane.AttentionCode = null;
         var outcome = (record.Outcome ?? string.Empty).Trim().ToLowerInvariant();
+        if (continuingInput)
+        {
+            lane.TurnOutcome = outcome switch
+            {
+                "ok" or "completed" or "complete" => BridgeTurnOutcome.Completed,
+                "error" or "failed" => BridgeTurnOutcome.Error,
+                "aborted" or "cancelled" or "canceled" => BridgeTurnOutcome.Aborted,
+                _ => BridgeTurnOutcome.Unknown,
+            };
+            lane.OutcomeUnknown = lane.TurnOutcome == BridgeTurnOutcome.Unknown;
+            if (lane.OutcomeUnknown) lane.CurrentStateComplete = false;
+            Settle(lane);
+            // A completed turn with an answerable question is still awaiting the
+            // user. Do not emit a competing task-complete voice notification.
+            return null;
+        }
         switch (outcome)
         {
             case "ok":
@@ -892,20 +923,37 @@ public sealed class HarnessBridgeSession
     {
         if (lane.Approvals.Count > 0)
         {
+            lane.NeedsHuman = true;
             lane.State = AgentTaskState.NeedsApproval;
             lane.AttentionCode = "approval-pending";
+            lane.DetailCode = "waiting-for-approval";
+            lane.Category = "waiting";
             return;
         }
 
         if (lane.Inputs.Count > 0)
         {
+            lane.NeedsHuman = true;
             lane.State = AgentTaskState.NeedsInput;
             lane.AttentionCode = "input-pending";
+            lane.DetailCode = "waiting-for-input";
+            lane.Category = "waiting";
             return;
         }
 
         lane.NeedsHuman = false;
         lane.AttentionCode = null;
+        if (lane.TurnEnded && lane.State is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput)
+        {
+            lane.State = lane.TurnOutcome switch
+            {
+                BridgeTurnOutcome.Completed => AgentTaskState.Done,
+                BridgeTurnOutcome.Error => AgentTaskState.Error,
+                _ => AgentTaskState.Idle,
+            };
+            lane.Category = lane.State == AgentTaskState.Done ? "complete" : lane.State == AgentTaskState.Error ? "error" : "idle";
+            lane.DetailCode = "input-settled";
+        }
         if (!lane.TurnEnded && lane.State is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput)
         {
             lane.State = AgentTaskState.Working;

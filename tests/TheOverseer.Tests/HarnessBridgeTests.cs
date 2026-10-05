@@ -20,7 +20,8 @@ public sealed class HarnessBridgeTests
         string? projectRoot = null,
         string? requestId = null,
         int schema = 1,
-        string epoch = "epoch-1")
+        string epoch = "epoch-1",
+        string producer = "test/1.0.0")
     {
         var parts = new List<string>
         {
@@ -36,7 +37,7 @@ public sealed class HarnessBridgeTests
             "\"category\":\"" + category + "\"",
             "\"evidence\":\"explicit\"",
             "\"hydration\":" + (hydration ? "true" : "false"),
-            "\"producerVersion\":\"test/1.0.0\"",
+            "\"producerVersion\":\"" + producer + "\"",
         };
         if (turnId is not null) parts.Add("\"turnId\":\"" + turnId + "\"");
         if (outcome is not null) parts.Add("\"outcome\":\"" + outcome + "\"");
@@ -51,6 +52,114 @@ public sealed class HarnessBridgeTests
         Assert.Equal(BridgeParseOutcome.Accepted, result.Outcome);
         Assert.NotNull(result.Record);
         return result.Record!;
+    }
+
+    [Fact]
+    public void UpgradedDshQuestionsPersistAcrossCompletionAndSettleByRequest()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        HarnessBridgeRecord Record(long seq, string kind, string? id = null, string? outcome = null, string turn = "turn-1") =>
+            Parse(Line(seq, kind, turnId: turn, requestId: id, outcome: outcome, producer: "dsh-observer/1.1.0"));
+        session.Apply(Record(0, "session/start"));
+        session.Apply(Record(1, "turn/start"));
+        Assert.Equal(AttentionEventKind.InputRequired, session.Apply(Record(2, "input/asked", "q1")).Attention!.Kind);
+        session.Apply(Record(3, "input/asked", "q2"));
+        Assert.Null(session.Apply(Record(4, "turn/end", outcome: "completed")).Attention);
+        Assert.Equal(AgentTaskState.NeedsInput, Assert.Single(session.Tasks(Start.AddSeconds(5))).State);
+        session.Apply(Record(5, "input/answered", "q1"));
+        Assert.Equal(AgentTaskState.NeedsInput, Assert.Single(session.Tasks(Start.AddSeconds(6))).State);
+        session.Apply(Record(6, "input/answered", "unrelated"));
+        Assert.Equal(AgentTaskState.NeedsInput, Assert.Single(session.Tasks(Start.AddSeconds(7))).State);
+        session.Apply(Record(7, "input/answered", "q2"));
+        Assert.Equal(AgentTaskState.Done, Assert.Single(session.Tasks(Start.AddSeconds(8))).State);
+    }
+
+    [Fact]
+    public void ContinuingQuestionsSurviveNewTurnAndApprovalHasPriority()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        void Apply(long seq, string kind, string? id = null, string turn = "turn-1") =>
+            session.Apply(Parse(Line(seq, kind, turnId: turn, requestId: id, producer: "dsh-observer/1.1.0")));
+        Apply(0, "session/start");
+        Apply(1, "turn/start");
+        Apply(2, "input/asked", "q1");
+        Apply(3, "turn/start", turn: "turn-2");
+        Assert.Equal(AgentTaskState.NeedsInput, Assert.Single(session.Tasks(Start.AddSeconds(4))).State);
+        Apply(4, "approval/asked", "a1", "turn-2");
+        Apply(5, "input/asked", "q2", "turn-2");
+        Assert.Equal(AgentTaskState.NeedsApproval, Assert.Single(session.Tasks(Start.AddSeconds(6))).State);
+        Apply(6, "approval/decided", "a1", "turn-2");
+        Assert.Equal(AgentTaskState.NeedsInput, Assert.Single(session.Tasks(Start.AddSeconds(7))).State);
+        Apply(7, "session/end");
+        Assert.Equal(AgentTaskState.Idle, Assert.Single(session.Tasks(Start.AddSeconds(8))).State);
+    }
+
+    [Fact]
+    public void UnknownTurnOutcomeRetainsQuestionsWithoutClaimingCompleteCoverage()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(0, "session/start", producer: "dsh-observer/1.1.0")));
+        session.Apply(Parse(Line(1, "turn/start", producer: "dsh-observer/1.1.0")));
+        session.Apply(Parse(Line(2, "input/asked", requestId: "q1", producer: "dsh-observer/1.1.0")));
+        session.Apply(Parse(Line(3, "turn/end", outcome: "unrecognized", producer: "dsh-observer/1.1.0")));
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(4)));
+        Assert.Equal(AgentTaskState.NeedsInput, task.State);
+        Assert.True(task.CoverageIncomplete);
+        Assert.Equal(BridgeTurnOutcome.Unknown, task.TurnOutcome);
+    }
+
+    [Fact]
+    public void CurrentStateRestoresInputWithoutTurnAndKeepsUnknownCoverageVisible()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        var baseline = CurrentDocument(5, openTurnId: null) with { ProducerVersion = "dsh-observer/1.1.0" };
+        var pending = baseline with { Sessions = baseline.Sessions.Select(e => e with { PendingInputRequestIds = new[] { "q1" } }).ToArray() };
+        var result = session.ApplyCurrentState(pending, Start.AddSeconds(5));
+        Assert.True(result.Accepted);
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(6)));
+        Assert.Equal(AgentTaskState.NeedsInput, task.State);
+        Assert.True(task.NeedsHuman);
+        Assert.False(task.CoverageIncomplete);
+        var incomplete = pending with { UpdatedAtUtc = Start.AddSeconds(7), Sessions = pending.Sessions.Select(e => e with { InputStateComplete = false }).ToArray() };
+        session.ApplyCurrentState(incomplete, Start.AddSeconds(7));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(8))).CoverageIncomplete);
+        var clear = baseline with { UpdatedAtUtc = Start.AddSeconds(9) };
+        session.ApplyCurrentState(clear, Start.AddSeconds(9));
+        Assert.Equal(AgentTaskState.Idle, Assert.Single(session.Tasks(Start.AddSeconds(10))).State);
+    }
+
+    [Theory]
+    [InlineData("[\"q1\",\"q2\"]", true)]
+    [InlineData("[\"q1\",\"q1\"]", false)]
+    [InlineData("[\" q1\"]", false)]
+    [InlineData("[null]", false)]
+    [InlineData("null", false)]
+    public void CurrentStateInputIdsAreStrictlyBounded(string inputs, bool accepted)
+    {
+        var json = "{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-default\",\"updatedAtUtc\":\"2026-09-24T12:00:00Z\",\"sessions\":[{\"sessionId\":\"s\",\"pendingInputRequestIds\":" + inputs + "}]}";
+        var parsed = HarnessBridgeCurrentStateParser.Parse(json, Dsh);
+        Assert.Equal(accepted ? BridgeCurrentStateOutcome.Accepted : BridgeCurrentStateOutcome.Malformed, parsed.Outcome);
+        if (accepted) Assert.Equal(new[] { "q1", "q2" }, Assert.Single(parsed.Document!.Sessions).PendingInputRequestIds);
+    }
+
+    [Fact]
+    public void InputArrayOverflowAndOversizedIdsRejectTheDocument()
+    {
+        var shell = "{\"schemaVersion\":1,\"harnessId\":\"dsh\",\"sourceInstanceId\":\"dsh-default\",\"updatedAtUtc\":\"2026-09-24T12:00:00Z\",\"sessions\":[{\"sessionId\":\"s\",\"pendingInputRequestIds\":INPUTS}]}";
+        foreach (var ids in new[] { Enumerable.Range(0, 33).Select(i => "q" + i).ToArray(), new[] { new string('x', 129) } })
+        {
+            var json = shell.Replace("INPUTS", System.Text.Json.JsonSerializer.Serialize(ids), StringComparison.Ordinal);
+            Assert.Equal(BridgeCurrentStateOutcome.Malformed, HarnessBridgeCurrentStateParser.Parse(json, Dsh).Outcome);
+        }
+    }
+
+    [Fact]
+    public void DshQuestionCapabilityRequiresTheQualifiedProducer()
+    {
+        foreach (var version in new[] { "", "dsh-observer/1.0.0", "dsh-observer/9.0.0" })
+            Assert.Equal(CapabilitySupport.Unsupported, MonitorCapabilities.ForBridge(HarnessIds.Dsh, true, version).InputRequests.Support);
+        Assert.Equal(CapabilitySupport.Supported, MonitorCapabilities.ForBridge(HarnessIds.Dsh, true, "dsh-observer/1.1.0").InputRequests.Support);
+        Assert.Equal(CapabilitySupport.Supported, MonitorCapabilities.ForBridge(HarnessIds.Claude, false).InputRequests.Support);
     }
 
     [Fact]

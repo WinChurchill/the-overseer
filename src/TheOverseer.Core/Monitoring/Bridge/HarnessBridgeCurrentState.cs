@@ -28,7 +28,11 @@ public sealed record BridgeCurrentSessionState(
     bool Disposed,
     long LastSequence,
     string LastEventId,
-    long Records);
+    long Records)
+{
+    public IReadOnlyList<string> PendingInputRequestIds { get; init; } = Array.Empty<string>();
+    public bool InputStateComplete { get; init; } = true;
+}
 
 /// <summary>
 /// A producer's atomically published current-state document
@@ -79,6 +83,7 @@ public static class HarnessBridgeCurrentStateParser
     public const int MaximumSessions = 4096;
     public const int MaximumIdentifierChars = 128;
     public const int MaximumProjectRootChars = 512;
+    public const int MaximumPendingInputs = 32;
 
     public static BridgeCurrentStateParseResult Parse(string? json, SourceInstance source)
     {
@@ -155,6 +160,22 @@ public static class HarnessBridgeCurrentStateParser
                         continue;
                     }
 
+                    var inputs = new List<string>();
+                    if (entry.TryGetProperty("pendingInputRequestIds", out var pending))
+                    {
+                        if (pending.ValueKind != JsonValueKind.Array || pending.GetArrayLength() > MaximumPendingInputs)
+                            return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-invalid-inputs");
+                        foreach (var value in pending.EnumerateArray())
+                        {
+                            var id = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(id) || id != id.Trim() || id.Length > MaximumIdentifierChars || inputs.Contains(id, StringComparer.Ordinal))
+                                return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-invalid-inputs");
+                            inputs.Add(id);
+                        }
+                    }
+                    if (entry.TryGetProperty("inputStateComplete", out var inputCoverage) && inputCoverage.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                        return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-invalid-input-coverage");
+
                     sessions.Add(new BridgeCurrentSessionState(
                         sessionId,
                         Identifier(entry, "parentSessionId"),
@@ -169,7 +190,11 @@ public static class HarnessBridgeCurrentStateParser
                         Bool(entry, "disposed"),
                         Long(entry, "lastSequence") ?? -1,
                         Identifier(entry, "lastEventId"),
-                        Long(entry, "records") ?? 0));
+                        Long(entry, "records") ?? 0)
+                    {
+                        PendingInputRequestIds = inputs,
+                        InputStateComplete = !entry.TryGetProperty("inputStateComplete", out _) || inputCoverage.GetBoolean(),
+                    });
                 }
             }
 

@@ -3,7 +3,7 @@
 ## Current
 Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
-Status: **OWNER CORRECTIONS VERIFIED; RC11 READY FOR RETEST.** Public qualification pending.
+Status: **DSH QUESTION FIX VERIFIED LOCALLY; RC12 PREPARING.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -16,17 +16,25 @@ Reviews so far were performed in this chat, not by an independent second agent.
   with private profile backups. Relaunch now publishes fresh health, no drops/errors.
   Production discovery/reader accepts the live stream (21 records, one session);
   Adapter reads one idle task with complete current coverage and a late-attach history
-  gap. DSH human-input capability corrected to Unsupported; lifecycle retest pending.
+  gap. Owner confirmed live approval/resume; RC11 question detection was Unsupported.
 - Recent ComboBox face/popup/item states themed; standalone Desktop Work managed
   folders resolve to Independent chats, with mappings/Git taking precedence.
-- This chat's needs-you-soon mark corresponds to one unanswered optional question;
-  correlated answer/partial-answer tests pass. No attention was suppressed.
+- This chat has one unanswered app-copy item in an older two-question call. The HUD
+  now says question pending; no answer/cancellation was fabricated to hide it.
 - Claude observer installed (15 hooks); isolated execution/idempotence pass.
   Actual Claude session and independent-machine owner checks remain pending.
-- Build: 0 warnings/errors; full suite 727 pass/0 fail/skip, focused suite 100 pass.
+- RC11 baseline: 0 warnings/errors, 727 tests; current fix: 0 warnings/errors, 741 pass.
   RC9/RC10 stay immutable; RC11 exact-package/upgrade/scaling checks pass.
 
-## Current execution results
+## New DSH question review fix
+- Observer 1.1.0 targets Desktop 0.2.0-rc.2 cached metadata, including timed continuation.
+  Correlated replies and quiet restart recovery work; missing metadata reduces coverage.
+- Native installed-code synthetic contract and real reader fixtures pass; DSH 39/39,
+  Claude 29/29; Release 741 pass/0 fail/skip, recorded in owner-feedback/question-fix-tests.
+- Linked observer updated after owner-confirmed full quit; real question retest pending.
+  RC12 packaging is next. Codex approvals remain Unsupported; no publication/merge.
+
+## Prior RC11 execution results
 - Candidate `1.0.0-rc.11`, clean fresh source `8b1d345`, 578 payload / 77 integration files, unsigned.
 - ZIP SHA-256 `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
 - Release build: 0 warnings/errors, 727 tests pass/0 fail/skip. Packaged bridges: DSH 30, Claude 29.
@@ -40,7 +48,7 @@ Reviews so far were performed in this chat, not by an independent second agent.
   notes, automated summary/review/approval packet in artifacts/prepublication/owner-handoff.
 - RC9 owner failures/kit preserved in artifacts/prepublication/owner-feedback; RC10 intermediate kept.
 - Same-chat review PASS WITH NONBLOCKING NOTES for local retest handoff; no independent reviewer.
-- Remaining: actual DSH task/approval/resume, Claude/clean-machine/audible/display/logon/hour stability;
+- Remaining at RC11: actual DSH questions, Claude/clean-machine/audible/display/logon/hour stability;
   GitHub identity + authorized upload/hosted CI/private security route, public history
   scope, signing/distribution and final publication approval. No upload/deployment/merge performed.
 - Prior RC9 five-minute resource probe (297 samples, 17.96 MB private / 53.57 MB
@@ -147,20 +155,13 @@ All 393 qualification files were preserved and hash-verified under
 full patch mappings and per-file hashes are in `artifacts/retired-worktrees/preservation.json`.
 The merge gate has passed; unrelated historical branches are retained.
 
-## Desktop integration follow-up (2026-09-29)
-- Installed DSH Desktop: 0.2.0-rc.2; bundled Node 24.18.1, protocol 4.
-  Dedicated `.dsh/profiles/desktop` currently has no observer dependency/bundle.
-  Installed session emit seams and list/header/sequence APIs match by source inspection.
-  Use Desktop's Plugins page or its matching bundled CLI while fully quit; do not
-  use a separately installed terminal DSH to manage this profile.
-- Owner uses Claude Code in a desktop/editor app. Windows Claude package 2.9939.2.0
-  is installed; this does not establish the embedded Code engine version.
-  Official docs confirm shared Code hook settings and our command/args exec form.
-  A standalone CLI on PATH is not required. WSL/SSH/cloud spool routing is unqualified.
-- Both suites rechecked: DSH 30/30, Claude 29/29. READMEs now target these workflows.
-  No live profile/settings were changed; actual session invocation is still untested.
-- Standalone bridge directories carry MIT LICENSE files, and the DSH package declares
-  MIT and includes its license. Publisher requires both files in new archives.
+## Desktop integration follow-up (historical 2026-09-29)
+- Source inspection: Desktop 0.2.0-rc.2, Node 24.18.1, protocol 4; session emit APIs match.
+  At that date no observer was installed. The 2026-10-05 installation supersedes it.
+- Claude desktop package 2.9939.2.0 installed; Code engine version not independently queried.
+  Shared user hook settings/command-args verified; standalone CLI not required.
+  WSL/SSH/cloud routing unqualified. Both suites then passed DSH 30 / Claude 29.
+- Standalone bridges are MIT and carry LICENSE; publisher requires both license files.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
@@ -193,7 +194,7 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
 - `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: Winston runs H1–H16 using .agent/HANDOFF.md and OWNER_CHECKS.csv.
+Next: finish RC12 packaging, then Winston retests DSH questions and H1–H16 from OWNER_HANDOFF.md.
 Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
 Resolve external staging/disclosure/signing inputs, finish hosted/manual qualification,
 then seek L5 approval for public L6–L10. No publication or main merge was performed.

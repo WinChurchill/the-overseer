@@ -4,7 +4,7 @@ See what your agents are doing and when they need you, in one small Windows wind
 OVERSEER groups observed work by project, shows the limits of its coverage and can
 speak short notifications. It observes; it never answers requests or controls an agent.
 
-**Publication status:** private qualification candidate `1.0.0-rc.11` is being tested.
+**Publication status:** private qualification candidate `1.0.0-rc.12` is being prepared for owner retests.
 There is no public download yet. GitHub Releases and a project website are prepared
 for launch after [release qualification](docs/RELEASE_READINESS.md). Do not confuse
 GitHub's source ZIP with the self-contained Windows application ZIP.
@@ -20,7 +20,7 @@ host qualification. Both themes use the same controls and layout.*
 | Source | Observed work and attention | Qualification and limits |
 | --- | --- | --- |
 | Codex local Windows rollout files | Work, completion/error, asynchronous questions and correlated answers | Contract and packaged tests pass. Owner live-session checks pending. **Approval detection is Unsupported.** |
-| DSH Desktop / DeepSeek Harness observer | Turn/tool boundaries, approval wait/resume, completion/error and explicit plan mode | Experimental. Use Desktop's dedicated profile; live checks pending. Human input events are reserved and **not emitted** by the current observer. |
+| DSH Desktop / DeepSeek Harness observer | Turn/tool boundaries, approval wait/resume, question wait/resume, completion/error and explicit plan mode | Experimental. Observer 1.1.0 targets Desktop 0.2.0-rc.2; missing native question metadata reduces coverage. Owner confirmed live permissions; question retest pending. Observer 1.0.0 has no question detection. |
 | Claude Code desktop Code tab or editor hooks | Work, input/permission waits, resume and completion/error | Experimental. Windows-local execution only for this qualification. Actual host/engine checks pending. WSL, SSH and cloud spool routing unqualified. |
 
 No missing source becomes a fabricated healthy zero. Monitoring details distinguish

@@ -30,7 +30,7 @@ import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { LIMITS, PRODUCER_VERSION } from './normalize.js'
-import { createObserverState } from './state.js'
+import { createObserverState, MAX_PENDING_INPUTS, MAX_TRACKED_SESSIONS } from './state.js'
 import {
   DEFAULT_HEARTBEAT_MS,
   DEFAULT_QUEUE_LIMIT,
@@ -141,6 +141,47 @@ function readSessionId(session) {
   return typeof id === 'string' && id !== '' ? id : null
 }
 
+function questionId(value) {
+  return typeof value === 'string' && value.trim() === value && value.length > 0
+    && value.length <= LIMITS.idChars ? value : null
+}
+
+/**
+ * DSH Desktop 0.2.0-rc.2's eager projection cache. Read only an already-current
+ * cell: stateOf() would materialize unrelated units and potentially full history.
+ * The guarded internal cache seam is version-specific; absence is incomplete
+ * coverage. No native fold, wire schema, waterfall or private content is opened.
+ */
+function readQuestionMetadata(ctx, session) {
+  const registry = typeof ctx?.get === 'function' ? ctx.get('sessionProjections') : undefined
+  const registration = registry?.registrations?.get?.('userQuestions')
+  if (registration?.def?.stateVersion !== 2) return null
+  const cell = registration?.cells?.get?.(session)
+  if (!Number.isSafeInteger(session?.seq) || cell?.observedSeq !== session.seq - 1) return null
+  const native = cell.state
+  const active = native?.questions?.active
+  if (typeof native?.timed !== 'boolean' || !Array.isArray(active) || active.length > MAX_PENDING_INPUTS) return null
+  const activeIds = []
+  for (const item of active) {
+    const id = questionId(item?.callId)
+    if (id === null || !['open', 'continued'].includes(item?.state) || activeIds.includes(id)) return null
+    activeIds.push(id)
+  }
+  return { timed: native.timed, activeIds }
+}
+
+/** Exact-name classification only; no tool arguments, result content or answers. */
+function questionEvent(event) {
+  const turn = event?.data?.turn
+  return {
+    type: event?.type, seq: event?.seq,
+    turn: Number.isSafeInteger(turn) && turn >= 0 ? turn : null,
+    isQuestion: event?.type === 'tool/call' && event?.data?.name === 'ask_user_question',
+    callId: event?.type === 'tool/call' ? questionId(event?.data?.callId)
+      : event?.type === 'tool/result' ? questionId(event?.data?.message?.toolCallId) : null,
+  }
+}
+
 /** @returns header-derived metadata: cwd, parent session, creation time, and nothing else. */
 function readHeader(session) {
   const meta = {}
@@ -160,32 +201,47 @@ function readHeader(session) {
  * @returns `{ openTurnNumber, planActive, lastHostSeq }`.
  */
 function scanLiveTurn(session) {
-  const found = { openTurnNumber: null, planActive: false, lastHostSeq: undefined }
+  const found = { openTurnNumber: null, closedTurnNumber: null, planActive: false, lastHostSeq: undefined, blockingInputIds: [], questionScanComplete: false }
   const end = typeof session?.seq === 'number' && Number.isSafeInteger(session.seq) && session.seq >= 0
     ? session.seq
     : null
-  if (end === null || end === 0) return found
+  if (end === null) return found
+  if (end === 0) { found.questionScanComplete = true; return found }
   found.lastHostSeq = end - 1
   const readAt = typeof session.eventAt === 'function' ? session.eventAt.bind(session) : null
   if (readAt === null) return found
   let sawTurn = false
   let sawPlan = false
+  const results = new Set()
+  const calls = []
   const from = Math.max(0, end - SNAPSHOT_SCAN_EVENTS)
   for (let index = end - 1; index >= from; index -= 1) {
-    if (sawTurn && sawPlan) break
     const event = readAt(index)
     const type = event?.type
+    if (!sawTurn && type === 'tool/result') {
+      const id = questionId(event?.data?.message?.toolCallId)
+      if (id !== null) results.add(id)
+    } else if (!sawTurn && type === 'tool/call' && event?.data?.name === 'ask_user_question') {
+      const id = questionId(event?.data?.callId)
+      if (id !== null && !results.has(id)) calls.push(id)
+    }
     if (!sawTurn && (type === 'turn/start' || type === 'turn/end')) {
       sawTurn = true
       if (type === 'turn/start') {
         const turn = event?.data?.turn
         if (typeof turn === 'number' && Number.isSafeInteger(turn) && turn >= 0) found.openTurnNumber = turn
+      } else {
+        const turn = event?.data?.turn
+        if (Number.isSafeInteger(turn) && turn >= 0) found.closedTurnNumber = turn
       }
     } else if (!sawPlan && type === 'plan/mode') {
       sawPlan = true
       found.planActive = event?.data?.active === true
     }
   }
+  found.questionScanComplete = sawTurn || from === 0
+  if (calls.length > MAX_PENDING_INPUTS) found.questionScanComplete = false
+  else if (found.openTurnNumber !== null) found.blockingInputIds = calls
   return found
 }
 
@@ -227,6 +283,9 @@ export function createObserver(overrides = {}) {
   let snapshotSeeded = 0
   let heartbeatTimer = null
   let snapshotRetryTimer = null
+  let hostContext = null
+  const refreshSessions = new Map()
+  let refreshScheduled = false
   const seams = []
 
   function noteInternalError(error) {
@@ -257,11 +316,45 @@ export function createObserver(overrides = {}) {
     for (const record of records) emit(record)
   }
 
+  function refreshQuestions(session, hydration = false, events = [], overflow = false) {
+    const sessionId = readSessionId(session)
+    if (sessionId === null) return
+    let metadata = null
+    try { metadata = readQuestionMetadata(hostContext, session) } catch {
+      // Never retain host exception messages, which could contain private text.
+      noteInternalError(new Error('question metadata unavailable'))
+    }
+    for (const event of events) emitAll(state.reconcileQuestions(sessionId, metadata, event, hydration))
+    if (overflow) state.noteQuestionGap(sessionId)
+    emitAll(state.reconcileQuestions(sessionId, metadata, null, hydration))
+    spool.setCurrent(state.currentDocument())
+  }
+
+  function deferQuestionRefresh(session, event = null) {
+    const id = readSessionId(session)
+    if (id === null) return
+    if (refreshSessions.size >= MAX_TRACKED_SESSIONS && !refreshSessions.has(id)) return
+    const pending = refreshSessions.get(id) ?? { session, events: [] }
+    if (event !== null && ['turn/start', 'turn/end', 'tool/call', 'tool/result'].includes(event.type)) {
+      if (pending.events.length < MAX_PENDING_INPUTS * 4) pending.events.push(event)
+      else pending.overflow = true
+    }
+    refreshSessions.set(id, pending)
+    if (refreshScheduled) return
+    refreshScheduled = true
+    queueMicrotask(() => {
+      refreshScheduled = false
+      if (!disposed) for (const pending of refreshSessions.values()) safely(() => refreshQuestions(pending.session, false, pending.events, pending.overflow))
+      refreshSessions.clear()
+    })
+  }
+
   function onCreated(session) {
     safely(() => {
       const sessionId = readSessionId(session)
       if (sessionId === null) return
       emit(state.sessionStart(sessionId, readHeader(session)))
+      deferQuestionRefresh(session)
     })
   }
 
@@ -276,6 +369,8 @@ export function createObserver(overrides = {}) {
         time: event?.time,
         data: event?.data,
       }))
+      // Allow the native eager drive to run regardless of listener order.
+      deferQuestionRefresh(session, questionEvent(event))
     })
   }
 
@@ -284,11 +379,12 @@ export function createObserver(overrides = {}) {
       const sessionId = readSessionId(session)
       if (sessionId === null) return
       emit(state.sessionEnd(sessionId))
+      refreshSessions.delete(sessionId)
     })
   }
 
   /** @returns the live sessions described by the `sessions` service, bounded and metadata-only. */
-  function collectLiveSessions(ctx) {
+  function collectLiveSessions(ctx, scan = true) {
     let service
     try {
       service = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined
@@ -309,7 +405,7 @@ export function createObserver(overrides = {}) {
     for (const session of list.slice(0, MAX_SNAPSHOT_SESSIONS)) {
       const sessionId = readSessionId(session)
       if (sessionId === null) continue
-      metas.push({ sessionId, ...readHeader(session), ...scanLiveTurn(session) })
+      metas.push({ sessionId, ...readHeader(session), ...(scan ? scanLiveTurn(session) : {}), session })
     }
     return metas
   }
@@ -324,7 +420,10 @@ export function createObserver(overrides = {}) {
   function publishSnapshot(ctx) {
     return safely(() => {
       const metas = collectLiveSessions(ctx)
-      for (const meta of metas) safely(() => state.seedSession(meta))
+      for (const meta of metas) safely(() => {
+        state.seedSession(meta)
+        refreshQuestions(meta.session, true)
+      })
       snapshotSeeded += metas.length
       emitAll(state.snapshots())
       return metas.length
@@ -337,7 +436,11 @@ export function createObserver(overrides = {}) {
    * @returns nothing.
    */
   function publishHeartbeat() {
-    safely(() => emitAll(state.heartbeats()))
+    safely(() => {
+      // Recheck cached state only, bounded by the same live-session attach limit.
+      for (const meta of collectLiveSessions(hostContext, false)) safely(() => refreshQuestions(meta.session))
+      emitAll(state.heartbeats())
+    })
   }
 
   /**
@@ -348,6 +451,7 @@ export function createObserver(overrides = {}) {
   function attach(ctx) {
     if (config.disabled || attached) return () => {}
     attached = true
+    hostContext = ctx
     if (typeof ctx?.on === 'function') {
       ctx.on('session/created', onCreated)
       seams.push('session/created')
@@ -371,6 +475,8 @@ export function createObserver(overrides = {}) {
   function dispose() {
     if (disposed) return
     disposed = true
+    refreshSessions.clear()
+    hostContext = null
     if (heartbeatTimer !== null) {
       clearInterval(heartbeatTimer)
       heartbeatTimer = null

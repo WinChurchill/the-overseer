@@ -163,10 +163,13 @@ public sealed record MonitorCapabilities(
     /// <summary>
     /// What an external metadata bridge (dsh observer or Claude hook bridge)
     /// actually provides. Both export approvals and explicit turn outcomes;
-    /// only the current Claude producer exports human-input events. Capabilities
+    /// Claude and qualified DSH producer versions export human-input events. Capabilities
     /// a producer cannot supply stay unsupported even if the shared parser accepts them.
     /// </summary>
-    public static MonitorCapabilities ForBridge(string harnessId, bool continuousHeartbeat)
+    public static bool HasDshQuestionEvents(string harnessId, string producerVersion) =>
+        HarnessIds.Normalize(harnessId) == HarnessIds.Dsh && producerVersion == "dsh-observer/1.1.0";
+
+    public static MonitorCapabilities ForBridge(string harnessId, bool continuousHeartbeat, string producerVersion = "")
     {
         var source = HarnessIds.DisplayName(harnessId);
         var heartbeatNote = continuousHeartbeat
@@ -176,7 +179,7 @@ public sealed record MonitorCapabilities(
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-lifecycle", source + ": session/turn start and end records"),
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-activity", source + ": tool start/end and plan markers, no content"),
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-permission-requests", source + ": approval asked/decided correlated by request id"),
-            HarnessIds.Normalize(harnessId) == HarnessIds.Dsh
+            HarnessIds.Normalize(harnessId) == HarnessIds.Dsh && !HasDshQuestionEvents(harnessId, producerVersion)
                 ? new CapabilityStatus(CapabilitySupport.Unsupported, "dsh-input-events-unavailable", source + ": human-input events are reserved but not emitted by the current observer")
                 : new CapabilityStatus(CapabilitySupport.Supported, "bridge-input-requests", source + ": input asked/answered correlated by request id"),
             new CapabilityStatus(CapabilitySupport.Supported, "bridge-task-failure", source + ": explicit turn outcome"),
