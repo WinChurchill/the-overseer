@@ -13,7 +13,7 @@ function https(value){if(!value)return null;const u=new URL(value);if(u.protocol
 const base=https(args['base-url']);const repo=https(args['repository-url']);const download=https(args['download-url']);
 if(repo&&(repo.hostname!=='github.com'||!/^\/[\w.-]+\/[\w.-]+\/?$/.test(repo.pathname)))throw new Error('Repository URL must name a GitHub owner/repository');
 if([base,repo,download].some(Boolean)&&![base,repo,download].every(Boolean))throw new Error('A publication build requires all three URLs');
-const draft=!base;const version=args.version??'1.0.0-rc.9';
+const draft=!base;const version=args.version??'1.0.0-rc.10';
 if(!/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(version))throw new Error('Invalid version');
 if(download&&(!download.href.startsWith(repo.href.replace(/\/$/,'')+'/releases/download/')||!download.pathname.endsWith(`/OVERSEER-${version}-win-x64.zip`)))throw new Error('Download must be the versioned application ZIP in this repository');
 if(base&&!base.pathname.endsWith('/'))base.pathname+='/';

@@ -89,6 +89,77 @@
         </ControlTemplate></Setter.Value>
       </Setter>
     </Style>
+    <!-- Keep the native ComboBox behaviour, with the same palette on its face,
+         popup and item states. Dynamic resources also follow a live theme swap. -->
+    <Style x:Key="RecentHoursItem" TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="ComboBoxItem">
+          <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsHighlighted" Value="True">
+          <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource BackgroundBaseBrush}" />
+        </Trigger>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource BackgroundBaseBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="RecentHoursSelector" TargetType="ComboBox">
+      <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Padding" Value="7,4" />
+      <Setter Property="ItemContainerStyle" Value="{StaticResource RecentHoursItem}" />
+      <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="ComboBox">
+          <Grid>
+            <ToggleButton Focusable="False" ClickMode="Press"
+                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+              <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="Face" CornerRadius="6" BorderThickness="1"
+                        Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                        BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}">
+                  <TextBlock Text="▾" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,7,0"
+                             Foreground="{DynamicResource MutedBrush}" />
+                </Border>
+              </ControlTemplate></ToggleButton.Template>
+            </ToggleButton>
+            <ContentPresenter IsHitTestVisible="False" Margin="7,4,23,4" VerticalAlignment="Center"
+                              Content="{TemplateBinding SelectionBoxItem}"
+                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False"
+                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+              <Border x:Name="PopupSurface" MinWidth="{TemplateBinding ActualWidth}" CornerRadius="6" Padding="2"
+                      Background="{DynamicResource PanelSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" CanContentScroll="True">
+                  <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+              <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="HistoryToggle" TargetType="ToggleButton">
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
       <Setter Property="FontFamily" Value="{DynamicResource MetadataFontFamily}" />
@@ -673,7 +744,7 @@
             <RadioButton x:Name="RecentTab" Content="Recent" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsRecentView}" />
             <RadioButton x:Name="SessionTab" Content="This session" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsSessionView}" />
             <!-- The Recent window is an explicit choice, not a hidden cycling gesture. -->
-            <ComboBox x:Name="RecentHoursBox" Margin="6,2,0,0" MinWidth="56" VerticalAlignment="Center"
+            <ComboBox x:Name="RecentHoursBox" Style="{StaticResource RecentHoursSelector}" Margin="6,2,0,0" MinWidth="56" VerticalAlignment="Center"
                       ItemsSource="{Binding RecentHourOptions}"
                       SelectedItem="{Binding SelectedRecentHours, Mode=TwoWay}"
                       ItemStringFormat="{}{0}h"

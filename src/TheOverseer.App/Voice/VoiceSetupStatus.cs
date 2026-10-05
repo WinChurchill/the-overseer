@@ -28,7 +28,7 @@ public static class VoiceSetupStatus
     /// <summary>Status for the local voice pack, from a bounded local clip probe.</summary>
     public static string PackRow(string packId, bool clipAvailable) => clipAvailable
         ? "Ready from voice pack: " + packId + "."
-        : "No usable recording in voice pack " + packId + " — assign a WAV or choose the Windows speech baseline.";
+        : "No usable recording in voice pack " + packId + " — click Use Windows speech or assign a WAV.";
 
     /// <summary>Machine-level availability of the offline baseline, whatever is selected.</summary>
     public static string Baseline(VoiceProviderStatus baseline) => baseline.IsAvailable

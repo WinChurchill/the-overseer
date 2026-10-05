@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **LOCAL PREPARATION COMPLETE; READY FOR OWNER CHECKS.**
+Status: **OWNER CORRECTIONS IN VERIFICATION; RC10 REPLACEMENT PENDING.**
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
@@ -16,13 +16,27 @@ complete automated and human qualification, accurate public docs/site, and a
 ready-to-publish GitHub release. Making source, release assets and website public
 requires the owner's final approval of that concrete packet.
 
-### Executed preparation and owner handoff — 2026-10-05
+### Owner feedback corrections — 2026-10-05
+
+RC9 owner reports: Preview has no playable recording; DSH absent; Recent time control
+uses the wrong dark palette; independent Work chats use prompt-derived project names.
+The selected pack is missing; explicitly use Windows speech (silent synthesis verified).
+The observer is now installed in the actual Desktop profile after an owner-coordinated
+quit, with private backups; it produces fresh status and no writer errors after relaunch.
+Real Desktop task/approval/resume behavior still needs retesting after OVERSEER restart.
+The Recent control and standalone managed-workspace grouping are corrected in source.
+Claude and independent-machine checks remain pending. This chat's attention mark has
+one unanswered optional question, so partial-answer semantics are behaving as intended.
+A new RC10 replaces RC9 only after its own exact-package checks; RC9 results below
+remain historical evidence for those bytes, not proof about the replacement.
+
+### Executed RC9 preparation and owner handoff — 2026-10-05
 
 - Tested candidate: **1.0.0-rc.9**, unsigned private ZIP, source `61d7d078cb39e58b1fbeb55bba220853d65ed491`.
   [Application ZIP](../artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip),
   [hash and setup packet](../artifacts/prepublication/owner-handoff/approval-packet.json),
   [editable H1–H16 results](../artifacts/prepublication/owner-handoff/OWNER_CHECKS.csv).
-- SHA-256: `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`. Use only these bytes for the owner results.
+- SHA-256: `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`. These hashes identify the preserved RC9 run; new owner results must name the replacement hash.
 - Fresh-clone .NET build/test: 0 warnings/errors, 715 pass, 0 fail/skip. DSH 30 and
   Claude 29 pass; extracted bridge tests pass too. NuGet advisory scan found no
   vulnerable packages; bundled .NET/Desktop runtime 10.0.12 matches the current patch.

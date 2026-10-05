@@ -5,11 +5,27 @@ Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
 Plan baseline main: `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Prior remediation baseline: `82e15e3`; remediation merged at `fcabe00`.
-Status: **LOCAL PREPARATION COMPLETE; READY FOR OWNER CHECKS.** Public qualification pending.
+Status: **OWNER CORRECTIONS IN VERIFICATION; RC10 REPLACEMENT PENDING.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packet preserved under
 `artifacts/prepublication-planning-20261005/`. Previous remediation review was
 performed in this chat, not by an independent second agent.
+
+## Owner feedback — 2026-10-05
+- RC9: missing selected pack caused silent Preview; actual offline English speech
+  synthesis/validated WAV passes in isolated data. Use Windows speech explicitly;
+  audible owner retest remains pending. Saved provider choices were preserved.
+- DSH observer installed via Desktop bundled manager after owner confirmed full quit,
+  with private profile backups. Relaunch now publishes fresh health, no drops/errors.
+  Production discovery/reader accepts the live stream (21 records, one session);
+  real work/approval/resume lifecycle remains an owner retest.
+- Recent ComboBox face/popup/item states themed; standalone Desktop Work managed
+  folders resolve to Independent chats, with mappings/Git taking precedence.
+- This chat's needs-you-soon mark corresponds to one unanswered optional question;
+  correlated answer/partial-answer tests pass. No attention was suppressed.
+- Claude and independent machine are explicitly not tested by the owner yet.
+- Build: 0 warnings/errors; full suite 727 pass/0 fail/skip, focused suite 100 pass.
+  RC9 stays immutable; clean-source RC10 packaging/exact-package verification next.
 
 ## Current execution results
 - Candidate `1.0.0-rc.9`, clean source `61d7d07`, 578 payload / 77 integration files, unsigned.
@@ -37,9 +53,8 @@ performed in this chat, not by an independent second agent.
 - Audit source/history/privacy and dependencies; qualify actual desktop bridges;
   prepare current public docs/static site/SEO; build one final hash-bound candidate;
   collect hosted CI, owner hands-on and clean-machine results; then seek public approval.
-- Local preflight found no site/public URL, no README screenshots, missing community/
-  security/issue files, personal Windows path in history and split candidate evidence.
-  Limited token-pattern matches were absent; full security/history scan is still required.
+- Initial preflight gaps in public docs, screenshots, site and scan evidence were
+  addressed in RC9; real external URLs and hosted CI still await authorized upload.
 - Account/repository, history exposure, signing/unsigned and custom domain choices
   are needed during execution; no upload, deployment or announcement is authorized yet.
 - Prior verification below belongs to its named revisions, not this new plan.

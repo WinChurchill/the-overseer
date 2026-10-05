@@ -464,6 +464,24 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
+    public void StandaloneDesktopWorkHeaderReachesTheHudAsAnIndependentChat()
+    {
+        const string id = "01a0c730-0000-0000-0000-000000000032";
+        _home.WriteRollout(id, new[]
+        {
+            Records.SessionMeta(id, cwd: @"C:\Users\fixture\Documents\Codex\2026-10-05\first-prompt-entries",
+                originator: "codex_work_desktop", source: "vscode"), Records.TaskStarted("turn-1"),
+        });
+        using var monitor = new CodexMonitor(MonitorOptions.Default, new[] { Profile }, null, null, _clock, new ProjectResolver());
+        var snapshot = monitor.Refresh();
+        Assert.True(Single(snapshot).AssignedProject.IsIndependentChats);
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(snapshot);
+        Assert.Equal("Independent chats", Assert.Single(vm.Projects).Name);
+        Assert.Single(vm.Tasks);
+    }
+
+    [Fact]
     public void WorkspaceRootIsRetainedAndMappedToAProject()
     {
         var id = "01a0c730-0000-0000-0000-000000000030";

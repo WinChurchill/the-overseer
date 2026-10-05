@@ -281,9 +281,9 @@ and `queueDepth` should return to zero. An empty host should publish a `snapshot
 with `sessions: []`.
 
 Restart OVERSEER after installing the bridge. In a real Desktop session, check
-working -> waiting for approval/input -> resumed -> completed/aborted, and verify
+working -> waiting for approval -> resumed -> completed/aborted, and verify
 that OVERSEER reports those states without capturing message bodies or changing
-any approval decision. Test detach and relaunch as well. Record the exact Desktop
+any approval decision. Input-wait detection remains unsupported by this observer. Test detach and relaunch as well. Record the exact Desktop
 version and source/spool identity. Until that run exists, the bridge is experimental.
 
 ### Remove

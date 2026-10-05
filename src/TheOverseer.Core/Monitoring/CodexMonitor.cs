@@ -676,7 +676,7 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
             ProjectAssignment? assignment = null;
             if (_projects is not null && identity.WorkspaceRoot.Length > 0)
             {
-                assignment = _projects.Resolve(identity.WorkspaceRoot);
+                assignment = _projects.Resolve(identity.WorkspaceRoot, isStandaloneChat: identity.IsStandaloneWorkspace);
             }
 
             var task = _reducer.RegisterConversation(
@@ -974,7 +974,9 @@ public sealed class CodexMonitor : IAsyncDisposable, IDisposable
         file.IdentityProvisional = false;
         file.Surface = identity.Surface;
         if (previousKey != file.Key && !_tracked.Values.Any(item => item.Key == previousKey)) _reducer.Forget(previousKey);
-        _reducer.RegisterConversation(file.ProfileId, file.ConversationId, file.Surface, identity.WorkspaceLeaf, true, now);
+        var assignment = _projects?.Resolve(identity.WorkspaceRoot, isStandaloneChat: identity.IsStandaloneWorkspace);
+        _reducer.RegisterConversation(file.ProfileId, file.ConversationId, file.Surface, identity.WorkspaceLeaf,
+            true, now, identity.WorkspaceRoot, assignment?.Project);
         return true;
     }
 

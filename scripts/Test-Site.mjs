@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';import {spawnSync} from 'node:child_proc
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');let controls=0;
 const run=(script,args,ok=true)=>{const p=spawnSync(process.execPath,[path.join(root,'scripts',script),...args],{cwd:root,encoding:'utf8'});assert.equal(p.status===0,ok,p.stderr+p.stdout);controls++;return p;};
 run('Build-Site.mjs',['--output=artifacts/site-controls/draft']);run('Check-Site.mjs',['--output=artifacts/site-controls/draft']);run('Check-Site.mjs',['--output=artifacts/site-controls/draft','--publication'],false);
-const urls=['--base-url=https://example.test/overseer/','--repository-url=https://github.com/example/overseer','--download-url=https://github.com/example/overseer/releases/download/v1.0.0-rc.9/OVERSEER-1.0.0-rc.9-win-x64.zip'];
+const urls=['--version=1.0.0-rc.9','--base-url=https://example.test/overseer/','--repository-url=https://github.com/example/overseer','--download-url=https://github.com/example/overseer/releases/download/v1.0.0-rc.9/OVERSEER-1.0.0-rc.9-win-x64.zip'];
 run('Build-Site.mjs',['--output=artifacts/site-controls/public',...urls]);run('Check-Site.mjs',['--output=artifacts/site-controls/public','--publication']);
 run('Build-Site.mjs',['--output=../site-escape'],false);run('Build-Site.mjs',['--version=<script>'],false);run('Build-Site.mjs',['--base-url=https://example.test/'],false);
 run('Build-Site.mjs',['--output=artifacts/site-controls/wrong-version',...urls,'--version=1.0.0-rc.10'],false);

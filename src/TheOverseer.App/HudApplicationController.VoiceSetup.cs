@@ -213,7 +213,9 @@ public sealed partial class HudApplicationController
             var outcome = await Task.Run(() => preview.PreviewAsync(row.Definition.Kind, cancellation.Token));
             if (!outcome.ClipCreated)
             {
-                row.Status = "No playable recording (" + outcome.Code + "). Assign a WAV or choose another provider.";
+                row.Status = CurrentVoiceSettings.ResolvedProvider == VoiceProviderKind.Pack
+                    ? "No playable recording (" + outcome.Code + "). Click Use Windows speech or assign a WAV."
+                    : "No playable recording (" + outcome.Code + "). Check the provider or assign a WAV.";
                 return;
             }
 

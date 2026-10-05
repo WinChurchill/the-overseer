@@ -49,6 +49,29 @@ public sealed class ProjectViewTests
     }
 
     [Fact]
+    public void IndependentChatsRemainSeparateTasksInsideANeutralNonProjectHeading()
+    {
+        var vm = View(
+            Task("independent-one", ProjectDescriptor.IndependentChats),
+            Task("independent-two", ProjectDescriptor.IndependentChats),
+            Task("repository-chat", Project("owner-repository")));
+        var group = Assert.Single(vm.Projects, row => row.IsIndependentChats);
+        Assert.Equal("Independent chats", group.Name);
+        Assert.Equal(2, group.Tasks.Count);
+        Assert.Equal(2, group.Tasks.Select(row => row.Key).Distinct().Count());
+        Assert.DoesNotContain("project", group.ToggleAutomationName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("project", group.HistoryAutomationName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, vm.Projects.Count);
+        vm.ToggleProject(group);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            Task("independent-one", ProjectDescriptor.IndependentChats),
+            Task("independent-two", ProjectDescriptor.IndependentChats),
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Fact]
     public void ProjectRowsAreOrderedAttentionThenActiveThenUnassignedLast()
     {
         var viewModel = View(
