@@ -3,13 +3,10 @@
 ## Current
 Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
-Plan baseline main: `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
-Prior remediation baseline: `82e15e3`; remediation merged at `fcabe00`.
 Status: **OWNER CORRECTIONS IN VERIFICATION; RC10 REPLACEMENT PENDING.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
-Execution packet: ignored `.agent/HANDOFF.md`; prior packet preserved under
-`artifacts/prepublication-planning-20261005/`. Previous remediation review was
-performed in this chat, not by an independent second agent.
+Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
+Reviews so far were performed in this chat, not by an independent second agent.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
