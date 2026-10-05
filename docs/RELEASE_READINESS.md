@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **OWNER CORRECTIONS IN VERIFICATION; RC11 REPLACEMENT PENDING.**
+Status: **OWNER CORRECTIONS VERIFIED; RC11 READY FOR RETEST.**
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
@@ -29,8 +29,17 @@ Live validation also found DSH input capability was overstated; it is now explic
 Unsupported. Current task coverage is complete, with a disclosed late-attach history gap.
 Claude and independent-machine checks remain pending. This chat's attention mark has
 one unanswered optional question, so partial-answer semantics are behaving as intended.
-A new RC11 replaces RC9 only after its own exact-package checks; RC9 results below
-remain historical evidence for those bytes, not proof about the replacement.
+The verified replacement is **1.0.0-rc.11**, clean fresh source `8b1d3454179d10fb3f389e2097425883d1803413`.
+[RC11 ZIP](../artifacts/prepublication/rc11/OVERSEER-1.0.0-rc.11-win-x64.zip),
+[focused retest handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md),
+[automated report](../artifacts/prepublication/rc11-checks/run-20261005T220959Z-d572c12b/pre-user-report.json).
+SHA-256: `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
+Build: 0 warnings/errors; 727 tests pass. Exact package: 42 pass/0 fail/3 focus
+activation deferrals; integration 17/17, composition 42/42, 48 renders, no focus
+steal/547 samples. Secondary-display scaling and RC9 upgrade/rollback pass in both
+modes. Source/history/payload secret scans clear; site 85 checks/12 controls pass.
+RC9/RC10 artifacts remain fixed; the RC9 results below are historical evidence.
+All RC11 owner H1–H16 remain pending until observed and recorded against this hash.
 
 ### Executed RC9 preparation and owner handoff — 2026-10-05
 
@@ -64,7 +73,8 @@ remain historical evidence for those bytes, not proof about the replacement.
 - Same-chat review: **PASS WITH NONBLOCKING NOTES** for local handoff, not independent
   review or public release approval. No remote/upload/deployment/public tag created.
 
-Start with ignored `.agent/HANDOFF.md`: it gives the setup and test order. The optional
+For the current RC11 retest, start with ignored `.agent/HANDOFF.md`. The following
+RC9 setup description is retained as historical context. The optional
 [setup helper](../artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1) verifies
 this ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.
 It passed stock Windows PowerShell and a wrong-ZIP/no-write control. Default run

@@ -3,7 +3,7 @@
 ## Current
 Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
-Status: **OWNER CORRECTIONS IN VERIFICATION; RC11 REPLACEMENT PENDING.** Public qualification pending.
+Status: **OWNER CORRECTIONS VERIFIED; RC11 READY FOR RETEST.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -23,27 +23,27 @@ Reviews so far were performed in this chat, not by an independent second agent.
   correlated answer/partial-answer tests pass. No attention was suppressed.
 - Claude and independent machine are explicitly not tested by the owner yet.
 - Build: 0 warnings/errors; full suite 727 pass/0 fail/skip, focused suite 100 pass.
-  RC9/RC10 stay immutable; final RC11 exact-package verification next.
+  RC9/RC10 stay immutable; RC11 exact-package/upgrade/scaling checks pass.
 
 ## Current execution results
-- Candidate `1.0.0-rc.9`, clean source `61d7d07`, 578 payload / 77 integration files, unsigned.
-- ZIP SHA-256 `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`.
-- Fresh clone: build 0 warnings/errors, 715 tests pass/0 fail/skip; DSH 30, Claude 29.
-- Exact ZIP suite: 42 pass/0 fail/3 activation deferrals; integration 17/17, composition
-  42/42, 46 renders; no focus takeovers/547 samples; secondary-display scaling pass.
-- RC8 upgrade/rollback: 25/25 in HUD and Window; all report/comparison/placement controls pass.
-- Gitleaks 8.30.1: reachable history (191 commits), current tree and extracted ZIP clear.
-  NuGet advisory query clear; redistributed runtime .NET/Desktop 10.0.12 current.
-- README/privacy/community/bug template and static three-page site prepared; 85 local
-  checks + 12 publication controls pass; mobile/tablet/keyboard/contrast reviewed.
-- Five-minute synthetic resource probe: 297 samples, 17.96 MB private / 53.57 MB
-  working-set peak, 1.30s CPU. Source work recovered; watcher honestly fell back to polling.
-- Owner kit: hash/manifest, disposable setup helper (stock PS verified), 16 pending rows,
-  draft notes, automated summary/review/approval packet in artifacts/prepublication/owner-handoff.
-- Same-chat review PASS WITH NONBLOCKING NOTES for local handoff; no independent reviewer.
-- Remaining: H1–H16/live desktop/clean-machine/audible/display/logon/hour stability;
-  GitHub identity + authorized upload/hosted CI/private security route, history exposure
-  and final signing/publication decision. Claude current app/engine needs owner confirmation.
+- Candidate `1.0.0-rc.11`, clean fresh source `8b1d345`, 578 payload / 77 integration files, unsigned.
+- ZIP SHA-256 `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
+- Release build: 0 warnings/errors, 727 tests pass/0 fail/skip. Packaged bridges: DSH 30, Claude 29.
+- Exact ZIP: 42 pass/0 fail/3 activation deferrals; integration 17/17, composition 42/42,
+  48 renders; no focus takeovers/547 samples; secondary-display scaling pass.
+- RC9 upgrade/rollback pass in HUD and Window modes; all report/comparison/placement controls pass.
+- Gitleaks 8.30.1: candidate history (195 commits), source export and exact payload clear.
+  Included runtime: .NET/Desktop 10.0.12. RC9 dependency advisories were clear; no new packages added.
+- Site: 85 static checks and 12 publication controls pass after candidate version update.
+- Owner kit: new hash/manifest, stock-PS verified setup, 16 pending RC11 rows, draft
+  notes, automated summary/review/approval packet in artifacts/prepublication/owner-handoff.
+- RC9 owner failures/kit preserved in artifacts/prepublication/owner-feedback; RC10 intermediate kept.
+- Same-chat review PASS WITH NONBLOCKING NOTES for local retest handoff; no independent reviewer.
+- Remaining: actual DSH task/approval/resume, Claude/clean-machine/audible/display/logon/hour stability;
+  GitHub identity + authorized upload/hosted CI/private security route, public history
+  scope, signing/distribution and final publication approval. No upload/deployment/merge performed.
+- Prior RC9 five-minute resource probe (297 samples, 17.96 MB private / 53.57 MB
+  working-set peak, 1.30s CPU) remains historical; live one-hour H15 is pending.
 
 ## Pre-publication plan
 - Owner selected GitHub source/Releases **and a project website**; proposed GitHub Pages.
