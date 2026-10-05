@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **DSH QUESTION FIX VERIFIED LOCALLY; RC12 PREPARING.**
+Status: **RC12 READY FOR OWNER DSH RETEST.**
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
@@ -27,11 +27,32 @@ reduces coverage; no waterfall, answer or conversation content is intercepted.
 The version-specific native cache is an explicit compatibility limit. Real question
 qualification remains pending even after the isolated installed-code contract check.
 The HUD mark now says `question pending` for an unanswered non-blocking request.
-This chat still has an unanswered app-copy item in an older two-question call;
-its information is superseded, but the log contains no correlated answer/cancellation.
-No answer or cancellation was fabricated. Claude's 15 hooks are installed;
-actual Claude, audible and clean-machine qualification remain pending.
-RC11 and its evidence below remain immutable; RC12 must receive its own hash-bound checks.
+An older app-copy item remains unanswered in raw metadata, but its information is
+superseded and the later live HUD check showed this chat without attention. Turn
+completion also clears Codex turn-scoped requests; raw unanswered metadata alone
+does not prove current attention. No answer was fabricated. Claude's 15 hooks emit
+work/completion records and its row is visible; input/permission, audible and
+clean-machine qualification remain pending.
+
+The verified replacement is **1.0.0-rc.12**, clean source
+`68c2d6190698c9821179b025441a21dbf6490a4e`.
+[RC12 ZIP](../artifacts/prepublication/rc12/OVERSEER-1.0.0-rc.12-win-x64.zip),
+[owner retest handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md),
+[automated report](../artifacts/prepublication/rc12-checks/run-20261005T232402Z-d4134442/pre-user-report.json).
+SHA-256: `8EF59BFAC561E6349DE984039E9F64C5F04F4432A328720B1A683AD28A2A6342`;
+76,905,615 bytes; 591 payload / 90 integration files; unsigned self-contained x64.
+Build: 0 warnings/errors; 741 tests pass/0 fail/skip; DSH 39/39, Claude 29/29.
+Exact ZIP: 42 pass/0 fail/3 deliberate activation deferrals; integration 17/17,
+composition 42/42, 48 renders; no focus takeover/547 samples. Scaling and RC11
+upgrade/rollback pass in both modes. Candidate history (198 commits), source export
+and exact payload secret scans clear; site 85 checks/12 publication controls pass.
+All new H1–H16 rows remain PENDING against this hash. RC11 and its owner kit are
+preserved under owner-feedback/rc11-owner-kit; the evidence below is historical.
+The RC12 shortcut uses separate writable test settings and explicit real producer
+roots; live launch and saving were verified. Normal-data agent launches reported
+a save failure, so ordinary owner-path persistence remains part of H11/H14.
+Normal settings were preserved. Empty/Live setup passed stock Windows PowerShell;
+the helper rejects an older ZIP before writing. Audible/live-host checks remain pending.
 
 ### Prior RC11 owner feedback corrections — 2026-10-05
 
@@ -44,11 +65,11 @@ Real Desktop task/approval/resume behavior still needs retesting after OVERSEER 
 The Recent control and standalone managed-workspace grouping are corrected in source.
 Live validation also found DSH input capability was overstated; it is now explicitly
 Unsupported. Current task coverage is complete, with a disclosed late-attach history gap.
-Claude and independent-machine checks remain pending. This chat's attention mark has
-one unanswered optional question, so partial-answer semantics are behaving as intended.
+RC11 review found an older unanswered optional question. The subsequent live check
+showed this chat without attention; full H3 and independent-machine checks remain pending.
 The verified replacement is **1.0.0-rc.11**, clean fresh source `8b1d3454179d10fb3f389e2097425883d1803413`.
 [RC11 ZIP](../artifacts/prepublication/rc11/OVERSEER-1.0.0-rc.11-win-x64.zip),
-[focused retest handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md),
+[preserved RC11 retest handoff](../artifacts/prepublication/owner-feedback/rc11-owner-kit/OWNER_HANDOFF.md),
 [automated report](../artifacts/prepublication/rc11-checks/run-20261005T220959Z-d572c12b/pre-user-report.json).
 SHA-256: `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
 Build: 0 warnings/errors; 727 tests pass. Exact package: 42 pass/0 fail/3 focus
@@ -62,8 +83,8 @@ All RC11 owner H1–H16 remain pending until observed and recorded against this 
 
 - Tested candidate: **1.0.0-rc.9**, unsigned private ZIP, source `61d7d078cb39e58b1fbeb55bba220853d65ed491`.
   [Application ZIP](../artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip),
-  [hash and setup packet](../artifacts/prepublication/owner-handoff/approval-packet.json),
-  [editable H1–H16 results](../artifacts/prepublication/owner-handoff/OWNER_CHECKS.csv).
+  [preserved RC9 packet](../artifacts/prepublication/owner-feedback/rc9-owner-kit/approval-packet.json),
+  [preserved RC9 results](../artifacts/prepublication/owner-feedback/rc9-owner-kit/OWNER_CHECKS.csv).
 - SHA-256: `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`. These hashes identify the preserved RC9 run; new owner results must name the replacement hash.
 - Fresh-clone .NET build/test: 0 warnings/errors, 715 pass, 0 fail/skip. DSH 30 and
   Claude 29 pass; extracted bridge tests pass too. NuGet advisory scan found no
@@ -90,7 +111,7 @@ All RC11 owner H1–H16 remain pending until observed and recorded against this 
 - Same-chat review: **PASS WITH NONBLOCKING NOTES** for local handoff, not independent
   review or public release approval. No remote/upload/deployment/public tag created.
 
-For the current RC11 retest, start with ignored `.agent/HANDOFF.md`. The following
+For the current RC12 retest, start with the owner retest handoff. The following
 RC9 setup description is retained as historical context. The optional
 [setup helper](../artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1) verifies
 this ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.

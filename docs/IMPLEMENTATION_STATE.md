@@ -3,7 +3,7 @@
 ## Current
 Plan: complete pre-publication preparation, executed locally 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
-Status: **DSH QUESTION FIX VERIFIED LOCALLY; RC12 PREPARING.** Public qualification pending.
+Status: **RC12 READY FOR OWNER DSH RETEST.** Public qualification pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -19,12 +19,11 @@ Reviews so far were performed in this chat, not by an independent second agent.
   gap. Owner confirmed live approval/resume; RC11 question detection was Unsupported.
 - Recent ComboBox face/popup/item states themed; standalone Desktop Work managed
   folders resolve to Independent chats, with mappings/Git taking precedence.
-- This chat has one unanswered app-copy item in an older two-question call. The HUD
-  now says question pending; no answer/cancellation was fabricated to hide it.
-- Claude observer installed (15 hooks); isolated execution/idempotence pass.
-  Actual Claude session and independent-machine owner checks remain pending.
-- RC11 baseline: 0 warnings/errors, 727 tests; current fix: 0 warnings/errors, 741 pass.
-  RC9/RC10 stay immutable; RC11 exact-package/upgrade/scaling checks pass.
+- An older app-copy question is superseded; the later live HUD check showed this
+  chat without attention. RC12 says question pending; no answer was fabricated.
+- Claude's 15 hooks emit work/completion records and its row is visible. Isolated
+  execution/idempotence pass; real input/permission and independent-machine checks pending.
+- RC12 shortcut uses separate writable test settings and real streams; saving verified.
 
 ## New DSH question review fix
 - Observer 1.1.0 targets Desktop 0.2.0-rc.2 cached metadata, including timed continuation.
@@ -32,7 +31,16 @@ Reviews so far were performed in this chat, not by an independent second agent.
 - Native installed-code synthetic contract and real reader fixtures pass; DSH 39/39,
   Claude 29/29; Release 741 pass/0 fail/skip, recorded in owner-feedback/question-fix-tests.
 - Linked observer updated after owner-confirmed full quit; real question retest pending.
-  RC12 packaging is next. Codex approvals remain Unsupported; no publication/merge.
+  Codex approvals remain Unsupported; no publication/merge.
+- RC12 clean source `68c2d6190698c9821179b025441a21dbf6490a4e`; 591 files, 90 integrations.
+  ZIP: 76,905,615 bytes, SHA-256 `8EF59BFAC561E6349DE984039E9F64C5F04F4432A328720B1A683AD28A2A6342`.
+- Exact ZIP: 42 pass/0 fail/3 activation deferrals; integration 17/17, composition
+  42/42, 48 renders, no focus takeover/547 samples. Scaling and RC11 upgrade/rollback
+  pass in HUD/Window; all report/comparison/placement controls pass.
+- Gitleaks 8.30.1: 198-commit candidate history, source export and exact payload clear.
+  Site 85 checks/12 controls pass; runtime .NET/Desktop 10.0.12, no new dependencies.
+- Updated owner kit binds 16 PENDING checks to RC12; RC11 kit preserved separately.
+  Same-chat review: PASS WITH NONBLOCKING NOTES for local retest, no independent review.
 
 ## Prior RC11 execution results
 - Candidate `1.0.0-rc.11`, clean fresh source `8b1d345`, 578 payload / 77 integration files, unsigned.
@@ -44,15 +52,10 @@ Reviews so far were performed in this chat, not by an independent second agent.
 - Gitleaks 8.30.1: candidate history (195 commits), source export and exact payload clear.
   Included runtime: .NET/Desktop 10.0.12. RC9 dependency advisories were clear; no new packages added.
 - Site: 85 static checks and 12 publication controls pass after candidate version update.
-- Owner kit: new hash/manifest, stock-PS verified setup, 16 pending RC11 rows, draft
-  notes, automated summary/review/approval packet in artifacts/prepublication/owner-handoff.
-- RC9 owner failures/kit preserved in artifacts/prepublication/owner-feedback; RC10 intermediate kept.
-- Same-chat review PASS WITH NONBLOCKING NOTES for local retest handoff; no independent reviewer.
-- Remaining at RC11: actual DSH questions, Claude/clean-machine/audible/display/logon/hour stability;
-  GitHub identity + authorized upload/hosted CI/private security route, public history
-  scope, signing/distribution and final publication approval. No upload/deployment/merge performed.
-- Prior RC9 five-minute resource probe (297 samples, 17.96 MB private / 53.57 MB
-  working-set peak, 1.30s CPU) remains historical; live one-hour H15 is pending.
+- RC11 owner kit preserved in owner-feedback/rc11-owner-kit; RC9 feedback and RC10 kept.
+- Remaining: actual DSH questions, Claude/clean-machine/audible/display/logon/hour tests,
+  GitHub/upload/hosted CI/security route, public history, signing and final public approval.
+- Prior RC9 resource probe remains historical; live one-hour H15 is pending.
 
 ## Pre-publication plan
 - Owner selected GitHub source/Releases **and a project website**; proposed GitHub Pages.
@@ -81,18 +84,15 @@ Reviews so far were performed in this chat, not by an independent second agent.
 - Hosted CI and external release qualification are not claimed as complete.
 
 ## Completed implementation
-- Main fast-forwarded by 146 commits from `663caf5` to `82e15e3`;
-  `ux/first-use` retained and assessment snapshot committed in `ca9906b`.
+- Main advanced from `663caf5` to `82e15e3`; `ux/first-use` and assessment `ca9906b` retained.
 - Added Windows CI: SDK from global.json, Node 24, Release/xUnit, both bridges,
   report/comparison controls and mocked upgrade-placement controls.
 - Header menu reduced to eight actions; tray to six actions plus status.
   Both read actual shared menu state. Appearance/startup/reset/minimize are in settings.
 - Removed unused count-chart control, geometry and projection. Bounded history,
   live task/project hour strips, unknown/partial semantics and voice remain.
-- Archived the entire old ledger intact; current state stays below 200 lines.
-  README consistently identifies RC8 and documents a standard Windows build.
-- Added original-project MIT license and license scope; new archives include LICENSE,
-  upstream MIT and runtime notices. Artwork and frozen specification were not changed.
+- Archived the old ledger intact; current ledger stays at most 200 lines.
+- Added project MIT/license scope; archives include project/upstream/runtime notices.
 - Fixed the existing headless smoke-report error: focus observations are initialized
   even when visible lifecycle checks are skipped.
 
@@ -194,7 +194,7 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
 - `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: finish RC12 packaging, then Winston retests DSH questions and H1–H16 from OWNER_HANDOFF.md.
+Next: Winston retests DSH questions and H1–H16 from the updated OWNER_HANDOFF.md.
 Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
 Resolve external staging/disclosure/signing inputs, finish hosted/manual qualification,
 then seek L5 approval for public L6–L10. No publication or main merge was performed.
