@@ -21,7 +21,8 @@ Reviews so far were performed in this chat, not by an independent second agent.
   folders resolve to Independent chats, with mappings/Git taking precedence.
 - This chat's needs-you-soon mark corresponds to one unanswered optional question;
   correlated answer/partial-answer tests pass. No attention was suppressed.
-- Claude and independent machine are explicitly not tested by the owner yet.
+- Claude observer installed (15 hooks); isolated execution/idempotence pass.
+  Actual Claude session and independent-machine owner checks remain pending.
 - Build: 0 warnings/errors; full suite 727 pass/0 fail/skip, focused suite 100 pass.
   RC9/RC10 stay immutable; RC11 exact-package/upgrade/scaling checks pass.
 
