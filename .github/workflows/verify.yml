@@ -51,3 +51,8 @@ jobs:
         run: ./scripts/Test-ReleaseUpgradeComparison.ps1
       - name: Mocked upgrade placement controls
         run: ./scripts/Test-ReleaseUpgradePlacement.ps1
+      - name: Static website and publication controls
+        run: |
+          node scripts/Build-Site.mjs
+          node scripts/Check-Site.mjs
+          node scripts/Test-Site.mjs

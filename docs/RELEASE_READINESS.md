@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **PLANNED; not executed or approved for publication.**
+Status: **LOCAL PREPARATION IN PROGRESS; not approved for publication.**
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `plan/pre-publication`.
 Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
@@ -69,7 +69,7 @@ display changes, logon or intentional activation run in an agreed idle test sess
 | H1 | Download the staged final ZIP in a browser on a clean Windows VM; verify SHA-256, extract to a path with spaces/non-ASCII text and launch as a standard user | Same final bytes, no SDK/.NET runtime/Node/repo/cache needed for the app; record Defender/SmartScreen/Smart App Control result and signing status. Do not disable protections to get a pass. Repeat public URL download in L7. R-01/02/05/26/27. |
 | H2 | First run with no harness/config, then close/reopen | Usable empty/setup view, muted voice, honest unknown/offline health, no fabricated tasks and no unexpected setup writes. R-03/04/20. |
 | H3 | Real Codex work: active turn, async question, partial/full answer, completion, abort and error | Actual status/attention transitions agree with the session; an answer clears its request. Codex approvals are visibly Unsupported and never inferred or answered. R-06/07/08/09. |
-| H4 | Real DSH Desktop session through the desktop profile | Work -> approval/input wait -> answer/resume -> finish/abort and relaunch are reflected correctly. Record installed version; no terminal profile substitution. R-11. |
+| H4 | Real DSH Desktop session through the desktop profile | Work -> approval wait -> answer/resume -> finish/abort; record human-input detection as unsupported by the current observer and relaunch are reflected correctly. Record installed version; no terminal profile substitution. R-11. |
 | H5 | Real Claude Code session in the desktop Code tab or editor, in its actual Windows-local execution environment | Hooks really fire; working/input/permission/resume/completion/error match; Node/path/settings resolve in that environment. Record app and Code engine versions. R-11. |
 | H6 | Install, remove, move/rebind and reinstall each bridge using backed-up test settings/profile | Unrelated settings preserved, ordinary host use still works, no dangling bridge path, producer resumes from the kept directory and OVERSEER discovers it after restart. R-11/23/24. |
 | H7 | Stop/restart one host and temporarily make its source unreadable in isolated test data | Coverage becomes honestly limited/offline, peer sources keep working, counts do not become a false healthy zero, recovery resumes without stale attention. R-07/19. |

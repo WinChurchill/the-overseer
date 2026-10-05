@@ -1,0 +1,54 @@
+name: Publish approved website
+on:
+  workflow_dispatch:
+    inputs:
+      publication_approved:
+        description: Owner has approved making this website public
+        type: boolean
+        default: false
+        required: true
+      version:
+        description: Exact approved release version (no v prefix)
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: pages-publication
+  cancel-in-progress: false
+jobs:
+  build:
+    if: inputs.publication_approved && !github.event.repository.private && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Build approved public identity
+        env:
+          SITE_URL: ${{ vars.OVERSEER_SITE_URL }}
+          REPOSITORY_URL: ${{ vars.OVERSEER_REPOSITORY_URL }}
+          DOWNLOAD_URL: ${{ vars.OVERSEER_DOWNLOAD_URL }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node scripts/Build-Site.mjs "--base-url=$SITE_URL" "--repository-url=$REPOSITORY_URL" "--download-url=$DOWNLOAD_URL" "--version=$RELEASE_VERSION"
+      - name: Validate public metadata and links
+        run: node scripts/Check-Site.mjs --publication
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

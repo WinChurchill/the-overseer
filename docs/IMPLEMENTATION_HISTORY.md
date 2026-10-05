@@ -2411,7 +2411,7 @@ User-directed usability changes on `ux/first-use`, based on reviewed P4 head
   Scoped live check confirms visible/topmost/taskbar; 11/60 foreground samples
   occurred during the interactive session, so this run does not establish absence
   of focus activation. No focus code changed; full smoke was not repeated.
-- Updated and verified `C:\Users\tester\Desktop\OVERSEER.lnk` target and icon.
+- Updated and verified `%USERPROFILE%\Desktop\OVERSEER.lnk` target and icon.
   App left running from `artifacts/overseer-emblem-3405a26/`, settings preserved.
   Evidence in `artifacts/emblem-release/`; no merge/tag.
 

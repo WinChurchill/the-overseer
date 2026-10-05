@@ -5,7 +5,7 @@ Plan: complete pre-publication preparation, planned 2026-10-05.
 Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
 Plan baseline main: `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Prior remediation baseline: `82e15e3`; remediation merged at `fcabe00`.
-Status: **PLANNED**; cleanup/qualification/publication execution has not started.
+Status: **IN PROGRESS**; local preparation authorized 2026-10-05. Publication remains gated.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packet preserved under
 `artifacts/prepublication-planning-20261005/`. Previous remediation review was

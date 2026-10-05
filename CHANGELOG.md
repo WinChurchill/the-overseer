@@ -1,5 +1,17 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.9 — private pre-publication qualification
+
+- Prepared a static project website, descriptive README, privacy/support/security
+  and contribution guides, sanitized theme screenshots and bug-report template.
+- Added local website/link/metadata checks and publication guard controls; Pages
+  deployment is manual, public-main only and requires explicit approval/configuration.
+- Release payload now includes offline privacy, support and upgrade instructions.
+  Corrected privacy wording and documented the DSH human-input limitation.
+- Public, live-host, clean-machine, audible and physical-display qualification
+  remains pending; this RC is unsigned and not published.
+
+
 ## Unreleased — repository assessment remediation
 
 - Reduced the header menu to eight daily actions and the tray menu to six actions.
