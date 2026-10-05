@@ -1,13 +1,28 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: repository assessment remediation, 2026-09-29.
-Review branch: `fix/repo-assessment`.
-Baseline main: `82e15e31da1bc3d37a8b080118f85efd9d86cdb4`.
-Status: automated review **PASS WITH NONBLOCKING NOTES**; accepted for local merge.
+Plan: complete pre-publication preparation, planned 2026-10-05.
+Review branch: `plan/pre-publication`; reviewed main remains `fcabe00`.
+Plan baseline main: `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
+Prior remediation baseline: `82e15e3`; remediation merged at `fcabe00`.
+Status: **PLANNED**; cleanup/qualification/publication execution has not started.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
-Execution packet: ignored `.agent/HANDOFF.md`; completed disposition recorded there.
-Review role completed by Codex in this chat; this is not an independent second-agent review.
+Execution packet: ignored `.agent/HANDOFF.md`; prior packet preserved under
+`artifacts/prepublication-planning-20261005/`. Previous remediation review was
+performed in this chat, not by an independent second agent.
+
+## Pre-publication plan
+- Owner selected GitHub source/Releases **and a project website**; proposed GitHub Pages.
+- Current runbook: [release readiness](RELEASE_READINESS.md), P1–P8 / H1–H16 / L1–L10.
+- Audit source/history/privacy and dependencies; qualify actual desktop bridges;
+  prepare current public docs/static site/SEO; build one final hash-bound candidate;
+  collect hosted CI, owner hands-on and clean-machine results; then seek public approval.
+- Local preflight found no site/public URL, no README screenshots, missing community/
+  security/issue files, personal Windows path in history and split candidate evidence.
+  Limited token-pattern matches were absent; full security/history scan is still required.
+- Account/repository, history exposure, signing/unsigned and custom domain choices
+  are needed during execution; no upload, deployment or announcement is authorized yet.
+- Prior verification below belongs to its named revisions, not this new plan.
 
 ## Scope and decisions
 - Owner selected MIT for original code/docs, including AGENTS.md and the V1 spec,
@@ -144,5 +159,6 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
 - `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: hosted Windows CI and real desktop bridge qualification, followed by the owner's
-hands-on and clean-machine tests. Publication remains deferred until those gates pass.
+Next: execute P1–P7 from the current handoff as one review unit when authorized.
+L1–L4 prepare the launch; L5 is owner approval of the final packet for public L6–L10.
+This turn prepared the plan and local preflight; it did not rerun product tests.

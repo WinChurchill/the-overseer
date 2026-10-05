@@ -1,5 +1,154 @@
 # OVERSEER release readiness
 
+## Current pre-publication plan — 2026-10-05
+
+Status: **PLANNED; not executed or approved for publication.**
+Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
+Planning/review branch: `plan/pre-publication`.
+Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
+with a small static site in `site/`; review it locally before deployment.
+The execution packet is ignored `.agent/HANDOFF.md`; source status is
+[IMPLEMENTATION_STATE.md](IMPLEMENTATION_STATE.md).
+
+End state: one reviewed source revision, one final archive with a recorded hash,
+complete automated and human qualification, accurate public docs/site, and a
+ready-to-publish GitHub release. Making source, release assets and website public
+requires the owner's final approval of that concrete packet.
+
+### Facts and publication/SEO preflight
+
+- No Git remote, project website, public URL or hosted CI run is configured.
+- Local baseline: 715 .NET tests, DSH 30 and Claude 29; full-duration private
+  packaged smoke 42 pass / 0 fail / 3 activation checks deferred. These are old
+  revision-specific results, not certification of a future release.
+- RC8 predates remediation. Newer archives cover different checks; no single
+  final public candidate has all qualification evidence.
+- README has a brand-only title and no screenshots. Relative Markdown links
+  checked in the preflight resolve locally; public download targets are absent.
+- CONTRIBUTING, SECURITY and issue templates are absent.
+- A personal Windows profile path occurs in IMPLEMENTATION_HISTORY.md.
+  Limited tracked-text private-key/token patterns found no matches; this is
+  **not** a full secret/history scan. Review intended public history before upload.
+- Optional configured TTS sends generic notification text, event code and task
+  alias to its endpoint. Public privacy claims must distinguish this opt-in
+  network path from local monitoring and offline speech.
+- DSH Desktop and the Claude desktop app were found on 2026-09-29. Recheck actual
+  versions and session execution environment; neither bridge has live qualification.
+- MIT code/docs/generated artwork and upstream attribution are resolved.
+  Codex approval detection remains explicitly Unsupported by owner choice.
+- Preflight record: `artifacts/prepublication-planning-20261005/preflight.json`.
+
+### Ordered execution
+
+| Step | Work / owner | Required result |
+| --- | --- | --- |
+| P1 — Source and disclosure cleanup | Coding agent; owner resolves any disclosure/signing choices | Audit intended public tree, main's reachable history and selected tags with a pinned secret scanner; scan extracted payload separately. Inspect personal paths, real logs, screenshots, commit metadata, upstream notices and tracked binaries. Redact scan reports. No credential/third-party/private data finding left unresolved before upload. Preserve private evidence and local history; never rewrite main or force-push. If public history needs a different export, obtain a specific decision. |
+| P2 — Product and build qualification | Coding agent, then review role | Review monitoring/state boundaries, source failure/recovery, record bounds, privacy, voice anti-spam, lifecycle and risky-path tests. Remove reachable dead code/stale examples only after checking consumers. Audit top-level/transitive NuGet dependencies and bundled .NET runtime versions; Node bridges have no npm dependencies. Fix material findings, add meaningful regressions and rerun affected/full checks. Current build instructions work from a fresh clone; hosted Windows CI passes for the final source. |
+| P3 — Live desktop integrations | Coding agent prepares isolated previews/backups; owner operates app sessions | Recheck DSH Desktop's bundled manager and dedicated desktop profile, and Claude Code desktop/editor Windows-local settings/runtime. Install from permanent bridge directories. Record real work, input/approval, resumed work, completion/abort and host failure/recovery. Remove/rebind/reinstall without changing unrelated settings. Record host/engine versions, spool/source identity and observed latency. Advertise only qualified environments; WSL/SSH/cloud remain out of scope unless separately qualified. |
+| P4 — Public docs, website and SEO | Coding agent; owner approves presentation | Rewrite README around a real download, quick start, truthful capability matrix and sanitized screenshots. Add contribution/build guidance, support/bug template and a usable private security-report route. Reconcile state/readiness/upgrade/scaling/UI docs; keep old evidence historical and ignored artifacts private. Build home, install/troubleshooting and privacy pages; validate responsive/keyboard use, links, version labels and SEO preflight below. No deployment yet. |
+| P5 — Final packaging and repeatable evidence | Coding agent | First qualification candidate: next unused RC identity (currently rc.9). Run existing source, bridge, control, packaged, upgrade/rollback, scaling and silent-voice checks sequentially. Collect soak/resource measurements for idle, multi-host work and recovery. Review each report's omissions, not just exit codes. Select signed or explicitly unsigned distribution before final packaging; if signing, integrate it before hashes/manifest/ZIP. Build the final proposed public version from clean reviewed source; qualify those exact final bytes. Any change to shipped bytes invalidates the hash-bound signoff. |
+| P6 — Human and clean-machine signoff | Winston; agent prepares inputs and records results | Complete H1–H16 below against the final archive. Require a clean Windows environment without SDK/.NET/Node/harness and an independent machine/account. Open failures become fixes and focused retests; rerun the full release suite after product changes. No skipped physical/live test becomes a pass. |
+| P7 — Review and approval packet | Review role; Winston approves publication | Review complete diff against main. Close every blocker/major finding. Assemble source commit/tag, archive hash, manifest, support matrix, hosted CI URL, automated reports, H1–H16 results, signing status, README/site preview and draft release notes. The approved archive is fixed; previous RC/dev archives are not published as the new release. |
+| P8 — Controlled publication | Agent after explicit owner approval | L1–L4 are preparation during P1–P7, with separate authorization for private uploads; L5 is the final public approval. Execute L6–L10 afterward. Public URL/download/indexing tests run after visibility/deployment and before announcements. Keep identities consistent; patches get new versions. |
+
+Owner inputs when execution needs them: GitHub account/repository; acceptable public
+history/disclosure scope; signed release or explicitly unsigned preview; any custom
+domain (default is the GitHub Pages project URL). No branding-license reapproval needed.
+Budget/identity requirements for signing are decided before starting that work.
+
+### Exact owner checklist
+
+The agent supplies a final ZIP, hash, disposable data/profile setup, expected results
+and an evidence sheet. For each item record PASS / FAIL / UNSUPPORTED, OS/host version,
+archive hash, date and a short observation. An unexplained omission blocks signoff.
+Use a standard account and leave normal Windows protections enabled. Tests requiring
+display changes, logon or intentional activation run in an agreed idle test session.
+
+| ID | What Winston checks | Pass condition / existing gates |
+| --- | --- | --- |
+| H1 | Download the staged final ZIP in a browser on a clean Windows VM; verify SHA-256, extract to a path with spaces/non-ASCII text and launch as a standard user | Same final bytes, no SDK/.NET runtime/Node/repo/cache needed for the app; record Defender/SmartScreen/Smart App Control result and signing status. Do not disable protections to get a pass. Repeat public URL download in L7. R-01/02/05/26/27. |
+| H2 | First run with no harness/config, then close/reopen | Usable empty/setup view, muted voice, honest unknown/offline health, no fabricated tasks and no unexpected setup writes. R-03/04/20. |
+| H3 | Real Codex work: active turn, async question, partial/full answer, completion, abort and error | Actual status/attention transitions agree with the session; an answer clears its request. Codex approvals are visibly Unsupported and never inferred or answered. R-06/07/08/09. |
+| H4 | Real DSH Desktop session through the desktop profile | Work -> approval/input wait -> answer/resume -> finish/abort and relaunch are reflected correctly. Record installed version; no terminal profile substitution. R-11. |
+| H5 | Real Claude Code session in the desktop Code tab or editor, in its actual Windows-local execution environment | Hooks really fire; working/input/permission/resume/completion/error match; Node/path/settings resolve in that environment. Record app and Code engine versions. R-11. |
+| H6 | Install, remove, move/rebind and reinstall each bridge using backed-up test settings/profile | Unrelated settings preserved, ordinary host use still works, no dangling bridge path, producer resumes from the kept directory and OVERSEER discovers it after restart. R-11/23/24. |
+| H7 | Stop/restart one host and temporarily make its source unreadable in isolated test data | Coverage becomes honestly limited/offline, peer sources keep working, counts do not become a false healthy zero, recovery resumes without stale attention. R-07/19. |
+| H8 | Both themes; compact/expanded; narrow/short/tall/maximized; filters, project grouping, history, light width, pin/mute/settings | Nothing clipped, inaccessible or contradictory; 300x220 minimum layout remains usable; history quality/unknowns remain disclosed. R-12/14/15. |
+| H9 | Pointer drag, edge/corner resize, maximize/restore, hover/keyboard Snap, Tab/Enter/Space, Alt+Space and scroll | Native operations and explicit controls work; controls do not accidentally drag the window; geometry restores correctly. R-13/14. |
+| H10 | Move across 100/125/150/200% display scales, detach/reconnect a monitor, sleep/wake | Reachable placement, readable layout and resumed monitoring; no offscreen orphan or unsolicited focus takeover. Record actual tested scale/monitor combinations. R-14/19. |
+| H11 | Tray Show/Hide, pin/mute/settings, close-to-tray, Exit, deliberate second launch and no-tray fallback | Intentional activation works, normal updates do not take focus, one scoped instance restores, Exit really stops it and saves placement. R-16/17. |
+| H12 | Enable startup, sign out/in, move application folder and repair the recorded startup path, then disable startup | One intended instance starts; preferences/placement persist; startup entry reflects the actual path and opt-out removes it. R-16/24. |
+| H13 | Offline speech preview and live notification; selected pack/provider if advertised; mute/restart/unmute; absent device/voice | Audible and appropriate cue, no duplicate/backlog spam, mute persists, failures stay visible. If TTS is advertised, test a configured endpoint and its failure while respecting documented privacy. R-20/21/22. |
+| H14 | Upgrade from RC8 or the oldest explicitly supported build into a new folder using backed-up test data; restore backup to roll back | Settings, recordings, project mappings, disabled sources, placement and spools survive; shortcut/startup/bridge paths are repaired; documented rollback restores exact data. R-18/23/24/25. |
+| H15 | Normal multi-host use for at least one hour; remove startup/hooks and delete the app folder afterward | No hang, focus theft or accumulating voice backlog; measured resources respect configured bounds; uninstall leaves unrelated host settings working and explains optional removal of remaining OVERSEER data. R-17/19/24 plus soak evidence. |
+| H16 | Repeat core launch/setup/work/exit on an independent machine or Windows account; inspect public README/site/download/support links | Setup can be followed without your dev environment, screenshots and feature claims are accurate, privacy/support/signing limits are understandable. Record supported OS builds and host versions. R-28. |
+
+R-10 extracted bridge-suite qualification is automated in P2/P5.
+All R-01–R-28 gates map to P1–P8/H1–H16, with R-09 approval capability explicitly
+Unsupported. For any unqualified optional provider/host, either finish qualification
+or obtain an explicit scope decision and clearly restrict public claims; never silently
+drop a required check. SEO/website/security checks are additional gates.
+
+### Website and SEO preflight
+
+- Descriptive title/H1: **OVERSEER — Windows HUD for AI coding agents**.
+  Explain working/needs-you at a glance; disclose Codex approval limits next to claims.
+- Suggested GitHub description: “A local Windows HUD for AI coding agents:
+  see their work and when they need you.” Add relevant topics such as
+  `windows`, `wpf`, `codex`, `claude-code`, `deepseek`, `ai-agents`,
+  `developer-tools`, `monitoring`. Topics aid repository discovery
+  ([GitHub guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/classifying-your-repository-with-topics)).
+- One clear “Download for Windows x64” action links to the versioned **app ZIP**,
+  not GitHub's auto-generated source ZIP. Link Source, Install, Troubleshooting,
+  supported versions, License/attribution, Privacy and bug/security reporting.
+- Use sanitized current HUD screenshots in both themes. Label staged/synthetic
+  illustrations. Add alt text, favicon and a social preview (1280x640, under 1 MB
+  for GitHub); do not include private project/session identifiers.
+- Semantic HTML and crawlable text without requiring JavaScript; responsive layout,
+  keyboard access, useful focus indication/contrast; no broken local or external links.
+- Configure unique titles/descriptions, canonical HTTPS URLs, Open Graph/Twitter
+  metadata, sitemap and correct project-subpath asset/download links. Set robots rules
+  only at an origin root you control: a project-subdirectory robots.txt is not an
+  origin-wide robots policy ([Google robots guidance](https://developers.google.com/crawling/docs/robots-txt/create-robots-txt)). Keep drafts local and deploy only at the publication gate.
+- Run browser/link/accessibility and SEO audits on the local built site; triage failures.
+  After deployment validate HTTP status, canonical URL, sitemap and anonymous navigation.
+  Submit the site URL/sitemap through Search Console after ownership verification.
+  Google indexing/ranking cannot be certified before launch or guaranteed
+  ([Google SEO guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide)).
+- Site has no added analytics by default. Explain optional network TTS accurately;
+  do not claim zero network activity for every user-selected provider.
+
+### Exact publication checklist
+
+| ID | Action in order | Required result |
+| --- | --- | --- |
+| L1 | Resolve account/name, intended public history, Windows/host support matrix and signed/unsigned distribution | All choices written in the approval packet. Full history/payload scans finish **before private upload**, not just before public visibility. |
+| L2 | Create/configure private GitHub staging repository and origin when authorized; push vetted main/plan branch and only intended tags | Hosted Windows CI passes; required checks/review protect main as supported by the account plan. Do not push all local refs/artifacts. Pages remains disabled: a Pages site may be public even from a private repo ([GitHub Pages guide](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)). |
+| L3 | Prepare final version/tag from reviewed source and the final package workflow; run all final-byte checks and H1–H16 | One commit/version/hash/manifest identity; no stale RC evidence substituted; signing is finalized before archive hashing. |
+| L4 | Draft the GitHub release privately; attach final ZIP, SHA256SUMS, sanitized manifest/evidence summary, accurate release notes and install/upgrade instructions | Every attachment reviewed. Private browser-download clean-machine test uses these exact bytes; a draft is supported by [GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository). |
+| L5 | Review local website, README/About/topic/social previews, support/security route and complete release packet with Winston | Explicit final approval to expose source/history, publish these assets and deploy this site. No earlier check implies approval. |
+| L6 | Make vetted repository public, publish the reviewed release/tag, then enable/deploy GitHub Pages from only site/ | Download links and release version agree; expose no internal artifacts. Enable repository secret scanning/private vulnerability reporting where available; security response route works. |
+| L7 | Use a signed-out browser and clean Windows account to download from the real public CTA, compare hash and launch | Public access, correct app ZIP, preserved bytes, actual browser/protection behavior and usable start. Record public URL/time; no developer permissions required. |
+| L8 | Verify live website HTTPS, mobile/keyboard use, source/install/privacy links, social metadata, canonical and sitemap; update GitHub About URL | No launch-breaking link/HTTP/asset error. Verify Search Console ownership and submit sitemap; later indexing is observed, not assumed. |
+| L9 | Announce only after L7–L8 pass, using owner-approved channels and copy | Link the site/release; accurately label supported/experimental/unsupported capabilities. Prepare copy locally; sending/posting needs explicit authorization. |
+| L10 | Run a short launch support pass, triage reports and define next patch work | Reproduce bugs against version/hash, keep issue/security instructions current, never silently replace tested release assets; a patched binary gets a new version/hash. No recurring monitor is scheduled by this plan. |
+
+Signing reduces distribution friction but does not guarantee absence of SmartScreen
+warnings; unsigned builds may also be blocked by Windows policy. Record what the
+clean-machine run observes and state the actual distribution limits
+([Microsoft signing/reputation guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)).
+
+The packet is ready for public approval when P1–P7, H1–H16 and private preparation
+L1–L4 have recorded results, no blocker/major defect or unresolved disclosure remains,
+and the final bytes match the packet. L5 authorizes publication; L7–L8 are explicitly
+post-publication checks that must pass before L9 announcements. Search indexing may
+follow later and is not a promised launch result.
+
+---
+
+<details>
+<summary>Historical planning, protocols and revision-specific evidence (preserved)</summary>
+
 Current source status: [IMPLEMENTATION_STATE.md](IMPLEMENTATION_STATE.md).
 Current packaged candidate: **RC8**, source `f14dc47`, unsigned; its recorded six-area
 results are summarized in current state. Remediation source is newer than RC8.
@@ -749,3 +898,6 @@ audible-audio or signing/terms gate has passed. The local implementation evidenc
 first run, applied monitoring state, UI renders, native window behaviour, the bridge suites,
 upgrade preservation and rollback; the remaining gates are missing prerequisites, not hidden
 defects.
+
+
+</details>
