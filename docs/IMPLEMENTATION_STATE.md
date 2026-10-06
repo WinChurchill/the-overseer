@@ -1,15 +1,22 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: private GitHub staging, authorized 2026-10-05; RC13 owner checks stay pending.
-Branch: `staging/private-upload`; original source branches/main `fcabe00` preserved.
-Status: **PRIVATE SOURCE UPLOADED; HOSTED WINDOWS CI PASS.** Public gates pending.
+Plan: startup project reveal and Codex task links, owner feedback 2026-10-05.
+Branch: `fix/startup-task-links`, based on normalized private staging `5974bc1`.
+Status: **SOURCE FIXES VERIFIED; NEW PRIVATE CANDIDATE IN PREPARATION.** No merge.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
 Private [repository](https://github.com/WinChurchill/the-overseer); [Windows CI pass](https://github.com/WinChurchill/the-overseer/actions/runs/37413476257).
 206 commits preserved; only 17 Astra/DeepSeek identities normalized in the upload copy.
 Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB_STAGING.md).
+- Startup unhydrated tasks no longer settle a project's expansion default; fresh
+  working evidence reveals it without a click. Explicit collapse still wins.
+- Codex shell no-association falls back to Windows Store protocol activation;
+  other launch failures stay visible. Read-only URI preparation passed; exact-chat
+  activation remains an owner retest. Build 0 warnings/errors; 770 tests, 0 fail/skip.
+- An ordinary chat answer has no question ID. The current task-link widget remains
+  unresolved in source metadata; correlated reply or turn end clears it. No guessing.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -81,7 +88,7 @@ Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB
   Publication, signing and channel choices are deferred until qualification.
 - Codex approval detection stays explicitly **Unsupported**, by owner decision.
   Async question detection and correlated answer clearing remain supported.
-- Hosted CI and external release qualification are not claimed as complete.
+- Hosted CI passed prior staging; final-byte/public qualification remains pending.
 
 ## Completed implementation
 - Main advanced from `663caf5` to `82e15e3`; `ux/first-use` and assessment `ca9906b` retained.
@@ -120,7 +127,7 @@ Evidence: `artifacts/remediation-verification/`, including logs, TRX, renders,
 headless/windowed evidence and private-package manifest. Development failures remain.
 Fresh-clone verification uses this machine's installed SDK and existing package cache
 via environment/PATH; the cloned repository needs no adjacent ../.tools directory.
-Hosted CI is pending: the main repository has no configured Git remote.
+Hosted CI was pending for that historical run; private staging now has a verified pass.
 
 ## Private verification archive
 `1.0.0-dev.remediation+2567976`, unsigned, clean source, 569 payload files,
@@ -165,7 +172,7 @@ The merge gate has passed; unrelated historical branches are retained.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- Hosted Windows CI after a remote is configured.
+- Hosted Windows CI for the new fix and final approved source.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
 - Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
   hosts are installed but both bridges remain experimental.
@@ -176,22 +183,12 @@ See [release readiness](RELEASE_READINESS.md) for protocols and revision-specifi
 
 ## Automated review — 2026-09-29
 Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
-- Reviewed menu/state synchronization, startup failure handling, settings bindings,
-  tray fallback, chart removal, retained history/voice behavior and smoke evidence.
-- Monitoring, voice policy, frozen spec, artwork bytes and upstream license are unchanged.
-  All nine retired-branch commits remain reachable; old ledger is preserved byte-for-byte.
-- Fresh build/tests and revision-specific full-duration packaged results support the change.
-  Hosted CI, real desktop session behavior and physical checks remain unexecuted, explicit notes.
-- Final follow-up: both bridge suites pass again; publisher and archive license checks pass.
-  Claude installer preview applied nothing and left Windows user settings absent.
+- Historical menu/state/lifecycle/privacy review and its evidence are retained in
+  IMPLEMENTATION_HISTORY. It does not certify the current source or candidate.
 
 ## Commits and next action
-- `5393442`: menu/settings and dead-chart cleanup.
-- `74bb348`: license, CI, build instructions and documentation/history.
-- `d0186a8`, `9eb6220`: preserve original agent histories without stale source adoption.
-- `2567976`: align the settings fixture with its rendered theme.
-- `92a5473`: fix evidence generation for skipped visible checks.
-- `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
+- Original remediation commit identities remain in IMPLEMENTATION_HISTORY and
+  preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
 Next: Winston retests DSH questions and H1–H16 from the updated OWNER_HANDOFF.md.

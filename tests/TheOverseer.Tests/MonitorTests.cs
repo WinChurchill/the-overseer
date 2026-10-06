@@ -28,6 +28,34 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
+    public void BoundedStartupHydrationRevealsTheNowProjectWithoutInteraction()
+    {
+        const string id = "01a0c700-0000-0000-0000-000000000094";
+        var padding = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "world_state", payload = new { padding = new string('x', 22000) },
+        });
+        _home.WriteRollout(id, new[] { Records.SessionMeta(id), padding, Records.TaskStarted("turn-1") });
+        using var monitor = Create(MonitorOptions.Default with
+        {
+            MaxIdentityHeaderBytes = 4096, PerFileBytesPerPass = 8192, GlobalBytesPerPass = 65536,
+        });
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(monitor.Refresh());
+        Assert.Empty(vm.Projects);
+        Assert.Equal(0, monitor.Current.Observation.FilesHydrated);
+
+        for (var pass = 0; pass < 8 && monitor.Current.Observation.FilesHydrated == 0; pass++)
+            vm.ApplySnapshot(monitor.Refresh());
+
+        Assert.Equal(1, monitor.Current.Observation.FilesHydrated);
+        Assert.True(Assert.Single(vm.Projects).IsExpanded);
+        Assert.Equal(id, Assert.Single(vm.Tasks).Key.ConversationId);
+        Assert.Equal(1, monitor.Current.Counts.Working.Value);
+        Assert.Empty(monitor.Current.Transitions); // Hydration remains a quiet baseline.
+    }
+
+    [Fact]
     public void HydratesUserConversationAndExcludesExplicitInternalRollouts()
     {
         _home.WriteRollout(

@@ -52,6 +52,11 @@ specification still governs monitoring, history and voice semantics.
 
 ## Visual rules
 
+Initial project expansion waits for usable task observation. A task admitted before
+startup hydration must not lock an active project collapsed; deliberate user collapse
+still wins. Question markers require correlated replies or turn termination to clear;
+ordinary chat messages carry no question identity.
+
 - Neutral rows with small state accents; strong colour is reserved for attention, and
   text always carries the same meaning as the colour.
 - The optional resizable status light keeps its persisted position and width

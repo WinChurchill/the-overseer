@@ -35,6 +35,71 @@ public sealed class TaskNavigationTests
         1);
 
     [Fact]
+    public void UnsupportedTaskNeverReachesEitherWindowsActivationRoute()
+    {
+        var shell = new FakeTaskLaunchBoundary();
+        var packaged = new FakeTaskLaunchBoundary();
+        var navigator = new CodexTaskNavigator(new ShellTaskLaunchBoundary(shell, packaged));
+        var result = navigator.Navigate(Task(surface: ClientSurface.Cli), "codex");
+        Assert.Equal(TaskNavigationOutcome.UnsupportedSurface, result.Outcome);
+        Assert.Equal(0, shell.LaunchCount);
+        Assert.Equal(0, packaged.LaunchCount);
+    }
+
+    [Theory]
+    [InlineData("https://threads/00000000-0000-0000-0000-000000000000")]
+    [InlineData("codex://settings/00000000-0000-0000-0000-000000000000")]
+    [InlineData("codex://user@threads/00000000-0000-0000-0000-000000000000")]
+    [InlineData("codex://threads:123/00000000-0000-0000-0000-000000000000")]
+    [InlineData("codex://threads//00000000-0000-0000-0000-000000000000")]
+    [InlineData("codex://threads/00000000-0000-0000-0000-000000000000?command=x")]
+    [InlineData("codex://threads/00000000-0000-0000-0000-000000000000#x")]
+    public void PackagedActivationRejectsNonTaskRoutesBeforeCallingWindows(string value)
+    {
+        var boundary = new PackagedCodexTaskLaunchBoundary();
+        Assert.False(boundary.TryLaunch(new Uri(value), out var error));
+        Assert.Equal("invalid-uri", error);
+    }
+
+    [Fact]
+    public void StoreActivationIsUsedOnlyWhenShellHasNoAssociation()
+    {
+        var shell = new FakeTaskLaunchBoundary { Succeed = false, ErrorCode = "no-handler" };
+        var packaged = new FakeTaskLaunchBoundary();
+        var navigator = new CodexTaskNavigator(new ShellTaskLaunchBoundary(shell, packaged));
+        var result = navigator.Navigate(Task(), "codex");
+        Assert.Equal(TaskNavigationOutcome.Requested, result.Outcome);
+        Assert.Equal(1, shell.LaunchCount);
+        Assert.Equal(1, packaged.LaunchCount);
+        Assert.Equal(shell.LastUri, packaged.LastUri);
+    }
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, "shell-launch-failed")]
+    [InlineData(false, "handler-unavailable")]
+    public void StoreActivationDoesNotOverrideShellSuccessOrOtherFailures(bool success, string? error)
+    {
+        var shell = new FakeTaskLaunchBoundary { Succeed = success, ErrorCode = error };
+        var packaged = new FakeTaskLaunchBoundary();
+        var navigator = new CodexTaskNavigator(new ShellTaskLaunchBoundary(shell, packaged));
+        Assert.Equal(success ? TaskNavigationOutcome.Requested : TaskNavigationOutcome.LaunchFailed,
+            navigator.Navigate(Task(), "codex").Outcome);
+        Assert.Equal(0, packaged.LaunchCount);
+    }
+
+    [Theory]
+    [InlineData("no-handler", TaskNavigationOutcome.NoHandler)]
+    [InlineData("packaged-activation-failed", TaskNavigationOutcome.LaunchFailed)]
+    public void StoreActivationFailureRemainsVisible(string error, TaskNavigationOutcome expected)
+    {
+        var navigator = new CodexTaskNavigator(new ShellTaskLaunchBoundary(
+            new FakeTaskLaunchBoundary { Succeed = false, ErrorCode = "no-handler" },
+            new FakeTaskLaunchBoundary { Succeed = false, ErrorCode = error }));
+        Assert.Equal(expected, navigator.Navigate(Task(), "codex").Outcome);
+    }
+
+    [Fact]
     public void BuildsTheExactEncodedDesktopRoute()
     {
         var result = CodexTaskNavigator.BuildUri(Task(), "codex");

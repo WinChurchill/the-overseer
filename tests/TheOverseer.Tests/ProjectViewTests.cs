@@ -49,6 +49,67 @@ public sealed class ProjectViewTests
     }
 
     [Fact]
+    public void StartupHydrationRevealsWorkingProjectWithoutAProjectClick()
+    {
+        var project = Project("loading");
+        var waitingForHydration = Task("startup-task", project, state: AgentTaskState.Idle, stale: true);
+        var vm = View(waitingForHydration);
+        Assert.Empty(vm.Projects);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            waitingForHydration with { State = AgentTaskState.Working, IsStale = false },
+        }));
+        var row = Assert.Single(vm.Projects);
+        Assert.True(row.IsExpanded);
+        Assert.True(Assert.Single(row.Tasks).IsProjectExpanded);
+        Assert.Equal(1, row.WorkingCount);
+    }
+
+    [Fact]
+    public void CollapseAllWhileStartupIsLoadingSurvivesHydration()
+    {
+        var task = Task("startup-task", Project("loading"), state: AgentTaskState.Idle, stale: true);
+        var vm = View(task);
+        vm.SetAllProjectsExpanded(false);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            task with { State = AgentTaskState.Working, IsStale = false },
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Theory]
+    [InlineData(AgentTaskState.Done)]
+    [InlineData(AgentTaskState.Idle)]
+    public void StartupHydrationKeepsSettledProjectsCollapsed(AgentTaskState state)
+    {
+        var task = Task("startup-task", Project("loading"), state: AgentTaskState.Idle, stale: true);
+        var vm = View(task);
+        vm.TaskView = "recent";
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            task with { State = state, IsStale = false },
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Fact]
+    public void ExplicitCollapseWhileStartupIsLoadingSurvivesHydration()
+    {
+        var project = Project("loading");
+        var task = Task("startup-task", project, state: AgentTaskState.Idle, stale: true);
+        var vm = View(task);
+        vm.TaskView = "recent";
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+        vm.SetProjectExpanded(project.Id, false);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            task with { State = AgentTaskState.Working, IsStale = false },
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Fact]
     public void IndependentChatsRemainSeparateTasksInsideANeutralNonProjectHeading()
     {
         var vm = View(

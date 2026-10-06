@@ -106,12 +106,41 @@ public sealed class InputPromptMonitoringTests
             _clock.AdvanceSeconds(1);
             SyntheticCodexHome.Append(_path, new[] { JsonSerializer.Serialize(new { type = "response_item", timestamp = _clock.GetUtcNow(), payload }) });
         }
+        public void CompleteTurn()
+        {
+            _clock.AdvanceSeconds(1);
+            SyntheticCodexHome.Append(_path, new[] { Records.TaskComplete("turn", _clock.GetUtcNow().ToUnixTimeSeconds()) });
+        }
         public void Dispose() { Monitor.Dispose(); _home.Dispose(); }
     }
 
     private static string Envelope(string callId, int index) => "<send_user_message_question_reply>\n" +
         JsonSerializer.Serialize(new[] { new { questionItemId = JsonSerializer.Serialize(new object[] { "request_user_input_async", callId, index }), question = "PRIVATE_QUESTION", answer = "PRIVATE_ANSWER" } }) +
         "\n</send_user_message_question_reply>";
+
+    [Fact]
+    public void OrdinaryChatReplyCannotConfirmAQuestionButTurnEndClearsTheMarker()
+    {
+        using var fixture = new Fixture();
+        fixture.Input("pending-widget");
+        fixture.Monitor.Refresh();
+        fixture.Record(new
+        {
+            type = "message", role = "user",
+            internal_chat_message_metadata_passthrough = new { turn_id = "turn" },
+            content = new[] { new { type = "input_text", text = "PRIVATE_ANSWER ordinary chat response" } },
+        });
+        var pending = fixture.Monitor.Refresh();
+        Assert.True(Assert.Single(pending.Tasks).NeedsHuman);
+        Assert.DoesNotContain("PRIVATE_", JsonSerializer.Serialize(pending));
+        fixture.CompleteTurn();
+        var settled = fixture.Monitor.Refresh();
+        Assert.False(Assert.Single(settled.Tasks).NeedsHuman);
+        Assert.Null(Assert.Single(settled.Tasks).AttentionCode);
+        var vm = new HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(settled);
+        Assert.DoesNotContain("question pending", Assert.Single(vm.Tasks).MarksText);
+    }
 
     [Fact]
     public void AsyncAnswerClearsAppliedHudWithoutWaitingForTurnEnd()

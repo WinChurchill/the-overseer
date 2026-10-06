@@ -30,6 +30,10 @@ fresh, partial, stale and unavailable coverage. Task titles and project paths ma
 visible locally; no transcript is copied into OVERSEER history or diagnostic logs.
 Read [privacy](PRIVACY.md) before choosing an optional network TTS provider.
 
+Codex questions clear on a matching question-widget reply or turn completion/abort.
+An answer typed as ordinary chat does not carry the question's ID, so its pending
+marker can remain until the turn ends. OVERSEER does not guess from answer text.
+
 ## Install and first run
 
 1. Obtain the versioned `OVERSEER-<version>-win-x64.zip` and its SHA-256 from the
@@ -76,6 +80,8 @@ muted. Existing settings are preserved.
   intentionally activate the window. Intentional restore/activation needs owner testing.
 - A resolved Codex desktop task opens its `codex://threads/<id>` route. Other harnesses
   offer task-id copying. OVERSEER does not submit a response or approval.
+  Windows Store activation is available when the ordinary shell has no association;
+  success means an open request was accepted, not proof of the exact chat focusing.
 
 ## Optional integrations
 

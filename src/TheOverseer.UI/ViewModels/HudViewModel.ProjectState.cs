@@ -23,6 +23,8 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
         public bool Working;
 
+        public bool Ready;
+
         public bool Active => Attention || Working;
     }
 
@@ -34,7 +36,9 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     /// task set and the tracked episode set is what makes "a request disappears, then a
     /// new turn asks again" a genuinely new episode that may reveal once.
     ///
-    /// First appearance expands attention/active projects and collapses settled ones;
+    /// First usable appearance expands attention/active projects and collapses settled
+    /// ones. Admission before hydration temporarily collapses an unready project but
+    /// leaves its default undecided; an explicit user choice settles it immediately.
     /// afterwards a user's choice is preserved. The reveal is skipped while the user has
     /// collapsed that project inside the current episode, and while everything is
     /// collapsed, so a rebuild never fights the user. Returns true when an expansion
@@ -62,6 +66,8 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 state.Working = true;
             }
 
+            state.Ready |= !task.IsStale && !task.IsProvisional;
+
             states[id] = state;
         }
 
@@ -79,9 +85,22 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             var present = states.TryGetValue(id, out var state);
             var attention = present && state.Attention;
 
+            // Admission precedes bounded hydration. An unready task can be hidden
+            // by Now while still participating in the full snapshot. Do not turn
+            // that temporary state into the project's permanent default choice.
+            if (!_knownProjects.Contains(id) && present && !state.Ready && !attention)
+            {
+                changed |= _collapsedProjects.Add(id);
+                continue;
+            }
+
             if (_knownProjects.Add(id))
             {
-                if (!present || !state.Active)
+                if (present && state.Active)
+                {
+                    changed |= _collapsedProjects.Remove(id);
+                }
+                else
                 {
                     changed |= _collapsedProjects.Add(id);
                 }

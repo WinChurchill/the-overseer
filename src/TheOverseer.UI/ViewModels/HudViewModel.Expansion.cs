@@ -35,6 +35,8 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
     /// </summary>
     public void SetProjectExpanded(ProjectId projectId, bool expanded)
     {
+        // A deliberate choice during loading settles this project's default too.
+        _knownProjects.Add(projectId);
         if (expanded)
         {
             if (_allCollapsed)
@@ -67,6 +69,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
     public void SetAllProjectsExpanded(bool expanded)
     {
+        foreach (var project in Projects) _knownProjects.Add(project.ProjectId);
         _allCollapsed = !expanded;
         _collapsedProjects.Clear();
         if (!expanded)
