@@ -4,7 +4,7 @@ See what your agents are doing and when they need you, in one small Windows wind
 OVERSEER groups observed work by project, shows the limits of its coverage and can
 speak short notifications. It observes; it never answers requests or controls an agent.
 
-**Publication status:** private qualification candidate `1.0.0-rc.12` is ready for owner retests.
+**Publication status:** private candidate `1.0.0-rc.13` is undergoing qualification.
 There is no public download yet. GitHub Releases and a project website are prepared
 for launch after [release qualification](docs/RELEASE_READINESS.md). Do not confuse
 GitHub's source ZIP with the self-contained Windows application ZIP.

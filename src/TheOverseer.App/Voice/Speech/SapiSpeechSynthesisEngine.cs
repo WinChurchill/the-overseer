@@ -349,6 +349,8 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
         }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or InvalidOperationException)
         {
+            // Preserve the render's original failure while making cleanup observable.
+            System.Diagnostics.Trace.TraceWarning("speech-stream-close-failed");
         }
     }
 

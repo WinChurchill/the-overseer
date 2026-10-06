@@ -224,10 +224,15 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         get
         {
             var attention = NeedsHuman || TaskState is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput;
-            var status = attention || ActionText.Length == 0 ? StateText : ActionText;
-            return MarksText.Length > 0
-                ? HarnessText + " · " + status + " · " + MarksText
-                : HarnessText + " · " + status;
+            var questionPending = NeedsHuman && TaskState == AgentTaskState.Working;
+            var status = questionPending ? "Question pending" : attention || ActionText.Length == 0 ? StateText : ActionText;
+            var marks = questionPending
+                ? string.Join(" · ", MarksText.Split(" · ").Where(mark => mark != "question pending"))
+                : MarksText;
+            // Keep long source-instance identifiers in DetailText so they cannot
+            // consume the row's entire status line at compact widths.
+            var badge = HudText.ShortHarness(Key.HarnessId);
+            return marks.Length > 0 ? badge + " · " + status + " · " + marks : badge + " · " + status;
         }
     }
 
@@ -337,7 +342,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         var relative = HudText.Relative(now - lastActivity);
         // "now" already carries the sense of the suffix; "now ago" is not a label.
         var freshness = relative == "now" ? "now" : relative + " ago";
-        AgeText = active ? _startedAt is { } start ? HudText.Relative(now - start) : "—" : freshness;
+        AgeText = active ? _startedAt is { } start ? HudText.Relative(now - start) : "—" : relative;
         AgeHint = active
             ? (_startedAt is null ? "Turn start was not observed." : "Elapsed this turn: " + AgeText + ".") +
               " Last activity: " + freshness + (IsStale ? ". Activity is stale; current work is unconfirmed." : ".")

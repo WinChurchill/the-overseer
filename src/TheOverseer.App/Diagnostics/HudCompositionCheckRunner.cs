@@ -107,7 +107,7 @@ internal static class HudCompositionCheckRunner
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            Check("composition-check-run", false, exception.GetType().Name + ": " + exception.Message);
+            Check("composition-check-run", false, exception.GetType().Name);
         }
 
         var failed = checks.Count(static check => !check.Passed);

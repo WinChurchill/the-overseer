@@ -44,7 +44,7 @@ internal static class MonitorDebugRunner
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            Write("monitor-debug failed: " + exception.GetType().Name + ": " + exception.Message);
+            Write("monitor-debug failed: " + exception.GetType().Name);
             return 1;
         }
     }

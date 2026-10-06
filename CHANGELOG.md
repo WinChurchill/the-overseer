@@ -1,5 +1,20 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.13 — private diagnostic-report cleanup
+
+- Recognized Codex output-only function envelopes so live chats retain coverage
+  and appear in Now. Genuine unknown records remain uncertain.
+- Added one stable display-number sequence across Codex, DSH and Claude, shared
+  by task rows, history and voice. Source-qualified identities remain unchanged.
+- Aligned numbers and dividers, standardized status and age text, reduced repeated
+  History labels, added a microphone state and light reason, clarified partial
+  counts, improved dark metadata contrast and expired successful navigation messages.
+- Split large shell, monitoring, bridge, reducer and view-model files without
+  changing their state logic. Audited exception handling and removed exception
+  messages from diagnostic reports. Exact-package diagnostics remain opt-in.
+- Private qualification only; live-host, clean-machine, audible and physical checks
+  remain required before publication.
+
 ## 1.0.0-rc.9 — private pre-publication qualification
 
 - Prepared a static project website, descriptive README, privacy/support/security

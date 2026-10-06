@@ -2,14 +2,34 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **RC12 READY FOR OWNER DSH RETEST.**
+Status: **RC13 AUTOMATED QUALIFICATION IN PROGRESS.** RC12 preserved.
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
-Planning/review branch: `plan/pre-publication`.
+Planning/review branch: `fix/prepublication-polish`.
 Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
 with a small static site in `site/`; review it locally before deployment.
 The execution packet is ignored `.agent/HANDOFF.md`; source status is
 [IMPLEMENTATION_STATE.md](IMPLEMENTATION_STATE.md).
+
+The diagnostic-report pass corrects live Codex chats disappearing from Now after
+an output-only envelope, shares display numbers across harnesses and polishes the
+HUD. Large classes are split into cohesive files. All 34 `catch (Exception...)`
+sites were reviewed: most have typed recovery and an observable result; the four
+unfiltered catches already report a safe error. Silent source reconcile/dispose
+and speech cleanup now emit fixed diagnostics. Voice import/preview/status failures
+also report fixed codes; arbitrary exception messages are omitted from reports.
+Pure validation and cancellation stay quiet; consumers report their result.
+
+VoiceSmokeRunner and HudCompositionCheckRunner remain opt-in shipped diagnostics:
+qualification must exercise the downloaded executable and real composition. Normal
+startup does not invoke them; synthetic data and isolated settings protect live hosts.
+Light colours share the same state meaning in both themes; working is green,
+attention/error red, uncertainty amber. Brighter dark metadata aids readability.
+Only scratch inventory is authorized here: candidate ZIPs, backups and evidence
+must survive. No blanket artifacts or .tools deletion is part of qualification.
+Public release packaging still requires a hosted CI run of the approved revision
+and CI-produced bytes; local RC folders are private qualification only. The existing
+Verify workflow has no public-release upload step. Publication remains a later action.
 
 End state: one reviewed source revision, one final archive with a recorded hash,
 complete automated and human qualification, accurate public docs/site, and a

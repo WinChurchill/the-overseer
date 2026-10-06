@@ -134,6 +134,24 @@ public sealed class TaskViewTests
     }
 
     [Fact]
+    public void NavigationConfirmationExpiresButFailureRemainsVisible()
+    {
+        var vm = new HudViewModel(HudSettings.Default, sessionStartedAt: Now);
+        vm.NotifyStatus("Open requested in Codex.", transient: true);
+        vm.UpdateAges(Now.AddSeconds(4));
+        Assert.True(vm.HasStatus);
+        vm.UpdateAges(Now.AddSeconds(5));
+        Assert.False(vm.HasStatus);
+        vm.NotifyStatus("Could not save settings.");
+        vm.UpdateAges(Now.AddMinutes(1));
+        Assert.Equal("Could not save settings.", vm.StatusMessage);
+        vm.NotifyStatus("Task id copied.", transient: true);
+        vm.NotifyMonitorFailure("lost");
+        vm.UpdateAges(Now.AddMinutes(2));
+        Assert.Contains("Monitor stopped", vm.StatusMessage);
+    }
+
+    [Fact]
     public void IncompleteZeroExplainsUnreadHistoryWithoutClaimingIdle()
     {
         var vm = new HudViewModel(HudSettings.Default);

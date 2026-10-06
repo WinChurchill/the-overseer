@@ -258,7 +258,7 @@ public sealed class ProjectViewTests
         Assert.Contains("2 working", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.Contains("0 needs you", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.Contains("Codex", row.ProjectGroupMeta, StringComparison.Ordinal);
-        Assert.Contains("dsh", row.ProjectGroupMeta, StringComparison.Ordinal);
+        Assert.Contains("DSH", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.DoesNotContain("partial", row.ProjectGroupMeta, StringComparison.Ordinal);
     }
 

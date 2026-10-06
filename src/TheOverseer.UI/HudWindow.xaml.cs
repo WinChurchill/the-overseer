@@ -42,6 +42,7 @@ public partial class HudWindow : Window
         WindowStyle = WindowStyle.SingleBorderWindow;
         ResizeMode = ResizeMode.CanResize;
         PreviewKeyDown += OnPreviewKeyDown;
+        Loaded += (_, _) => UpdateResponsiveLayout();
         SizeChanged += (_, _) => UpdateResponsiveLayout();
         StateChanged += (_, _) => UpdateMaximizeControl();
     }
@@ -140,7 +141,10 @@ public partial class HudWindow : Window
         // The status light takes real content width, so every threshold is measured
         // against what is left for the pinned header and the rows.
         var contentWidth = ActualWidth - (ViewModel?.LightExtraWidth ?? 0);
-        BrandLabel.Visibility = contentWidth < 280 ? Visibility.Collapsed : Visibility.Visible;
+        // Reserve the longest light reason alongside the five icon controls.
+        // Hide the whole brand at compact widths instead of clipping its first letters.
+        var minimumHeaderWidth = ViewModel?.LightVisible == true ? 340 : 280;
+        BrandLabel.Visibility = contentWidth < minimumHeaderWidth ? Visibility.Collapsed : Visibility.Visible;
         // One scroll surface at every size: wheel/touch input never gets trapped
         // inside a short nested task list. The controls remain outside this surface.
         ContentScroll.VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;

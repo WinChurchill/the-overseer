@@ -170,6 +170,8 @@ public sealed partial class HudViewModel
 
     private void RaiseStatus()
     {
+        Raise(nameof(LightToggleText));
+        Raise(nameof(LightToggleTooltip));
         Raise(nameof(StatusKind));
         Raise(nameof(StatusHeadline));
         Raise(nameof(StatusSymbol));

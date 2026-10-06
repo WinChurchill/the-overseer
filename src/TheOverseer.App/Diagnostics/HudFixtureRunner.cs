@@ -362,6 +362,11 @@ internal static class HudFixtureRunner
             window.Show();
             window.UpdateLayout();
             window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
+            if (window is HudWindow hud)
+            {
+                hud.UpdateResponsiveLayout();
+                hud.UpdateLayout();
+            }
             const double scale = 2.0;
             var bitmap = new RenderTargetBitmap(
                 (int)Math.Ceiling(window.ActualWidth * scale),

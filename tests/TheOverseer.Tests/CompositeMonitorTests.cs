@@ -110,6 +110,90 @@ public sealed class CompositeMonitorTests
     }
 
     [Fact]
+    public async Task DisplayNumbersQualifyIdentityAndAgreeWithAttentionAcrossSources()
+    {
+        var clock = new ManualTimeProvider(Start);
+        var codex = new FakeAdapter(Codex);
+        var dsh = new FakeAdapter(Dsh);
+        var claudeSource = new SourceInstance(HarnessIds.Claude, "claude", "Claude");
+        var claude = new FakeAdapter(claudeSource);
+        await using var composite = new CompositeMonitorSource(new IAgentMonitorAdapter[] { codex, dsh, claude }, timeProvider: clock);
+        await composite.StartAsync(CancellationToken.None);
+        var a = BuildTask(HarnessIds.Codex, "codex", "same-id", AgentTaskState.Working) with { Number = 1 };
+        var b = BuildTask(HarnessIds.Dsh, "dsh-default", "same-id", AgentTaskState.NeedsInput) with { Number = 8570 };
+        var c = BuildTask(HarnessIds.Claude, "claude", "same-id", AgentTaskState.Working) with { Number = 6949 };
+        codex.Push(MonitoringHealthLevel.Healthy, true, new[] { a });
+        dsh.Push(MonitoringHealthLevel.Healthy, true, new[] { b }, new[] { VoiceTestData.Event(AttentionEventKind.InputRequired, key: b.Key, number: 8570, observedAt: Start) });
+        var edge = Assert.Single(composite.Current.Transitions);
+        Assert.Equal(2, edge.Number);
+        claude.Push(MonitoringHealthLevel.Healthy, true, new[] { c });
+        Assert.Equal(new[] { 1, 2, 3 }, composite.Current.Tasks.Select(task => task.Number));
+        dsh.Push(MonitoringHealthLevel.Unavailable, false, new[] { b with { IsStale = true } });
+        Assert.Equal(new[] { 1, 2, 3 }, composite.Current.Tasks.Select(task => task.Number));
+        // A short source gap does not give the chat another number.
+        dsh.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>());
+        clock.Advance(TimeSpan.FromSeconds(30));
+        dsh.Push(MonitoringHealthLevel.Healthy, true, new[] { b });
+        Assert.Equal(2, composite.Current.Tasks.Single(task => task.Key == b.Key).Number);
+        // Source-local renumbering is irrelevant to the shared sequence.
+        codex.Push(MonitoringHealthLevel.Healthy, true, new[] { a with { Number = 99 } });
+        Assert.Equal(1, composite.Current.Tasks.Single(task => task.Key == a.Key).Number);
+    }
+
+    [Fact]
+    public async Task ExpiredDisplayNumbersWaitForCooldownAndCannotCollideWithLivePeers()
+    {
+        var clock = new ManualTimeProvider(Start);
+        var adapter = new FakeAdapter(Codex);
+        await using var composite = new CompositeMonitorSource(new[] { adapter }, timeProvider: clock);
+        await composite.StartAsync(CancellationToken.None);
+        AgentTask Task(string id) => BuildTask(HarnessIds.Codex, "codex", id, AgentTaskState.Working);
+        adapter.Push(MonitoringHealthLevel.Healthy, true, new[] { Task("old"), Task("peer") });
+        adapter.Push(MonitoringHealthLevel.Healthy, true, new[] { Task("peer") });
+        clock.Advance(TimeSpan.FromMinutes(3));
+        adapter.Push(MonitoringHealthLevel.Healthy, true, new[] { Task("peer"), Task("new") });
+        Assert.Equal(new[] { 2, 3 }, composite.Current.Tasks.Select(task => task.Number));
+        clock.Advance(TimeSpan.FromMinutes(3));
+        adapter.Push(MonitoringHealthLevel.Healthy, true, new[] { Task("peer"), Task("new"), Task("reused") });
+        Assert.Equal(new[] { 2, 3, 1 }, composite.Current.Tasks.Select(task => task.Number));
+    }
+
+    [Fact]
+    public async Task AbsentDisplayIdentityCacheIsBounded()
+    {
+        var adapter = new FakeAdapter(Codex);
+        var clock = new ManualTimeProvider(Start);
+        await using var composite = new CompositeMonitorSource(new[] { adapter }, timeProvider: clock);
+        await composite.StartAsync(CancellationToken.None);
+        var tasks = Enumerable.Range(1, 520).Select(index => BuildTask(HarnessIds.Codex, "codex", "task-" + index, AgentTaskState.Working)).ToArray();
+        adapter.Push(MonitoringHealthLevel.Healthy, true, tasks);
+        adapter.Push(MonitoringHealthLevel.Healthy, true, Array.Empty<AgentTask>());
+        adapter.Push(MonitoringHealthLevel.Healthy, true, new[] { tasks[0], tasks[^1] });
+        Assert.Equal(new[] { 521, 520 }, composite.Current.Tasks.Select(task => task.Number));
+    }
+
+    [Fact]
+    public async Task BatchedAttentionWithEqualSourceAndConversationIdsKeepsBothHarnesses()
+    {
+        var codex = new FakeAdapter(new SourceInstance(HarnessIds.Codex, "same", "Codex"));
+        var dsh = new FakeAdapter(new SourceInstance(HarnessIds.Dsh, "same", "DSH"));
+        await using var composite = new CompositeMonitorSource(new IAgentMonitorAdapter[] { codex, dsh });
+        await composite.StartAsync(CancellationToken.None);
+        var a = BuildTask(HarnessIds.Codex, "same", "same", AgentTaskState.NeedsInput);
+        var b = BuildTask(HarnessIds.Dsh, "same", "same", AgentTaskState.NeedsInput);
+        var received = new List<AttentionEvent>();
+        composite.SnapshotAvailable += snapshot => received.AddRange(snapshot.Transitions);
+        // Exercise one aggregation batch, including an edge before its peer row.
+        codex.Push(MonitoringHealthLevel.Healthy, true, new[] { a }, new[] {
+            VoiceTestData.Event(AttentionEventKind.InputRequired, key: a.Key),
+            VoiceTestData.Event(AttentionEventKind.InputRequired, key: b.Key) });
+        dsh.Push(MonitoringHealthLevel.Healthy, true, new[] { b });
+        Assert.Equal(2, received.Count);
+        Assert.Equal(new[] { 1, 2 }, received.Select(edge => edge.Number));
+        Assert.Equal(2, composite.Current.Tasks.Single(task => task.Key == b.Key).Number);
+    }
+
+    [Fact]
     public async Task AFailingSourceKeepsHealthyWorkVisibleAndMakesCountsPartial()
     {
         var codex = new FakeAdapter(Codex);

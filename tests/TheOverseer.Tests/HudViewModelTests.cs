@@ -95,9 +95,11 @@ public sealed class HudViewModelTests
         var row = viewModel.Tasks.Single(candidate => candidate.Key.ConversationId.EndsWith("0005", StringComparison.Ordinal));
         Assert.Equal(AgentTaskState.Working, row.TaskState);
         Assert.True(row.NeedsHuman);
-        Assert.Equal("WORKING", row.StateText);
+        Assert.Equal("Working", row.StateText);
         Assert.Contains("question pending", row.MarksText, StringComparison.Ordinal);
-        Assert.NotEqual("NEEDS_INPUT", row.StateText);
+        Assert.Contains("Question pending", row.RowSubtitle, StringComparison.Ordinal);
+        Assert.DoesNotContain("· Working", row.RowSubtitle, StringComparison.Ordinal);
+        Assert.NotEqual("Needs input", row.StateText);
     }
 
     [Fact]
@@ -154,7 +156,7 @@ public sealed class HudViewModelTests
         var row = Assert.Single(viewModel.Tasks);
         Assert.Equal("Task #7", row.Label);
         Assert.Equal("Running tests", row.ActionText);
-        Assert.Equal("WORKING", row.StateText);
+        Assert.Equal("Working", row.StateText);
         Assert.Equal("#7", row.NumberText);
         Assert.Contains("Running tests", row.RowSubtitle, StringComparison.Ordinal);
     }
@@ -439,7 +441,7 @@ public sealed class HudViewModelTests
         Assert.Contains("observed", codex.Capability, StringComparison.Ordinal);
 
         var silent = viewModel.HealthDetails[1];
-        Assert.Equal("dsh · dsh-a", silent.Title);
+        Assert.Equal("DSH · dsh-a", silent.Title);
         Assert.Contains("not readable", silent.Detail, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("source-silent", silent.Detail, StringComparison.Ordinal);
         // The healthy peer's freshness must not leak into this row.
@@ -450,7 +452,7 @@ public sealed class HudViewModelTests
 
         // Two instances of one harness are separate rows with separate freshness.
         var second = viewModel.HealthDetails[2];
-        Assert.Equal("dsh · dsh-b", second.Title);
+        Assert.Equal("DSH · dsh-b", second.Title);
         Assert.Contains("limited", second.Detail, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("5s ago", second.Freshness, StringComparison.Ordinal);
 

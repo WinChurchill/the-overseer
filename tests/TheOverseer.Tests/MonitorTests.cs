@@ -89,6 +89,9 @@ public sealed class MonitorTests : IDisposable
         Assert.False(Single(snapshot).IsStale);
         Assert.Equal(AgentTaskState.Working, Single(snapshot).State);
         Assert.Equal(1, snapshot.Counts.Working.Value);
+        var view = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        view.ApplySnapshot(snapshot);
+        Assert.Equal(id, Assert.Single(view.Tasks).Key.ConversationId);
         SyntheticCodexHome.Append(path, new[] { Records.TaskComplete("turn-1") });
         Assert.Equal(AgentTaskState.Done, Single(monitor.Refresh()).State);
     }
