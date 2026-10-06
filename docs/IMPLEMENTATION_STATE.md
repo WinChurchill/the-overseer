@@ -3,7 +3,7 @@
 ## Current
 Plan: startup project reveal and Codex task links, owner feedback 2026-10-05.
 Branch: `fix/startup-task-links`, based on normalized private staging `5974bc1`.
-Status: **SOURCE FIXES VERIFIED; NEW PRIVATE CANDIDATE IN PREPARATION.** No merge.
+Status: **RC14 READY FOR OWNER RETEST; HOSTED CI PASS.** No merge/publication.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -17,6 +17,9 @@ Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB
   activation remains an owner retest. Build 0 warnings/errors; 770 tests, 0 fail/skip.
 - An ordinary chat answer has no question ID. The current task-link widget remains
   unresolved in source metadata; correlated reply or turn end clears it. No guessing.
+- RC14 source `c753f03`; 42 package pass/0 fail/3 activation deferrals, integration
+  17/17, composition 42/42, scaling and RC13 upgrade/rollback 25/25 in both modes.
+  Hosted CI [passes](https://github.com/WinChurchill/the-overseer/actions/runs/37423452238); RC14 owner kit binds 16 pending checks to its hash.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -191,7 +194,7 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
   preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: Winston retests DSH questions and H1–H16 from the updated OWNER_HANDOFF.md.
+Next: Winston retests RC14 startup/Codex links, then DSH questions and H1–H16.
 Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
 Finish owner/manual and final CI-package qualification, disclosure/signing inputs,
 then seek L5 approval for public L6–L10. No public release or main merge was performed.

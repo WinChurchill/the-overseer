@@ -2,10 +2,10 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **RC13 READY FOR OWNER RETESTS.** RC12 preserved.
+Status: **RC14 READY FOR OWNER RETESTS.** RC13 and its owner kit preserved.
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
-Planning/review branch: `fix/prepublication-polish`.
+Planning/review branch: `fix/startup-task-links` (normalized staging base `5974bc1`).
 Private source staging is now authorized for
 [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
 The owner chose full history with only Astra/DeepSeek identities replaced by his
@@ -49,11 +49,39 @@ complete automated and human qualification, accurate public docs/site, and a
 ready-to-publish GitHub release. Making source, release assets and website public
 requires the owner's final approval of that concrete packet.
 
-### Current RC13 qualification — 2026-10-05
+### Current RC14 qualification — 2026-10-05
+
+Owner RC13 feedback: startup appeared to refresh only after expanding a project;
+Codex task links reported no handler; a typed question reply still showed pending.
+The startup regression reproduced admission before hydration settling a permanent
+collapsed default. RC14 delays that default until usable observation, then reveals
+active projects without a click while preserving individual/global manual collapse.
+Codex navigation uses shell first, then Windows Store protocol activation only on
+missing association. Read-only URI-object preparation passed for the installed app;
+real exact-chat focus remains the owner's retest. The pending widget's answer was
+an ordinary chat message with no question ID: only a correlated reply or turn end
+can clear it. That limit is documented/tested, and no answer text is inferred.
+
+Clean source `c753f037f528cda51b6abccaf7bfb5396ccfa641`, private **1.0.0-rc.14**.
+[ZIP](../artifacts/prepublication/rc14/OVERSEER-1.0.0-rc.14-win-x64.zip),
+[owner handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md).
+SHA-256 `E02580BA0E24B0DAF204BD0F2D31D73E553AAE083787DB3216D4264545B24988`;
+76,917,941 bytes; 591 payload/90 integration files; unsigned self-contained x64.
+Build 0 warnings/errors; **770 tests pass, zero fail/skip**; [hosted Windows CI](https://github.com/WinChurchill/the-overseer/actions/runs/37423452238)
+passes on this exact source. Fresh package: 42 pass/0 fail/3 intentional activation
+deferrals; integration 17/17, composition 42/42. Scaling and RC13 upgrade/rollback
+pass in both modes (25 checks each), with no focus takeovers. Pinned full-history
+and extracted-payload scans clear. RC14 is prepared with a new shortcut/separate
+settings; the owner installation has not been launched by the agent. RC13's running
+installation and prior kit are preserved. All 16 owner checks are PENDING for RC14.
+Same-chat review supports local retest; independent/main review and all public,
+real-host, physical, audible and clean-machine gates remain pending.
+
+### Prior RC13 qualification — 2026-10-05
 
 Clean source `c0ced607ff5ab9ab7df9e10f7c0ea13eff5cde67`; private candidate **1.0.0-rc.13**.
 [RC13 ZIP](../artifacts/prepublication/rc13/OVERSEER-1.0.0-rc.13-win-x64.zip),
-[owner handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md),
+[archived owner handoff](../artifacts/prepublication/owner-feedback/rc13-owner-kit/OWNER_HANDOFF.md),
 [six-area report](../artifacts/prepublication/rc13-checks/run-20261006T004243Z-9d6995c0/pre-user-report.json).
 SHA-256: `45A9F3F2D91B65DCDC91F25A896EEE49FF29B9DE55F49EC4BFBA71DF7B0E27AA`; 76,915,148 bytes;
 591 payload / 90 integration files; unsigned self-contained x64; .NET/Desktop 10.0.12.

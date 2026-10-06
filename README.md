@@ -4,10 +4,10 @@ See what your agents are doing and when they need you, in one small Windows wind
 OVERSEER groups observed work by project, shows the limits of its coverage and can
 speak short notifications. It observes; it never answers requests or controls an agent.
 
-**Publication status:** private candidate `1.0.0-rc.13` has passed automated
+**Publication status:** private candidate `1.0.0-rc.14` has passed automated
 qualification; owner retests are pending.
 The source is staged privately at [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer)
-(current work: `staging/private-upload`). There is no public download yet. GitHub Releases and a project website are prepared
+(current work: `fix/startup-task-links`). There is no public download yet. GitHub Releases and a project website are prepared
 for launch after [release qualification](docs/RELEASE_READINESS.md). Do not confuse
 GitHub's source ZIP with the self-contained Windows application ZIP.
 
