@@ -76,11 +76,11 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         {
             _window.Show();
             _window.UpdateLayout();
-    
+
             // The window now lives on its real monitor, so the DPI read here is
             // authoritative: re-clamp and re-position with it.
             ApplyGeometry(show: false);
-    
+
             // One deferred pass after the first render: WPF's device transform can
             // settle a moment later, and this corrects size and position without
             // ever activating the window.

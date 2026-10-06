@@ -60,4 +60,3 @@ internal sealed class TaskNavigatorAdapter : ITaskNavigator
 
     public TaskNavigationResult Navigate(AgentTask task, string profileId) => _navigator.Navigate(task, profileId);
 }
-
