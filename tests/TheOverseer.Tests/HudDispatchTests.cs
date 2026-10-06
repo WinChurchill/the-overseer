@@ -347,6 +347,14 @@ public sealed class HudDispatchTests
             Assert.NotEmpty(controller.ViewModel.Tasks);
             monitor.Lifetime.SetResult();
             monitor.Push(SyntheticHudScenarios.HealthyEmpty());
+            // Completion observation can be scheduled on the worker pool. Drain
+            // the queued UI posts until that outcome arrives, not just once.
+            Assert.True(SpinUntil(() =>
+            {
+                dispatcher.DrainAll();
+                return controller.ViewModel.MonitoringUnavailable;
+            }, 5000), "completed monitor must publish its unavailable outcome");
+            monitor.Push(SyntheticHudScenarios.Mixed());
             dispatcher.DrainAll();
             Assert.True(controller.ViewModel.MonitoringUnavailable);
             Assert.Contains("UNAVAILABLE", controller.ViewModel.HealthLine);

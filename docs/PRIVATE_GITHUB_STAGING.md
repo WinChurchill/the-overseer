@@ -38,7 +38,8 @@ as the base for future GitHub work. A normalized `github/main` local alias can
 track GitHub's `main` while the original local `main` remains preserved. Do not
 push the original historical branches or qualification tags into this repository.
 
-GitHub's Verify workflow runs on private pushes. Its result is recorded in the
+GitHub's Verify workflow is configured for private pushes and manual runs. Results
+are recorded in the
 local staging evidence and release ledger. Pages stays disabled and the existing
 website workflow requires a public repository and an explicit publication input.
 Private source upload does not authorize a public repository, website, release,
@@ -49,3 +50,13 @@ resize-retention fixture requested height 810, while native WPF limited the host
 window to 788. That fixture now chooses a size within the actual work area and
 also verifies saved height. The separate scale/work-area theory still checks
 clamping. This changes a test only; no application code or RC13 bytes change.
+
+The next run exposed timing assumptions in two asynchronous tests. Snapshot
+publication now uses a bounded completion signal and verifies loop shutdown;
+the completed-monitor test drains posted outcomes until failure arrives, then
+rejects another late snapshot. Its queued dispatcher is thread-safe. No tests
+are skipped and application behavior stays unchanged.
+
+GitHub refused main branch protection with HTTP 403 because this account requires
+Pro for protection on private repositories. Main review remains a documented
+manual requirement. No purchase or visibility change was made.

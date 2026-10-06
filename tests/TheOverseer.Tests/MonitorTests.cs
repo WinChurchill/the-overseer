@@ -452,24 +452,22 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
-    public void BackgroundLoopPublishesSnapshotsAndStopsCleanly()
+    public async Task BackgroundLoopPublishesSnapshotsAndStopsCleanly()
     {
         var id = "01a0c70e-0000-0000-0000-00000000000f";
         _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });
 
-        using var monitor = Create(MonitorOptions.Default with { KnownFilePollInterval = TimeSpan.FromSeconds(1) });
-        var seen = 0;
-        monitor.SnapshotAvailable += _ => Interlocked.Increment(ref seen);
+        await using var monitor = Create(MonitorOptions.Default with { KnownFilePollInterval = TimeSpan.FromSeconds(1) });
+        var seen = new TaskCompletionSource<MonitoringSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        monitor.SnapshotAvailable += snapshot => seen.TrySetResult(snapshot);
 
         var loop = monitor.StartAsync();
-        for (var index = 0; index < 20 && Volatile.Read(ref seen) == 0; index++)
-        {
-            _clock.Advance(TimeSpan.FromSeconds(1));
-            Thread.Sleep(20);
-        }
-
-        Assert.True(Volatile.Read(ref seen) > 0, "background loop must publish a snapshot");
-        Assert.Equal(id, monitor.Current.Tasks[0].ConversationId);
+        var published = await seen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(id, Assert.Single(published.Tasks).ConversationId);
+        Assert.Equal(id, Assert.Single(monitor.Current.Tasks).ConversationId);
+        await monitor.DisposeAsync();
+        await loop.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(loop.IsCompletedSuccessfully);
     }
 
     [Fact]
