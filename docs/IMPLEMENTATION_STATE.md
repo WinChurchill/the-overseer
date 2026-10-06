@@ -3,7 +3,7 @@
 ## Current
 Plan: diagnostic-report cleanup, started locally 2026-10-05; RC12 preserved as baseline.
 Review branch: `fix/prepublication-polish`, base `597c94c`; reviewed main remains `fcabe00`.
-Status: **IMPLEMENTATION COMPLETE; RC13 PACKAGE QUALIFICATION IN PROGRESS.** Public gates pending.
+Status: **READY FOR REVIEW AND OWNER RETESTS (RC13).** Public gates pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -32,30 +32,27 @@ Reviews so far were performed in this chat, not by an independent second agent.
   Claude 29/29; Release 741 pass/0 fail/skip, recorded in owner-feedback/question-fix-tests.
 - Linked observer updated after owner-confirmed full quit; real question retest pending.
   Codex approvals remain Unsupported; no publication/merge.
-- RC12 clean source `68c2d6190698c9821179b025441a21dbf6490a4e`; 591 files, 90 integrations.
-  ZIP: 76,905,615 bytes, SHA-256 `8EF59BFAC561E6349DE984039E9F64C5F04F4432A328720B1A683AD28A2A6342`.
-- Exact ZIP: 42 pass/0 fail/3 activation deferrals; integration 17/17, composition
-  42/42, 48 renders, no focus takeover/547 samples. Scaling and RC11 upgrade/rollback
-  pass in HUD/Window; all report/comparison/placement controls pass.
-- Gitleaks 8.30.1: 198-commit candidate history, source export and exact payload clear.
-  Site 85 checks/12 controls pass; runtime .NET/Desktop 10.0.12, no new dependencies.
-- Updated owner kit binds 16 PENDING checks to RC12; RC11 kit preserved separately.
-  Same-chat review: PASS WITH NONBLOCKING NOTES for local retest, no independent review.
+- Prior RC12 source `68c2d619`, package and owner kit preserved; see RELEASE_READINESS.
+
+## RC13 cleanup and qualification
+- Known Codex function-output envelope no longer makes live coverage uncertain;
+  synthetic hydration/append and read-only live Now projection pass. Full H3 pending.
+- Shared canonical display numbers cover task rows and attention/history/voice edges;
+  cohesive partial files, UI polish and 34-catch audit complete; opt-in diagnostics kept.
+- Clean source `c0ced607ff5ab9ab7df9e10f7c0ea13eff5cde67`; ZIP 76,915,148 bytes, 591 files/90 integrations.
+  SHA-256 `45A9F3F2D91B65DCDC91F25A896EEE49FF29B9DE55F49EC4BFBA71DF7B0E27AA`.
+- Clean build 0 warnings/errors; 749 .NET, DSH 39 and Claude 29 pass. Exact ZIP:
+  42 pass/0 fail/3 activation deferrals; integration 17/17, composition 42/42, 48 renders.
+- No focus takeover/546 samples; scaling and RC12 upgrade/rollback pass in both modes.
+  Gitleaks 8.30.1 history (202 commits), source/payload clear; site 85/12 checks pass.
+- Fresh RC13 folder/shortcut prepared with separate settings; RC12 not replaced.
+  Owner kit binds 16 PENDING checks to RC13; RC12 kit archived. No scratch deletion.
+- Same-chat review PASS WITH NONBLOCKING NOTES; not independent review/public approval.
 
 ## Prior RC11 execution results
-- Candidate `1.0.0-rc.11`, clean fresh source `8b1d345`, 578 payload / 77 integration files, unsigned.
-- ZIP SHA-256 `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
-- Release build: 0 warnings/errors, 727 tests pass/0 fail/skip. Packaged bridges: DSH 30, Claude 29.
-- Exact ZIP: 42 pass/0 fail/3 activation deferrals; integration 17/17, composition 42/42,
-  48 renders; no focus takeovers/547 samples; secondary-display scaling pass.
-- RC9 upgrade/rollback pass in HUD and Window modes; all report/comparison/placement controls pass.
-- Gitleaks 8.30.1: candidate history (195 commits), source export and exact payload clear.
-  Included runtime: .NET/Desktop 10.0.12. RC9 dependency advisories were clear; no new packages added.
-- Site: 85 static checks and 12 publication controls pass after candidate version update.
-- RC11 owner kit preserved in owner-feedback/rc11-owner-kit; RC9 feedback and RC10 kept.
-- Remaining: actual DSH questions, Claude/clean-machine/audible/display/logon/hour tests,
-  GitHub/upload/hosted CI/security route, public history, signing and final public approval.
-- Prior RC9 resource probe remains historical; live one-hour H15 is pending.
+- RC11 source `8b1d345`, ZIP/evidence and owner-feedback/rc11-owner-kit preserved.
+- Release 727 tests; exact ZIP 42/0/3, bridges DSH 30/Claude 29; detailed evidence
+  remains in RELEASE_READINESS. Prior resource probes do not satisfy live H15.
 
 ## Pre-publication plan
 - Owner selected GitHub source/Releases **and a project website**; proposed GitHub Pages.

@@ -2,7 +2,7 @@
 
 ## Current pre-publication plan — 2026-10-05
 
-Status: **RC13 AUTOMATED QUALIFICATION IN PROGRESS.** RC12 preserved.
+Status: **RC13 READY FOR OWNER RETESTS.** RC12 preserved.
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `fix/prepublication-polish`.
@@ -36,7 +36,27 @@ complete automated and human qualification, accurate public docs/site, and a
 ready-to-publish GitHub release. Making source, release assets and website public
 requires the owner's final approval of that concrete packet.
 
-### DSH question follow-up — 2026-10-05
+### Current RC13 qualification — 2026-10-05
+
+Clean source `c0ced607ff5ab9ab7df9e10f7c0ea13eff5cde67`; private candidate **1.0.0-rc.13**.
+[RC13 ZIP](../artifacts/prepublication/rc13/OVERSEER-1.0.0-rc.13-win-x64.zip),
+[owner handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md),
+[six-area report](../artifacts/prepublication/rc13-checks/run-20261006T004243Z-9d6995c0/pre-user-report.json).
+SHA-256: `45A9F3F2D91B65DCDC91F25A896EEE49FF29B9DE55F49EC4BFBA71DF7B0E27AA`; 76,915,148 bytes;
+591 payload / 90 integration files; unsigned self-contained x64; .NET/Desktop 10.0.12.
+Clean-source build: 0 warnings/errors, 749 tests pass/0 fail/skip; DSH 39, Claude 29.
+Exact ZIP: 42 pass/0 fail/3 intentional activation deferrals; integration 17/17,
+composition 42/42, 48 renders; no focus takeovers in 546 foreground samples. Scaling
+and RC12 upgrade/rollback pass in HUD/Window (25 checks each). Candidate history
+(202 commits), source export and payload scans clear; site 85 checks/12 controls pass.
+Read-only corrected-source observation confirmed a formerly missing active Codex
+chat is fresh and appears in Now after hydration. Full H3 remains pending.
+Fresh RC13 folder/shortcut uses separate settings; prepared without replacing RC12.
+All 16 owner rows are PENDING against the new source/hash. RC12 owner kit is preserved
+under owner-feedback/rc12-owner-kit. Same-chat review: PASS WITH NONBLOCKING NOTES
+for local retest; independent review and all public/real-host/physical gates remain pending.
+
+### Prior RC12 DSH question follow-up — 2026-10-05
 
 The owner confirmed real permission escalation/resume with the installed DSH observer.
 Observer 1.1.0 now recognizes blocking questions and reads the inspected Desktop
@@ -54,10 +74,10 @@ does not prove current attention. No answer was fabricated. Claude's 15 hooks em
 work/completion records and its row is visible; input/permission, audible and
 clean-machine qualification remain pending.
 
-The verified replacement is **1.0.0-rc.12**, clean source
+That prior replacement was **1.0.0-rc.12**, clean source
 `68c2d6190698c9821179b025441a21dbf6490a4e`.
 [RC12 ZIP](../artifacts/prepublication/rc12/OVERSEER-1.0.0-rc.12-win-x64.zip),
-[owner retest handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md),
+[archived RC12 handoff](../artifacts/prepublication/owner-feedback/rc12-owner-kit/OWNER_HANDOFF.md),
 [automated report](../artifacts/prepublication/rc12-checks/run-20261005T232402Z-d4134442/pre-user-report.json).
 SHA-256: `8EF59BFAC561E6349DE984039E9F64C5F04F4432A328720B1A683AD28A2A6342`;
 76,905,615 bytes; 591 payload / 90 integration files; unsigned self-contained x64.
@@ -131,10 +151,9 @@ All RC11 owner H1–H16 remain pending until observed and recorded against this 
 - Same-chat review: **PASS WITH NONBLOCKING NOTES** for local handoff, not independent
   review or public release approval. No remote/upload/deployment/public tag created.
 
-For the current RC12 retest, start with the owner retest handoff. The following
-RC9 setup description is retained as historical context. The optional
+For the current RC13 retest, start with the owner retest handoff. The optional
 [setup helper](../artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1) verifies
-this ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.
+the RC13 ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.
 It passed stock Windows PowerShell and a wrong-ZIP/no-write control. Default run
 prepares only; `-Launch` deliberately opens the app. Empty and Live use separate data.
 The Live mode reads default producer spools but stores its own app preferences.
@@ -199,12 +218,12 @@ display changes, logon or intentional activation run in an agreed idle test sess
 | --- | --- | --- |
 | H1 | Download the staged final ZIP in a browser on a clean Windows VM; verify SHA-256, extract to a path with spaces/non-ASCII text and launch as a standard user | Same final bytes, no SDK/.NET runtime/Node/repo/cache needed for the app; record Defender/SmartScreen/Smart App Control result and signing status. Do not disable protections to get a pass. Repeat public URL download in L7. R-01/02/05/26/27. |
 | H2 | First run with no harness/config, then close/reopen | Usable empty/setup view, muted voice, honest unknown/offline health, no fabricated tasks and no unexpected setup writes. R-03/04/20. |
-| H3 | Real Codex work: active turn, async question, partial/full answer, completion, abort and error | Actual status/attention transitions agree with the session; an answer clears its request. Codex approvals are visibly Unsupported and never inferred or answered. R-06/07/08/09. |
-| H4 | Real DSH Desktop session through the desktop profile | Work -> approval wait -> answer/resume -> finish/abort; record human-input detection as unsupported by the current observer and relaunch are reflected correctly. Record installed version; no terminal profile substitution. R-11. |
+| H3 | Real Codex work: active turn, async question, partial/full answer, completion, abort and error | A live working chat appears in Now and contributes to Working after hydration; status/attention agree with the session and an answer clears its request. Codex approvals are visibly Unsupported and never inferred or answered. R-06/07/08/09. |
+| H4 | Real DSH Desktop session through the desktop profile | Work -> question/choice wait -> answer/resume -> finish/abort; retain timed answerable questions after tool return/turn completion, quietly recover after OVERSEER restart, then clear on admitted reply. Repeat permission/resume and host restart. Record Desktop/observer versions; no terminal profile substitution. R-11. |
 | H5 | Real Claude Code session in the desktop Code tab or editor, in its actual Windows-local execution environment | Hooks really fire; working/input/permission/resume/completion/error match; Node/path/settings resolve in that environment. Record app and Code engine versions. R-11. |
 | H6 | Install, remove, move/rebind and reinstall each bridge using backed-up test settings/profile | Unrelated settings preserved, ordinary host use still works, no dangling bridge path, producer resumes from the kept directory and OVERSEER discovers it after restart. R-11/23/24. |
 | H7 | Stop/restart one host and temporarily make its source unreadable in isolated test data | Coverage becomes honestly limited/offline, peer sources keep working, counts do not become a false healthy zero, recovery resumes without stale attention. R-07/19. |
-| H8 | Both themes; compact/expanded; narrow/short/tall/maximized; filters, project grouping, history, light width, pin/mute/settings | Nothing clipped, inaccessible or contradictory; 300x220 minimum layout remains usable; history quality/unknowns remain disclosed. R-12/14/15. |
+| H8 | Both themes; compact/expanded; narrow/short/tall/maximized; filters, project grouping, history, light width, pin/mute/settings | Nothing clipped, inaccessible or contradictory; 300x220 minimum layout remains usable; history quality/unknowns remain disclosed. Check shared numbers, ellipsis, aligned columns/dividers, History hover/keyboard focus, dark Recent menu, mic/light state and + explanations. R-12/14/15. |
 | H9 | Pointer drag, edge/corner resize, maximize/restore, hover/keyboard Snap, Tab/Enter/Space, Alt+Space and scroll | Native operations and explicit controls work; controls do not accidentally drag the window; geometry restores correctly. R-13/14. |
 | H10 | Move across 100/125/150/200% display scales, detach/reconnect a monitor, sleep/wake | Reachable placement, readable layout and resumed monitoring; no offscreen orphan or unsolicited focus takeover. Record actual tested scale/monitor combinations. R-14/19. |
 | H11 | Tray Show/Hide, pin/mute/settings, close-to-tray, Exit, deliberate second launch and no-tray fallback | Intentional activation works, normal updates do not take focus, one scoped instance restores, Exit really stops it and saves placement. R-16/17. |
