@@ -65,11 +65,17 @@ public sealed class MonitorTests : IDisposable
     [InlineData("image", true)]
     [InlineData("world", false)]
     [InlineData("world", true)]
+    [InlineData("function-output", false)]
+    [InlineData("function-output", true)]
     public void KnownNonLifecycleRecordsDoNotHideWorkingTasks(string kind, bool appendLive)
     {
         const string id = "01a0c700-0000-0000-0000-000000000091";
-        var record = kind == "image" ? Records.ItemCompleted("turn-1", "ImageView")
-            : "{\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{}}}";
+        var record = kind switch
+        {
+            "image" => Records.ItemCompleted("turn-1", "ImageView"),
+            "function-output" => Records.ItemCompleted("turn-1", "FunctionCallOutput"),
+            _ => "{\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{}}}",
+        };
         var records = new List<string> { Records.SessionMeta(id), Records.TaskStarted("turn-1") };
         if (!appendLive) records.Add(record);
         var path = _home.WriteRollout(id, records);

@@ -68,6 +68,15 @@ public sealed class CodexEventParserTests
         Assert.Null(Parse(Records.ItemCompleted("turn-1", "UserMessage")).Action);
     }
 
+    [Fact]
+    public void FunctionOutputEnvelopeIsKnownWithoutReadingItsContents()
+    {
+        const string record = "{\"type\":\"event_msg\",\"payload\":{\"type\":\"item_completed\",\"turn_id\":\"turn-1\",\"item\":{\"type\":\"FunctionCallOutput\",\"id\":\"fco-1\",\"output\":{\"private\":\"request_user_input exec_approval_request error\"}}}}";
+        var result = CodexEventParser.ParseLine(record, Context());
+        Assert.Equal(ParseOutcome.Ignored, result.Outcome);
+        Assert.Null(result.Event);
+    }
+
     [Theory]
     [InlineData("dotnet test", AgentActionKind.RunningTests)]
     [InlineData("npm test", AgentActionKind.RunningTests)]
