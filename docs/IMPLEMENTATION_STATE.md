@@ -3,12 +3,12 @@
 ## Current
 Plan: private GitHub staging, authorized 2026-10-05; RC13 owner checks stay pending.
 Branch: `staging/private-upload`; original source branches/main `fcabe00` preserved.
-Status: **PRIVATE UPLOAD IN PROGRESS; HOSTED CI PENDING.** Public gates pending.
+Status: **PRIVATE SOURCE UPLOADED; HOSTED CI RETEST IN PROGRESS.** Public gates pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
 Private repository: [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
-Owner chose full history, replacing only Astra/DeepSeek identities in the upload copy.
+206 commits preserved; only 17 Astra/DeepSeek identities normalized in the upload copy.
 Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB_STAGING.md).
 
 ## Owner feedback — 2026-10-05

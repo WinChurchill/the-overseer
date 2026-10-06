@@ -10,7 +10,10 @@ Private source staging is now authorized for
 [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
 The owner chose full history with only Astra/DeepSeek identities replaced by his
 verified Git identity in the upload copy; original local history remains intact.
-See [private staging](PRIVATE_GITHUB_STAGING.md). Hosted CI is pending; private
+See [private staging](PRIVATE_GITHUB_STAGING.md). Source upload is complete; hosted
+CI is being retested after its first run exposed a resize fixture requesting height
+810 on a desktop that limits it to 788. The fixture now fits the host work area and
+also asserts persisted height; application code and RC13 bytes are unchanged. Private
 upload does not approve public visibility, release assets or website deployment.
 Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
 with a small static site in `site/`; review it locally before deployment.

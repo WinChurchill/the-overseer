@@ -43,3 +43,9 @@ local staging evidence and release ledger. Pages stays disabled and the existing
 website workflow requires a public repository and an explicit publication input.
 Private source upload does not authorize a public repository, website, release,
 announcement or adding collaborators.
+
+The initial hosted Verify run built successfully and passed 748 of 749 tests. Its
+resize-retention fixture requested height 810, while native WPF limited the hosted
+window to 788. That fixture now chooses a size within the actual work area and
+also verifies saved height. The separate scale/work-area theory still checks
+clamping. This changes a test only; no application code or RC13 bytes change.
