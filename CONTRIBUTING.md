@@ -37,3 +37,9 @@ and remaining limits in your pull request. Use synthetic fixtures. Retain upstre
 notices and license new original contributions under this repository's MIT license.
 Do not commit artifacts, logs, credentials or private session data. Run the required
 build/tests and leave the branch ready for review; main requires review before merge.
+
+Commit with the human contributor's verified GitHub identity. Codex, Claude,
+DeepSeek and other AI tools are assistance, not separate commit authors or
+co-authors. Do not guess who contributed from their choice of AI tool. Winston's
+work uses WinChurchill; another person must use their own identity. Preserve
+third-party notices and genuine human attribution.

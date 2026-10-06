@@ -6,6 +6,12 @@ Status: **RC13 READY FOR OWNER RETESTS.** RC12 preserved.
 Public qualification and publication approval remain pending.
 Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
 Planning/review branch: `fix/prepublication-polish`.
+Private source staging is now authorized for
+[WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
+The owner chose full history with only Astra/DeepSeek identities replaced by his
+verified Git identity in the upload copy; original local history remains intact.
+See [private staging](PRIVATE_GITHUB_STAGING.md). Hosted CI is pending; private
+upload does not approve public visibility, release assets or website deployment.
 Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
 with a small static site in `site/`; review it locally before deployment.
 The execution packet is ignored `.agent/HANDOFF.md`; source status is

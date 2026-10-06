@@ -1,12 +1,15 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: diagnostic-report cleanup, started locally 2026-10-05; RC12 preserved as baseline.
-Review branch: `fix/prepublication-polish`, base `597c94c`; reviewed main remains `fcabe00`.
-Status: **READY FOR REVIEW AND OWNER RETESTS (RC13).** Public gates pending.
+Plan: private GitHub staging, authorized 2026-10-05; RC13 owner checks stay pending.
+Branch: `staging/private-upload`; original source branches/main `fcabe00` preserved.
+Status: **PRIVATE UPLOAD IN PROGRESS; HOSTED CI PENDING.** Public gates pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
+Private repository: [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
+Owner chose full history, replacing only Astra/DeepSeek identities in the upload copy.
+Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB_STAGING.md).
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -62,8 +65,8 @@ Reviews so far were performed in this chat, not by an independent second agent.
   collect hosted CI, owner hands-on and clean-machine results; then seek public approval.
 - Initial preflight gaps in public docs, screenshots, site and scan evidence were
   addressed in RC9; real external URLs and hosted CI still await authorized upload.
-- Account/repository, history exposure, signing/unsigned and custom domain choices
-  are needed during execution; no upload, deployment or announcement is authorized yet.
+- Private source upload/account/history scope are authorized; signing/public exposure
+  and custom domain remain decisions. Public deployment/announcement is not authorized.
 - Prior verification below belongs to its named revisions, not this new plan.
 
 ## Scope and decisions
