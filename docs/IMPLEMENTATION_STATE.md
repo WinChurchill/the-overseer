@@ -3,11 +3,11 @@
 ## Current
 Plan: private GitHub staging, authorized 2026-10-05; RC13 owner checks stay pending.
 Branch: `staging/private-upload`; original source branches/main `fcabe00` preserved.
-Status: **PRIVATE SOURCE UPLOADED; HOSTED CI RETEST IN PROGRESS.** Public gates pending.
+Status: **PRIVATE SOURCE UPLOADED; HOSTED WINDOWS CI PASS.** Public gates pending.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
-Private repository: [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
+Private [repository](https://github.com/WinChurchill/the-overseer); [Windows CI pass](https://github.com/WinChurchill/the-overseer/actions/runs/37413476257).
 206 commits preserved; only 17 Astra/DeepSeek identities normalized in the upload copy.
 Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB_STAGING.md).
 
@@ -64,7 +64,7 @@ Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB
   prepare current public docs/static site/SEO; build one final hash-bound candidate;
   collect hosted CI, owner hands-on and clean-machine results; then seek public approval.
 - Initial preflight gaps in public docs, screenshots, site and scan evidence were
-  addressed in RC9; real external URLs and hosted CI still await authorized upload.
+  addressed in RC9; private source/hosted CI are verified, public URLs remain pending.
 - Private source upload/account/history scope are authorized; signing/public exposure
   and custom domain remain decisions. Public deployment/announcement is not authorized.
 - Prior verification below belongs to its named revisions, not this new plan.
@@ -196,5 +196,5 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
 Next: Winston retests DSH questions and H1–H16 from the updated OWNER_HANDOFF.md.
 Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
-Resolve external staging/disclosure/signing inputs, finish hosted/manual qualification,
-then seek L5 approval for public L6–L10. No publication or main merge was performed.
+Finish owner/manual and final CI-package qualification, disclosure/signing inputs,
+then seek L5 approval for public L6–L10. No public release or main merge was performed.

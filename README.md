@@ -6,7 +6,8 @@ speak short notifications. It observes; it never answers requests or controls an
 
 **Publication status:** private candidate `1.0.0-rc.13` has passed automated
 qualification; owner retests are pending.
-There is no public download yet. GitHub Releases and a project website are prepared
+The source is staged privately at [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer)
+(current work: `staging/private-upload`). There is no public download yet. GitHub Releases and a project website are prepared
 for launch after [release qualification](docs/RELEASE_READINESS.md). Do not confuse
 GitHub's source ZIP with the self-contained Windows application ZIP.
 

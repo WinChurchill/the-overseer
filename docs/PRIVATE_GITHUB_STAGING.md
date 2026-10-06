@@ -39,8 +39,7 @@ track GitHub's `main` while the original local `main` remains preserved. Do not
 push the original historical branches or qualification tags into this repository.
 
 GitHub's Verify workflow is configured for private pushes and manual runs. Results
-are recorded in the
-local staging evidence and release ledger. Pages stays disabled and the existing
+are recorded in local staging evidence and the release ledger. Pages stays disabled and the existing
 website workflow requires a public repository and an explicit publication input.
 Private source upload does not authorize a public repository, website, release,
 announcement or adding collaborators.
@@ -60,3 +59,11 @@ are skipped and application behavior stays unchanged.
 GitHub refused main branch protection with HTTP 403 because this account requires
 Pro for protection on private repositories. Main review remains a documented
 manual requirement. No purchase or visibility change was made.
+
+## Verified hosted result
+
+[Windows Verify](https://github.com/WinChurchill/the-overseer/actions/runs/37413476257) passed on
+`0dbf6d078847ad92f93548b4031d3bc1b2ae6838`: clean build, 749 application tests, both bridge suites,
+report/upgrade controls and static website/publication controls. This is hosted
+source/test evidence; final CI-produced release bytes and H1–H16 remain pending.
+A later documentation-only commit records this result without changing the app.
