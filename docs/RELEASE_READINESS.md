@@ -1,6 +1,46 @@
 # OVERSEER release readiness
 
-## Current pre-publication plan — 2026-10-05
+## Automated qualification round — planned 2026-10-07
+
+Status: **PLAN READY; EXECUTION NOT STARTED.** Branch
+`fix/automated-release-qualification`, based on `1ff8482`. RC14 and its 16
+pending owner results remain unchanged. The detailed execution handoff is
+`.agent/HANDOFF.md`; its completed predecessor is preserved in ignored artifacts.
+
+End state: reviewed source, CI-produced proposed 1.0 bytes, an automated evidence
+packet and a short remaining human checklist. No public action is implied.
+Windows computer-use access was initialized and its app inventory read successfully;
+no app was activated or controlled. No controllable clean VM is established yet.
+
+| Step | Execution and objective evidence |
+| --- | --- |
+| A1 — Test environment | Prepare unique test installs/data/producers; inventory host/engine versions, accounts and permanent observer paths. Establish an idle desktop or disposable clean Windows VM before focus-changing work. Authentication remains with the owner. Preserve live profiles/installations and RC14 bytes. |
+| A2 — Qualification automation | Extend existing runners instead of adding a framework. Exercise actual OVERSEER menu Exit and process termination, automatic startup reveal, source-qualified navigation, user collapse, keyboard/pointer controls, themes/settings, recovery and supported upgrades. Evidence distinguishes real UI, synthetic replay and host execution. |
+| A3 — Real host checks | Use supported host/app APIs or permitted UI on explicitly designated synthetic test chats. Capture real work/question/answer/permission/resume/completion/restart outcomes without message bodies. Native Codex UI, authentication and security prompts are outside the computer-use skill's allowed scope; app APIs are preferred. Missing host access yields a named gap, never a synthetic replacement pass. |
+| A4 — Endurance and clean launch | Run at least one hour of unattended mixed-source stress/resource sampling. Separately record actual-host activity where available. Run the CI archive on a clean Windows environment before installing SDK/Node/harness tools; test browser acquisition, standard-user startup, spaced/non-ASCII paths, restart and uninstall. Do not bypass Windows protection prompts. |
+| A5 — Contributor/public docs | Reconcile CONTRIBUTING, README, support/security, bridge setup, compatibility, changelog and website. Add concise architecture/test-fixture guidance and a PR template. Correct the DSH install-confirmation sentence still claiming all input detection unsupported; retain version-specific limits and human attribution. No unnecessary community-policy decision is invented. |
+| A6 — CI release artifacts | Add a manual private packaging workflow using Publish-Release.ps1; emit archive/checksums/manifest as workflow artifacts without public tags/releases. Download and qualify those exact bytes. Signing choice precedes hashing. Each shipping-byte change requires a new identity and rerun. |
+| A7 — Review and small handoff | Review the complete diff against normalized main; close blocker/major findings. Bind each H1–H16 subcheck to its source/hash/environment. Deliver automated results plus only unresolved human observations/decisions. Record same-chat versus independent review accurately. Main merge and L5 publication approval retain their gates. |
+
+Expected automation allocation, not a pass claim: H2/H6/H7/H8/H11/H14/H15
+can be largely automated after their environment prerequisites. H1/H3/H4/H5/
+H9/H10/H12/H13/H16 combine automation with authentication, source access,
+physical devices or human observation. H15 synthetic stress alone does not certify
+the required normal real-host use; a VM does not certify unplugging physical monitors.
+
+Target owner handoff: (1) sign-in/security approvals or one short host sequence where
+automation cannot observe the true path; (2) hear preview/cue and assess usefulness;
+(3) any outstanding physical monitor/power/logon observation; (4) final signing,
+supported-scope and publication decision. Aim for 15–30 minutes of active checks
+after one-time environment setup, conditional on host/VM access and defects found.
+No measured automation percentage or completed H result is claimed in advance.
+
+Execution continues through fixes and focused retests, then full source/package
+verification. Only required access or a human-only action pauses the dependent step;
+unaffected preparation continues. Public visibility, Pages, announcements, signing
+purchases and changes to the owner's security settings are not part of this round.
+
+## Prior pre-publication execution — 2026-10-05
 
 Status: **RC14 READY FOR OWNER RETESTS.** RC13 and its owner kit preserved.
 Public qualification and publication approval remain pending.

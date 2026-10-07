@@ -1,9 +1,9 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: startup project reveal and Codex task links, owner feedback 2026-10-05.
-Branch: `fix/startup-task-links`, based on normalized private staging `5974bc1`.
-Status: **RC14 READY FOR OWNER RETEST; HOSTED CI PASS.** No merge/publication.
+Plan: automated release qualification, owner request 2026-10-07.
+Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
+Status: **PLAN READY; EXECUTION NOT STARTED.** RC14 CI passes; no merge/publication.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
 Reviews so far were performed in this chat, not by an independent second agent.
@@ -15,8 +15,8 @@ Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB
 - Codex shell no-association falls back to Windows Store protocol activation;
   other launch failures stay visible. Read-only URI preparation passed; exact-chat
   activation remains an owner retest. Build 0 warnings/errors; 770 tests, 0 fail/skip.
-- An ordinary chat answer has no question ID. The current task-link widget remains
-  unresolved in source metadata; correlated reply or turn end clears it. No guessing.
+- An ordinary chat answer has no question ID; its widget can remain unresolved.
+  Correlated reply or turn end clears it. No guessing from answer text.
 - RC14 source `c753f03`; 42 package pass/0 fail/3 activation deferrals, integration
   17/17, composition 42/42, scaling and RC13 upgrade/rollback 25/25 in both modes.
   Hosted CI [passes](https://github.com/WinChurchill/the-overseer/actions/runs/37423452238); RC14 owner kit binds 16 pending checks to its hash.
@@ -175,7 +175,7 @@ The merge gate has passed; unrelated historical branches are retained.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- Hosted Windows CI for the new fix and final approved source.
+- CI-produced final archive from approved source, followed by exact-byte checks.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
 - Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
   hosts are installed but both bridges remain experimental.
@@ -194,7 +194,7 @@ Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
   preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: Winston retests RC14 startup/Codex links, then DSH questions and H1–H16.
+Next: execute RELEASE_READINESS A1–A7 and `.agent/HANDOFF.md` on the plan branch.
 Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
-Finish owner/manual and final CI-package qualification, disclosure/signing inputs,
-then seek L5 approval for public L6–L10. No public release or main merge was performed.
+Automate remaining checks, collect only irreducible owner inputs, then seek L5 approval.
+No public release or main merge was performed.
