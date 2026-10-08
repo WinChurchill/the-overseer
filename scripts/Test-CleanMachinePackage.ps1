@@ -44,4 +44,3 @@ try {
     $child.Dispose()
 }
 if ($code -ne 0 -or $forced -or -not $report.stateFlushed) { throw 'Clean-machine lifecycle failed' }
-

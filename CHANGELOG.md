@@ -1,5 +1,13 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.19 — private installer probe qualification
+
+- Installer validation retries one clean no-record result on its isolated spool,
+  recording the attempt count. It still requires new output from the command;
+  stale output, silent scripts and nonzero exits cannot certify a binding.
+- RC18 emitted no archive: its bridge concurrency checks passed, but a first
+  installer probe produced no record. Live host and publication gates remain open.
+
 ## 1.0.0-rc.18 — private bounded drop-accounting fix
 
 - Claude bridge 1.0.2 reserves health-accounting time after acquisition overhead.

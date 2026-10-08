@@ -235,7 +235,7 @@ Caps and budgets:
 | hard exit watchdog | 2.25 s after the 2 s + 250 ms budgets | process exits 0 regardless |
 
 Identity and epoch stability: `instance.json` and `source-epoch.json` are created once with an
-exclusive-create write and then only read, so every hook invocation of an install publishes the
+exclusive publication of a complete document and then only read, so every hook invocation of an install publishes the
 same `sourceInstanceId` and `sourceEpoch`. A file that exists but cannot be parsed is moved aside
 as `<file>.corrupt-<utcstamp>-<hex>` and recreated once (counted as `recoveredCorruptFile`) -
 that is the only path that can change an epoch, and it is visible in the spool. If you need a
@@ -318,7 +318,7 @@ Options:
 
 Claude Code stores an **absolute path** to `bridge.mjs` in your settings file. If you install from a
 release archive you later delete, that path dangles and Claude Code reports a hook error on every
-event. So `--apply` **executes the hook command it is about to record** once, against a throwaway
+event. So `--apply` **executes the hook command it is about to record** against a throwaway
 spool, and refuses to write anything (exit 2, no backup, no change) unless that run succeeds:
 
 - a missing or unreadable path is refused;
@@ -328,7 +328,10 @@ spool, and refuses to write anything (exit 2, no backup, no change) unless that 
   observe nothing.
 
 The probe runs before every settings-changing apply, including added events at an already
-recorded path. An unchanged install remains an idempotent no-op. Copy this integration to a
+recorded path. A clean no-record result gets one retry on the same isolated spool;
+the report records one or two attempts. Nonzero exits and timeouts are not retried.
+Earlier records cannot certify a later invocation. The hook's write budget is unchanged.
+An unchanged install remains an idempotent no-op. Copy this integration to a
 directory you intend to keep, then install from there:
 
 ```text

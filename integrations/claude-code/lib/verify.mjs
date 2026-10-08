@@ -10,7 +10,10 @@
  * So `install.mjs --apply` refuses to write anything until the bridge it is about
  * to record has been *executed* once with a synthetic payload and has produced a
  * well-formed record. Nothing about the user's real spool is touched: the probe
- * runs against a temporary spool root that is deleted afterwards.
+ * runs against a temporary spool root that is deleted afterwards. A clean exit
+ * with no record gets one retry on that same isolated root: first acquisition
+ * can exhaust the hook's fixed write allowance on a busy filesystem. A record
+ * is still mandatory; missing, broken, timed-out and silent bridges are refused.
  *
  * This module is imported by install.mjs only. bridge.mjs never imports it.
  */
@@ -107,7 +110,7 @@ function newestRecord(directory, depth = 0) {
  * @param {string} [options.spoolRoot] temporary spool root (defaults to a new temp dir)
  * @param {boolean} [options.keepSpool] keep the temporary spool (used by tests)
  */
-export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolRoot, keepSpool = false, execute = true }) {
+function verifyBridgeCommandOnce({ bridgePath, command = HOOK_COMMAND, spoolRoot, keepSpool = false, execute = true }) {
   if (typeof bridgePath !== 'string' || bridgePath.length === 0) {
     return probeFailure('bridge-path-empty', 'no bridge path was given');
   }
@@ -135,6 +138,7 @@ export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolR
 
   const ownedTemp = spoolRoot === undefined;
   const root = ownedTemp ? fs.mkdtempSync(path.join(os.tmpdir(), 'overseer-install-verify-')) : spoolRoot;
+  const before = newestRecord(path.join(root, 'claude'), 1);
 
   let run;
   try {
@@ -189,7 +193,7 @@ export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolR
     });
   }
 
-  if (!record) {
+  if (!record || JSON.stringify(record) === JSON.stringify(before)) {
     cleanup();
     return probeFailure(
       'no-record-written',
@@ -219,4 +223,22 @@ export function verifyBridgeCommand({ bridgePath, command = HOOK_COMMAND, spoolR
   };
   cleanup();
   return result;
+}
+
+/** At most two probes; only a clean no-record result is eligible for retry. */
+export function verifyBridgeCommand(options) {
+  if (options.execute === false) return verifyBridgeCommandOnce(options);
+  const ownedTemp = options.spoolRoot === undefined;
+  const root = ownedTemp ? fs.mkdtempSync(path.join(os.tmpdir(), 'overseer-install-verify-')) : options.spoolRoot;
+  try {
+    let result = verifyBridgeCommandOnce({ ...options, spoolRoot: root, keepSpool: true });
+    let attempts = 1;
+    if (result.code === 'no-record-written') {
+      result = verifyBridgeCommandOnce({ ...options, spoolRoot: root, keepSpool: true });
+      attempts = 2;
+    }
+    return { ...result, attempts, spoolRoot: ownedTemp && !options.keepSpool ? null : root };
+  } finally {
+    if (ownedTemp && !options.keepSpool) fs.rmSync(root, { recursive: true, force: true });
+  }
 }
