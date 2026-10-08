@@ -120,6 +120,9 @@ function Resolve-VisibleCheckMonitor([string] $requested) {
 # places by `WindowMonitor` + `WindowX/Y` relative to that monitor's origin. Seeding
 # only one of them silently falls back to the primary display.
 function Set-IsolatedPlacement([string] $dataDirectory, [string] $monitorDevice) {
+    # Primary-display opt-in still needs an owned settings directory even when
+    # there is no secondary monitor on which to seed placement.
+    [void][IO.Directory]::CreateDirectory($dataDirectory)
     if (-not $monitorDevice) { return }
     New-Item -ItemType Directory -Force -Path $dataDirectory | Out-Null
     $offsetDips = 80.0
