@@ -32,6 +32,9 @@ public sealed class StartupArguments
     /// </summary>
     public bool HudCompositionCheck { get; private init; }
 
+    /// <summary>Hidden normal-composition stress check with invented producers and resource evidence.</summary>
+    public bool HudEnduranceCheck { get; private init; }
+
     /// <summary>Finite Plan 3 voice smoke (silent unless --audible is given).</summary>
     public bool VoiceSmoke { get; private init; }
 
@@ -64,7 +67,7 @@ public sealed class StartupArguments
     public bool AllowPrimaryPlacement { get; private init; }
 
     public bool IsFixtureInvocation =>
-        HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || HudCompositionCheck || VoiceSmoke || VoicePackCheck;
+        HudFixture || HudSmoke || HudStartupCheck || HudIntegrationCheck || HudCompositionCheck || HudEnduranceCheck || VoiceSmoke || VoicePackCheck;
 
     /// <summary>
     /// Copy with different Codex home and data directory. Diagnostics checks invent both
@@ -78,6 +81,7 @@ public sealed class StartupArguments
         HudStartupCheck = HudStartupCheck,
         HudIntegrationCheck = HudIntegrationCheck,
         HudCompositionCheck = HudCompositionCheck,
+        HudEnduranceCheck = HudEnduranceCheck,
         VoiceSmoke = VoiceSmoke,
         Audible = Audible,
         VoicePackCheck = VoicePackCheck,
@@ -101,6 +105,7 @@ public sealed class StartupArguments
         var startupCheck = false;
         var integrationCheck = false;
         var compositionCheck = false;
+        var enduranceCheck = false;
         var allowPrimaryPlacement = false;
         var voiceSmoke = false;
         var voicePackCheck = false;
@@ -132,6 +137,9 @@ public sealed class StartupArguments
                     break;
                 case "--hud-composition-check":
                     compositionCheck = true;
+                    break;
+                case "--hud-endurance-check":
+                    enduranceCheck = true;
                     break;
                 case "--allow-primary-placement":
                     allowPrimaryPlacement = true;
@@ -218,6 +226,7 @@ public sealed class StartupArguments
             HudStartupCheck = startupCheck,
             HudIntegrationCheck = integrationCheck,
             HudCompositionCheck = compositionCheck,
+            HudEnduranceCheck = enduranceCheck,
             VoiceSmoke = voiceSmoke,
             VoicePackCheck = voicePackCheck,
             Audible = audible,
@@ -241,6 +250,7 @@ public sealed class StartupArguments
        TheOverseer.App --hud-startup-check   (reversible live check of OVERSEER's own Run entry)
        TheOverseer.App --hud-integration-check [--output-directory DIR]   (invented producers through the real monitor and HUD)
        TheOverseer.App --hud-composition-check [--output-directory DIR]   (the real startup composition and discovery, invented producers)
+       TheOverseer.App --hud-endurance-check --start-in-tray --no-tray --duration 3600 --output-directory DIR
        TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]
        TheOverseer.App --voice-pack-check [--data-directory PATH]
 

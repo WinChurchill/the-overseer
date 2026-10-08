@@ -1,5 +1,16 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.15 — private automated qualification
+
+- Added private CI packaging with archive, checksum and source manifest; no public
+  release, tag or website deployment. Exact downloaded bytes are qualified locally.
+- Added a hidden mixed-source endurance diagnostic, resource evidence and a
+  qualification orchestrator that reuses existing package/upgrade suites.
+- Prepared a clean-machine helper, expanded contributor/adapter/fixture guidance
+  and added a PR template. Corrected DSH 1.1.0 question-coverage instructions.
+- Actual native menu, host engines, clean OS, physical/audio and owner publication
+  checks remain separate from synthetic automation. Codex approvals stay Unsupported.
+
 ## 1.0.0-rc.13 — private diagnostic-report cleanup
 
 - Recognized Codex output-only function envelopes so live chats retain coverage

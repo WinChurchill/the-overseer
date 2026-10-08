@@ -301,7 +301,10 @@ with `sessions: []`.
 Restart OVERSEER after installing the bridge. In a real Desktop session, check
 working -> waiting for approval -> resumed -> completed/aborted, and verify
 that OVERSEER reports those states without capturing message bodies or changing
-any approval decision. Input-wait detection remains unsupported by this observer. Test detach and relaunch as well. Record the exact Desktop
+any approval decision. Observer 1.1.0 also detects Desktop 0.2.0-rc.2 question
+metadata: test question -> correlated reply -> resumed, timed continuation and
+quiet restart. Missing or changed question metadata reduces coverage; other host
+versions need qualification. Test detach and relaunch as well. Record the exact Desktop
 version and source/spool identity. Until that run exists, the bridge is experimental.
 
 ### Remove

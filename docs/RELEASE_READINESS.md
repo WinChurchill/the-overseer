@@ -1,8 +1,8 @@
 # OVERSEER release readiness
 
-## Automated qualification round — planned 2026-10-07
+## Automated qualification round — executing 2026-10-08
 
-Status: **PLAN READY; EXECUTION NOT STARTED.** Branch
+Status: **EXECUTING; OWNER UNAVAILABLE.** Branch
 `fix/automated-release-qualification`, based on `1ff8482`. RC14 and its 16
 pending owner results remain unchanged. The detailed execution handoff is
 `.agent/HANDOFF.md`; its completed predecessor is preserved in ignored artifacts.

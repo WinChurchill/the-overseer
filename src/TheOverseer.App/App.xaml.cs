@@ -39,6 +39,11 @@ public partial class App : Application
             // Diagnostics fixtures are explicit, isolated and finite, and never
             // take the single-instance slot or register startup.
             ConsoleHost.Ensure();
+            if (arguments.HudEnduranceCheck)
+            {
+                Shutdown(await HudEnduranceCheckRunner.RunAsync(arguments, Dispatcher));
+                return;
+            }
             if (arguments.HudStartupCheck)
             {
                 Shutdown(HudFixtureRunner.RunStartupCheck());

@@ -19,6 +19,7 @@ Pop-Location
 ./scripts/Test-ReleaseUpgradePlacement.ps1
 node scripts/Build-Site.mjs
 node scripts/Check-Site.mjs
+node scripts/Test-Site.mjs
 ```
 
 Run bridge suites sequentially. Packaged display tests use a secondary display;
@@ -43,3 +44,36 @@ DeepSeek and other AI tools are assistance, not separate commit authors or
 co-authors. Do not guess who contributed from their choice of AI tool. Winston's
 work uses WinChurchill; another person must use their own identity. Preserve
 third-party notices and genuine human attribution.
+
+## Code map and fixtures
+
+`TheOverseer.Core` owns readers, normalized state, project attribution, bounded
+history and voice policy. `TheOverseer.UI` projects that state into view models
+and WPF views. `TheOverseer.App` composes Windows services and owns lifecycle.
+`integrations/` contains independent metadata-only Node producers; their spools
+feed the App adapters. Put a change in the layer that owns its behavior.
+
+Use invented rollout/spool records and owned temporary directories. Follow
+`Diagnostics/SyntheticProducers.cs`, `HudCompositionCheckRunner.cs` and the
+tests in `TheOverseer.Tests`; assert expected transitions, partial coverage,
+recovery and bounded reads rather than mirroring implementation details.
+Bridge installer tests must preserve unrelated settings in disposable profiles.
+
+A new adapter should declare source identity and capabilities, normalize only
+observed evidence, preserve failure isolation and aggregate resource budgets,
+and document its exact supported host/engine versions. Add contract, correlation,
+restart, malformed/oversized input and privacy checks. A fixture cannot establish
+that a real host actually invokes an observer or hook.
+
+## Qualification and review
+
+The private packaging workflow emits an unsigned RC archive, checksum and source
+manifest; it creates no release or tag. It supports manual dispatch after it is
+on the default branch and a narrowly scoped bootstrap push on the qualification
+branch. Download that artifact and test those bytes instead of rebuilding them.
+See `docs/AUTOMATED_QUALIFICATION.md` for orchestration and clean-machine checks.
+
+Before requesting review, describe the trigger, final behavior, test evidence
+and remaining limits using the PR template. Main requires review; same-chat
+review must not be described as independent review. Keep private evidence under
+ignored `artifacts/`, and include only redacted summaries in the pull request.

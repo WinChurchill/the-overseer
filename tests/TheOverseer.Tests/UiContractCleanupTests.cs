@@ -261,4 +261,16 @@ public sealed class UiContractCleanupTests
         Assert.True(StartupArguments.TryParse(args, out var parsed, out var error), error);
         return parsed;
     }
+
+    [Fact]
+    public void EnduranceInvocationIsFiniteAndDoesNotTakeTheNormalInstanceSlot()
+    {
+        var check = Parse("--hud-endurance-check", "--start-in-tray", "--no-tray", "--duration", "3600", "--output-directory", "synthetic");
+        Assert.True(check.HudEnduranceCheck);
+        Assert.True(check.IsFixtureInvocation);
+        Assert.Equal(TimeSpan.FromHours(1), check.Duration);
+        Assert.True(check.StartInTray);
+        Assert.True(check.NoTray);
+        Assert.False(StartupArguments.TryParse(new[] { "--hud-endurance-check", "--duration", "3601" }, out _, out _));
+    }
 }

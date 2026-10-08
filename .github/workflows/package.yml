@@ -1,0 +1,73 @@
+name: Private qualification package
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Private candidate version (no v prefix)
+        required: true
+        type: string
+        default: '1.0.0-rc.15'
+  # A new workflow cannot dispatch until on the default branch. This private
+  # branch-only bootstrap avoids merging unreviewed changes into main.
+  push:
+    branches: [fix/automated-release-qualification]
+    paths: [.github/workflows/package.yml]
+permissions:
+  contents: read
+concurrency:
+  group: private-package-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  package:
+    if: github.event.repository.private
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CANDIDATE_VERSION: ${{ inputs.version || '1.0.0-rc.15' }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Validate candidate identity
+        run: |
+          if ($env:CANDIDATE_VERSION -notmatch '^\d+\.\d+\.\d+-rc\.\d+$') { throw 'Private workflow requires an RC version' }
+      - name: Source verification
+        run: |
+          dotnet restore TheOverseer.sln
+          if ($LASTEXITCODE) { throw 'Restore failed' }
+          dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false
+          if ($LASTEXITCODE) { throw 'Build failed' }
+          dotnet test TheOverseer.sln -c Release --no-build --no-restore
+          if ($LASTEXITCODE) { throw 'Tests failed' }
+          Push-Location integrations/deepseek-harness
+          node --test
+          if ($LASTEXITCODE) { throw 'DSH tests failed' }
+          Pop-Location
+          Push-Location integrations/claude-code
+          node --test
+          if ($LASTEXITCODE) { throw 'Claude tests failed' }
+          Pop-Location
+      - name: Package unsigned private candidate
+        run: ./scripts/Publish-Release.ps1 -OutputDirectory artifacts/ci-package -Version $env:CANDIDATE_VERSION -ArchiveName "OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: overseer-private-${{ env.CANDIDATE_VERSION }}-${{ github.sha }}
+          path: |
+            artifacts/ci-package/*.zip
+            artifacts/ci-package/*.sha256
+            artifacts/ci-package/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
