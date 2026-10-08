@@ -6,10 +6,13 @@ bounded, metadata-only records appended to an OVERSEER-owned local spool.
 * Node.js >= 18, ESM, standard library only, zero dependencies, no network access at hook time.
 * The hook helper never returns a permission decision, never writes to stdout, and always exits 0.
 * Nothing is written to a Claude settings file unless `--apply` is passed.
-* Bridge 1.0.1 atomically publishes new install identity/epoch documents using
+* Bridge 1.0.2 atomically publishes new install identity/epoch documents using
   same-directory exclusive hard links. Use a Windows-local spool on a filesystem
   supporting hard links (default NTFS); unsupported/custom filesystems are not
   qualified. Existing valid identities are preserved.
+* Slow acquisition reserves health accounting from the remaining write budget.
+  The 250 ms budget and fail-open behavior are preserved; filesystem/OS stalls
+  can still prevent best-effort diagnostic writes and require environment testing.
 
 ## Qualification status (read this first)
 

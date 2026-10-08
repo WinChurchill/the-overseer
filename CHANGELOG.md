@@ -1,5 +1,14 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.18 — private bounded drop-accounting fix
+
+- Claude bridge 1.0.2 reserves health-accounting time after acquisition overhead.
+  Previously a slow first attach plus a held writer lock could exhaust the entire
+  remaining budget and drop a record without its counter. A deterministic fixture
+  reproduces the loss before the fix and verifies accounting afterward.
+- The fixed 250 ms write allowance and observe-only/fail-open behavior remain.
+  RC17 emitted no package because its concurrency check still failed.
+
 ## 1.0.0-rc.17 — private Claude identity-race fix
 
 - Claude bridge 1.0.1 publishes complete identity/epoch documents exclusively
