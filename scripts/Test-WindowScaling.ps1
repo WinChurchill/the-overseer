@@ -50,7 +50,7 @@ function Get-Screens {
     try { return @([System.Windows.Forms.Screen]::AllScreens) } catch { return @() }
 }
 
-$screens = Get-Screens
+$screens = @(Get-Screens)
 if ($screens.Count -eq 0) { throw 'No display was enumerated; refusing to run a windowed check blindly.' }
 
 $primary = $screens | Where-Object { $_.Primary } | Select-Object -First 1
