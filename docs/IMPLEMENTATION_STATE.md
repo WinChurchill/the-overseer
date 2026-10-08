@@ -1,25 +1,28 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: automated release qualification, owner request 2026-10-07.
+Plan: automated release qualification, owner request 2026-10-07; executed 2026-10-08.
 Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
-Status: **EXECUTING 2026-10-08.** RC14 preserved; no merge/publication.
+Status: **AVAILABLE AUTOMATION COMPLETE; RELEASE GATES OPEN.** No merge/publication.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
-Execution packet: ignored `.agent/HANDOFF.md`; prior packets preserved in artifacts.
-Reviews so far were performed in this chat, not by an independent second agent.
-Private [repository](https://github.com/WinChurchill/the-overseer); [Windows CI pass](https://github.com/WinChurchill/the-overseer/actions/runs/37413476257).
-206 commits preserved; only 17 Astra/DeepSeek identities normalized in the upload copy.
-Original commits/tags/RC13 bytes stay unchanged; [staging policy](PRIVATE_GITHUB_STAGING.md).
-- Startup unhydrated tasks no longer settle a project's expansion default; fresh
-  working evidence reveals it without a click. Explicit collapse still wins.
-- Codex shell no-association falls back to Windows Store protocol activation;
-  other launch failures stay visible. Read-only URI preparation passed; exact-chat
-  activation remains an owner retest. Build 0 warnings/errors; 770 tests, 0 fail/skip.
-- An ordinary chat answer has no question ID; its widget can remain unresolved.
-  Correlated reply or turn end clears it. No guessing from answer text.
-- RC14 source `c753f03`; 42 package pass/0 fail/3 activation deferrals, integration
-  17/17, composition 42/42, scaling and RC13 upgrade/rollback 25/25 in both modes.
-  Hosted CI [passes](https://github.com/WinChurchill/the-overseer/actions/runs/37423452238); RC14 owner kit binds 16 pending checks to its hash.
+Private [repository](https://github.com/WinChurchill/the-overseer); original history/RC14 preserved.
+Reviews are same-chat, not independent; main still requires review.
+- CI RC19 source `8b9a420`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/37841314905),
+  SHA256 `CEC312425392A28DC59EB410A3A883CBAAC4B3E649127EB07B1B6665C64C4806`.
+- Clean harness `bcbf99c`: build0 warnings/errors;771 .NET/39 DSH/33 Claude pass.
+  [Hosted CI](https://github.com/WinChurchill/the-overseer/actions/runs/37846742188) passes.
+  Exact ZIP42 pass/0 fail/3 activation deferrals; integration17/composition42;
+  RC8 upgrade/rollback25/25 each HUD/Window; single125% display scaling passes.
+- Synthetic hidden soak 3601s/448 question-clear cycles,14/14 pass;
+  peak private 139.2MiB; no forced kill. Normal actual-host hour unverified.
+- Claude atomic identity/budget/fresh-record probe races fixed; docs/CI/site hardened.
+  Initial failed fixtures/CI attempts preserved; original wrapper FAIL is reconciled.
+- Prepared RC19 install diagnostic save fails with access-denied events despite
+  594 matching files; qualification extraction passes. Normal user launch unresolved.
+- Native UI helper failed; no clean guest. Actual Exit/focus/DSH/Claude, physical,
+  logon/audio/independent checks remain. Review: CHANGES REQUIRED for release gates.
+- Owner packet: ignored `artifacts/prepublication/automation-round/owner-handoff-rc19/`;
+  five work blocks, H1-H16 clause map, measured results and NOT APPROVED public steps.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -175,7 +178,7 @@ The merge gate has passed; unrelated historical branches are retained.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- CI-produced final archive from approved source, followed by exact-byte checks.
+- RC19 CI exact-byte automation complete; final1.0/signing bytes require requalification.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
 - Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
   hosts are installed but both bridges remain experimental.
@@ -184,17 +187,12 @@ See [release readiness](RELEASE_READINESS.md) for protocols and revision-specifi
 - Signing/distribution choice and public channel, explicitly deferred by owner.
 - Codex approvals intentionally unsupported pending a separately qualified connection.
 
-## Automated review — 2026-09-29
-Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
-- Historical menu/state/lifecycle/privacy review and its evidence are retained in
-  IMPLEMENTATION_HISTORY. It does not certify the current source or candidate.
-
 ## Commits and next action
 - Original remediation commit identities remain in IMPLEMENTATION_HISTORY and
   preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: execute RELEASE_READINESS A1–A7 and `.agent/HANDOFF.md` on the plan branch.
-Candidate bytes/source remain fixed; subsequent ledger-only commits do not repackage it.
-Automate remaining checks, collect only irreducible owner inputs, then seek L5 approval.
+Next: resolve RC19 save context, complete residual H clauses and required review.
+Candidate source/bytes are fixed; final1.0/signing requires new CI identity and checks.
+Use the current owner packet, then seek concrete L5 publication approval.
 No public release or main merge was performed.

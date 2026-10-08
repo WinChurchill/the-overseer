@@ -1,44 +1,51 @@
 # OVERSEER release readiness
 
-## Automated qualification round — executing 2026-10-08
+## Automated qualification round — executed 2026-10-08
 
-Status: **EXECUTING; OWNER UNAVAILABLE.** Branch
-`fix/automated-release-qualification`, based on `1ff8482`. RC14 and its 16
-pending owner results remain unchanged. The detailed execution handoff is
-`.agent/HANDOFF.md`; its completed predecessor is preserved in ignored artifacts.
+Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Branch
+`fix/automated-release-qualification`, based on `1ff8482`; main unmerged/private.
+CI candidate **1.0.0-rc.19**, source `8b9a4201f9e6763045ba7abdde5d052f27a75979`,
+unsigned self-contained win-x64 (.NET10.0.12),76,931,366 bytes,594 payload/93 integration files.
+SHA256 `CEC312425392A28DC59EB410A3A883CBAAC4B3E649127EB07B1B6665C64C4806`.
+[Private package CI](https://github.com/WinChurchill/the-overseer/actions/runs/37841314905)
+and [clean harness Verify](https://github.com/WinChurchill/the-overseer/actions/runs/37846742188) pass.
+Later `bcbf99c` changes qualification/workflow/fixture code only; shipping bytes stay fixed.
 
-End state: reviewed source, CI-produced proposed 1.0 bytes, an automated evidence
-packet and a short remaining human checklist. No public action is implied.
-Windows computer-use access was initialized and its app inventory read successfully;
-no app was activated or controlled. No controllable clean VM is established yet.
-
-| Step | Execution and objective evidence |
+| Step | Executed result and remaining boundary |
 | --- | --- |
-| A1 — Test environment | Prepare unique test installs/data/producers; inventory host/engine versions, accounts and permanent observer paths. Establish an idle desktop or disposable clean Windows VM before focus-changing work. Authentication remains with the owner. Preserve live profiles/installations and RC14 bytes. |
-| A2 — Qualification automation | Extend existing runners instead of adding a framework. Exercise actual OVERSEER menu Exit and process termination, automatic startup reveal, source-qualified navigation, user collapse, keyboard/pointer controls, themes/settings, recovery and supported upgrades. Evidence distinguishes real UI, synthetic replay and host execution. |
-| A3 — Real host checks | Use supported host/app APIs or permitted UI on explicitly designated synthetic test chats. Capture real work/question/answer/permission/resume/completion/restart outcomes without message bodies. Native Codex UI, authentication and security prompts are outside the computer-use skill's allowed scope; app APIs are preferred. Missing host access yields a named gap, never a synthetic replacement pass. |
-| A4 — Endurance and clean launch | Run at least one hour of unattended mixed-source stress/resource sampling. Separately record actual-host activity where available. Run the CI archive on a clean Windows environment before installing SDK/Node/harness tools; test browser acquisition, standard-user startup, spaced/non-ASCII paths, restart and uninstall. Do not bypass Windows protection prompts. |
-| A5 — Contributor/public docs | Reconcile CONTRIBUTING, README, support/security, bridge setup, compatibility, changelog and website. Add concise architecture/test-fixture guidance and a PR template. Correct the DSH install-confirmation sentence still claiming all input detection unsupported; retain version-specific limits and human attribution. No unnecessary community-policy decision is invented. |
-| A6 — CI release artifacts | Add a manual private packaging workflow using Publish-Release.ps1; emit archive/checksums/manifest as workflow artifacts without public tags/releases. Download and qualify those exact bytes. Signing choice precedes hashing. Each shipping-byte change requires a new identity and rerun. |
-| A7 — Review and small handoff | Review the complete diff against normalized main; close blocker/major findings. Bind each H1–H16 subcheck to its source/hash/environment. Deliver automated results plus only unresolved human observations/decisions. Record same-chat versus independent review accurately. Main merge and L5 publication approval retain their gates. |
+| A1 — Environment | Unique installs/data/invented producers; Windows26200, Codex26.1002.7124.0, DSH Desktop0.2.0-rc.2, Claude app2.19675.1.0 inventoried. Actual Claude engine unknown. Native helper setup failed after retry/reset; no clean guest route. Live profiles/installations/RC14 untouched. |
+| A2 — Automation | Full clean build0 warnings/errors;771 .NET/39 DSH/33 Claude pass. Exact ZIP42 pass/0 fail/3 activation deferrals; integration17/composition42,48 HUD+2 settings renders; native resize/maximize/restore/persistence at125% passes. Close-to-tray/hidden startup/no-tray graceful close pass. No actual menu Exit or pointer/Snap proof. |
+| A3 — Hosts | Read-only real Codex metadata shows fresh working chat; synthetic startup hydration/collapse/correlation/navigation contracts pass. Actual question/reply/focus, DSH Desktop timed/restart and Claude engine sequences remain unverified. Codex approvals explicitly Unsupported. No host messaging/sign-in or profile changes. |
+| A4 — Endurance/clean | Synthetic hidden production composition: 3601s,448 question/clear cycles,14/14 resource checks pass,peak private 139.2MiB,CPU 0.58% of one core; exit0/no forced kill. Three stable projects/muted voice/fake tray do not certify normal-host hour, churn, physical/audio or clean OS. Windows PowerShell5.1 hash/extraction helpers and negative controls prepared. |
+| A5 — Docs/security | Contributor architecture/fixtures/adapters/PR/human-author guidance, DSH support/setup text and RC19 local site reconciled;85 site checks/13 controls. Pinned Gitleaks history/tracked source/text payload clear; known vulnerable NuGet0; exact project/upstream/bridge/runtime notices verified. Local noindex draft only; live HTTPS/browser/SEO unqualified. |
+| A6 — CI bytes | Private read-only RC workflow produces ZIP/checksum/manifest; downloaded exact archive qualified. Actions pinned. RC16–18 failed package attempts emitted no ZIP; all evidence preserved. Final1.0/signing changes require a new CI archive/hash and full qualification. |
+| A7 — Review/handoff | Complete branch diff against normalized main reviewed in this chat; reproduced Claude identity/budget/probe races fixed with regressions. Review: CHANGES REQUIRED for release qualification; required main review remains. New ignored owner packet traces every H1–H16 clause to evidence and five residual work blocks. |
 
-Expected automation allocation, not a pass claim: H2/H6/H7/H8/H11/H14/H15
-can be largely automated after their environment prerequisites. H1/H3/H4/H5/
-H9/H10/H12/H13/H16 combine automation with authentication, source access,
-physical devices or human observation. H15 synthetic stress alone does not certify
-the required normal real-host use; a VM does not certify unplugging physical monitors.
+**Open failure, not a deferred pass:** fresh `OVERSEER-RC19` synthetic diagnostic
+launches fail config/placement saves and report access-denied events. All594 files
+match the passing extraction; setting workspace SDK environment does not fix it.
+Normal Explorer/user launch/save/Exit/reopen is still required to resolve its context.
+Windows permissions/security settings were not changed. Successful process exit
+alone does not establish persistence or resolve the RC13 actual-Exit complaint.
 
-Target owner handoff: (1) sign-in/security approvals or one short host sequence where
-automation cannot observe the true path; (2) hear preview/cue and assess usefulness;
-(3) any outstanding physical monitor/power/logon observation; (4) final signing,
-supported-scope and publication decision. Aim for 15–30 minutes of active checks
-after one-time environment setup, conditional on host/VM access and defects found.
-No measured automation percentage or completed H result is claimed in advance.
+Evidence: ignored `artifacts/prepublication/automation-round/owner-handoff-rc19/`
+(`round-report.json`, `OWNER_HANDOFF.md`, `OWNER_CHECKS.csv`, `review.json`, checksums).
+Final clean pre-user: `artifacts/aq19-reviewed/run-20261008T212730Z-28149d5c/`.
+Full-hour evidence: `artifacts/prepublication/automation-round/run-20261008T204509Z-50502404/soak/`.
+That original wrapper remains **FAIL** from an earlier fixed fixture failure; the
+final packet reconciles its independently passing soak with the later clean full
+pre-user pass, without editing failed reports. Intermediate/failing runs are retained.
 
-Execution continues through fixes and focused retests, then full source/package
-verification. Only required access or a human-only action pauses the dependent step;
-unaffected preparation continues. Public visibility, Pages, announcements, signing
-purchases and changes to the owner's security settings are not part of this round.
+Remaining owner blocks: (1) save/reopen and actual UI/Exit; (2) one designated actual
+sequence per supported host and disposable bridge activation/teardown; (3) physical
+display/power/audio/startup; (4) clean/independent machine; (5) real update paths,
+normal mixed-host hour and disposable uninstall. Target15–30 active minutes only
+after prerequisites and absent defects; setup, physical work and background hour add time.
+No whole H row passes while any clause remains. RC14 kit/history/install preserved.
+
+No public visibility/tag/release/Pages/announcement, signing purchase, main merge,
+live profile/security setting change or recurring monitor occurred. L1–L10 remain
+the explicit publication gate below; RC19 is not renamed public1.0.
 
 ## Prior pre-publication execution — 2026-10-05
 
