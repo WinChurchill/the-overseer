@@ -9,10 +9,10 @@ dotnet restore TheOverseer.sln
 dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false
 dotnet test TheOverseer.sln -c Release --no-build --no-restore
 Push-Location integrations/deepseek-harness
-node --test
+node --test --test-concurrency=1
 Pop-Location
 Push-Location integrations/claude-code
-node --test
+node --test --test-concurrency=1
 Pop-Location
 ./scripts/Test-PreUserReport.ps1
 ./scripts/Test-ReleaseUpgradeComparison.ps1
@@ -22,7 +22,10 @@ node scripts/Check-Site.mjs
 node scripts/Test-Site.mjs
 ```
 
-Run bridge suites sequentially. Packaged display tests use a secondary display;
+Run bridge suites and test files sequentially. The concurrency test deliberately
+creates its own pressure and verifies accounted loss; unrelated test files must
+not compete with binding probes for the bridge's fixed 250 ms write budget.
+Packaged display tests use a secondary display;
 intentional activation, primary-display tests and display changes belong in an idle
 qualification session. See the release runbook for the full package/upgrade suite.
 Never test by replacing a live installation or editing personal harness profiles.

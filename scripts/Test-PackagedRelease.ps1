@@ -296,14 +296,14 @@ function Invoke-NodeTest(
     [string] $logDirectory,
     [int] $timeoutSeconds) {
 
-    Write-Step ($name + ': node --test in ' + $directory)
+    Write-Step ($name + ': node --test --test-concurrency=1 in ' + $directory)
     $node = Get-Command node -ErrorAction SilentlyContinue
     if (-not $node -or -not (Test-Path -LiteralPath $directory)) {
         Add-Check $name $false ('node-on-path=' + [bool]$node + ' directory=' + $directory)
         return [ordered]@{ ExitCode = -1; TimedOut = $false; Stdout = ''; Stderr = ''; Log = '' }
     }
 
-    $handle = Start-PackagedProcess $node.Source @('--test') $environment $directory
+    $handle = Start-PackagedProcess $node.Source @('--test', '--test-concurrency=1') $environment $directory
     $result = Complete-PackagedProcess $handle $timeoutSeconds (Join-Path $logDirectory ($name + '.log'))
     $passLines = ([regex]::Matches($result.Stdout, '(?m)^# pass ')).Count
     $failLines = ([regex]::Matches($result.Stdout, '(?m)^# fail ')).Count

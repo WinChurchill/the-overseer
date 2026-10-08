@@ -1,5 +1,14 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.16 — private bridge qualification controls
+
+- Run bridge test files sequentially so unrelated fixtures do not compete with
+  the fixed write budget; explicit concurrency/loss-accounting stress remains.
+- Require each rebound Claude hook invocation to add its own record. Previously
+  accumulated records could mask a later failed binding probe.
+- RC15 bytes are preserved but failed the separate hosted Verify suite. RC16
+  needs fresh exact-archive qualification; neither version is publicly released.
+
 ## 1.0.0-rc.15 — private automated qualification
 
 - Added private CI packaging with archive, checksum and source manifest; no public

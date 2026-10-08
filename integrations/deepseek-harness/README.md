@@ -342,7 +342,7 @@ or read the harness credential store. Local contract tests use isolated spools.
 
 ```sh
 cd integrations/deepseek-harness
-node --test
+node --test --test-concurrency=1
 ```
 
 Plain Node (`node --test`, Node >= 20). No dependencies, no package install, no TypeScript build

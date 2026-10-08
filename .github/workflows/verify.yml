@@ -41,10 +41,10 @@ jobs:
         run: dotnet test TheOverseer.sln -c Release --no-build --no-restore --logger trx --results-directory TestResults
       - name: DeepSeek bridge contracts
         working-directory: integrations/deepseek-harness
-        run: node --test
+        run: node --test --test-concurrency=1
       - name: Claude bridge contracts
         working-directory: integrations/claude-code
-        run: node --test
+        run: node --test --test-concurrency=1
       - name: Pre-user report controls
         run: ./scripts/Test-PreUserReport.ps1
       - name: Upgrade comparison controls

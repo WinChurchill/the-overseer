@@ -394,7 +394,7 @@ Run from this directory:
 
 ```text
 cd integrations/claude-code
-node --test
+node --test --test-concurrency=1
 ```
 
 Observed on 2026-09-24 (Windows, Node v24.15.0): **19 tests, 19 pass, 0 fail, 0 skipped**,
