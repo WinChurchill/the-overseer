@@ -252,13 +252,15 @@ public sealed class VoiceManagerTests
     public async Task SuspendDropsQueuedCuesAndCountsThemWithoutMuting()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var provider = new FakeVoiceProvider();
-        var player = new FakeVoicePlayer { Gate = gate };
+        // Hold synthesis, before playback starts. Queue occupancy alone does
+        // not prove that an in-flight player has not already begun its cue.
+        var provider = new FakeVoiceProvider { Gate = gate };
+        var player = new FakeVoicePlayer();
         await using var manager = new VoiceManager(provider, player, Options(), muted: false);
         manager.Start();
 
         manager.Enqueue(new[] { Candidate(1), Candidate(2), Candidate(3) });
-        Assert.True(await WaitForAsync(() => manager.QueuedCount >= 2), "queue did not fill");
+        Assert.True(await WaitForAsync(() => provider.Calls == 1 && manager.QueuedCount >= 2), "provider/queue did not settle");
 
         manager.DiscardPendingWork("suspended");
         gate.TrySetResult();
