@@ -4,8 +4,9 @@ See what your agents are doing and when they need you, in one small Windows wind
 OVERSEER groups observed work by project, shows the limits of its coverage and can
 speak short notifications. It observes; it never answers requests or controls an agent.
 
-**Publication status:** private candidate `1.0.0-rc.14` has passed automated
-qualification; owner retests are pending.
+**Publication status:** private qualification is underway. Automated evidence
+and remaining owner checks are recorded in the version-bound handoff; no public
+release has been approved.
 The automated qualification round prepares the next private RC from CI; see
 [the automation runbook](docs/AUTOMATED_QUALIFICATION.md). It preserves RC14 and
 does not certify pending live-host, clean-machine or physical checks.
@@ -73,7 +74,8 @@ muted. Existing settings are preserved.
 - **NEED YOU / WORKING** selects the corresponding filter and expands the list.
 - **Now / Recent / This session**, project groups and history strips change the view.
   Counts still summarize all observed work. Unknown history is not idle time.
-- **M / V** mutes/unmutes; **LIGHT ON/OFF** toggles the status light.
+- The **microphone button** mutes/unmutes. **Light · reason / Light off** toggles
+  the status light and describes its current meaning.
 - **⋯** opens eight actions: Always on top, Expand all projects, Collapse all projects,
   Compact/expanded HUD, Light & voice…, Projects & sources…, Hide to tray and Exit.
 - Drag a clear header strip to move; use the border to resize. Maximize/restore and

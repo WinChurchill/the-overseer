@@ -6,6 +6,10 @@ bounded, metadata-only records appended to an OVERSEER-owned local spool.
 * Node.js >= 18, ESM, standard library only, zero dependencies, no network access at hook time.
 * The hook helper never returns a permission decision, never writes to stdout, and always exits 0.
 * Nothing is written to a Claude settings file unless `--apply` is passed.
+* Bridge 1.0.1 atomically publishes new install identity/epoch documents using
+  same-directory exclusive hard links. Use a Windows-local spool on a filesystem
+  supporting hard links (default NTFS); unsupported/custom filesystems are not
+  qualified. Existing valid identities are preserved.
 
 ## Qualification status (read this first)
 
@@ -14,6 +18,8 @@ or editor app. On 2026-09-29 the installed Windows Claude desktop package was
 confirmed as 2.9939.2.0. That is the app package version, not a verified Claude
 Code engine version. No standalone `claude` command was found on PATH; this does
 not establish whether the app/editor's embedded engine is available.
+On 2026-10-08 the installed package is 2.19675.1.0; that newer app and its
+actual Code engine remain unqualified. No personal hook settings were changed.
 
 The [official hooks reference](https://code.claude.com/docs/en/hooks) documents
 hooks in terminal, IDE and desktop sessions. Desktop and VS Code share Code hook

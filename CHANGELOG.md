@@ -1,5 +1,14 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.17 — private Claude identity-race fix
+
+- Claude bridge 1.0.1 publishes complete identity/epoch documents exclusively
+  before peers can read them. A deterministic slow-write fixture reproduced the
+  prior partial-document race and now passes; existing identities are preserved.
+- Corrected project-site DSH question coverage and current HUD control labels.
+- RC16 packaging was stopped by its concurrency/loss-accounting test; no RC16
+  archive was emitted. Live host and final publication checks remain pending.
+
 ## 1.0.0-rc.16 — private bridge qualification controls
 
 - Run bridge test files sequentially so unrelated fixtures do not compete with

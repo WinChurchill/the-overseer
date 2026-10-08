@@ -144,12 +144,20 @@ function ensureExclusiveJson(file, create, extract) {
       continue;
     }
     const value = create();
+    const pending = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
     try {
-      fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+      // Exclusive-create writes expose the destination before its JSON is
+      // complete. A concurrent first attach can exhaust retries against that
+      // partial document and silently lose its event. Publish a complete inode
+      // with an exclusive hard link instead: never replace a peer's identity.
+      fs.writeFileSync(pending, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+      fs.linkSync(pending, file);
       return { value, created: true, recovered: recovered.hit };
     } catch (err) {
       if (err && err.code === 'EEXIST') { sleepSync(3); continue; }
       return { value: null, error: err && err.code ? err.code : 'write-failed', recovered: recovered.hit };
+    } finally {
+      try { fs.rmSync(pending, { force: true }); } catch { /* cleanup cannot block a hook */ }
     }
   }
   return { value: null, error: 'identity-unstable', recovered: recovered.hit };
