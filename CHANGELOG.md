@@ -1,5 +1,19 @@
 # OVERSEER changelog
 
+## 1.0.0-rc.21 — private restore footer correction
+
+- Hiding the HUD no longer leaves a permanent “Hidden to tray” footer behind after
+  it is restored. Tray availability errors remain visible.
+
+## 1.0.0-rc.20 — private native UI qualification follow-up
+
+- Empty task lists now explain the active Needs you/Working filter and offer All,
+  rather than incorrectly saying no tasks were touched in the Recent window.
+- Package qualification verifies saved state and changed appearance values even
+  when the smoke process exits successfully. Build/test workers are bounded.
+- This candidate remains private; actual-host, clean-machine, physical/audio and
+  publication gates require separate evidence.
+
 ## 1.0.0-rc.19 — private installer probe qualification
 
 - Installer validation retries one clean no-record result on its isolated spool,

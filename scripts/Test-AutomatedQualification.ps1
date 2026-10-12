@@ -13,8 +13,9 @@ param(
     [Parameter(Mandatory)][string] $BuildManifestPath,
     [Parameter(Mandatory)][string] $PreviousArchivePath,
     [Parameter(Mandatory)][string] $CiRunUrl,
-    [string] $EvidenceDirectory = 'artifacts/prepublication/automation-round',
+    [string] $EvidenceDirectory = 'artifacts/qualification',
     [ValidateRange(75,3600)][int] $EnduranceSeconds = 3600,
+    [switch] $IncludeActivationChecks,
     [switch] $AllowVisibleChecksOnPrimary
 )
 Set-StrictMode -Version Latest
@@ -60,6 +61,7 @@ Write-Host "Qualification evidence: $root"
 $identity = [ordered]@{ version=$manifest.version; sha256=$sha; sourceCommit=$manifest.sourceCommit; archive=$archive; ciRun=$CiRunUrl; os=[Environment]::OSVersion.VersionString; machineClass='existing development host, not a clean VM'; generatedAtUtc=[DateTime]::UtcNow.ToString('o') }
 $identity | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'identity.json') -Encoding utf8
 $preArguments = @('-NoProfile','-File',(Join-Path $PSScriptRoot 'Test-PreUserRelease.ps1'),'-CandidateArchivePath',$archive,'-PreviousArchivePath',(Full $PreviousArchivePath),'-EvidenceDirectory',(Join-Path $root 'pre-user'))
+if ($IncludeActivationChecks) { $preArguments += '-IncludeActivationChecks' }
 if ($AllowVisibleChecksOnPrimary) { $preArguments += '-AllowVisibleChecksOnPrimary' }
 Run 'pre-user' $pwsh $preArguments
 $extraction = Join-Path $root 'exact CI bytes 空间'

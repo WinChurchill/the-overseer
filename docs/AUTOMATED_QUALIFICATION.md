@@ -2,6 +2,9 @@
 
 Run on an owned test environment. Preserve installed releases, personal profiles
 and source sessions. Generated evidence belongs under ignored `artifacts/`.
+Use a short evidence path such as `artifacts/qualification` (the default). Deeply
+nested extraction paths can make the Windows native WPF loader fail with
+`0x800700CE` (filename or extension too long), even though the ZIP is valid.
 
 1. Obtain the private packaging workflow artifact. It includes the release ZIP,
    `.sha256` and `build-manifest.json`. Record its workflow URL and source commit.
@@ -35,7 +38,9 @@ for both build and test; this avoids unbounded fan-out on large developer machin
 
 Windowed tests use a secondary display. On a deliberately idle test desktop,
 `-AllowVisibleChecksOnPrimary` permits non-activating checks on the primary display.
-Activation checks and actual menu clicks remain separate. The hidden soak substitutes
+`-IncludeActivationChecks` enables the pre-user runner's intentional activation checks
+on the selected secondary display; it does not opt into the primary display.
+Actual menu clicks remain separate. The hidden soak substitutes
 only invented producers, startup/navigation/clipboard and tray availability; it
 uses the production composition/readers/controller/view model/history/voice policy.
 It does not establish native tray, visible UI or exact-chat focus behavior.

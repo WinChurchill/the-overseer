@@ -290,7 +290,6 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _window.Hide();
         _state = CaptureState();
         ScheduleStateSave();
-        ViewModel.NotifyStatus("Hidden to tray. Use the tray icon or the header menu to show it again.");
     }
 
     /// <summary>
