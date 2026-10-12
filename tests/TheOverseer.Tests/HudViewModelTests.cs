@@ -402,6 +402,28 @@ public sealed class HudViewModelTests
         Assert.Equal(2, viewModel.Tasks.Count);
     }
 
+    [Theory]
+    [InlineData("attention", AgentTaskState.Working, "Needs you")]
+    [InlineData("working", AgentTaskState.Done, "Working")]
+    public void EmptyFilteredRecentViewExplainsTheFilterAndAllRestoresTrackedWork(
+        string filter, AgentTaskState state, string label)
+    {
+        var viewModel = new HudViewModel(new HudSettings { TaskView = "recent", RecentHours = 2 });
+        viewModel.ApplySnapshot(ReviewSnapshot(ReviewNow,
+            ReviewTask("recent", state, lastActivity: ReviewNow.AddMinutes(-1))));
+        Assert.Single(viewModel.Tasks);
+
+        viewModel.TaskFilter = filter;
+
+        Assert.Empty(viewModel.Tasks);
+        Assert.Equal("0 shown · 1 tracked", viewModel.TaskCountLine);
+        Assert.Equal("No observed tasks match the " + label + " filter. Try All.", viewModel.EmptyStateText);
+
+        viewModel.ShowAllTasksCommand.Execute(null);
+        Assert.Single(viewModel.Tasks);
+        Assert.Equal("recent", viewModel.TaskView);
+    }
+
     /// <summary>
     /// Each source carries its own evidence time, so a fresh peer can never renew a
     /// silent source's displayed freshness, and two instances of one harness stay apart.

@@ -1,7 +1,7 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: automated release qualification, owner request 2026-10-07; executed 2026-10-08.
+Plan: automated release qualification, executed 2026-10-08; RC19 follow-up 2026-10-11.
 Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
 Status: **AVAILABLE AUTOMATION COMPLETE; RELEASE GATES OPEN.** No merge/publication.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
@@ -17,12 +17,14 @@ Reviews are same-chat, not independent; main still requires review.
   peak private 139.2MiB; no forced kill. Normal actual-host hour unverified.
 - Claude atomic identity/budget/fresh-record probe races fixed; docs/CI/site hardened.
   Initial failed fixtures/CI attempts preserved; original wrapper FAIL is reconciled.
-- Prepared RC19 install diagnostic save fails with access-denied events despite
-  594 matching files; qualification extraction passes. Normal user launch unresolved.
-- Native UI helper failed; no clean guest. Actual Exit/focus/DSH/Claude, physical,
-  logon/audio/independent checks remain. Review: CHANGES REQUIRED for release gates.
-- Owner packet: ignored `artifacts/prepublication/automation-round/owner-handoff-rc19/`;
-  five work blocks, H1-H16 clause map, measured results and NOT APPROVED public steps.
+- RC19 save/context resolved through a fresh CI extraction: full-user native save/reopen,
+  settings-open Exit and hide/second-launch restore pass; old install/data preserved.
+- Native Now startup, independent grouping, async partial/full reply clearing, filters,
+  History/Space, both themes/Recent menus, drag and window controls pass on fixtures.
+- Follow-up: package46/0/0,535 no-focus samples,100% secondary scaling;771.NET before
+  copy fix; latest source773.NET/build0. Empty-filter wording fixed for next package.
+- Current ignored packet: `artifacts/prepublication/rc19-save-recovery/run-20261011-563f54ab/owner-handoff/`;
+  actual hosts, clean/physical/audio/logon/normal-hour/public checks remain open.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -178,12 +180,12 @@ The merge gate has passed; unrelated historical branches are retained.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- RC19 CI exact-byte automation complete; final1.0/signing bytes require requalification.
+- RC19 bytes qualified; source copy fix and final1.0/signing need a new CI package.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
 - Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
   hosts are installed but both bridges remain experimental.
 - Physical Snap/drag/DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
-- Intentional activation and human tray interaction; excluded from this smoke run.
+- Activation and native header Exit pass; actual tray-menu interaction remains.
 - Signing/distribution choice and public channel, explicitly deferred by owner.
 - Codex approvals intentionally unsupported pending a separately qualified connection.
 
@@ -192,7 +194,7 @@ See [release readiness](RELEASE_READINESS.md) for protocols and revision-specifi
   preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: resolve RC19 save context, complete residual H clauses and required review.
-Candidate source/bytes are fixed; final1.0/signing requires new CI identity and checks.
+Next: new CI candidate for the source copy fix; live-host/external H clauses and review.
+RC19 bytes stay fixed; updated source/final1.0/signing require new CI identity and checks.
 Use the current owner packet, then seek concrete L5 publication approval.
 No public release or main merge was performed.

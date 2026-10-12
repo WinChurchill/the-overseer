@@ -1,6 +1,6 @@
 # OVERSEER release readiness
 
-## Automated qualification round — executed 2026-10-08
+## Automated qualification round — 2026-10-08; follow-up 2026-10-11
 
 Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Branch
 `fix/automated-release-qualification`, based on `1ff8482`; main unmerged/private.
@@ -10,23 +10,36 @@ SHA256 `CEC312425392A28DC59EB410A3A883CBAAC4B3E649127EB07B1B6665C64C4806`.
 [Private package CI](https://github.com/WinChurchill/the-overseer/actions/runs/37841314905)
 and [clean harness Verify](https://github.com/WinChurchill/the-overseer/actions/runs/37846742188) pass.
 Later `bcbf99c` changes qualification/workflow/fixture code only; shipping bytes stay fixed.
+The 2026-10-11 source fixes misleading empty-filter wording. That fix is covered by
+773 passing source tests but is **not in RC19**; the next shipping candidate needs a
+new CI archive and qualification. RC19 is preserved as the tested binary below.
 
 | Step | Executed result and remaining boundary |
 | --- | --- |
-| A1 — Environment | Unique installs/data/invented producers; Windows26200, Codex26.1002.7124.0, DSH Desktop0.2.0-rc.2, Claude app2.19675.1.0 inventoried. Actual Claude engine unknown. Native helper setup failed after retry/reset; no clean guest route. Live profiles/installations/RC14 untouched. |
-| A2 — Automation | Full clean build0 warnings/errors;771 .NET/39 DSH/33 Claude pass. Exact ZIP42 pass/0 fail/3 activation deferrals; integration17/composition42,48 HUD+2 settings renders; native resize/maximize/restore/persistence at125% passes. Close-to-tray/hidden startup/no-tray graceful close pass. No actual menu Exit or pointer/Snap proof. |
+| A1 — Environment | Unique installs/data/invented producers; Windows26200 and previously recorded host versions; actual Claude engine unknown. Updated native helper works. Follow-up visible checks select the vertical secondary DISPLAY43 at100%; no clean guest route. Original installs/data/profiles untouched; a separate verified RC19 launcher was added. |
+| A2 — Automation | Follow-up build0 warnings/errors;771 .NET/39 DSH/33 Claude pass before the copy fix, then773 source tests pass. Exact RC19 ZIP46 pass/0 fail/0 deferrals, including activation; integration17/composition42; secondary100% scaling and RC8 upgrade/rollback25/25 in each mode pass. Native theme/Recent menus, drag, compact/expand, maximize/restore, History/Space, explicit Exit/settings-open Exit and hide/second-launch restore pass. No physical Snap/logon/audio signoff. |
 | A3 — Hosts | Read-only real Codex metadata shows fresh working chat; synthetic startup hydration/collapse/correlation/navigation contracts pass. Actual question/reply/focus, DSH Desktop timed/restart and Claude engine sequences remain unverified. Codex approvals explicitly Unsupported. No host messaging/sign-in or profile changes. |
 | A4 — Endurance/clean | Synthetic hidden production composition: 3601s,448 question/clear cycles,14/14 resource checks pass,peak private 139.2MiB,CPU 0.58% of one core; exit0/no forced kill. Three stable projects/muted voice/fake tray do not certify normal-host hour, churn, physical/audio or clean OS. Windows PowerShell5.1 hash/extraction helpers and negative controls prepared. |
 | A5 — Docs/security | Contributor architecture/fixtures/adapters/PR/human-author guidance, DSH support/setup text and RC19 local site reconciled;85 site checks/13 controls. Pinned Gitleaks history/tracked source/text payload clear; known vulnerable NuGet0; exact project/upstream/bridge/runtime notices verified. Local noindex draft only; live HTTPS/browser/SEO unqualified. |
 | A6 — CI bytes | Private read-only RC workflow produces ZIP/checksum/manifest; downloaded exact archive qualified. Actions pinned. RC16–18 failed package attempts emitted no ZIP; all evidence preserved. Final1.0/signing changes require a new CI archive/hash and full qualification. |
 | A7 — Review/handoff | Complete branch diff against normalized main reviewed in this chat; reproduced Claude identity/budget/probe races fixed with regressions. Review: CHANGES REQUIRED for release qualification; required main review remains. New ignored owner packet traces every H1–H16 clause to evidence and five residual work blocks. |
 
-**Open failure, not a deferred pass:** fresh `OVERSEER-RC19` synthetic diagnostic
-launches fail config/placement saves and report access-denied events. All594 files
-match the passing extraction; setting workspace SDK environment does not fix it.
-Normal Explorer/user launch/save/Exit/reopen is still required to resolve its context.
-Windows permissions/security settings were not changed. Successful process exit
-alone does not establish persistence or resolve the RC13 actual-Exit complaint.
+**Save diagnosis and verified route:** the original prepared folder fails atomic
+temporary-file writes in the escalated diagnostic context. Its594 payload files
+match the passing extraction. Ordinary managed launches save at both locations;
+a fresh extracted copy also passes full-user native theme save/reopen and actual
+menu Exit with settings open. `Open OVERSEER RC19 (verified).lnk` targets that separate
+copy and fresh owner data with copied preferences, without synthetic source arguments.
+Original install/data/shortcut and all failed evidence remain. No Windows permission
+or security setting was changed. Package qualification now requires the actual saved
+state and changed theme/opacity; six controls reject missing, unchanged or malformed
+saves even when the process exits zero. Native hidden restore passes in the full-user
+context; a restricted cross-execution-context retry required owned cleanup and is not
+credited as Exit. Clean/independent Explorer/browser qualification remains open.
+
+Follow-up packet: ignored `artifacts/prepublication/rc19-save-recovery/run-20261011-563f54ab/owner-handoff/`.
+Full follow-up pre-user: its `../secondary-complete/run-20261012T050856Z-96fd5b5e/`.
+Prior packet and evidence below are preserved historical results.
 
 Evidence: ignored `artifacts/prepublication/automation-round/owner-handoff-rc19/`
 (`round-report.json`, `OWNER_HANDOFF.md`, `OWNER_CHECKS.csv`, `review.json`, checksums).
@@ -36,7 +49,7 @@ That original wrapper remains **FAIL** from an earlier fixed fixture failure; th
 final packet reconciles its independently passing soak with the later clean full
 pre-user pass, without editing failed reports. Intermediate/failing runs are retained.
 
-Remaining owner blocks: (1) save/reopen and actual UI/Exit; (2) one designated actual
+Remaining owner blocks: (1) residual tray/edge/keyboard UI; (2) one designated actual
 sequence per supported host and disposable bridge activation/teardown; (3) physical
 display/power/audio/startup; (4) clean/independent machine; (5) real update paths,
 normal mixed-host hour and disposable uninstall. Target15–30 active minutes only

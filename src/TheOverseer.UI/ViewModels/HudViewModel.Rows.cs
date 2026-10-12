@@ -40,7 +40,9 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         TaskCountLine = entries.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + " shown · " +
             snapshot.Tasks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " tracked";
         if (snapshot.Tasks.Count > 0 && snapshot.Health.Level != MonitoringHealthLevel.Unavailable)
-            EmptyStateText = TaskView switch
+            EmptyStateText = HasActiveFilter
+                ? "No observed tasks match the " + (IsFilterAttention ? "Needs you" : "Working") + " filter. Try All."
+                : TaskView switch
             {
                 "recent" => "No tasks touched in the last " + RecentHours + " hours.",
                 "session" => "No tasks touched since OVERSEER started. Try Recent.",

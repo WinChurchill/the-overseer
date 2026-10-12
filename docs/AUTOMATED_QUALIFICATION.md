@@ -23,6 +23,16 @@ These gates are qualification limits, not a performance promise on every machine
 No forced termination qualifies Exit. A short `-EnduranceSeconds` control run
 does not meet the full-hour gate. Synthetic stress does not qualify normal real-host use.
 
+Package qualification checks the synthetic HUD's saved state and its changed
+theme/opacity, in addition to its exit code. Use at least nine seconds for
+`-HudSmokeSeconds`; a shorter run cannot qualify persistence. A zero exit code
+with missing or unchanged settings is a failure. Preserve failed evidence and
+record the launch context before retrying: RC19's prepared installation failed
+atomic temporary-file writes under an escalated diagnostic launch, while ordinary
+managed launches saved and reopened correctly. No filesystem permissions were changed.
+The pre-user runner bounds MSBuild to one worker and disables reusable build workers
+for both build and test; this avoids unbounded fan-out on large developer machines.
+
 Windowed tests use a secondary display. On a deliberately idle test desktop,
 `-AllowVisibleChecksOnPrimary` permits non-activating checks on the primary display.
 Activation checks and actual menu clicks remain separate. The hidden soak substitutes

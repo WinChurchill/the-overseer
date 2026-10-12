@@ -490,10 +490,25 @@ Add-Check 'hud-fixture-renders' ($renders.Count -ge $FixtureMinimumRenders -and 
 
 if ($visibleChecksDeferred) {
     Add-Check 'hud-smoke' $false $visibleChecksSkipReason
+    Add-Check 'hud-smoke-persistence' $false $visibleChecksSkipReason
 } else {
-    $hudSmokeArguments = @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', (Join-Path $evidenceRoot 'hud-smoke-data'))
+    $hudSmokeData = Join-Path $evidenceRoot 'hud-smoke-data'
+    $hudSmokeArguments = @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', $hudSmokeData)
     if ($secondaryMonitor) { $hudSmokeArguments += @('--placement-monitor', $secondaryMonitor) }
     $hudSmoke = Invoke-FiniteMode $executable 'hud-smoke' $hudSmokeArguments $sanitized.Environment $workingDirectory $logRoot ($HudSmokeSeconds + 90) @(0)
+    # A clean process exit does not establish persistence: a restricted launch
+    # can fail both atomic writes and still shut down normally. This fresh scope
+    # must contain the setting actually changed by the second synthetic tick.
+    $smokePersisted = $false
+    try {
+        $smokeConfig = Get-Content -LiteralPath (Join-Path $hudSmokeData 'config.json') -Raw -ErrorAction Stop | ConvertFrom-Json
+        $smokeState = Get-Content -LiteralPath (Join-Path $hudSmokeData 'state.json') -Raw -ErrorAction Stop | ConvertFrom-Json
+        $smokePersisted = $HudSmokeSeconds -ge 9 -and $smokeState.version -eq 1 -and
+            $smokeConfig.hud.theme -eq 'light' -and [Math]::Abs($smokeConfig.hud.opacity - 0.85) -lt 0.001
+    } catch {
+        # Record the failed assertion without exposing file contents or paths.
+    }
+    Add-Check 'hud-smoke-persistence' $smokePersisted ('fresh state/config and changed theme/opacity saved=' + $smokePersisted + '; requires at least 9s of synthetic ticks')
 }
 
 # Production-path integration check: invented Codex and bridge producer files

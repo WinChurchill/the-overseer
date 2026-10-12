@@ -82,8 +82,10 @@ function RunScript([string] $name, [string] $script, [string[]] $arguments) {
 # never acquire credit for a test of today's source tree.
 $sourceCommit = (& git -C $repo rev-parse HEAD).Trim()
 $sourceDirty = [bool](& git -C $repo status --porcelain)
-Run 'build' $dotnet @('build', 'TheOverseer.sln', '-c', 'Release', '--nologo', '--disable-build-servers', '-p:UseSharedCompilation=false', '-nodeReuse:false')
-Run 'unit-tests' $dotnet @('test', 'TheOverseer.sln', '-c', 'Release', '--no-build', '--nologo', '--logger', 'trx', '--results-directory', (Join-Path $root 'test-results'))
+# Bound worker fan-out on large developer machines, and do not leave reusable
+# build workers holding redirected handles after either command completes.
+Run 'build' $dotnet @('build', 'TheOverseer.sln', '-c', 'Release', '--nologo', '--disable-build-servers', '-maxcpucount:1', '-p:UseSharedCompilation=false', '-nodeReuse:false')
+Run 'unit-tests' $dotnet @('test', 'TheOverseer.sln', '-c', 'Release', '--no-build', '--no-restore', '--nologo', '--disable-build-servers', '-maxcpucount:1', '-p:UseSharedCompilation=false', '-nodeReuse:false', '--logger', 'trx', '--results-directory', (Join-Path $root 'test-results'))
 RunScript 'upgrade-comparison-controls' 'Test-ReleaseUpgradeComparison.ps1' @()
 RunScript 'upgrade-placement-controls' 'Test-ReleaseUpgradePlacement.ps1' @()
 RunScript 'report-controls' 'Test-PreUserReport.ps1' @()
