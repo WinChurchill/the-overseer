@@ -7,7 +7,7 @@ speak short notifications. It observes; it never answers requests or controls an
 **Publication status:** private qualification is underway. Automated evidence
 and remaining owner checks are recorded in the version-bound handoff; no public
 release has been approved.
-The automated qualification round prepares the next private RC from CI; see
+The automated qualification round has qualified private RC21 from CI; see
 [the automation runbook](docs/AUTOMATED_QUALIFICATION.md). It preserves RC14 and
 does not certify pending live-host, clean-machine or physical checks.
 The source is staged privately at [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer)
@@ -42,7 +42,7 @@ marker can remain until the turn ends. OVERSEER does not guess from answer text.
 
 1. Obtain the versioned `OVERSEER-<version>-win-x64.zip` and its SHA-256 from the
    supplied qualification packet (later, the GitHub release).
-2. Check the hash, extract the **whole folder** to a per-user location, then run
+2. Check the hash, extract the **whole folder** to a short per-user location, then run
    `TheOverseer.App.exe` as a standard user. Keep its files together.
 3. Start your normal Codex work. Use **Projects & sources…** for roots, mappings and
    optional bridges; use the health control for coverage and the next setup action.
@@ -56,6 +56,11 @@ Target: Windows x64. ARM64, x86, macOS and Linux are unqualified. Clean-machine/
 build qualification is pending; tested OS and host versions will accompany a release.
 The private RC is unsigned. Keep normal Windows protections enabled; record any
 warning or policy block in the test results.
+
+Keep extraction paths short, for example a folder you own under
+`%LOCALAPPDATA%\OVERSEER-App`. Deeply nested paths can make Windows fail to load
+WPF native files with `0x800700CE` (filename or extension too long). Re-extract
+the same verified archive to a shorter owned path; retain the failed result.
 
 Runtime data is separate under `%LOCALAPPDATA%\OVERSEER`: settings, placement,
 local history, recordings, spools and bounded logs. For a disposable test, launch:

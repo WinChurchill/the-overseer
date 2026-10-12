@@ -45,6 +45,21 @@ only invented producers, startup/navigation/clipboard and tray availability; it
 uses the production composition/readers/controller/view model/history/voice policy.
 It does not establish native tray, visible UI or exact-chat focus behavior.
 
+For native UI checks, inspect a fresh screenshot after passive updates. An
+accessibility tree can retain old text even while the visible HUD has updated;
+do not diagnose a product refresh defect or select a dynamic row from that tree
+alone. RC21 screenshots and temporary count-only tracing disproved one such
+apparent startup failure; the experimental scheduling changes were discarded.
+Confirm process receipts after Exit and a new PID after reopening. A second
+instance that exits after restoring the original does not establish a reopen.
+
+The 2026-10-12 RC21 handoff records a clean full-hour orchestrator run:773 source
+tests,46 package checks without deferrals and14 endurance checks pass against
+the downloaded CI archive. Native save/reopen, passive question clearing and
+settings-open Exit pass on invented data. The ignored owner packet also includes
+a read-only normal-session resource collector; its short positive and early-exit
+controls do not count as an actual-host hour.
+
 For a clean Windows machine, copy `Test-CleanMachinePackage.ps1` and download the
 CI ZIP through a browser. Run the helper from Windows PowerShell with the exact
 SHA256. It needs no development toolchain. Keep protections enabled and leave

@@ -1,6 +1,57 @@
 # OVERSEER release readiness
 
-## Automated qualification round — 2026-10-08; follow-up 2026-10-11
+## Current qualification — 2026-10-12
+
+Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Private draft
+[PR #1](https://github.com/WinChurchill/the-overseer/pull/1), branch
+`fix/automated-release-qualification`; main remains unmerged. Current candidate
+**1.0.0-rc.21**, clean source `c227dd9f6df9205f99cbc4b320c79ab75a6c65cf`,
+unsigned self-contained win-x64 (.NET/Desktop10.0.12),76,931,700 bytes,
+594 payload files/93 integration assets. SHA256:
+`AC9AAEDC540744AD19FE45136EA8BFC16DC9C0E9349B053A4133CFDEA64FF2EA`.
+[Private package CI](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343)
+and [Verify](https://github.com/WinChurchill/the-overseer/actions/runs/38212808823)
+pass against that source. Later handoff/documentation commits do not change these bytes.
+
+| Area | Current evidence and boundary |
+| --- | --- |
+| Source/package | Build0 warnings/errors;773 .NET tests,39 DSH/33 Claude contracts pass. Exact CI ZIP46 pass/0 fail/0 deferrals including activation; integration17/composition42;48 HUD+2 settings renders. RC8→RC21 upgrade/rollback25/25 in each mode. Development host only. |
+| Display/focus | Vertical secondary DISPLAY43,dpi96/100%; primary excluded from transitions. Ordinary updates:540 focus samples,zero takeovers. No physical Snap/mixed-DPI/reconnect/power or exact-chat focus claim. |
+| Endurance | Clean full orchestrator passes pre-user plus3603.28s synthetic hour,448 question/clear cycles,7289 snapshots,14/14 resource checks. Peak private147.3MiB,growth48.0MiB,average CPU1.29% of one core;exit0/no forced kill. Three stable invented projects/muted voice/fake tray do not certify normal actual-host use. |
+| Native RC21 | Fresh screenshots show34 tasks at startup before input; independent grouping,passive partial/full reply clearing,both themed Recent popups,correct empty-filter copy,edge resize and appearance/placement persistence. Same-instance hide/restore and settings-open Exit pass; genuine new-process reopen and two final exit0/no-kill receipts. No stale hidden footer. Additional dense History/keyboard/scroll/compact/maximize gestures retain an explicitly labeled RC20 baseline with unchanged UI source. |
+| Site/security/docs | Local draft85 static checks/13 publication controls; same-layout RC20 browser checks at390/768/1280px. History/tracked-source/text-payload secret scans,zero known vulnerable NuGet packages,and9 exact license checks recorded in the private packet. No live HTTPS/public download/SEO claim. Contributor guidance includes identity,fixtures,adapters and bounded build workers. |
+| Handoff/review | Ignored `artifacts/prepublication/rc21-qualification/owner-handoff/`: exact ZIP/checksum/manifest,48-clause CSV,normal-use resource collector,clean-machine helper,native screenshots and publication steps.29 PASS,14 OWNER_ACTION,2 NEEDS_ACCESS,1 intentionally Unsupported,2 preserved context failures. Same-chat review; required main review and final public approval remain. |
+
+**Open the verified candidate:** `D:\OVERSEER\Open OVERSEER RC21 (verified).lnk`
+uses the exact594 CI payload files and separate owner data, with copied preferences
+and existing bridge roots. No synthetic source override. Its owner profile has not
+been launched for actual-host testing. Keep its `verified-rc21` app/data folder.
+Original installs,data,shortcuts,profiles and failed evidence are preserved.
+
+**Diagnosis/retry provenance:** RC19's original prepared location had atomic-write
+denials in an escalated diagnostic context; ordinary managed controls and fresh
+extracted native saves pass. No permission or protection was changed. RC20's deep
+extraction hit native-loader `0x800700CE`; a shorter extraction passed. Defaults
+now use a short evidence path. The first RC21 CI attempt failed a cold PowerShell
+junction fixture timeout and emitted no ZIP. Setup now has a bounded60s wait and
+owned-child cleanup; the final package and both Verify runs pass. Original reports
+remain intact. A cached accessibility tree falsely suggested startup refresh was
+stuck; fresh screenshots plus count-only tracing disproved it. All experimental
+dispatcher changes/tracing were reverted and the clean773-test suite rerun.
+
+**Five remaining owner blocks:** actual tray controls; designated actual Codex,
+DSH Desktop and Claude Windows-local Code engine sequences/bindings; physical
+Snap/display/power/logon/audio; clean and independent Windows; normal actual-host
+hour plus disposable real update/rebind/uninstall. The bundled collector automates
+resource measurement without controlling the app. These checks are not time-boxed
+promises: setup and defects determine the work. Codex approvals remain explicitly
+Unsupported; DSH/Claude remain experimental; WSL/SSH/cloud/macOS are unqualified.
+
+No public visibility/tag/release/Pages/announcement,purchase or main merge occurred.
+Final1.0/signing changes require a new CI archive/hash and qualification. L1–L10
+below remain the publication sequence; public approval is L5.
+
+## Historical automated round — 2026-10-08; RC19 follow-up 2026-10-11
 
 Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Branch
 `fix/automated-release-qualification`, based on `1ff8482`; main unmerged/private.

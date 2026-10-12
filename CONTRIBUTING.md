@@ -6,8 +6,8 @@ the bridges use only Node standard modules. Test packages are restored from NuGe
 
 ```powershell
 dotnet restore TheOverseer.sln
-dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false
-dotnet test TheOverseer.sln -c Release --no-build --no-restore
+dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false
+dotnet test TheOverseer.sln -c Release --no-build --no-restore --disable-build-servers -maxcpucount:1 -nodeReuse:false
 Push-Location integrations/deepseek-harness
 node --test --test-concurrency=1
 Pop-Location

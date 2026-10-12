@@ -1,29 +1,29 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: automated release qualification, executed 2026-10-08; RC19 follow-up 2026-10-11.
+Plan: automated release qualification; final RC21 follow-up 2026-10-12.
 Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
 Status: **AVAILABLE AUTOMATION COMPLETE; RELEASE GATES OPEN.** No merge/publication.
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Private [repository](https://github.com/WinChurchill/the-overseer); original history/RC14 preserved.
 Reviews are same-chat, not independent; main still requires review.
-- CI RC19 source `8b9a420`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/37841314905),
-  SHA256 `CEC312425392A28DC59EB410A3A883CBAAC4B3E649127EB07B1B6665C64C4806`.
-- Clean harness `bcbf99c`: build0 warnings/errors;771 .NET/39 DSH/33 Claude pass.
-  [Hosted CI](https://github.com/WinChurchill/the-overseer/actions/runs/37846742188) passes.
-  Exact ZIP42 pass/0 fail/3 activation deferrals; integration17/composition42;
-  RC8 upgrade/rollback25/25 each HUD/Window; single125% display scaling passes.
-- Synthetic hidden soak 3601s/448 question-clear cycles,14/14 pass;
-  peak private 139.2MiB; no forced kill. Normal actual-host hour unverified.
+- CI RC21 source `c227dd9`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343),
+  SHA256 `AC9AAEDC540744AD19FE45136EA8BFC16DC9C0E9349B053A4133CFDEA64FF2EA`.
+- Clean source: build0 warnings/errors;773 .NET/39 DSH/33 Claude pass.
+  [Hosted Verify](https://github.com/WinChurchill/the-overseer/actions/runs/38212808823) passes.
+  Exact ZIP46 pass/0 fail/0 deferrals; integration17/composition42;
+  RC8 upgrade/rollback25/25 each HUD/Window; secondary DISPLAY43 dpi96 passes.
+- Exact-byte synthetic hour3603s/448 cycles,14/14; peak private147.3MiB,
+  growth48.0MiB/CPU1.29% one core; exit0/no kill. Actual-host hour unverified.
 - Claude atomic identity/budget/fresh-record probe races fixed; docs/CI/site hardened.
   Initial failed fixtures/CI attempts preserved; original wrapper FAIL is reconciled.
-- RC19 save/context resolved through a fresh CI extraction: full-user native save/reopen,
-  settings-open Exit and hide/second-launch restore pass; old install/data preserved.
-- Native Now startup, independent grouping, async partial/full reply clearing, filters,
-  History/Space, both themes/Recent menus, drag and window controls pass on fixtures.
-- Follow-up: package46/0/0,535 no-focus samples,100% secondary scaling;771.NET before
-  copy fix; latest source773.NET/build0. Empty-filter wording fixed for next package.
-- Current ignored packet: `artifacts/prepublication/rc19-save-recovery/run-20261011-563f54ab/owner-handoff/`;
+- RC21 native save/genuine reopen, settings-open Exit and hide/restore pass;
+  two final exit0/no-kill receipts. Separate verified owner launcher/data prepared.
+- Native Now34 before input, independent grouping, passive partial/full reply clearing,
+  themes/Recent menus/filter copy/edge resize pass;540 update samples,0 focus takeovers.
+- RC21 includes empty-filter/footer fixes. Stale accessibility cache was falsified
+  by fresh screenshots; experimental dispatcher changes/tracing discarded. Prior evidence retained.
+- Current ignored packet: `artifacts/prepublication/rc21-qualification/owner-handoff/`;
   actual hosts, clean/physical/audio/logon/normal-hour/public checks remain open.
 
 ## Owner feedback — 2026-10-05
@@ -180,11 +180,11 @@ The merge gate has passed; unrelated historical branches are retained.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- RC19 bytes qualified; source copy fix and final1.0/signing need a new CI package.
+- RC21 bytes qualified; final1.0/signing need a new CI archive and qualification.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
 - Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
   hosts are installed but both bridges remain experimental.
-- Physical Snap/drag/DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
+- Physical Snap/mixed DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
 - Activation and native header Exit pass; actual tray-menu interaction remains.
 - Signing/distribution choice and public channel, explicitly deferred by owner.
 - Codex approvals intentionally unsupported pending a separately qualified connection.
@@ -194,7 +194,7 @@ See [release readiness](RELEASE_READINESS.md) for protocols and revision-specifi
   preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: new CI candidate for the source copy fix; live-host/external H clauses and review.
-RC19 bytes stay fixed; updated source/final1.0/signing require new CI identity and checks.
+Next: five owner work blocks; exact48-clause checklist has29 PASS,14 OWNER_ACTION,
+2 NEEDS_ACCESS,1 intentionally Unsupported and2 preserved context failures.
 Use the current owner packet, then seek concrete L5 publication approval.
 No public release or main merge was performed.
