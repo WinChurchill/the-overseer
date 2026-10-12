@@ -228,8 +228,21 @@ public sealed class Plan3ReviewTests
             start.Environment["OVERSEER_TEST_LINK"] = link;
             start.Environment["OVERSEER_TEST_TARGET"] = outside;
             using var process = System.Diagnostics.Process.Start(start)!;
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            try
+            {
+                // Cold hosted Windows PowerShell startup is fixture setup, not
+                // the voice provider's runtime budget. Never leave a late writer
+                // alive while the owned junction directory is being cleaned up.
+                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+            }
+            catch (TimeoutException)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+                throw;
+            }
             Assert.Equal(0, process.ExitCode);
+            Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
             using var provider = new VoicePackProvider(root, () => new VoiceSettings { PackId = "example" });
             Assert.Null(await provider.TryCreateAsync(Candidate(), CancellationToken.None));
             Assert.Contains("reparse", provider.Status.LastCode, StringComparison.Ordinal);

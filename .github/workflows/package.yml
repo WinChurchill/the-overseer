@@ -47,9 +47,9 @@ jobs:
         run: |
           dotnet restore TheOverseer.sln
           if ($LASTEXITCODE) { throw 'Restore failed' }
-          dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false
+          dotnet build TheOverseer.sln -c Release --no-restore --disable-build-servers -maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false
           if ($LASTEXITCODE) { throw 'Build failed' }
-          dotnet test TheOverseer.sln -c Release --no-build --no-restore
+          dotnet test TheOverseer.sln -c Release --no-build --no-restore --disable-build-servers -maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false
           if ($LASTEXITCODE) { throw 'Tests failed' }
           Push-Location integrations/deepseek-harness
           node --test --test-concurrency=1
