@@ -43,8 +43,12 @@ internal sealed class PackagedCodexTaskLaunchBoundary : ITaskLaunchBoundary
             errorCode = null;
             return true;
         }
-        catch (Exception exception) when (exception is COMException or FileNotFoundException)
+        catch (Exception exception)
         {
+            // Marshal.ThrowExceptionForHR maps some HRESULTs to non-COM types
+            // (E_INVALIDARG, E_NOINTERFACE, access denied), and the activation
+            // calls can fail in other ways. Any failure here is a refused launch,
+            // never an unhandled exception on the UI thread.
             // No package/association is distinct from other activation failures.
             errorCode = exception.HResult is unchecked((int)0x80070483) or unchecked((int)0x80073CF1)
                 ? "no-handler" : "packaged-activation-failed";

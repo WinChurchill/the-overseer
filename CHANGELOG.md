@@ -1,5 +1,11 @@
 # OVERSEER changelog
 
+## Unreleased — RC21 source review follow-up
+
+- Windows task-link activation failures now produce a visible failed-launch message
+  instead of allowing non-COM exceptions to escape onto the HUD thread.
+- This source fix is not included in the existing private RC21 archive.
+
 ## 1.0.0-rc.21 — private restore footer correction
 
 - Hiding the HUD no longer leaves a permanent “Hidden to tray” footer behind after

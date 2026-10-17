@@ -1,12 +1,14 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: automated release qualification; final RC21 follow-up 2026-10-12.
+Plan: RC21 source review and merge follow-up, 2026-10-17.
 Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
-Status: **AVAILABLE AUTOMATION COMPLETE; RELEASE GATES OPEN.** No merge/publication.
+Status: **SOURCE REVIEW PASSED WITH NONBLOCKING NOTES; RELEASE GATES OPEN.**
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
 Private [repository](https://github.com/WinChurchill/the-overseer); original history/RC14 preserved.
-Reviews are same-chat, not independent; main still requires review.
+Whole-branch review: [PR #1](https://github.com/WinChurchill/the-overseer/pull/1).
+Source-only follow-up contains Windows task-launch exceptions; five regression cases added; absent from RC21 ZIP.
+Local rebuild/probe pass; testhost parent access/NuGet audit restricted. Fresh hosted Verify is the merge gate.
 - CI RC21 source `c227dd9`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343),
   SHA256 `AC9AAEDC540744AD19FE45136EA8BFC16DC9C0E9349B053A4133CFDEA64FF2EA`.
 - Clean source: build0 warnings/errors;773 .NET/39 DSH/33 Claude pass.
@@ -23,8 +25,7 @@ Reviews are same-chat, not independent; main still requires review.
   themes/Recent menus/filter copy/edge resize pass;540 update samples,0 focus takeovers.
 - RC21 includes empty-filter/footer fixes. Stale accessibility cache was falsified
   by fresh screenshots; experimental dispatcher changes/tracing discarded. Prior evidence retained.
-- Current ignored packet: `artifacts/prepublication/rc21-qualification/owner-handoff/`;
-  actual hosts, clean/physical/audio/logon/normal-hour/public checks remain open.
+- Packet: `artifacts/prepublication/rc21-qualification/owner-handoff/`; external release checks remain open.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -197,4 +198,4 @@ The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTA
 Next: five owner work blocks; exact48-clause checklist has29 PASS,14 OWNER_ACTION,
 2 NEEDS_ACCESS,1 intentionally Unsupported and2 preserved context failures.
 Use the current owner packet, then seek concrete L5 publication approval.
-No public release or main merge was performed.
+Source merge state is recorded in PR #1. No public release has been approved.

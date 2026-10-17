@@ -99,6 +99,41 @@ public sealed class TaskNavigationTests
         Assert.Equal(expected, navigator.Navigate(Task(), "codex").Outcome);
     }
 
+    private sealed class ThrowingTaskLaunchBoundary(Exception exception) : ITaskLaunchBoundary
+    {
+        public bool TryLaunch(Uri uri, out string? errorCode) => throw exception;
+    }
+
+    // Marshal.ThrowExceptionForHR raises these for E_INVALIDARG, E_NOINTERFACE and
+    // access denied; none is a COMException, and a task click has no global handler.
+    [Theory]
+    [InlineData(typeof(ArgumentException))]
+    [InlineData(typeof(InvalidCastException))]
+    [InlineData(typeof(UnauthorizedAccessException))]
+    [InlineData(typeof(InvalidOperationException))]
+    public void ThrowingStoreActivationBecomesAVisibleFailedLaunch(Type exceptionType)
+    {
+        var navigator = new CodexTaskNavigator(new ShellTaskLaunchBoundary(
+            new FakeTaskLaunchBoundary { Succeed = false, ErrorCode = "no-handler" },
+            new ThrowingTaskLaunchBoundary((Exception)Activator.CreateInstance(exceptionType)!)));
+
+        var result = navigator.Navigate(Task(), "codex");
+
+        Assert.Equal(TaskNavigationOutcome.LaunchFailed, result.Outcome);
+        Assert.Contains("manually", result.UserMessage);
+    }
+
+    [Fact]
+    public void ThrowingShellLaunchBecomesAVisibleFailedLaunchWithoutTryingStore()
+    {
+        var packaged = new FakeTaskLaunchBoundary();
+        var navigator = new CodexTaskNavigator(new ShellTaskLaunchBoundary(
+            new ThrowingTaskLaunchBoundary(new InvalidOperationException()), packaged));
+
+        Assert.Equal(TaskNavigationOutcome.LaunchFailed, navigator.Navigate(Task(), "codex").Outcome);
+        Assert.Equal(0, packaged.LaunchCount);
+    }
+
     [Fact]
     public void BuildsTheExactEncodedDesktopRoute()
     {

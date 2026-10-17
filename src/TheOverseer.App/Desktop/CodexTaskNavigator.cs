@@ -37,11 +37,21 @@ public sealed class ShellTaskLaunchBoundary : ITaskLaunchBoundary
 
     public bool TryLaunch(Uri uri, out string? errorCode)
     {
-        if (_shell.TryLaunch(uri, out errorCode)) return true;
-        // Store protocol associations do not necessarily have a classic command
-        // registration. Ask Windows to activate the specific verified Codex app.
-        if (errorCode != "no-handler") return false;
-        return _packaged.TryLaunch(uri, out errorCode);
+        try
+        {
+            if (_shell.TryLaunch(uri, out errorCode)) return true;
+            // Store protocol associations do not necessarily have a classic command
+            // registration. Ask Windows to activate the specific verified Codex app.
+            if (errorCode != "no-handler") return false;
+            return _packaged.TryLaunch(uri, out errorCode);
+        }
+        catch (Exception)
+        {
+            // A task click runs on the UI thread with no global handler: whatever
+            // a launch route throws must surface as a visible failed launch.
+            errorCode = "launch-exception";
+            return false;
+        }
     }
 }
 
