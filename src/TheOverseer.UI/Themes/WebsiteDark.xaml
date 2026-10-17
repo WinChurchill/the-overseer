@@ -5,7 +5,7 @@
   <SolidColorBrush x:Key="BackgroundBaseBrush" Color="#0C1410" />
   <SolidColorBrush x:Key="PanelSurfaceBrush" Color="#111A15" />
   <SolidColorBrush x:Key="ForegroundBrush" Color="#E7E9DF" />
-  <SolidColorBrush x:Key="MutedBrush" Color="#A2AA9F" />
+  <SolidColorBrush x:Key="MutedBrush" Color="#B8BFB4" />
   <SolidColorBrush x:Key="BorderBrush" Color="#344038" />
   <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#DEB85D" />
   <SolidColorBrush x:Key="AccentSecondaryBrush" Color="#798477" />

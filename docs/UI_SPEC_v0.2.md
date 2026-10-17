@@ -11,7 +11,7 @@ specification still governs monitoring, history and voice semantics.
    mute, expand/collapse, maximize, menu and close. Every control keeps a 24x24 DIP
    minimum, an accessible name and ordinary pointer behaviour; the background drags
    the window and can never steal a control's click.
-2. **One summary** — attention first, then working work: `3+ NEED YOU · 4+ WORKING`.
+2. **One summary** — attention first, then working work: `3+ Needs you · 4+ Working`.
    Each half is a button: *Need you* opens the attention filter (widening to the
    Recent window when the current view would hide a known attention row), *Working*
    opens the working filter. Counts always describe **all** monitored work, never the
@@ -31,8 +31,10 @@ specification still governs monitoring, history and voice semantics.
    projects and collapses settled ones; the user's choices are preserved. A genuinely
    new attention episode reveals its project once without focus, without changing the
    view and without scrolling.
-7. **Task rows** — title, harness badge plus one concise status word, the quiet turn
-   elapsed time, and a separate *History* control. Clicking the row keeps its existing
+7. **Task rows** — ellipsized title, aligned shared number column, harness badge plus
+   one concise status word, compact elapsed time (last-activity age for settled rows;
+   tooltip names the meaning), and a separate *History* control shown on hover, keyboard
+   focus or while open. Clicking the row keeps its existing
    activation behaviour; *History* never activates the task. Marks (stale, provisional,
    cancelled, failed) stay visible; ids, evidence and full source identity live in the
    tooltip, the details text and the copy action.
@@ -42,18 +44,26 @@ specification still governs monitoring, history and voice semantics.
    Closing a history stops the geometry projection only: observation, recording and
    voice are never affected.
 9. **One scrolling surface** below the pinned controls; no horizontal scroll and no
-   nested scrollers. Narrow rows wrap their secondary metadata instead of shrinking
-   every label with a `Viewbox`.
+   nested scrollers. Narrow titles and group metadata use an ellipsis; the full
+   metadata stays in the tooltip. Labels retain their font size.
 10. **Missing harness** — the HUD never fabricates work. The empty state names the
     situation and points at *Projects & sources*, where a discovered source can be
     enabled or disabled additively.
 
 ## Visual rules
 
+Initial project expansion waits for usable task observation. A task admitted before
+startup hydration must not lock an active project collapsed; deliberate user collapse
+still wins. Question markers require correlated replies or turn termination to clear;
+ordinary chat messages carry no question identity.
+
 - Neutral rows with small state accents; strong colour is reserved for attention, and
   text always carries the same meaning as the colour.
 - The optional resizable status light keeps its persisted position and width
   (6..128 DIP); while it is visible the redundant left state accent is hidden.
+  Its toggle names the status; both themes use the same colour meaning. Voice uses
+  a microphone with an enabled accent or muted slash. Successful navigation/copy
+  confirmations expire after five seconds; failures stay visible.
 - Readable text targets: 13 DIP body, 12 DIP secondary, 18 DIP summary counts.
 - The collapsed HUD is 300x96 DIP so the pinned header never clips a control.
 - Removed: the duplicate status headline, the decorative linework canvas, the constant

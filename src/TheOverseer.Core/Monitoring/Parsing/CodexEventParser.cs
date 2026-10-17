@@ -140,6 +140,10 @@ public static class CodexEventParser
         var itemType = GetString(item, "type", 64);
         return itemType switch
         {
+            // Desktop also emits an item envelope for a function result. It is
+            // output-only, not an unknown lifecycle record. The corresponding
+            // response_item carries call correlation; never inspect output here.
+            "FunctionCallOutput" => new ParseResult(null, ParseOutcome.Ignored),
             "CommandExecution" => BuildCommandExecution(payload, item, in context),
             "FileChange" => Build(RawCodexEventKind.ItemActivity, in context, payload,
                 ToolCallCategory.FileChange, AgentActionKind.EditingFiles, "file-change"),

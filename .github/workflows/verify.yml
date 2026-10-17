@@ -23,13 +23,13 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '24'
           package-manager-cache: false
@@ -41,13 +41,18 @@ jobs:
         run: dotnet test TheOverseer.sln -c Release --no-build --no-restore --logger trx --results-directory TestResults
       - name: DeepSeek bridge contracts
         working-directory: integrations/deepseek-harness
-        run: node --test
+        run: node --test --test-concurrency=1
       - name: Claude bridge contracts
         working-directory: integrations/claude-code
-        run: node --test
+        run: node --test --test-concurrency=1
       - name: Pre-user report controls
         run: ./scripts/Test-PreUserReport.ps1
       - name: Upgrade comparison controls
         run: ./scripts/Test-ReleaseUpgradeComparison.ps1
       - name: Mocked upgrade placement controls
         run: ./scripts/Test-ReleaseUpgradePlacement.ps1
+      - name: Static website and publication controls
+        run: |
+          node scripts/Build-Site.mjs
+          node scripts/Check-Site.mjs
+          node scripts/Test-Site.mjs

@@ -13,7 +13,8 @@ param(
     [Parameter(Mandatory)][string] $CandidateArchivePath,
     [Parameter(Mandatory)][string] $PreviousArchivePath,
     [string] $EvidenceDirectory = 'artifacts/pre-user',
-    [switch] $IncludeActivationChecks
+    [switch] $IncludeActivationChecks,
+    [switch] $AllowVisibleChecksOnPrimary
 )
 
 Set-StrictMode -Version Latest
@@ -81,25 +82,31 @@ function RunScript([string] $name, [string] $script, [string[]] $arguments) {
 # never acquire credit for a test of today's source tree.
 $sourceCommit = (& git -C $repo rev-parse HEAD).Trim()
 $sourceDirty = [bool](& git -C $repo status --porcelain)
-Run 'build' $dotnet @('build', 'TheOverseer.sln', '-c', 'Release', '--nologo')
-Run 'unit-tests' $dotnet @('test', 'TheOverseer.sln', '-c', 'Release', '--no-build', '--nologo', '--logger', 'trx', '--results-directory', (Join-Path $root 'test-results'))
+# Bound worker fan-out on large developer machines, and do not leave reusable
+# build workers holding redirected handles after either command completes.
+Run 'build' $dotnet @('build', 'TheOverseer.sln', '-c', 'Release', '--nologo', '--disable-build-servers', '-maxcpucount:1', '-p:UseSharedCompilation=false', '-nodeReuse:false')
+Run 'unit-tests' $dotnet @('test', 'TheOverseer.sln', '-c', 'Release', '--no-build', '--no-restore', '--nologo', '--disable-build-servers', '-maxcpucount:1', '-p:UseSharedCompilation=false', '-nodeReuse:false', '--logger', 'trx', '--results-directory', (Join-Path $root 'test-results'))
 RunScript 'upgrade-comparison-controls' 'Test-ReleaseUpgradeComparison.ps1' @()
 RunScript 'upgrade-placement-controls' 'Test-ReleaseUpgradePlacement.ps1' @()
 RunScript 'report-controls' 'Test-PreUserReport.ps1' @()
 
 $smokeArguments = @('-ArchivePath', $candidate, '-EvidenceDirectory', (Join-Path $root 'package'), '-KeepExtraction')
 if (-not $IncludeActivationChecks) { $smokeArguments += '-SkipActivationChecks' }
+if ($AllowVisibleChecksOnPrimary) { $smokeArguments += '-AllowVisibleChecksOnPrimary' }
 RunScript 'package' 'Test-PackagedRelease.ps1' $smokeArguments
 $smokeFiles = @(Get-ChildItem -LiteralPath (Join-Path $root 'package') -Filter 'smoke-evidence-*.json' -Recurse -ErrorAction SilentlyContinue)
 $smoke = if ($smokeFiles.Count -eq 1) { Get-Content -LiteralPath $smokeFiles[0].FullName -Raw | ConvertFrom-Json } else { $null }
 if ($null -ne $smoke -and (Test-Path -LiteralPath (Join-Path $smoke.extractedTo 'TheOverseer.App.exe'))) {
-    RunScript 'scaling' 'Test-WindowScaling.ps1' @('-Executable', (Join-Path $smoke.extractedTo 'TheOverseer.App.exe'), '-EvidenceDirectory', (Join-Path $root 'scaling'))
+    $scalingArguments = @('-Executable', (Join-Path $smoke.extractedTo 'TheOverseer.App.exe'), '-EvidenceDirectory', (Join-Path $root 'scaling'))
+    if ($AllowVisibleChecksOnPrimary) { $scalingArguments += '-AllowPrimaryDisplay' }
+    RunScript 'scaling' 'Test-WindowScaling.ps1' $scalingArguments
 } else {
     $steps.Add([ordered]@{ name = 'scaling'; status = 'fail'; exitCode = -1; seconds = 0; log = 'Package extraction/evidence unavailable; scaling could not run.' })
 }
 foreach ($mode in @('hud', 'window')) {
     $upgradeArguments = @('-PreviousArchivePath', $previous, '-CandidateArchivePath', $candidate, '-EvidenceDirectory', (Join-Path $root ('upgrade-' + $mode)))
     if ($mode -eq 'window') { $upgradeArguments += '-WindowView' }
+    if ($AllowVisibleChecksOnPrimary) { $upgradeArguments += '-AllowVisibleChecksOnPrimary' }
     RunScript ('upgrade-' + $mode) 'Test-ReleaseUpgrade.ps1' $upgradeArguments
 }
 

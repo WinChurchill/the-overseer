@@ -17,15 +17,15 @@ listed under "Not verified" rather than implied.
 5. If you installed a bridge integration, re-run its shipped installer (see "Integration
    records" below).
 6. Re-point your shortcut at the new folder's `TheOverseer.App.exe` and repair the startup
-   entry once (Settings -> "Start with Windows"). Delete the backup when done.
+   entry once (Settings -> "Start with Windows"). Keep the backup until the new version has passed your acceptance checks.
 
 ## Running the upgrade check
 
 ```powershell
 pwsh -NoProfile -File scripts/Test-ReleaseUpgrade.ps1 `
-    -PreviousArchivePath artifacts/rc5/OVERSEER-1.0.0-rc.5-win-x64.zip `
-    -CandidateArchivePath artifacts/rc6/OVERSEER-1.0.0-rc.6-win-x64.zip `
-    -EvidenceDirectory artifacts/rc6/upgrade
+    -PreviousArchivePath artifacts/rc8/OVERSEER-1.0.0-rc.8-win-x64.zip `
+    -CandidateArchivePath artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip `
+    -EvidenceDirectory artifacts/prepublication/rc9-upgrade
 ```
 
 Both archives are extracted into the evidence directory, one isolated data directory is

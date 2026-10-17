@@ -187,10 +187,15 @@ public sealed class FakeVoicePlayer : IVoicePlayer
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (Gate is { } gate)
             {
                 await gate.Task.WaitAsync(cancellationToken);
             }
+
+            // WaitAsync returns an already completed gate even for a cancelled
+            // token. Match the real player's cancellation checks before audio.
+            cancellationToken.ThrowIfCancellationRequested();
 
             lock (_gate)
             {

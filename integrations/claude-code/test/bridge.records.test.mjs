@@ -23,7 +23,7 @@ const CTX = {
   sourceInstanceId: 'cc-fixture-instance',
   sourceEpoch: 'epoch-20260924T000000Z-deadbeef',
   observedAtUtc: '2026-09-24T00:00:00.000Z',
-  producerVersion: 'overseer-claude-bridge/1.0.0',
+  producerVersion: 'overseer-claude-bridge/1.0.2',
 };
 
 /** fixture file -> [kind, category, outcome, evidence] */

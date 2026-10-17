@@ -31,6 +31,34 @@ public sealed class ProjectResolverTests
     }
 
     [Fact]
+    public void StandaloneChatsShareANeutralGroupWithoutPoisoningOrdinaryWorkspaceCache()
+    {
+        var resolver = Resolver();
+        var ordinary = resolver.Resolve(@"C:\work\first-prompt");
+        var standalone = resolver.Resolve(@"C:\work\first-prompt", isStandaloneChat: true);
+        var other = resolver.Resolve(@"C:\work\second-prompt", isStandaloneChat: true);
+        Assert.Equal(ProjectDescriptor.IndependentChats, standalone.Project);
+        Assert.Equal(standalone.Project.Id, other.Project.Id);
+        Assert.Equal(ProjectResolution.IndependentChat, standalone.Resolution);
+        Assert.Equal(ordinary, resolver.Resolve(@"C:\work\first-prompt"));
+        Assert.NotEqual(ordinary.Project.Id, standalone.Project.Id);
+    }
+
+    [Fact]
+    public void StandaloneHintNeverOverridesMappingsGitOrAnUnusableRoot()
+    {
+        var settings = new ProjectSettings
+        {
+            Mappings = new[] { new ProjectRootMapping { ProjectKey = "owner-project", Name = "Owner project", Root = @"C:\work\mapped" } },
+        };
+        var resolver = Resolver(settings, Probe(directories: new[] { @"c:\work\repo\.git" }));
+        Assert.Equal(ProjectResolution.ConfiguredRoot, resolver.Resolve(@"C:\work\mapped", isStandaloneChat: true).Resolution);
+        Assert.Equal(ProjectResolution.Explicit, resolver.Resolve(@"C:\work\elsewhere", "owner-project", true).Resolution);
+        Assert.Equal(ProjectResolution.GitRoot, resolver.Resolve(@"C:\work\repo", isStandaloneChat: true).Resolution);
+        Assert.True(resolver.Resolve("relative", isStandaloneChat: true).Project.IsUnassigned);
+    }
+
+    [Fact]
     public void PosixPathsPreserveCaseAndAreComparedCaseSensitively()
     {
         Assert.Equal("posix:/mnt/c/Work/App", ProjectResolver.Normalize("/mnt/c/Work/App/"));

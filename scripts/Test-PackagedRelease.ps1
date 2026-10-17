@@ -120,6 +120,9 @@ function Resolve-VisibleCheckMonitor([string] $requested) {
 # places by `WindowMonitor` + `WindowX/Y` relative to that monitor's origin. Seeding
 # only one of them silently falls back to the primary display.
 function Set-IsolatedPlacement([string] $dataDirectory, [string] $monitorDevice) {
+    # Primary-display opt-in still needs an owned settings directory even when
+    # there is no secondary monitor on which to seed placement.
+    [void][IO.Directory]::CreateDirectory($dataDirectory)
     if (-not $monitorDevice) { return }
     New-Item -ItemType Directory -Force -Path $dataDirectory | Out-Null
     $offsetDips = 80.0
@@ -296,14 +299,14 @@ function Invoke-NodeTest(
     [string] $logDirectory,
     [int] $timeoutSeconds) {
 
-    Write-Step ($name + ': node --test in ' + $directory)
+    Write-Step ($name + ': node --test --test-concurrency=1 in ' + $directory)
     $node = Get-Command node -ErrorAction SilentlyContinue
     if (-not $node -or -not (Test-Path -LiteralPath $directory)) {
         Add-Check $name $false ('node-on-path=' + [bool]$node + ' directory=' + $directory)
         return [ordered]@{ ExitCode = -1; TimedOut = $false; Stdout = ''; Stderr = ''; Log = '' }
     }
 
-    $handle = Start-PackagedProcess $node.Source @('--test') $environment $directory
+    $handle = Start-PackagedProcess $node.Source @('--test', '--test-concurrency=1') $environment $directory
     $result = Complete-PackagedProcess $handle $timeoutSeconds (Join-Path $logDirectory ($name + '.log'))
     $passLines = ([regex]::Matches($result.Stdout, '(?m)^# pass ')).Count
     $failLines = ([regex]::Matches($result.Stdout, '(?m)^# fail ')).Count
@@ -487,10 +490,25 @@ Add-Check 'hud-fixture-renders' ($renders.Count -ge $FixtureMinimumRenders -and 
 
 if ($visibleChecksDeferred) {
     Add-Check 'hud-smoke' $false $visibleChecksSkipReason
+    Add-Check 'hud-smoke-persistence' $false $visibleChecksSkipReason
 } else {
-    $hudSmokeArguments = @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', (Join-Path $evidenceRoot 'hud-smoke-data'))
+    $hudSmokeData = Join-Path $evidenceRoot 'hud-smoke-data'
+    $hudSmokeArguments = @('--hud-smoke', '--duration', [string]$HudSmokeSeconds, '--data-directory', $hudSmokeData)
     if ($secondaryMonitor) { $hudSmokeArguments += @('--placement-monitor', $secondaryMonitor) }
     $hudSmoke = Invoke-FiniteMode $executable 'hud-smoke' $hudSmokeArguments $sanitized.Environment $workingDirectory $logRoot ($HudSmokeSeconds + 90) @(0)
+    # A clean process exit does not establish persistence: a restricted launch
+    # can fail both atomic writes and still shut down normally. This fresh scope
+    # must contain the setting actually changed by the second synthetic tick.
+    $smokePersisted = $false
+    try {
+        $smokeConfig = Get-Content -LiteralPath (Join-Path $hudSmokeData 'config.json') -Raw -ErrorAction Stop | ConvertFrom-Json
+        $smokeState = Get-Content -LiteralPath (Join-Path $hudSmokeData 'state.json') -Raw -ErrorAction Stop | ConvertFrom-Json
+        $smokePersisted = $HudSmokeSeconds -ge 9 -and $smokeState.version -eq 1 -and
+            $smokeConfig.hud.theme -eq 'light' -and [Math]::Abs($smokeConfig.hud.opacity - 0.85) -lt 0.001
+    } catch {
+        # Record the failed assertion without exposing file contents or paths.
+    }
+    Add-Check 'hud-smoke-persistence' $smokePersisted ('fresh state/config and changed theme/opacity saved=' + $smokePersisted + '; requires at least 9s of synthetic ticks')
 }
 
 # Production-path integration check: invented Codex and bridge producer files

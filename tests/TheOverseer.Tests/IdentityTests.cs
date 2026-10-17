@@ -25,6 +25,22 @@ public sealed class IdentityTests : IDisposable
         Assert.False(identity.IsExplicitInternal);
     }
 
+    [Theory]
+    [InlineData("codex_work_desktop", @"C:\Users\fixture\Documents\Codex\2026-10-05\a-prompt-slug", true)]
+    [InlineData("codex_work_desktop", @"C:\USERS\fixture\DOCUMENTS\CODEX\2026-10-05\chat", true)]
+    [InlineData("Codex Desktop", @"C:\Users\fixture\Documents\Codex\2026-10-05\chat", false)]
+    [InlineData("codex_vscode", @"C:\Users\fixture\Documents\Codex\2026-10-05\chat", false)]
+    [InlineData("codex_work_desktop", @"D:\projects\a-prompt-slug", false)]
+    [InlineData("codex_work_desktop", @"C:\Users\fixture\Documents\Codex\2026-02-30\chat", false)]
+    [InlineData("codex_work_desktop", @"C:\Users\fixture\Documents\Codex\2026-10-05\chat\nested", false)]
+    public void StandaloneWorkNeedsBothOriginatorAndExactManagedDirectory(string originator, string cwd, bool expected)
+    {
+        const string id = "01a0c68f-d03c-7352-b737-43bb94f76b81";
+        var path = _home.WriteRollout(id, new[] { Records.SessionMeta(id, originator: originator, source: "vscode", cwd: cwd) });
+        var identity = SessionIdentityReader.Read(path, 64 * 1024);
+        Assert.Equal(expected, identity.IsStandaloneWorkspace);
+    }
+
     [Fact]
     public void VscodeOriginatorWinsOverVscodeSource()
     {

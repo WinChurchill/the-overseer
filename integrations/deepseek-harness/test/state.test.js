@@ -16,6 +16,20 @@ import { createObserverState } from '../src/state.js'
 
 const t0 = 1767225600000
 
+test('question reconciliation never reopens a replayed closed turn or clears a different request', () => {
+  const state = newState()
+  state.observe({ sessionId: 'q', type: 'turn/start', seq: 1, data: { turn: 1 } })
+  const asked = { type: 'tool/call', seq: 2, turn: 1, callId: 'q1', isQuestion: true }
+  assert.equal(state.reconcileQuestions('q', { timed: false, activeIds: [] }, asked).length, 1)
+  assert.equal(state.reconcileQuestions('q', { timed: false, activeIds: [] }, asked).length, 0)
+  state.reconcileQuestions('q', null, { type: 'tool/result', seq: 3, turn: 1, callId: 'other' })
+  assert.deepEqual(state.inspect('q').pendingInputRequestIds, ['q1'])
+  state.observe({ sessionId: 'q', type: 'turn/end', seq: 4, data: { turn: 1, reason: 'completed' } })
+  state.reconcileQuestions('q', { timed: false, activeIds: [] }, { type: 'turn/end', seq: 4, turn: 1 })
+  state.reconcileQuestions('q', { timed: false, activeIds: [] }, { ...asked, seq: 5 })
+  assert.deepEqual(state.inspect('q').pendingInputRequestIds, [])
+})
+
 function newState(epoch = 'epoch-test', now = () => t0) {
   return createObserverState({
     sourceInstanceId: 'test-source',

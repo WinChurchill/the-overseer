@@ -242,6 +242,13 @@ try {
         @{ Source = (Join-Path $repoRoot 'LICENSE'); Target = 'LICENSE' },
         @{ Source = (Join-Path $repoRoot 'README.md'); Target = 'README.md' },
         @{ Source = (Join-Path $repoRoot 'CHANGELOG.md'); Target = 'CHANGELOG.md' },
+        @{ Source = (Join-Path $repoRoot 'PRIVACY.md'); Target = 'PRIVACY.md' },
+        @{ Source = (Join-Path $repoRoot 'SUPPORT.md'); Target = 'SUPPORT.md' },
+        @{ Source = (Join-Path $repoRoot 'SECURITY.md'); Target = 'SECURITY.md' },
+        @{ Source = (Join-Path $repoRoot 'CONTRIBUTING.md'); Target = 'CONTRIBUTING.md' },
+        @{ Source = (Join-Path $repoRoot 'docs/UPGRADE_AND_ROLLBACK.md'); Target = 'docs/UPGRADE_AND_ROLLBACK.md' },
+        @{ Source = (Join-Path $repoRoot 'site/assets/hud-dark.png'); Target = 'site/assets/hud-dark.png' },
+        @{ Source = (Join-Path $repoRoot 'site/assets/hud-light.png'); Target = 'site/assets/hud-light.png' },
         @{ Source = (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md'); Target = 'THIRD_PARTY_NOTICES.md' },
         @{ Source = (Join-Path $repoRoot 'third_party/codex-monitor-hud/LICENSE'); Target = 'licenses/codex-monitor-hud-MIT.txt' }
     )
@@ -275,6 +282,13 @@ try {
     $exampleTarget = Join-Path $payloadRoot 'examples/voicepacks/example'
     New-Item -ItemType Directory -Force -Path $exampleTarget | Out-Null
     Copy-Item -Path (Join-Path $examplePack '*') -Destination $exampleTarget -Recurse -Force
+
+    # The package has no source checkout. Keep offline instructions/screenshots,
+    # but turn the three source-only README links into text rather than broken links.
+    $packageReadme = Join-Path $payloadRoot 'README.md'
+    $readmeText = Get-Content -LiteralPath $packageReadme -Raw
+    $readmeText = [regex]::Replace($readmeText, '\[([^\]]+)\]\((docs/(?:IMPLEMENTATION_STATE|RELEASE_READINESS)\.md|site/README\.md)\)', '$1 (in the source repository)')
+    Set-Content -LiteralPath $packageReadme -Value $readmeText -Encoding utf8
 
     # ---- optional integrations ----------------------------------------------
     # The harness bridges ship as their own assets, with notices, reversible

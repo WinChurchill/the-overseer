@@ -1,0 +1,7 @@
+{
+  "sessions": [
+    "question-fixture"
+  ],
+  "producer": "dsh-observer/1.1.0",
+  "synthetic": true
+}

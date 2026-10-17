@@ -1,5 +1,456 @@
 # OVERSEER release readiness
 
+## Current qualification — 2026-10-12
+
+Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Private draft
+[PR #1](https://github.com/WinChurchill/the-overseer/pull/1), branch
+`fix/automated-release-qualification`; main remains unmerged. Current candidate
+**1.0.0-rc.21**, clean source `c227dd9f6df9205f99cbc4b320c79ab75a6c65cf`,
+unsigned self-contained win-x64 (.NET/Desktop10.0.12),76,931,700 bytes,
+594 payload files/93 integration assets. SHA256:
+`AC9AAEDC540744AD19FE45136EA8BFC16DC9C0E9349B053A4133CFDEA64FF2EA`.
+[Private package CI](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343)
+and [Verify](https://github.com/WinChurchill/the-overseer/actions/runs/38212808823)
+pass against that source. Later handoff/documentation commits do not change these bytes.
+
+| Area | Current evidence and boundary |
+| --- | --- |
+| Source/package | Build0 warnings/errors;773 .NET tests,39 DSH/33 Claude contracts pass. Exact CI ZIP46 pass/0 fail/0 deferrals including activation; integration17/composition42;48 HUD+2 settings renders. RC8→RC21 upgrade/rollback25/25 in each mode. Development host only. |
+| Display/focus | Vertical secondary DISPLAY43,dpi96/100%; primary excluded from transitions. Ordinary updates:540 focus samples,zero takeovers. No physical Snap/mixed-DPI/reconnect/power or exact-chat focus claim. |
+| Endurance | Clean full orchestrator passes pre-user plus3603.28s synthetic hour,448 question/clear cycles,7289 snapshots,14/14 resource checks. Peak private147.3MiB,growth48.0MiB,average CPU1.29% of one core;exit0/no forced kill. Three stable invented projects/muted voice/fake tray do not certify normal actual-host use. |
+| Native RC21 | Fresh screenshots show34 tasks at startup before input; independent grouping,passive partial/full reply clearing,both themed Recent popups,correct empty-filter copy,edge resize and appearance/placement persistence. Same-instance hide/restore and settings-open Exit pass; genuine new-process reopen and two final exit0/no-kill receipts. No stale hidden footer. Additional dense History/keyboard/scroll/compact/maximize gestures retain an explicitly labeled RC20 baseline with unchanged UI source. |
+| Site/security/docs | Local draft85 static checks/13 publication controls; same-layout RC20 browser checks at390/768/1280px. History/tracked-source/text-payload secret scans,zero known vulnerable NuGet packages,and9 exact license checks recorded in the private packet. No live HTTPS/public download/SEO claim. Contributor guidance includes identity,fixtures,adapters and bounded build workers. |
+| Handoff/review | Ignored `artifacts/prepublication/rc21-qualification/owner-handoff/`: exact ZIP/checksum/manifest,48-clause CSV,normal-use resource collector,clean-machine helper,native screenshots and publication steps.29 PASS,14 OWNER_ACTION,2 NEEDS_ACCESS,1 intentionally Unsupported,2 preserved context failures. Same-chat review; required main review and final public approval remain. |
+
+**Open the verified candidate:** `D:\OVERSEER\Open OVERSEER RC21 (verified).lnk`
+uses the exact594 CI payload files and separate owner data, with copied preferences
+and existing bridge roots. No synthetic source override. Its owner profile has not
+been launched for actual-host testing. Keep its `verified-rc21` app/data folder.
+Original installs,data,shortcuts,profiles and failed evidence are preserved.
+
+**Diagnosis/retry provenance:** RC19's original prepared location had atomic-write
+denials in an escalated diagnostic context; ordinary managed controls and fresh
+extracted native saves pass. No permission or protection was changed. RC20's deep
+extraction hit native-loader `0x800700CE`; a shorter extraction passed. Defaults
+now use a short evidence path. The first RC21 CI attempt failed a cold PowerShell
+junction fixture timeout and emitted no ZIP. Setup now has a bounded60s wait and
+owned-child cleanup; the final package and both Verify runs pass. Original reports
+remain intact. A cached accessibility tree falsely suggested startup refresh was
+stuck; fresh screenshots plus count-only tracing disproved it. All experimental
+dispatcher changes/tracing were reverted and the clean773-test suite rerun.
+
+**Five remaining owner blocks:** actual tray controls; designated actual Codex,
+DSH Desktop and Claude Windows-local Code engine sequences/bindings; physical
+Snap/display/power/logon/audio; clean and independent Windows; normal actual-host
+hour plus disposable real update/rebind/uninstall. The bundled collector automates
+resource measurement without controlling the app. These checks are not time-boxed
+promises: setup and defects determine the work. Codex approvals remain explicitly
+Unsupported; DSH/Claude remain experimental; WSL/SSH/cloud/macOS are unqualified.
+
+No public visibility/tag/release/Pages/announcement,purchase or main merge occurred.
+Final1.0/signing changes require a new CI archive/hash and qualification. L1–L10
+below remain the publication sequence; public approval is L5.
+
+## Historical automated round — 2026-10-08; RC19 follow-up 2026-10-11
+
+Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Branch
+`fix/automated-release-qualification`, based on `1ff8482`; main unmerged/private.
+CI candidate **1.0.0-rc.19**, source `8b9a4201f9e6763045ba7abdde5d052f27a75979`,
+unsigned self-contained win-x64 (.NET10.0.12),76,931,366 bytes,594 payload/93 integration files.
+SHA256 `CEC312425392A28DC59EB410A3A883CBAAC4B3E649127EB07B1B6665C64C4806`.
+[Private package CI](https://github.com/WinChurchill/the-overseer/actions/runs/37841314905)
+and [clean harness Verify](https://github.com/WinChurchill/the-overseer/actions/runs/37846742188) pass.
+Later `bcbf99c` changes qualification/workflow/fixture code only; shipping bytes stay fixed.
+The 2026-10-11 source fixes misleading empty-filter wording. That fix is covered by
+773 passing source tests but is **not in RC19**; the next shipping candidate needs a
+new CI archive and qualification. RC19 is preserved as the tested binary below.
+
+| Step | Executed result and remaining boundary |
+| --- | --- |
+| A1 — Environment | Unique installs/data/invented producers; Windows26200 and previously recorded host versions; actual Claude engine unknown. Updated native helper works. Follow-up visible checks select the vertical secondary DISPLAY43 at100%; no clean guest route. Original installs/data/profiles untouched; a separate verified RC19 launcher was added. |
+| A2 — Automation | Follow-up build0 warnings/errors;771 .NET/39 DSH/33 Claude pass before the copy fix, then773 source tests pass. Exact RC19 ZIP46 pass/0 fail/0 deferrals, including activation; integration17/composition42; secondary100% scaling and RC8 upgrade/rollback25/25 in each mode pass. Native theme/Recent menus, drag, compact/expand, maximize/restore, History/Space, explicit Exit/settings-open Exit and hide/second-launch restore pass. No physical Snap/logon/audio signoff. |
+| A3 — Hosts | Read-only real Codex metadata shows fresh working chat; synthetic startup hydration/collapse/correlation/navigation contracts pass. Actual question/reply/focus, DSH Desktop timed/restart and Claude engine sequences remain unverified. Codex approvals explicitly Unsupported. No host messaging/sign-in or profile changes. |
+| A4 — Endurance/clean | Synthetic hidden production composition: 3601s,448 question/clear cycles,14/14 resource checks pass,peak private 139.2MiB,CPU 0.58% of one core; exit0/no forced kill. Three stable projects/muted voice/fake tray do not certify normal-host hour, churn, physical/audio or clean OS. Windows PowerShell5.1 hash/extraction helpers and negative controls prepared. |
+| A5 — Docs/security | Contributor architecture/fixtures/adapters/PR/human-author guidance, DSH support/setup text and RC19 local site reconciled;85 site checks/13 controls. Pinned Gitleaks history/tracked source/text payload clear; known vulnerable NuGet0; exact project/upstream/bridge/runtime notices verified. Local noindex draft only; live HTTPS/browser/SEO unqualified. |
+| A6 — CI bytes | Private read-only RC workflow produces ZIP/checksum/manifest; downloaded exact archive qualified. Actions pinned. RC16–18 failed package attempts emitted no ZIP; all evidence preserved. Final1.0/signing changes require a new CI archive/hash and full qualification. |
+| A7 — Review/handoff | Complete branch diff against normalized main reviewed in this chat; reproduced Claude identity/budget/probe races fixed with regressions. Review: CHANGES REQUIRED for release qualification; required main review remains. New ignored owner packet traces every H1–H16 clause to evidence and five residual work blocks. |
+
+**Save diagnosis and verified route:** the original prepared folder fails atomic
+temporary-file writes in the escalated diagnostic context. Its594 payload files
+match the passing extraction. Ordinary managed launches save at both locations;
+a fresh extracted copy also passes full-user native theme save/reopen and actual
+menu Exit with settings open. `Open OVERSEER RC19 (verified).lnk` targets that separate
+copy and fresh owner data with copied preferences, without synthetic source arguments.
+Original install/data/shortcut and all failed evidence remain. No Windows permission
+or security setting was changed. Package qualification now requires the actual saved
+state and changed theme/opacity; six controls reject missing, unchanged or malformed
+saves even when the process exits zero. Native hidden restore passes in the full-user
+context; a restricted cross-execution-context retry required owned cleanup and is not
+credited as Exit. Clean/independent Explorer/browser qualification remains open.
+
+Follow-up packet: ignored `artifacts/prepublication/rc19-save-recovery/run-20261011-563f54ab/owner-handoff/`.
+Full follow-up pre-user: its `../secondary-complete/run-20261012T050856Z-96fd5b5e/`.
+Prior packet and evidence below are preserved historical results.
+
+Evidence: ignored `artifacts/prepublication/automation-round/owner-handoff-rc19/`
+(`round-report.json`, `OWNER_HANDOFF.md`, `OWNER_CHECKS.csv`, `review.json`, checksums).
+Final clean pre-user: `artifacts/aq19-reviewed/run-20261008T212730Z-28149d5c/`.
+Full-hour evidence: `artifacts/prepublication/automation-round/run-20261008T204509Z-50502404/soak/`.
+That original wrapper remains **FAIL** from an earlier fixed fixture failure; the
+final packet reconciles its independently passing soak with the later clean full
+pre-user pass, without editing failed reports. Intermediate/failing runs are retained.
+
+Remaining owner blocks: (1) residual tray/edge/keyboard UI; (2) one designated actual
+sequence per supported host and disposable bridge activation/teardown; (3) physical
+display/power/audio/startup; (4) clean/independent machine; (5) real update paths,
+normal mixed-host hour and disposable uninstall. Target15–30 active minutes only
+after prerequisites and absent defects; setup, physical work and background hour add time.
+No whole H row passes while any clause remains. RC14 kit/history/install preserved.
+
+No public visibility/tag/release/Pages/announcement, signing purchase, main merge,
+live profile/security setting change or recurring monitor occurred. L1–L10 remain
+the explicit publication gate below; RC19 is not renamed public1.0.
+
+## Prior pre-publication execution — 2026-10-05
+
+Status: **RC14 READY FOR OWNER RETESTS.** RC13 and its owner kit preserved.
+Public qualification and publication approval remain pending.
+Baseline: reviewed local main `fcabe0033e6d5b04a10293e2f70de26625654dd6`.
+Planning/review branch: `fix/startup-task-links` (normalized staging base `5974bc1`).
+Private source staging is now authorized for
+[WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer).
+The owner chose full history with only Astra/DeepSeek identities replaced by his
+verified Git identity in the upload copy; original local history remains intact.
+See [private staging](PRIVATE_GITHUB_STAGING.md). Source upload and
+[hosted Windows CI](https://github.com/WinChurchill/the-overseer/actions/runs/37413476257) are complete (source `0dbf6d0`):
+749 application tests, DSH 39/Claude 29, report/upgrade and site controls pass.
+Hosted tests exposed an oversized resize fixture and two scheduling assumptions;
+fixtures now fit the work area, await outcomes and verify shutdown/persisted height.
+None are skipped. Application code and RC13 bytes are unchanged. Private
+upload does not approve public visibility, release assets or website deployment.
+Main protection returned HTTP 403 (Pro required for this private repository); review
+is a documented manual gate until enforcement is available. No plan purchase is made.
+Owner selected **GitHub + a project website**. Proposed hosting: GitHub Pages,
+with a small static site in `site/`; review it locally before deployment.
+The execution packet is ignored `.agent/HANDOFF.md`; source status is
+[IMPLEMENTATION_STATE.md](IMPLEMENTATION_STATE.md).
+
+The diagnostic-report pass corrects live Codex chats disappearing from Now after
+an output-only envelope, shares display numbers across harnesses and polishes the
+HUD. Large classes are split into cohesive files. All 34 `catch (Exception...)`
+sites were reviewed: most have typed recovery and an observable result; the four
+unfiltered catches already report a safe error. Silent source reconcile/dispose
+and speech cleanup now emit fixed diagnostics. Voice import/preview/status failures
+also report fixed codes; arbitrary exception messages are omitted from reports.
+Pure validation and cancellation stay quiet; consumers report their result.
+
+VoiceSmokeRunner and HudCompositionCheckRunner remain opt-in shipped diagnostics:
+qualification must exercise the downloaded executable and real composition. Normal
+startup does not invoke them; synthetic data and isolated settings protect live hosts.
+Light colours share the same state meaning in both themes; working is green,
+attention/error red, uncertainty amber. Brighter dark metadata aids readability.
+Only scratch inventory is authorized here: candidate ZIPs, backups and evidence
+must survive. No blanket artifacts or .tools deletion is part of qualification.
+Public release packaging still requires a hosted CI run of the approved revision
+and CI-produced bytes; local RC folders are private qualification only. The existing
+Verify workflow has no public-release upload step. Publication remains a later action.
+
+End state: one reviewed source revision, one final archive with a recorded hash,
+complete automated and human qualification, accurate public docs/site, and a
+ready-to-publish GitHub release. Making source, release assets and website public
+requires the owner's final approval of that concrete packet.
+
+### Current RC14 qualification — 2026-10-05
+
+Owner RC13 feedback: startup appeared to refresh only after expanding a project;
+Codex task links reported no handler; a typed question reply still showed pending.
+The startup regression reproduced admission before hydration settling a permanent
+collapsed default. RC14 delays that default until usable observation, then reveals
+active projects without a click while preserving individual/global manual collapse.
+Codex navigation uses shell first, then Windows Store protocol activation only on
+missing association. Read-only URI-object preparation passed for the installed app;
+real exact-chat focus remains the owner's retest. The pending widget's answer was
+an ordinary chat message with no question ID: only a correlated reply or turn end
+can clear it. That limit is documented/tested, and no answer text is inferred.
+
+Clean source `c753f037f528cda51b6abccaf7bfb5396ccfa641`, private **1.0.0-rc.14**.
+[ZIP](../artifacts/prepublication/rc14/OVERSEER-1.0.0-rc.14-win-x64.zip),
+[owner handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md).
+SHA-256 `E02580BA0E24B0DAF204BD0F2D31D73E553AAE083787DB3216D4264545B24988`;
+76,917,941 bytes; 591 payload/90 integration files; unsigned self-contained x64.
+Build 0 warnings/errors; **770 tests pass, zero fail/skip**; [hosted Windows CI](https://github.com/WinChurchill/the-overseer/actions/runs/37423452238)
+passes on this exact source. Fresh package: 42 pass/0 fail/3 intentional activation
+deferrals; integration 17/17, composition 42/42. Scaling and RC13 upgrade/rollback
+pass in both modes (25 checks each), with no focus takeovers. Pinned full-history
+and extracted-payload scans clear. RC14 is prepared with a new shortcut/separate
+settings; the owner installation has not been launched by the agent. RC13's running
+installation and prior kit are preserved. All 16 owner checks are PENDING for RC14.
+Same-chat review supports local retest; independent/main review and all public,
+real-host, physical, audible and clean-machine gates remain pending.
+
+### Prior RC13 qualification — 2026-10-05
+
+Clean source `c0ced607ff5ab9ab7df9e10f7c0ea13eff5cde67`; private candidate **1.0.0-rc.13**.
+[RC13 ZIP](../artifacts/prepublication/rc13/OVERSEER-1.0.0-rc.13-win-x64.zip),
+[archived owner handoff](../artifacts/prepublication/owner-feedback/rc13-owner-kit/OWNER_HANDOFF.md),
+[six-area report](../artifacts/prepublication/rc13-checks/run-20261006T004243Z-9d6995c0/pre-user-report.json).
+SHA-256: `45A9F3F2D91B65DCDC91F25A896EEE49FF29B9DE55F49EC4BFBA71DF7B0E27AA`; 76,915,148 bytes;
+591 payload / 90 integration files; unsigned self-contained x64; .NET/Desktop 10.0.12.
+Clean-source build: 0 warnings/errors, 749 tests pass/0 fail/skip; DSH 39, Claude 29.
+Exact ZIP: 42 pass/0 fail/3 intentional activation deferrals; integration 17/17,
+composition 42/42, 48 renders; no focus takeovers in 546 foreground samples. Scaling
+and RC12 upgrade/rollback pass in HUD/Window (25 checks each). Candidate history
+(202 commits), source export and payload scans clear; site 85 checks/12 controls pass.
+Read-only corrected-source observation confirmed a formerly missing active Codex
+chat is fresh and appears in Now after hydration. Full H3 remains pending.
+Fresh RC13 folder/shortcut uses separate settings; prepared without replacing RC12.
+All 16 owner rows are PENDING against the new source/hash. RC12 owner kit is preserved
+under owner-feedback/rc12-owner-kit. Same-chat review: PASS WITH NONBLOCKING NOTES
+for local retest; independent review and all public/real-host/physical gates remain pending.
+
+### Prior RC12 DSH question follow-up — 2026-10-05
+
+The owner confirmed real permission escalation/resume with the installed DSH observer.
+Observer 1.1.0 now recognizes blocking questions and reads the inspected Desktop
+0.2.0-rc.2 native cache for timed questions. Pending results and completed turns
+retain answerable requests; correlated admitted replies settle them. Current-state
+recovery restores pending IDs silently. Missing/stale/changed/oversized metadata
+reduces coverage; no waterfall, answer or conversation content is intercepted.
+The version-specific native cache is an explicit compatibility limit. Real question
+qualification remains pending even after the isolated installed-code contract check.
+The HUD mark now says `question pending` for an unanswered non-blocking request.
+An older app-copy item remains unanswered in raw metadata, but its information is
+superseded and the later live HUD check showed this chat without attention. Turn
+completion also clears Codex turn-scoped requests; raw unanswered metadata alone
+does not prove current attention. No answer was fabricated. Claude's 15 hooks emit
+work/completion records and its row is visible; input/permission, audible and
+clean-machine qualification remain pending.
+
+That prior replacement was **1.0.0-rc.12**, clean source
+`68c2d6190698c9821179b025441a21dbf6490a4e`.
+[RC12 ZIP](../artifacts/prepublication/rc12/OVERSEER-1.0.0-rc.12-win-x64.zip),
+[archived RC12 handoff](../artifacts/prepublication/owner-feedback/rc12-owner-kit/OWNER_HANDOFF.md),
+[automated report](../artifacts/prepublication/rc12-checks/run-20261005T232402Z-d4134442/pre-user-report.json).
+SHA-256: `8EF59BFAC561E6349DE984039E9F64C5F04F4432A328720B1A683AD28A2A6342`;
+76,905,615 bytes; 591 payload / 90 integration files; unsigned self-contained x64.
+Build: 0 warnings/errors; 741 tests pass/0 fail/skip; DSH 39/39, Claude 29/29.
+Exact ZIP: 42 pass/0 fail/3 deliberate activation deferrals; integration 17/17,
+composition 42/42, 48 renders; no focus takeover/547 samples. Scaling and RC11
+upgrade/rollback pass in both modes. Candidate history (198 commits), source export
+and exact payload secret scans clear; site 85 checks/12 publication controls pass.
+All new H1–H16 rows remain PENDING against this hash. RC11 and its owner kit are
+preserved under owner-feedback/rc11-owner-kit; the evidence below is historical.
+The RC12 shortcut uses separate writable test settings and explicit real producer
+roots; live launch and saving were verified. Normal-data agent launches reported
+a save failure, so ordinary owner-path persistence remains part of H11/H14.
+Normal settings were preserved. Empty/Live setup passed stock Windows PowerShell;
+the helper rejects an older ZIP before writing. Audible/live-host checks remain pending.
+
+### Prior RC11 owner feedback corrections — 2026-10-05
+
+RC9 owner reports: Preview has no playable recording; DSH absent; Recent time control
+uses the wrong dark palette; independent Work chats use prompt-derived project names.
+The selected pack is missing; explicitly use Windows speech (silent synthesis verified).
+The observer is now installed in the actual Desktop profile after an owner-coordinated
+quit, with private backups; it produces fresh status and no writer errors after relaunch.
+Real Desktop task/approval/resume behavior still needs retesting after OVERSEER restart.
+The Recent control and standalone managed-workspace grouping are corrected in source.
+Live validation also found DSH input capability was overstated; it is now explicitly
+Unsupported. Current task coverage is complete, with a disclosed late-attach history gap.
+RC11 review found an older unanswered optional question. The subsequent live check
+showed this chat without attention; full H3 and independent-machine checks remain pending.
+The verified replacement is **1.0.0-rc.11**, clean fresh source `8b1d3454179d10fb3f389e2097425883d1803413`.
+[RC11 ZIP](../artifacts/prepublication/rc11/OVERSEER-1.0.0-rc.11-win-x64.zip),
+[preserved RC11 retest handoff](../artifacts/prepublication/owner-feedback/rc11-owner-kit/OWNER_HANDOFF.md),
+[automated report](../artifacts/prepublication/rc11-checks/run-20261005T220959Z-d572c12b/pre-user-report.json).
+SHA-256: `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
+Build: 0 warnings/errors; 727 tests pass. Exact package: 42 pass/0 fail/3 focus
+activation deferrals; integration 17/17, composition 42/42, 48 renders, no focus
+steal/547 samples. Secondary-display scaling and RC9 upgrade/rollback pass in both
+modes. Source/history/payload secret scans clear; site 85 checks/12 controls pass.
+RC9/RC10 artifacts remain fixed; the RC9 results below are historical evidence.
+All RC11 owner H1–H16 remain pending until observed and recorded against this hash.
+
+### Executed RC9 preparation and owner handoff — 2026-10-05
+
+- Tested candidate: **1.0.0-rc.9**, unsigned private ZIP, source `61d7d078cb39e58b1fbeb55bba220853d65ed491`.
+  [Application ZIP](../artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip),
+  [preserved RC9 packet](../artifacts/prepublication/owner-feedback/rc9-owner-kit/approval-packet.json),
+  [preserved RC9 results](../artifacts/prepublication/owner-feedback/rc9-owner-kit/OWNER_CHECKS.csv).
+- SHA-256: `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`. These hashes identify the preserved RC9 run; new owner results must name the replacement hash.
+- Fresh-clone .NET build/test: 0 warnings/errors, 715 pass, 0 fail/skip. DSH 30 and
+  Claude 29 pass; extracted bridge tests pass too. NuGet advisory scan found no
+  vulnerable packages; bundled .NET/Desktop runtime 10.0.12 matches the current patch.
+- Full-duration package: 42 pass, 0 fail, 3 deliberate activation deferrals;
+  integration 17/17, composition 42/42, 46 fixture renders. No focus takeovers in
+  547 samples. Secondary-display scaling pass; RC8 upgrade/rollback 25/25 in each
+  HUD/Window mode. Report/comparison/placement controls pass.
+- Gitleaks 8.30.1, checksum verified: all reachable local history (191 commits),
+  committed tree and exact extracted payload found no secrets. This is a scanner
+  result, not proof of absence. Current ledger personal path is redacted; original
+  history and three commit-author identities remain for owner disclosure review.
+- New public README/community/privacy/support files and a three-page static site.
+  85 local site checks and 12 publication controls pass. Mobile 390px navigation,
+  768px layout, desktop images/keyboard skip link and sampled contrast passed.
+  Real canonical/download/security-report URLs and search indexing await publication.
+- Five-minute synthetic Codex idle/work/missing/recovery observation: 297 samples,
+  17.96 MB peak private memory, 53.57 MB peak working set, 1.30s CPU.
+  Work resumed after source restore; watcher failure remained honestly degraded to
+  polling. Restart to restore the watcher. This does not satisfy H15's one-hour test.
+- DSH Desktop 0.2.0-rc.2 metadata rechecked. Prior Claude Store package was not
+  rediscovered; H5 must record the actual current app/Code engine and environment.
+  No live host settings, live app, startup registration or primary display changed.
+- Same-chat review: **PASS WITH NONBLOCKING NOTES** for local handoff, not independent
+  review or public release approval. No remote/upload/deployment/public tag created.
+
+For the current RC13 retest, start with the owner retest handoff. The optional
+[setup helper](../artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1) verifies
+the RC13 ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.
+It passed stock Windows PowerShell and a wrong-ZIP/no-write control. Default run
+prepares only; `-Launch` deliberately opens the app. Empty and Live use separate data.
+The Live mode reads default producer spools but stores its own app preferences.
+
+Complete H2/H3, opt-in bridge setup and H4–H15 locally; perform H1/H16 in a clean and
+independent environment. H1's staged browser download and H16's public-link portion
+wait for the configured GitHub route. Do not mark either whole item passed from a
+local file copy or developer-machine run. Hosted CI needs the chosen GitHub repository
+and authorized private upload; final public history/signing/security-route decisions
+can be settled alongside the owner tests. All H1–H16 rows start **PENDING**.
+
+### Original planning preflight (historical; superseded by execution above)
+
+- At planning time no Git remote, project website, public URL or hosted CI run was configured.
+- Local baseline: 715 .NET tests, DSH 30 and Claude 29; full-duration private
+  packaged smoke 42 pass / 0 fail / 3 activation checks deferred. These are old
+  revision-specific results, not certification of a future release.
+- RC8 predates remediation. Newer archives cover different checks; no single
+  final public candidate has all qualification evidence.
+- README has a brand-only title and no screenshots. Relative Markdown links
+  checked in the preflight resolve locally; public download targets are absent.
+- CONTRIBUTING, SECURITY and issue templates are absent.
+- A personal Windows profile path occurs in IMPLEMENTATION_HISTORY.md.
+  Limited tracked-text private-key/token patterns found no matches; this is
+  **not** a full secret/history scan. Review intended public history before upload.
+- Optional configured TTS sends generic notification text, event code and task
+  alias to its endpoint. Public privacy claims must distinguish this opt-in
+  network path from local monitoring and offline speech.
+- DSH Desktop and the Claude desktop app were found on 2026-09-29. Recheck actual
+  versions and session execution environment; neither bridge has live qualification.
+- MIT code/docs/generated artwork and upstream attribution are resolved.
+  Codex approval detection remains explicitly Unsupported by owner choice.
+- Preflight record: `artifacts/prepublication-planning-20261005/preflight.json`.
+
+### Ordered execution
+
+| Step | Work / owner | Required result |
+| --- | --- | --- |
+| P1 — Source and disclosure cleanup | Coding agent; owner resolves any disclosure/signing choices | Audit intended public tree, main's reachable history and selected tags with a pinned secret scanner; scan extracted payload separately. Inspect personal paths, real logs, screenshots, commit metadata, upstream notices and tracked binaries. Redact scan reports. No credential/third-party/private data finding left unresolved before upload. Preserve private evidence and local history; never rewrite main or force-push. If public history needs a different export, obtain a specific decision. |
+| P2 — Product and build qualification | Coding agent, then review role | Review monitoring/state boundaries, source failure/recovery, record bounds, privacy, voice anti-spam, lifecycle and risky-path tests. Remove reachable dead code/stale examples only after checking consumers. Audit top-level/transitive NuGet dependencies and bundled .NET runtime versions; Node bridges have no npm dependencies. Fix material findings, add meaningful regressions and rerun affected/full checks. Current build instructions work from a fresh clone; hosted Windows CI passes for the final source. |
+| P3 — Live desktop integrations | Coding agent prepares isolated previews/backups; owner operates app sessions | Recheck DSH Desktop's bundled manager and dedicated desktop profile, and Claude Code desktop/editor Windows-local settings/runtime. Install from permanent bridge directories. Record real work, input/approval, resumed work, completion/abort and host failure/recovery. Remove/rebind/reinstall without changing unrelated settings. Record host/engine versions, spool/source identity and observed latency. Advertise only qualified environments; WSL/SSH/cloud remain out of scope unless separately qualified. |
+| P4 — Public docs, website and SEO | Coding agent; owner approves presentation | Rewrite README around a real download, quick start, truthful capability matrix and sanitized screenshots. Add contribution/build guidance, support/bug template and a usable private security-report route. Reconcile state/readiness/upgrade/scaling/UI docs; keep old evidence historical and ignored artifacts private. Build home, install/troubleshooting and privacy pages; validate responsive/keyboard use, links, version labels and SEO preflight below. No deployment yet. |
+| P5 — Final packaging and repeatable evidence | Coding agent | First qualification candidate: next unused RC identity (currently rc.9). Run existing source, bridge, control, packaged, upgrade/rollback, scaling and silent-voice checks sequentially. Collect soak/resource measurements for idle, multi-host work and recovery. Review each report's omissions, not just exit codes. Select signed or explicitly unsigned distribution before final packaging; if signing, integrate it before hashes/manifest/ZIP. Build the final proposed public version from clean reviewed source; qualify those exact final bytes. Any change to shipped bytes invalidates the hash-bound signoff. |
+| P6 — Human and clean-machine signoff | Winston; agent prepares inputs and records results | Complete H1–H16 below against the final archive. Require a clean Windows environment without SDK/.NET/Node/harness and an independent machine/account. Open failures become fixes and focused retests; rerun the full release suite after product changes. No skipped physical/live test becomes a pass. |
+| P7 — Review and approval packet | Review role; Winston approves publication | Review complete diff against main. Close every blocker/major finding. Assemble source commit/tag, archive hash, manifest, support matrix, hosted CI URL, automated reports, H1–H16 results, signing status, README/site preview and draft release notes. The approved archive is fixed; previous RC/dev archives are not published as the new release. |
+| P8 — Controlled publication | Agent after explicit owner approval | L1–L4 are preparation during P1–P7, with separate authorization for private uploads; L5 is the final public approval. Execute L6–L10 afterward. Public URL/download/indexing tests run after visibility/deployment and before announcements. Keep identities consistent; patches get new versions. |
+
+Owner inputs when execution needs them: GitHub account/repository; acceptable public
+history/disclosure scope; signed release or explicitly unsigned preview; any custom
+domain (default is the GitHub Pages project URL). No branding-license reapproval needed.
+Budget/identity requirements for signing are decided before starting that work.
+
+### Exact owner checklist
+
+The agent supplies a final ZIP, hash, disposable data/profile setup, expected results
+and an evidence sheet. For each item record PASS / FAIL / UNSUPPORTED, OS/host version,
+archive hash, date and a short observation. An unexplained omission blocks signoff.
+Use a standard account and leave normal Windows protections enabled. Tests requiring
+display changes, logon or intentional activation run in an agreed idle test session.
+
+| ID | What Winston checks | Pass condition / existing gates |
+| --- | --- | --- |
+| H1 | Download the staged final ZIP in a browser on a clean Windows VM; verify SHA-256, extract to a path with spaces/non-ASCII text and launch as a standard user | Same final bytes, no SDK/.NET runtime/Node/repo/cache needed for the app; record Defender/SmartScreen/Smart App Control result and signing status. Do not disable protections to get a pass. Repeat public URL download in L7. R-01/02/05/26/27. |
+| H2 | First run with no harness/config, then close/reopen | Usable empty/setup view, muted voice, honest unknown/offline health, no fabricated tasks and no unexpected setup writes. R-03/04/20. |
+| H3 | Real Codex work: active turn, async question, partial/full answer, completion, abort and error | A live working chat appears in Now and contributes to Working after hydration; status/attention agree with the session and an answer clears its request. Codex approvals are visibly Unsupported and never inferred or answered. R-06/07/08/09. |
+| H4 | Real DSH Desktop session through the desktop profile | Work -> question/choice wait -> answer/resume -> finish/abort; retain timed answerable questions after tool return/turn completion, quietly recover after OVERSEER restart, then clear on admitted reply. Repeat permission/resume and host restart. Record Desktop/observer versions; no terminal profile substitution. R-11. |
+| H5 | Real Claude Code session in the desktop Code tab or editor, in its actual Windows-local execution environment | Hooks really fire; working/input/permission/resume/completion/error match; Node/path/settings resolve in that environment. Record app and Code engine versions. R-11. |
+| H6 | Install, remove, move/rebind and reinstall each bridge using backed-up test settings/profile | Unrelated settings preserved, ordinary host use still works, no dangling bridge path, producer resumes from the kept directory and OVERSEER discovers it after restart. R-11/23/24. |
+| H7 | Stop/restart one host and temporarily make its source unreadable in isolated test data | Coverage becomes honestly limited/offline, peer sources keep working, counts do not become a false healthy zero, recovery resumes without stale attention. R-07/19. |
+| H8 | Both themes; compact/expanded; narrow/short/tall/maximized; filters, project grouping, history, light width, pin/mute/settings | Nothing clipped, inaccessible or contradictory; 300x220 minimum layout remains usable; history quality/unknowns remain disclosed. Check shared numbers, ellipsis, aligned columns/dividers, History hover/keyboard focus, dark Recent menu, mic/light state and + explanations. R-12/14/15. |
+| H9 | Pointer drag, edge/corner resize, maximize/restore, hover/keyboard Snap, Tab/Enter/Space, Alt+Space and scroll | Native operations and explicit controls work; controls do not accidentally drag the window; geometry restores correctly. R-13/14. |
+| H10 | Move across 100/125/150/200% display scales, detach/reconnect a monitor, sleep/wake | Reachable placement, readable layout and resumed monitoring; no offscreen orphan or unsolicited focus takeover. Record actual tested scale/monitor combinations. R-14/19. |
+| H11 | Tray Show/Hide, pin/mute/settings, close-to-tray, Exit, deliberate second launch and no-tray fallback | Intentional activation works, normal updates do not take focus, one scoped instance restores, Exit really stops it and saves placement. R-16/17. |
+| H12 | Enable startup, sign out/in, move application folder and repair the recorded startup path, then disable startup | One intended instance starts; preferences/placement persist; startup entry reflects the actual path and opt-out removes it. R-16/24. |
+| H13 | Offline speech preview and live notification; selected pack/provider if advertised; mute/restart/unmute; absent device/voice | Audible and appropriate cue, no duplicate/backlog spam, mute persists, failures stay visible. If TTS is advertised, test a configured endpoint and its failure while respecting documented privacy. R-20/21/22. |
+| H14 | Upgrade from RC8 or the oldest explicitly supported build into a new folder using backed-up test data; restore backup to roll back | Settings, recordings, project mappings, disabled sources, placement and spools survive; shortcut/startup/bridge paths are repaired; documented rollback restores exact data. R-18/23/24/25. |
+| H15 | Normal multi-host use for at least one hour; remove startup/hooks and delete the app folder afterward | No hang, focus theft or accumulating voice backlog; measured resources respect configured bounds; uninstall leaves unrelated host settings working and explains optional removal of remaining OVERSEER data. R-17/19/24 plus soak evidence. |
+| H16 | Repeat core launch/setup/work/exit on an independent machine or Windows account; inspect public README/site/download/support links | Setup can be followed without your dev environment, screenshots and feature claims are accurate, privacy/support/signing limits are understandable. Record supported OS builds and host versions. R-28. |
+
+R-10 extracted bridge-suite qualification is automated in P2/P5.
+All R-01–R-28 gates map to P1–P8/H1–H16, with R-09 approval capability explicitly
+Unsupported. For any unqualified optional provider/host, either finish qualification
+or obtain an explicit scope decision and clearly restrict public claims; never silently
+drop a required check. SEO/website/security checks are additional gates.
+
+### Website and SEO preflight
+
+- Descriptive title/H1: **OVERSEER — Windows HUD for AI coding agents**.
+  Explain working/needs-you at a glance; disclose Codex approval limits next to claims.
+- Suggested GitHub description: “A local Windows HUD for AI coding agents:
+  see their work and when they need you.” Add relevant topics such as
+  `windows`, `wpf`, `codex`, `claude-code`, `deepseek`, `ai-agents`,
+  `developer-tools`, `monitoring`. Topics aid repository discovery
+  ([GitHub guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/classifying-your-repository-with-topics)).
+- One clear “Download for Windows x64” action links to the versioned **app ZIP**,
+  not GitHub's auto-generated source ZIP. Link Source, Install, Troubleshooting,
+  supported versions, License/attribution, Privacy and bug/security reporting.
+- Use sanitized current HUD screenshots in both themes. Label staged/synthetic
+  illustrations. Add alt text, favicon and a social preview (1280x640, under 1 MB
+  for GitHub); do not include private project/session identifiers.
+- Semantic HTML and crawlable text without requiring JavaScript; responsive layout,
+  keyboard access, useful focus indication/contrast; no broken local or external links.
+- Configure unique titles/descriptions, canonical HTTPS URLs, Open Graph/Twitter
+  metadata, sitemap and correct project-subpath asset/download links. Set robots rules
+  only at an origin root you control: a project-subdirectory robots.txt is not an
+  origin-wide robots policy ([Google robots guidance](https://developers.google.com/crawling/docs/robots-txt/create-robots-txt)). Keep drafts local and deploy only at the publication gate.
+- Run browser/link/accessibility and SEO audits on the local built site; triage failures.
+  After deployment validate HTTP status, canonical URL, sitemap and anonymous navigation.
+  Submit the site URL/sitemap through Search Console after ownership verification.
+  Google indexing/ranking cannot be certified before launch or guaranteed
+  ([Google SEO guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide)).
+- Site has no added analytics by default. Explain optional network TTS accurately;
+  do not claim zero network activity for every user-selected provider.
+
+### Exact publication checklist
+
+| ID | Action in order | Required result |
+| --- | --- | --- |
+| L1 | Resolve account/name, intended public history, Windows/host support matrix and signed/unsigned distribution | All choices written in the approval packet. Full history/payload scans finish **before private upload**, not just before public visibility. |
+| L2 | Create/configure private GitHub staging repository and origin when authorized; push vetted main/plan branch and only intended tags | Hosted Windows CI passes; required checks/review protect main as supported by the account plan. Do not push all local refs/artifacts. Pages remains disabled: a Pages site may be public even from a private repo ([GitHub Pages guide](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)). |
+| L3 | Prepare final version/tag from reviewed source and the final package workflow; run all final-byte checks and H1–H16 | One commit/version/hash/manifest identity; no stale RC evidence substituted; signing is finalized before archive hashing. |
+| L4 | Draft the GitHub release privately; attach final ZIP, SHA256SUMS, sanitized manifest/evidence summary, accurate release notes and install/upgrade instructions | Every attachment reviewed. Private browser-download clean-machine test uses these exact bytes; a draft is supported by [GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository). |
+| L5 | Review local website, README/About/topic/social previews, support/security route and complete release packet with Winston | Explicit final approval to expose source/history, publish these assets and deploy this site. No earlier check implies approval. |
+| L6 | Make vetted repository public, publish the reviewed release/tag, then enable/deploy GitHub Pages from only site/ | Download links and release version agree; expose no internal artifacts. Enable repository secret scanning/private vulnerability reporting where available; security response route works. |
+| L7 | Use a signed-out browser and clean Windows account to download from the real public CTA, compare hash and launch | Public access, correct app ZIP, preserved bytes, actual browser/protection behavior and usable start. Record public URL/time; no developer permissions required. |
+| L8 | Verify live website HTTPS, mobile/keyboard use, source/install/privacy links, social metadata, canonical and sitemap; update GitHub About URL | No launch-breaking link/HTTP/asset error. Verify Search Console ownership and submit sitemap; later indexing is observed, not assumed. |
+| L9 | Announce only after L7–L8 pass, using owner-approved channels and copy | Link the site/release; accurately label supported/experimental/unsupported capabilities. Prepare copy locally; sending/posting needs explicit authorization. |
+| L10 | Run a short launch support pass, triage reports and define next patch work | Reproduce bugs against version/hash, keep issue/security instructions current, never silently replace tested release assets; a patched binary gets a new version/hash. No recurring monitor is scheduled by this plan. |
+
+Signing reduces distribution friction but does not guarantee absence of SmartScreen
+warnings; unsigned builds may also be blocked by Windows policy. Record what the
+clean-machine run observes and state the actual distribution limits
+([Microsoft signing/reputation guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)).
+
+The packet is ready for public approval when P1–P7, H1–H16 and private preparation
+L1–L4 have recorded results, no blocker/major defect or unresolved disclosure remains,
+and the final bytes match the packet. L5 authorizes publication; L7–L8 are explicitly
+post-publication checks that must pass before L9 announcements. Search indexing may
+follow later and is not a promised launch result.
+
+---
+
+<details>
+<summary>Historical planning, protocols and revision-specific evidence (preserved)</summary>
+
 Current source status: [IMPLEMENTATION_STATE.md](IMPLEMENTATION_STATE.md).
 Current packaged candidate: **RC8**, source `f14dc47`, unsigned; its recorded six-area
 results are summarized in current state. Remediation source is newer than RC8.
@@ -749,3 +1200,6 @@ audible-audio or signing/terms gate has passed. The local implementation evidenc
 first run, applied monitoring state, UI renders, native window behaviour, the bridge suites,
 upgrade preservation and rollback; the remaining gates are missing prerequisites, not hidden
 defects.
+
+
+</details>

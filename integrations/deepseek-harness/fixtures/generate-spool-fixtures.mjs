@@ -38,7 +38,9 @@ function clock(stepMs) {
 function scenario(name, { nowStepMs = 10, queueLimit = 64, eventFileBytes = 4 * 1024 * 1024, directory = null } = {}) {
   rmSync(join(outRoot, name), { recursive: true, force: true })
   const now = clock(nowStepMs)
-  const state = createObserverState({ sourceInstanceId: SOURCE, sourceEpoch: EPOCH, now })
+  // Keep the original non-question protocol fixtures on the old producer so the
+  // consumer continues to prove backwards-compatible capability disclosure.
+  const state = createObserverState({ sourceInstanceId: SOURCE, sourceEpoch: EPOCH, producerVersion: 'dsh-observer/1.0.0', now })
   const spool = createSpool({
     spoolRoot: directory ?? join(outRoot, name, 'root'),
     sourceInstanceId: SOURCE,
@@ -79,6 +81,7 @@ function seedSession(target, id) {
 }
 
 function replayEvents(target, id, events) {
+  target.state.reconcileQuestions(id, { timed: false, activeIds: [] })
   let records = 0
   for (const event of events) {
     const record = target.emit(target.state.observe({ sessionId: id, type: event.type, seq: event.seq, time: event.time, data: event.data }))

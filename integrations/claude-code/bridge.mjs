@@ -186,7 +186,10 @@ async function run() {
   const result = publishRecord({
     dir,
     record,
-    deadline: writePhase.child(WRITE_BUDGET_MS - HEALTH_BUDGET_MS),
+    // Acquisition has already spent part of the parent budget. Reserve health
+    // from what remains, not from the original allowance; otherwise a slow
+    // first attach can consume the entire remainder and silently lose its drop.
+    deadline: writePhase.child(Math.max(0, writePhase.remaining() - HEALTH_BUDGET_MS)),
   });
 
   if (result.ok) {

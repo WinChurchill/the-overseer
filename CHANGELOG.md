@@ -1,5 +1,98 @@
 # OVERSEER changelog
 
+## Unreleased — RC21 source review follow-up
+
+- Windows task-link activation failures now produce a visible failed-launch message
+  instead of allowing non-COM exceptions to escape onto the HUD thread.
+- This source fix is not included in the existing private RC21 archive.
+
+## 1.0.0-rc.21 — private restore footer correction
+
+- Hiding the HUD no longer leaves a permanent “Hidden to tray” footer behind after
+  it is restored. Tray availability errors remain visible.
+
+## 1.0.0-rc.20 — private native UI qualification follow-up
+
+- Empty task lists now explain the active Needs you/Working filter and offer All,
+  rather than incorrectly saying no tasks were touched in the Recent window.
+- Package qualification verifies saved state and changed appearance values even
+  when the smoke process exits successfully. Build/test workers are bounded.
+- This candidate remains private; actual-host, clean-machine, physical/audio and
+  publication gates require separate evidence.
+
+## 1.0.0-rc.19 — private installer probe qualification
+
+- Installer validation retries one clean no-record result on its isolated spool,
+  recording the attempt count. It still requires new output from the command;
+  stale output, silent scripts and nonzero exits cannot certify a binding.
+- RC18 emitted no archive: its bridge concurrency checks passed, but a first
+  installer probe produced no record. Live host and publication gates remain open.
+
+## 1.0.0-rc.18 — private bounded drop-accounting fix
+
+- Claude bridge 1.0.2 reserves health-accounting time after acquisition overhead.
+  Previously a slow first attach plus a held writer lock could exhaust the entire
+  remaining budget and drop a record without its counter. A deterministic fixture
+  reproduces the loss before the fix and verifies accounting afterward.
+- The fixed 250 ms write allowance and observe-only/fail-open behavior remain.
+  RC17 emitted no package because its concurrency check still failed.
+
+## 1.0.0-rc.17 — private Claude identity-race fix
+
+- Claude bridge 1.0.1 publishes complete identity/epoch documents exclusively
+  before peers can read them. A deterministic slow-write fixture reproduced the
+  prior partial-document race and now passes; existing identities are preserved.
+- Corrected project-site DSH question coverage and current HUD control labels.
+- RC16 packaging was stopped by its concurrency/loss-accounting test; no RC16
+  archive was emitted. Live host and final publication checks remain pending.
+
+## 1.0.0-rc.16 — private bridge qualification controls
+
+- Run bridge test files sequentially so unrelated fixtures do not compete with
+  the fixed write budget; explicit concurrency/loss-accounting stress remains.
+- Require each rebound Claude hook invocation to add its own record. Previously
+  accumulated records could mask a later failed binding probe.
+- RC15 bytes are preserved but failed the separate hosted Verify suite. RC16
+  needs fresh exact-archive qualification; neither version is publicly released.
+
+## 1.0.0-rc.15 — private automated qualification
+
+- Added private CI packaging with archive, checksum and source manifest; no public
+  release, tag or website deployment. Exact downloaded bytes are qualified locally.
+- Added a hidden mixed-source endurance diagnostic, resource evidence and a
+  qualification orchestrator that reuses existing package/upgrade suites.
+- Prepared a clean-machine helper, expanded contributor/adapter/fixture guidance
+  and added a PR template. Corrected DSH 1.1.0 question-coverage instructions.
+- Actual native menu, host engines, clean OS, physical/audio and owner publication
+  checks remain separate from synthetic automation. Codex approvals stay Unsupported.
+
+## 1.0.0-rc.13 — private diagnostic-report cleanup
+
+- Recognized Codex output-only function envelopes so live chats retain coverage
+  and appear in Now. Genuine unknown records remain uncertain.
+- Added one stable display-number sequence across Codex, DSH and Claude, shared
+  by task rows, history and voice. Source-qualified identities remain unchanged.
+- Aligned numbers and dividers, standardized status and age text, reduced repeated
+  History labels, added a microphone state and light reason, clarified partial
+  counts, improved dark metadata contrast and expired successful navigation messages.
+- Split large shell, monitoring, bridge, reducer and view-model files without
+  changing their state logic. Audited exception handling and removed exception
+  messages from diagnostic reports. Exact-package diagnostics remain opt-in.
+- Private qualification only; live-host, clean-machine, audible and physical checks
+  remain required before publication.
+
+## 1.0.0-rc.9 — private pre-publication qualification
+
+- Prepared a static project website, descriptive README, privacy/support/security
+  and contribution guides, sanitized theme screenshots and bug-report template.
+- Added local website/link/metadata checks and publication guard controls; Pages
+  deployment is manual, public-main only and requires explicit approval/configuration.
+- Release payload now includes offline privacy, support and upgrade instructions.
+  Corrected privacy wording and documented the DSH human-input limitation.
+- Public, live-host, clean-machine, audible and physical-display qualification
+  remains pending; this RC is unsigned and not published.
+
+
 ## Unreleased — repository assessment remediation
 
 - Reduced the header menu to eight daily actions and the tray menu to six actions.

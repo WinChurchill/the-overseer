@@ -38,6 +38,7 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
         IReadOnlyList<string> harnesses)
     {
         ProjectId = project.Id;
+        IsIndependentChats = project.IsIndependentChats;
         Key = key;
         Name = project.IsUnassigned ? "Unassigned" : project.DisplayName;
         Tasks = tasks;
@@ -50,6 +51,8 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ProjectId ProjectId { get; }
+
+    public bool IsIndependentChats { get; }
 
     /// <summary>Sortable group key: rank, display name, then opaque identity.</summary>
     public string Key { get; }
@@ -110,7 +113,7 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
     }
 
     public string HistoryAutomationName =>
-        (_isHistoryOpen ? "Hide" : "Show") + " the last hour for project " + Name;
+        (_isHistoryOpen ? "Hide" : "Show") + (IsIndependentChats ? " the last hour for " : " the last hour for project ") + Name;
 
     /// <summary>Plain-text strip summary for the tooltip and automation name.</summary>
     public string StripText
@@ -146,13 +149,15 @@ public sealed class ProjectRowViewModel : INotifyPropertyChanged
     public string ToggleTooltip => (_isExpanded ? "Collapse " : "Expand ") + Name +
         " · " + SummaryText + " · " + StripText;
 
-    public string ToggleAutomationName => (_isExpanded ? "Collapse project " : "Expand project ") + Name +
+    public string ToggleAutomationName => (_isExpanded ? "Collapse " : "Expand ") + (IsIndependentChats ? string.Empty : "project ") + Name +
         " (" + SummaryText + ")";
 
     /// <summary>Header tooltip: counts, coverage, strip detail and the click action.</summary>
     public string HeaderTooltip => Name + " · " + SummaryText +
         (_isHistoryOpen ? "\n" + StripText : string.Empty) +
-        "\n" + (_isExpanded ? "Click to collapse this project's tasks." : "Click to expand this project's tasks.") +
+        "\n" + (IsIndependentChats
+            ? (_isExpanded ? "Click to collapse these chats." : "Click to expand these chats.")
+            : (_isExpanded ? "Click to collapse this project's tasks." : "Click to expand this project's tasks.")) +
         "\n" + (_isHistoryOpen ? "History is open." : "Use History to show the last hour.");
 
     public bool IsPartial => _isPartial;

@@ -50,7 +50,7 @@ function Get-Screens {
     try { return @([System.Windows.Forms.Screen]::AllScreens) } catch { return @() }
 }
 
-$screens = Get-Screens
+$screens = @(Get-Screens)
 if ($screens.Count -eq 0) { throw 'No display was enumerated; refusing to run a windowed check blindly.' }
 
 $primary = $screens | Where-Object { $_.Primary } | Select-Object -First 1
@@ -147,10 +147,18 @@ public static class ScalingProbe {
 '@
 [void][ScalingProbe]::SetThreadDpiAwarenessContext([IntPtr](-4))
 
-$process = Start-Process -FilePath $exe -ArgumentList @(
-    '--hud-smoke', '--duration', [string]$SettleSeconds, '--no-tray',
-    '--placement-monitor', $targetDevice,
-    '--data-directory', ('"' + $root + '"')) -WindowStyle Hidden -PassThru
+$start = [Diagnostics.ProcessStartInfo]::new($exe)
+$start.WorkingDirectory = $root
+$start.UseShellExecute = $false
+$start.CreateNoWindow = $true
+$start.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+$start.RedirectStandardOutput = $true
+$start.RedirectStandardError = $true
+foreach ($argument in @('--hud-smoke','--duration',[string]$SettleSeconds,'--no-tray',
+    '--placement-monitor',$targetDevice,'--data-directory',$root)) { [void]$start.ArgumentList.Add($argument) }
+$process = [Diagnostics.Process]::Start($start)
+$stdout = $process.StandardOutput.ReadToEndAsync()
+$stderr = $process.StandardError.ReadToEndAsync()
 try {
     $window = [IntPtr]::Zero
     for ($i = 0; $i -lt 40 -and $window -eq [IntPtr]::Zero; $i++) {
@@ -192,8 +200,18 @@ try {
     [void][ScalingProbe]::SendMessage($window, 0x112, [IntPtr]0xF030, [IntPtr]::Zero)
     Start-Sleep -Milliseconds 800
     if (-not [ScalingProbe]::IsZoomed($window)) { throw 'Native maximize failed.' }
-    $saved = Get-Content -LiteralPath (Join-Path $root 'state.json') -Raw | ConvertFrom-Json
-    if (-not $saved.WindowMaximized -or [Math]::Abs($saved.WindowWidth * $dpi / 96 - 760) -gt 3) { throw 'Normal restore size not retained while maximized.' }
+    # Persistence is asynchronous and debounced. Observe its outcome rather than
+    # assuming a cold Windows process has flushed the file within 800 ms.
+    $saveClock = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        $saved = Get-Content -LiteralPath (Join-Path $root 'state.json') -Raw | ConvertFrom-Json
+        if ($saved.WindowMaximized -and [Math]::Abs($saved.WindowWidth * $dpi / 96 - 760) -le 3) { break }
+        Start-Sleep -Milliseconds 100
+    } while ($saveClock.Elapsed.TotalSeconds -lt 8)
+    if (-not $saved.WindowMaximized -or [Math]::Abs($saved.WindowWidth * $dpi / 96 - 760) -gt 3) {
+        $saved | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $root 'failed-maximize-state.json') -Encoding utf8
+        throw ('Normal restore size not retained while maximized: width=' + $saved.WindowWidth + ' maximized=' + $saved.WindowMaximized + ' dpi=' + $dpi)
+    }
     [void][ScalingProbe]::SendMessage($window, 0x112, [IntPtr]0xF120, [IntPtr]::Zero)
     Start-Sleep -Milliseconds 700
     [void][ScalingProbe]::GetWindowRect($window, [ref]$r)
@@ -231,6 +249,7 @@ try {
         nativeMaximizeHitTarget = $maxHit
         maximizeRestore = $true
         normalBoundsPersisted = $true
+        persistenceWaitSeconds = $saveClock.Elapsed.TotalSeconds
         startedOnTargetDisplay = $startedOnTarget
         dpi = $dpi
         monitorTransitions = $transitions
@@ -252,5 +271,7 @@ try {
             [void]$process.WaitForExit(10000)
         }
     }
+    $stdout.GetAwaiter().GetResult() | Set-Content -LiteralPath (Join-Path $root 'app-stdout.log') -Encoding utf8
+    $stderr.GetAwaiter().GetResult() | Set-Content -LiteralPath (Join-Path $root 'app-stderr.log') -Encoding utf8
     $process.Dispose()
 }

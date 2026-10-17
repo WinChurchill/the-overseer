@@ -28,6 +28,34 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
+    public void BoundedStartupHydrationRevealsTheNowProjectWithoutInteraction()
+    {
+        const string id = "01a0c700-0000-0000-0000-000000000094";
+        var padding = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "world_state", payload = new { padding = new string('x', 22000) },
+        });
+        _home.WriteRollout(id, new[] { Records.SessionMeta(id), padding, Records.TaskStarted("turn-1") });
+        using var monitor = Create(MonitorOptions.Default with
+        {
+            MaxIdentityHeaderBytes = 4096, PerFileBytesPerPass = 8192, GlobalBytesPerPass = 65536,
+        });
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(monitor.Refresh());
+        Assert.Empty(vm.Projects);
+        Assert.Equal(0, monitor.Current.Observation.FilesHydrated);
+
+        for (var pass = 0; pass < 8 && monitor.Current.Observation.FilesHydrated == 0; pass++)
+            vm.ApplySnapshot(monitor.Refresh());
+
+        Assert.Equal(1, monitor.Current.Observation.FilesHydrated);
+        Assert.True(Assert.Single(vm.Projects).IsExpanded);
+        Assert.Equal(id, Assert.Single(vm.Tasks).Key.ConversationId);
+        Assert.Equal(1, monitor.Current.Counts.Working.Value);
+        Assert.Empty(monitor.Current.Transitions); // Hydration remains a quiet baseline.
+    }
+
+    [Fact]
     public void HydratesUserConversationAndExcludesExplicitInternalRollouts()
     {
         _home.WriteRollout(
@@ -65,11 +93,17 @@ public sealed class MonitorTests : IDisposable
     [InlineData("image", true)]
     [InlineData("world", false)]
     [InlineData("world", true)]
+    [InlineData("function-output", false)]
+    [InlineData("function-output", true)]
     public void KnownNonLifecycleRecordsDoNotHideWorkingTasks(string kind, bool appendLive)
     {
         const string id = "01a0c700-0000-0000-0000-000000000091";
-        var record = kind == "image" ? Records.ItemCompleted("turn-1", "ImageView")
-            : "{\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{}}}";
+        var record = kind switch
+        {
+            "image" => Records.ItemCompleted("turn-1", "ImageView"),
+            "function-output" => Records.ItemCompleted("turn-1", "FunctionCallOutput"),
+            _ => "{\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{}}}",
+        };
         var records = new List<string> { Records.SessionMeta(id), Records.TaskStarted("turn-1") };
         if (!appendLive) records.Add(record);
         var path = _home.WriteRollout(id, records);
@@ -83,6 +117,9 @@ public sealed class MonitorTests : IDisposable
         Assert.False(Single(snapshot).IsStale);
         Assert.Equal(AgentTaskState.Working, Single(snapshot).State);
         Assert.Equal(1, snapshot.Counts.Working.Value);
+        var view = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        view.ApplySnapshot(snapshot);
+        Assert.Equal(id, Assert.Single(view.Tasks).Key.ConversationId);
         SyntheticCodexHome.Append(path, new[] { Records.TaskComplete("turn-1") });
         Assert.Equal(AgentTaskState.Done, Single(monitor.Refresh()).State);
     }
@@ -443,24 +480,40 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Fact]
-    public void BackgroundLoopPublishesSnapshotsAndStopsCleanly()
+    public async Task BackgroundLoopPublishesSnapshotsAndStopsCleanly()
     {
         var id = "01a0c70e-0000-0000-0000-00000000000f";
         _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("turn-1") });
 
-        using var monitor = Create(MonitorOptions.Default with { KnownFilePollInterval = TimeSpan.FromSeconds(1) });
-        var seen = 0;
-        monitor.SnapshotAvailable += _ => Interlocked.Increment(ref seen);
+        await using var monitor = Create(MonitorOptions.Default with { KnownFilePollInterval = TimeSpan.FromSeconds(1) });
+        var seen = new TaskCompletionSource<MonitoringSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        monitor.SnapshotAvailable += snapshot => seen.TrySetResult(snapshot);
 
         var loop = monitor.StartAsync();
-        for (var index = 0; index < 20 && Volatile.Read(ref seen) == 0; index++)
-        {
-            _clock.Advance(TimeSpan.FromSeconds(1));
-            Thread.Sleep(20);
-        }
+        var published = await seen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(id, Assert.Single(published.Tasks).ConversationId);
+        Assert.Equal(id, Assert.Single(monitor.Current.Tasks).ConversationId);
+        await monitor.DisposeAsync();
+        await loop.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(loop.IsCompletedSuccessfully);
+    }
 
-        Assert.True(Volatile.Read(ref seen) > 0, "background loop must publish a snapshot");
-        Assert.Equal(id, monitor.Current.Tasks[0].ConversationId);
+    [Fact]
+    public void StandaloneDesktopWorkHeaderReachesTheHudAsAnIndependentChat()
+    {
+        const string id = "01a0c730-0000-0000-0000-000000000032";
+        _home.WriteRollout(id, new[]
+        {
+            Records.SessionMeta(id, cwd: @"C:\Users\fixture\Documents\Codex\2026-10-05\first-prompt-entries",
+                originator: "codex_work_desktop", source: "vscode"), Records.TaskStarted("turn-1"),
+        });
+        using var monitor = new CodexMonitor(MonitorOptions.Default, new[] { Profile }, null, null, _clock, new ProjectResolver());
+        var snapshot = monitor.Refresh();
+        Assert.True(Single(snapshot).AssignedProject.IsIndependentChats);
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(snapshot);
+        Assert.Equal("Independent chats", Assert.Single(vm.Projects).Name);
+        Assert.Single(vm.Tasks);
     }
 
     [Fact]

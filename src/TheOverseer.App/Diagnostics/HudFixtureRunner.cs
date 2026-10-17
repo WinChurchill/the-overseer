@@ -188,6 +188,14 @@ internal static class HudFixtureRunner
             rendered.Add(historyPath);
         }
 
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            var recent = new HudViewModel(HudSettings.Default with { Opacity = 1, TaskView = "recent" }) { IsExpanded = true };
+            recent.ApplySnapshot(scenarios[0]);
+            var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-recent-dropdown.png");
+            if (RenderPopupContent(recent, theme, path, "RecentHoursBox")) rendered.Add(path);
+        }
+
         // Health detail with typed per-source rows. A Popup renders in its own window,
         // so its content is measured and captured directly.
         foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
@@ -310,7 +318,14 @@ internal static class HudFixtureRunner
             window.Show();
             window.UpdateLayout();
             window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
-            if (window.FindName(popupName) is not System.Windows.Controls.Primitives.Popup popup ||
+            var popupElement = window.FindName(popupName);
+            if (popupElement is System.Windows.Controls.ComboBox selector)
+            {
+                selector.IsDropDownOpen = true;
+                window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
+                popupElement = selector.Template.FindName("PART_Popup", selector);
+            }
+            if (popupElement is not System.Windows.Controls.Primitives.Popup popup ||
                 popup.Child is not FrameworkElement content)
             {
                 return false;
@@ -347,6 +362,11 @@ internal static class HudFixtureRunner
             window.Show();
             window.UpdateLayout();
             window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
+            if (window is HudWindow hud)
+            {
+                hud.UpdateResponsiveLayout();
+                hud.UpdateLayout();
+            }
             const double scale = 2.0;
             var bitmap = new RenderTargetBitmap(
                 (int)Math.Ceiling(window.ActualWidth * scale),

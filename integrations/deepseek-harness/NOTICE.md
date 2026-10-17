@@ -25,6 +25,8 @@ reversible choice (see `README.md` §8).
 
 The plugin imports **nothing** from `dsh` at runtime: it uses Node's standard library only and
 subscribes to the documented emit-mode session events by name.
+Question detection additionally reads the already-materialized native metadata cache
+inspected in installed Desktop 0.2.0-rc.2; no host implementation is redistributed.
 
 ## Dependencies
 

@@ -104,10 +104,18 @@ public sealed class ProjectResolver
     public int CacheCount { get { lock (_gate) return _cache.Count; } }
 
     /// <summary>Resolves one task workspace root. Never throws and never guesses.</summary>
-    public ProjectAssignment Resolve(string? workspaceRoot, string? explicitProjectKey = null)
+    public ProjectAssignment Resolve(string? workspaceRoot, string? explicitProjectKey = null, bool isStandaloneChat = false)
     {
         // Composition shares this resolver across independently polling adapters.
-        lock (_gate) return ResolveCore(workspaceRoot, explicitProjectKey);
+        lock (_gate)
+        {
+            var assignment = ResolveCore(workspaceRoot, explicitProjectKey);
+            // The adapter proves the managed standalone workspace. Keep stronger
+            // configured/Git evidence and keep the ordinary cache independent of it.
+            return isStandaloneChat && assignment.Resolution == ProjectResolution.WorkspaceRoot
+                ? new ProjectAssignment(ProjectDescriptor.IndependentChats, ProjectResolution.IndependentChat, "independent-chat")
+                : assignment;
+        }
     }
 
     private ProjectAssignment ResolveCore(string? workspaceRoot, string? explicitProjectKey)

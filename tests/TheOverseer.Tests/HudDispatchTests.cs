@@ -347,6 +347,14 @@ public sealed class HudDispatchTests
             Assert.NotEmpty(controller.ViewModel.Tasks);
             monitor.Lifetime.SetResult();
             monitor.Push(SyntheticHudScenarios.HealthyEmpty());
+            // Completion observation can be scheduled on the worker pool. Drain
+            // the queued UI posts until that outcome arrives, not just once.
+            Assert.True(SpinUntil(() =>
+            {
+                dispatcher.DrainAll();
+                return controller.ViewModel.MonitoringUnavailable;
+            }, 5000), "completed monitor must publish its unavailable outcome");
+            monitor.Push(SyntheticHudScenarios.Mixed());
             dispatcher.DrainAll();
             Assert.True(controller.ViewModel.MonitoringUnavailable);
             Assert.Contains("UNAVAILABLE", controller.ViewModel.HealthLine);
@@ -827,26 +835,32 @@ public sealed class HudDispatchTests
             Assert.Equal(System.Windows.ResizeMode.CanResize, window.ResizeMode);
             Assert.Equal(System.Windows.WindowStyle.SingleBorderWindow, window.WindowStyle);
             Assert.False(window.Topmost);
-            window.Width = 610;
-            window.Height = 810;
+            // The fake placement layout does not override native WPF size limits.
+            // Keep this retention fixture inside the actual host work area; the
+            // scale/work-area theory above separately exercises clamping.
+            var userWidth = Math.Min(610, System.Windows.SystemParameters.WorkArea.Width - 32);
+            var userHeight = Math.Min(530, System.Windows.SystemParameters.WorkArea.Height - 32);
+            window.Width = userWidth;
+            window.Height = userHeight;
             controller.ViewModel.LightSize = 128;
             controller.ViewModel.IsExpanded = false;
             Assert.True(controller.ViewModel.IsExpanded);
-            Assert.InRange(window.Width, 609, 611);
-            Assert.InRange(window.Height, 809, 811);
+            Assert.InRange(window.Width, userWidth - 1, userWidth + 1);
+            Assert.InRange(window.Height, userHeight - 1, userHeight + 1);
             controller.ToggleTopmost();
             Assert.True(window.Topmost);
             controller.ToggleWindowView();
             Assert.False(controller.ViewModel.IsExpanded);
             Assert.Equal(originalWidth + 96, window.Width);
             controller.ToggleWindowView();
-            Assert.InRange(window.Width, 609, 611);
-            Assert.InRange(window.Height, 809, 811);
+            Assert.InRange(window.Width, userWidth - 1, userWidth + 1);
+            Assert.InRange(window.Height, userHeight - 1, userHeight + 1);
             Assert.True(window.Topmost);
             StaTestHost.Complete(controller.ShutdownAsync());
             var saved = HudStateStore.Load(StatePath).State;
             Assert.True(saved.WindowView);
-            Assert.InRange(saved.WindowWidth, 609, 611);
+            Assert.InRange(saved.WindowWidth, userWidth - 1, userWidth + 1);
+            Assert.InRange(saved.WindowHeight, userHeight - 1, userHeight + 1);
             Assert.False(saved.IsExpanded);
             Cleanup();
         });

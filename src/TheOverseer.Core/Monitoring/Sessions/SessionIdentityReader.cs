@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using TheOverseer.Core.Models;
@@ -22,6 +23,9 @@ public sealed record SessionIdentity(
     bool HasHistoryBase,
     string DiagnosticCode)
 {
+    /// <summary>Exact observed Desktop Work managed standalone-directory evidence.</summary>
+    public bool IsStandaloneWorkspace { get; init; }
+
     public static SessionIdentity Empty(string diagnostic) => new(
         false, string.Empty, string.Empty, string.Empty, ClientSurface.Unknown, string.Empty, string.Empty, string.Empty,
         false, false, false, diagnostic);
@@ -191,7 +195,11 @@ public static class SessionIdentityReader
                 isInternal,
                 payload.TryGetProperty("parent_thread_id", out var parent) && parent.ValueKind == JsonValueKind.String,
                 payload.TryGetProperty("history_base", out var historyBase) && historyBase.ValueKind == JsonValueKind.Object,
-                id.Length > 0 ? "ok" : "missing-id");
+                id.Length > 0 ? "ok" : "missing-id")
+            {
+                IsStandaloneWorkspace = string.Equals(originator, "codex_work_desktop", StringComparison.OrdinalIgnoreCase)
+                    && IsStandaloneWorkDirectory(workspaceRoot),
+            };
         }
         catch (JsonException)
         {
@@ -249,6 +257,17 @@ public static class SessionIdentityReader
         }
 
         return true;
+    }
+
+    private static bool IsStandaloneWorkDirectory(string normalizedRoot)
+    {
+        // Local metadata only. A Desktop surface or prompt-shaped basename alone
+        // is insufficient: require the managed Documents/Codex/date/chat layout.
+        var segments = normalizedRoot.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 5
+            && string.Equals(segments[^4], "documents", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[^3], "codex", StringComparison.OrdinalIgnoreCase)
+            && DateOnly.TryParseExact(segments[^2], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
     }
 
     // The VS Code extension writes source=vscode for both surfaces, so the

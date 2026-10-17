@@ -17,9 +17,11 @@ public static class HudText
 
     public static string State(AgentTaskState state) => state switch
     {
-        AgentTaskState.NeedsInput => "NEEDS_INPUT",
-        AgentTaskState.NeedsApproval => "NEEDS_APPROVAL",
-        _ => state.ToString().ToUpperInvariant(),
+        AgentTaskState.NeedsInput => "Needs input",
+        AgentTaskState.NeedsApproval => "Needs approval",
+        AgentTaskState.Done => "Completed",
+        AgentTaskState.Error => "Failed",
+        _ => state.ToString(),
     };
 
     /// <summary>Big number for one count value: "3", "3+", or "?".</summary>
@@ -205,7 +207,7 @@ public static class HudText
         var marks = new List<string>(4);
         if (task.NeedsHuman && task.State == AgentTaskState.Working)
         {
-            marks.Add("needs you soon");
+            marks.Add("question pending");
         }
 
         if (task.IsStale)
@@ -255,7 +257,7 @@ public static class HudText
     public static string ShortHarness(string harnessId) => HarnessIds.Normalize(harnessId) switch
     {
         HarnessIds.Codex => "Codex",
-        HarnessIds.Dsh => "dsh",
+        HarnessIds.Dsh => "DSH",
         HarnessIds.Claude => "Claude",
         var other => other,
     };

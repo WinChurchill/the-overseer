@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace TheOverseer.Core.Models;
 
-/// <summary>How a task was attached to its project. Ordered weakest to strongest.</summary>
+/// <summary>Evidence used to attach a task to its project or independent-chat group.</summary>
 public enum ProjectResolution
 {
     Unassigned = 0,
@@ -10,6 +10,7 @@ public enum ProjectResolution
     GitRoot = 2,
     ConfiguredRoot = 3,
     Explicit = 4,
+    IndependentChat = 5,
 }
 
 /// <summary>
@@ -65,6 +66,14 @@ public sealed record ProjectDescriptor(
         "Unassigned",
         string.Empty,
         ProjectResolution.Unassigned);
+
+    public static ProjectDescriptor IndependentChats { get; } = new(
+        ProjectId.FromKey("project:independent-chats"),
+        "Independent chats",
+        string.Empty,
+        ProjectResolution.IndependentChat);
+
+    public bool IsIndependentChats => Resolution == ProjectResolution.IndependentChat;
 
     public bool IsUnassigned => Resolution == ProjectResolution.Unassigned || Id.IsUnassigned;
 

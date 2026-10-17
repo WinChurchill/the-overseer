@@ -89,6 +89,77 @@
         </ControlTemplate></Setter.Value>
       </Setter>
     </Style>
+    <!-- Keep the native ComboBox behaviour, with the same palette on its face,
+         popup and item states. Dynamic resources also follow a live theme swap. -->
+    <Style x:Key="RecentHoursItem" TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="ComboBoxItem">
+          <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsHighlighted" Value="True">
+          <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource BackgroundBaseBrush}" />
+        </Trigger>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource BackgroundBaseBrush}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="RecentHoursSelector" TargetType="ComboBox">
+      <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Padding" Value="7,4" />
+      <Setter Property="ItemContainerStyle" Value="{StaticResource RecentHoursItem}" />
+      <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="ComboBox">
+          <Grid>
+            <ToggleButton Focusable="False" ClickMode="Press"
+                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+              <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="Face" CornerRadius="6" BorderThickness="1"
+                        Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                        BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}">
+                  <TextBlock Text="▾" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,7,0"
+                             Foreground="{DynamicResource MutedBrush}" />
+                </Border>
+              </ControlTemplate></ToggleButton.Template>
+            </ToggleButton>
+            <ContentPresenter IsHitTestVisible="False" Margin="7,4,23,4" VerticalAlignment="Center"
+                              Content="{TemplateBinding SelectionBoxItem}"
+                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False"
+                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+              <Border x:Name="PopupSurface" MinWidth="{TemplateBinding ActualWidth}" CornerRadius="6" Padding="2"
+                      Background="{DynamicResource PanelSurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" CanContentScroll="True">
+                  <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+              <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="HistoryToggle" TargetType="ToggleButton">
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
       <Setter Property="FontFamily" Value="{DynamicResource MetadataFontFamily}" />
@@ -252,7 +323,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="Header" Background="Transparent" BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}">
+                    BorderThickness="0" Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
@@ -261,6 +332,7 @@
               </Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter TargetName="Header" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+                <Setter TargetName="Header" Property="BorderThickness" Value="1" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -391,7 +463,7 @@
         </Button.ContextMenu>
         <Grid>
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" SharedSizeGroup="TaskNumbers" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
@@ -418,10 +490,26 @@
                        FontFamily="{DynamicResource MetadataFontFamily}"
                        FontSize="{DynamicResource FontSizeMeta}"
                        Foreground="{DynamicResource MutedBrush}" />
-            <ToggleButton Style="{StaticResource HistoryToggle}" Content="History" Margin="0,2,0,0"
+            <ToggleButton Content="History" Margin="0,2,0,0"
                           IsChecked="{Binding IsHistoryOpen, Mode=TwoWay}"
                           automation:AutomationProperties.Name="{Binding HistoryAutomationName}"
-                          ToolTip="{Binding HistoryAutomationName}" />
+                          ToolTip="{Binding HistoryAutomationName}">
+              <ToggleButton.Style>
+                <Style TargetType="ToggleButton" BasedOn="{StaticResource HistoryToggle}">
+                  <!-- Reserve space and keyboard access while quieting repeated labels. -->
+                  <Setter Property="Opacity" Value="0" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                      <Setter Property="Opacity" Value="1" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                      <Setter Property="Opacity" Value="1" />
+                    </DataTrigger>
+                    <Trigger Property="IsChecked" Value="True"><Setter Property="Opacity" Value="1" /></Trigger>
+                  </Style.Triggers>
+                </Style>
+              </ToggleButton.Style>
+            </ToggleButton>
           </StackPanel>
         </Grid>
       </Button>
@@ -432,6 +520,7 @@
          also where the shared axis and legend appear. -->
     <DataTemplate x:Key="ProjectRowTemplate">
       <StackPanel>
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -458,7 +547,7 @@
                            FontFamily="{DynamicResource PrimaryFontFamily}"
                            FontSize="{DynamicResource FontSizeBody}" FontWeight="SemiBold"
                            Foreground="{DynamicResource ForegroundBrush}" />
-                <TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap" Margin="0,1,0,0"
+                <TextBlock Text="{Binding SummaryText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SummaryText}" Margin="0,1,0,0"
                            FontFamily="{DynamicResource MetadataFontFamily}"
                            FontSize="{DynamicResource FontSizeMeta}"
                            Foreground="{DynamicResource MutedBrush}" />
@@ -471,6 +560,7 @@
                         automation:AutomationProperties.Name="{Binding HistoryAutomationName}"
                         ToolTip="{Binding HistoryAutomationName}" />
         </Grid>
+        </Border>
         <ItemsControl x:Name="ProjectHistory" ItemsSource="{Binding Bins}" Margin="14,4,12,4"
                       ItemsPanel="{StaticResource ActivityBinsPanel}"
                       ItemTemplate="{StaticResource ActivityBinTemplate}"
@@ -545,10 +635,24 @@
                 </Style>
               </Button.Style>
             </Button>
-            <Button x:Name="MuteButton" Style="{StaticResource HudIconButton}"
-                    Content="{Binding MuteGlyph}" Command="{Binding ToggleMuteCommand}"
+            <Button x:Name="MuteButton" Command="{Binding ToggleMuteCommand}"
                     automation:AutomationProperties.Name="{Binding MuteTooltip}"
-                    ToolTip="{Binding MuteTooltip}" Margin="0,0,2,0" />
+                    ToolTip="{Binding MuteTooltip}" Margin="0,0,2,0">
+              <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource HudIconButton}">
+                  <Setter Property="Foreground" Value="{DynamicResource AccentPrimaryBrush}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMuted}" Value="True"><Setter Property="Foreground" Value="{DynamicResource MutedBrush}" /></DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Style>
+              <Grid Width="13" Height="15">
+                <Path Data="M 6,1 C 4,1 4,2 4,3 L 4,7 C 4,9 8,9 8,7 L 8,3 C 8,2 8,1 6,1 M 2,6 L 2,8 C 2,12 10,12 10,8 L 10,6 M 6,11 L 6,14 M 3,14 L 9,14"
+                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" />
+                <Path Data="M 1,1 L 12,14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4"
+                      Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}" />
+              </Grid>
+            </Button>
             <Button x:Name="ExpandButton" Style="{StaticResource HudIconButton}"
                     Content="{Binding ExpandGlyph}" Click="OnToggleExpandedClick"
                     automation:AutomationProperties.Name="Expand or collapse the task list"
@@ -567,7 +671,7 @@
                    automation:AutomationProperties.Name="{Binding SummaryText}">
           <Button Style="{StaticResource SummarySectionButton}" Command="{Binding ShowAttentionCommand}"
                   automation:AutomationProperties.Name="Needs you - show tasks that need you"
-                  ToolTip="Show the tasks that need you, including async requests on working tasks">
+                  ToolTip="Show tasks that need you, including async requests. + means at least this many observed tasks; coverage is incomplete. ? means unavailable.">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="{Binding NeedsHumanCountText}" VerticalAlignment="Center"
                          FontFamily="{DynamicResource PrimaryFontFamily}"
@@ -583,7 +687,7 @@
                   </Style>
                 </TextBlock.Style>
               </TextBlock>
-              <TextBlock Text="NEED YOU" Margin="5,0,0,2" VerticalAlignment="Bottom"
+              <TextBlock Text="Needs you" Margin="5,0,0,2" VerticalAlignment="Bottom"
                          FontFamily="{DynamicResource MetadataFontFamily}"
                          FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
                          Foreground="{DynamicResource MutedBrush}" />
@@ -595,13 +699,13 @@
                      Foreground="{DynamicResource BorderBrush}" />
           <Button Style="{StaticResource SummarySectionButton}" Command="{Binding ShowWorkingCommand}"
                   automation:AutomationProperties.Name="Working - show tasks that are working"
-                  ToolTip="Show the tasks that are working now">
+                  ToolTip="Show tasks working now. + means at least this many observed tasks; coverage is incomplete. ? means unavailable.">
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="{Binding WorkingCountText}" VerticalAlignment="Center"
                          FontFamily="{DynamicResource PrimaryFontFamily}"
                          FontSize="{DynamicResource FontSizeCount}" FontWeight="Bold"
                          Foreground="{DynamicResource ForegroundBrush}" />
-              <TextBlock Text="WORKING" Margin="5,0,0,2" VerticalAlignment="Bottom"
+              <TextBlock Text="Working" Margin="5,0,0,2" VerticalAlignment="Bottom"
                          FontFamily="{DynamicResource MetadataFontFamily}"
                          FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
                          Foreground="{DynamicResource MutedBrush}" />
@@ -673,7 +777,7 @@
             <RadioButton x:Name="RecentTab" Content="Recent" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsRecentView}" />
             <RadioButton x:Name="SessionTab" Content="This session" GroupName="TaskView" Style="{StaticResource TaskViewTab}" IsChecked="{Binding IsSessionView}" />
             <!-- The Recent window is an explicit choice, not a hidden cycling gesture. -->
-            <ComboBox x:Name="RecentHoursBox" Margin="6,2,0,0" MinWidth="56" VerticalAlignment="Center"
+            <ComboBox x:Name="RecentHoursBox" Style="{StaticResource RecentHoursSelector}" Margin="6,2,0,0" MinWidth="56" VerticalAlignment="Center"
                       ItemsSource="{Binding RecentHourOptions}"
                       SelectedItem="{Binding SelectedRecentHours, Mode=TwoWay}"
                       ItemStringFormat="{}{0}h"
@@ -717,7 +821,7 @@
 
         <Grid Grid.Row="4">
           <Grid>
-            <ItemsControl x:Name="ProjectList" ItemsSource="{Binding Projects}"
+            <ItemsControl x:Name="ProjectList" ItemsSource="{Binding Projects}" Grid.IsSharedSizeScope="True"
                           ItemTemplate="{StaticResource ProjectRowTemplate}" />
             <TextBlock Text="{Binding EmptyStateText}" Margin="14,4,14,10" TextWrapping="Wrap"
                        Visibility="{Binding HasTasks, Converter={StaticResource InverseBoolToVisibility}}"

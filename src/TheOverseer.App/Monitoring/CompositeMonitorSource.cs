@@ -90,6 +90,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
     private readonly IReadOnlyList<IAgentMonitorAdapter> _adapters;
     private readonly IMonitorLog _log;
     private readonly TimeProvider _timeProvider;
+    private readonly DisplayTaskNumbers _displayNumbers;
     private readonly object _gate = new();
     private readonly Dictionary<string, SourceSnapshot> _latest = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _receivedAt = new(StringComparer.Ordinal);
@@ -131,6 +132,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
         _adapters = enabled;
         _log = log ?? NullMonitorLog.Instance;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _displayNumbers = new(_timeProvider);
         _current = MonitoringSnapshot.Empty(_timeProvider.GetUtcNow());
         foreach (var adapter in _adapters)
         {
@@ -225,6 +227,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
             }
             catch (InvalidOperationException)
             {
+                _log.Write(MonitorLogLevel.Warning, "source-reconcile-failed");
             }
         }
 
@@ -384,6 +387,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
             }
 
             var capabilities = MonitorCapabilities.Aggregate(readable);
+            _displayNumbers.Assign(tasks, transitions, now);
             var counts = ComputeCounts(tasks, coverage && anyReadable, anyReadable);
             if (tasks.Any(task => !task.IsStale && task.State == AgentTaskState.Working)) _allCompleteArmed = true;
             if (_allCompleteArmed && coverage && anyReadable && tasks.Count > 0 &&
@@ -447,7 +451,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
     /// </summary>
     private static IReadOnlyList<AttentionEvent> DedupeTransitions(List<AttentionEvent> transitions, bool coverageComplete)
     {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<(AttentionEventKind, TaskKey, string, long, string)>();
         var result = new List<AttentionEvent>(transitions.Count);
         foreach (var transition in transitions)
         {
@@ -456,8 +460,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
                 continue;
             }
 
-            var identity = transition.Kind + ":" + transition.Key + ":" + transition.TurnId + ":" +
-                           transition.ObservedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture) + ":" + transition.Code;
+            var identity = (transition.Kind, transition.Key, transition.TurnId,
+                transition.ObservedAt.ToUnixTimeMilliseconds(), transition.Code);
             if (seen.Add(identity))
             {
                 result.Add(transition);
@@ -482,6 +486,7 @@ public sealed class CompositeMonitorSource : IMonitorSource
             }
             catch (InvalidOperationException)
             {
+                _log.Write(MonitorLogLevel.Warning, "source-dispose-failed");
             }
         }
     }

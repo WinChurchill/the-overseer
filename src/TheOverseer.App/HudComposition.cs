@@ -39,6 +39,9 @@ internal sealed record HudCompositionOverrides
     /// <summary>Replaces the HUD window factory for isolated, non-activating checks.</summary>
     public Func<HudWindow>? WindowFactory { get; init; }
 
+    /// <summary>Test-only tray availability; lets a hidden check avoid a real tray icon.</summary>
+    public bool? TrayAvailableOverride { get; init; }
+
     /// <summary>
     /// Replaces the window state loaded from disk. Only used to steer a windowed check
     /// off the display in use; shutdown persists only to the check's isolated directory.
@@ -183,7 +186,8 @@ internal static class HudComposition
             arguments.StartInTray,
             !arguments.NoTray,
             Persistence: null,
-            Notifications: notifications);
+            Notifications: notifications,
+            TrayAvailableOverride: overrides?.TrayAvailableOverride);
 
         return (dependencies, configResult, stateResult);
     }

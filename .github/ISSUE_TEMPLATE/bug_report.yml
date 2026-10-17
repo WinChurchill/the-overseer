@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a reproducible OVERSEER problem using sanitized evidence.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "For security issues use Security → Report a vulnerability after that private route is enabled. Never attach raw sessions, credentials or full settings."
+  - type: input
+    id: identity
+    attributes:
+      label: Application version and ZIP SHA-256
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows build, display scale and host/app/engine versions
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and expected / observed behavior
+      description: Include source-health reason codes and whether isolated data reproduces it. Sanitize names, paths and IDs.
+    validations:
+      required: true

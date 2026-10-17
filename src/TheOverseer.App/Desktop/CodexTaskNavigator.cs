@@ -26,17 +26,41 @@ public interface ITaskLaunchBoundary
 
 public sealed class ShellTaskLaunchBoundary : ITaskLaunchBoundary
 {
+    private readonly ITaskLaunchBoundary _shell;
+    private readonly ITaskLaunchBoundary _packaged;
+
+    public ShellTaskLaunchBoundary(ITaskLaunchBoundary? shell = null, ITaskLaunchBoundary? packaged = null)
+    {
+        _shell = shell ?? new WindowsShellTaskLaunchBoundary();
+        _packaged = packaged ?? new PackagedCodexTaskLaunchBoundary();
+    }
+
     public bool TryLaunch(Uri uri, out string? errorCode)
     {
         try
         {
-            using var handler = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey("codex");
-            if (handler?.GetValue("URL Protocol") is null)
-            {
-                errorCode = "no-handler";
-                return false;
-            }
+            if (_shell.TryLaunch(uri, out errorCode)) return true;
+            // Store protocol associations do not necessarily have a classic command
+            // registration. Ask Windows to activate the specific verified Codex app.
+            if (errorCode != "no-handler") return false;
+            return _packaged.TryLaunch(uri, out errorCode);
+        }
+        catch (Exception)
+        {
+            // A task click runs on the UI thread with no global handler: whatever
+            // a launch route throws must surface as a visible failed launch.
+            errorCode = "launch-exception";
+            return false;
+        }
+    }
+}
 
+internal sealed class WindowsShellTaskLaunchBoundary : ITaskLaunchBoundary
+{
+    public bool TryLaunch(Uri uri, out string? errorCode)
+    {
+        try
+        {
             var process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
             {
                 UseShellExecute = true,
@@ -45,9 +69,9 @@ public sealed class ShellTaskLaunchBoundary : ITaskLaunchBoundary
             errorCode = null;
             return true;
         }
-        catch (System.ComponentModel.Win32Exception)
+        catch (System.ComponentModel.Win32Exception exception)
         {
-            errorCode = "no-handler";
+            errorCode = exception.NativeErrorCode == 1155 ? "no-handler" : "shell-launch-failed";
             return false;
         }
         catch (InvalidOperationException)

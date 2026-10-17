@@ -64,11 +64,15 @@ public sealed class HudVoiceStatusTests
                 Assert.Null(window.FindName("CollapsedActivityChart"));
 
                 var mute = (System.Windows.Controls.Button)window.FindName("MuteButton")!;
-                Assert.Equal("V", mute.Content);
+                var icon = Assert.IsType<System.Windows.Controls.Grid>(mute.Content);
+                var mutedSlash = Assert.IsType<System.Windows.Shapes.Path>(icon.Children[1]);
+                Assert.Equal(Visibility.Collapsed, mutedSlash.Visibility);
+                Assert.Contains("enabled", System.Windows.Automation.AutomationProperties.GetName(mute));
 
                 viewModel.ToggleMuteCommand.Execute(null);
                 window.UpdateLayout();
-                Assert.Equal("M", ((System.Windows.Controls.Button)window.FindName("MuteButton")!).Content);
+                Assert.Equal(Visibility.Visible, mutedSlash.Visibility);
+                Assert.Contains("muted", System.Windows.Automation.AutomationProperties.GetName(mute));
             }
             finally
             {

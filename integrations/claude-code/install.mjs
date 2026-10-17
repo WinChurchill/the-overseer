@@ -142,7 +142,7 @@ function main() {
     process.stdout.write(`  marker   : ${MARKER}\n`);
     process.stdout.write(`  events   : ${events.length} (${events.join(', ')})\n`);
     if (verification?.code === 'verified') {
-      process.stdout.write(`  verified : ran the hook command once; it wrote a ${verification.recordKind} record\n`);
+      process.stdout.write(`  verified : ${verification.attempts} probe attempt(s); wrote a ${verification.recordKind} record\n`);
     }
     if (plan.untouchedOwnedEvents.length > 0) {
       process.stdout.write(`  note     : OVERSEER entries exist for events outside this install: ${plan.untouchedOwnedEvents.join(', ')}\n`);

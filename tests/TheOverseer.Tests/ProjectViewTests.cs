@@ -49,6 +49,90 @@ public sealed class ProjectViewTests
     }
 
     [Fact]
+    public void StartupHydrationRevealsWorkingProjectWithoutAProjectClick()
+    {
+        var project = Project("loading");
+        var waitingForHydration = Task("startup-task", project, state: AgentTaskState.Idle, stale: true);
+        var vm = View(waitingForHydration);
+        Assert.Empty(vm.Projects);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            waitingForHydration with { State = AgentTaskState.Working, IsStale = false },
+        }));
+        var row = Assert.Single(vm.Projects);
+        Assert.True(row.IsExpanded);
+        Assert.True(Assert.Single(row.Tasks).IsProjectExpanded);
+        Assert.Equal(1, row.WorkingCount);
+    }
+
+    [Fact]
+    public void CollapseAllWhileStartupIsLoadingSurvivesHydration()
+    {
+        var task = Task("startup-task", Project("loading"), state: AgentTaskState.Idle, stale: true);
+        var vm = View(task);
+        vm.SetAllProjectsExpanded(false);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            task with { State = AgentTaskState.Working, IsStale = false },
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Theory]
+    [InlineData(AgentTaskState.Done)]
+    [InlineData(AgentTaskState.Idle)]
+    public void StartupHydrationKeepsSettledProjectsCollapsed(AgentTaskState state)
+    {
+        var task = Task("startup-task", Project("loading"), state: AgentTaskState.Idle, stale: true);
+        var vm = View(task);
+        vm.TaskView = "recent";
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            task with { State = state, IsStale = false },
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Fact]
+    public void ExplicitCollapseWhileStartupIsLoadingSurvivesHydration()
+    {
+        var project = Project("loading");
+        var task = Task("startup-task", project, state: AgentTaskState.Idle, stale: true);
+        var vm = View(task);
+        vm.TaskView = "recent";
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+        vm.SetProjectExpanded(project.Id, false);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            task with { State = AgentTaskState.Working, IsStale = false },
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Fact]
+    public void IndependentChatsRemainSeparateTasksInsideANeutralNonProjectHeading()
+    {
+        var vm = View(
+            Task("independent-one", ProjectDescriptor.IndependentChats),
+            Task("independent-two", ProjectDescriptor.IndependentChats),
+            Task("repository-chat", Project("owner-repository")));
+        var group = Assert.Single(vm.Projects, row => row.IsIndependentChats);
+        Assert.Equal("Independent chats", group.Name);
+        Assert.Equal(2, group.Tasks.Count);
+        Assert.Equal(2, group.Tasks.Select(row => row.Key).Distinct().Count());
+        Assert.DoesNotContain("project", group.ToggleAutomationName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("project", group.HistoryAutomationName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, vm.Projects.Count);
+        vm.ToggleProject(group);
+        vm.ApplySnapshot(VoiceTestData.Snapshot(Now.AddSeconds(1), new[]
+        {
+            Task("independent-one", ProjectDescriptor.IndependentChats),
+            Task("independent-two", ProjectDescriptor.IndependentChats),
+        }));
+        Assert.False(Assert.Single(vm.Projects).IsExpanded);
+    }
+
+    [Fact]
     public void ProjectRowsAreOrderedAttentionThenActiveThenUnassignedLast()
     {
         var viewModel = View(
@@ -235,7 +319,7 @@ public sealed class ProjectViewTests
         Assert.Contains("2 working", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.Contains("0 needs you", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.Contains("Codex", row.ProjectGroupMeta, StringComparison.Ordinal);
-        Assert.Contains("dsh", row.ProjectGroupMeta, StringComparison.Ordinal);
+        Assert.Contains("DSH", row.ProjectGroupMeta, StringComparison.Ordinal);
         Assert.DoesNotContain("partial", row.ProjectGroupMeta, StringComparison.Ordinal);
     }
 

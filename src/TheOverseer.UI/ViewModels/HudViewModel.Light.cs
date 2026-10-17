@@ -14,8 +14,12 @@ public sealed partial class HudViewModel
         if (LightVisible) { _lastLightPosition = LightPosition; LightPosition = "off"; }
         else LightPosition = _lastLightPosition;
     });
-    public string LightToggleText => LightVisible ? "LIGHT ON" : "LIGHT OFF";
-    public string LightToggleTooltip => LightVisible ? "Hide status light" : "Show status light";
+    public string LightToggleText => LightVisible ? "Light · " + (StatusKind switch
+    {
+        "attention" => "Needs you", "working" => "Working", "error" => "Failed",
+        "unavailable" => "Offline", "uncertain" => "Limited", _ => "Idle",
+    }) : "Light off";
+    public string LightToggleTooltip => LightVisible ? "Status light: " + StatusHeadline + ". Click to hide." : "Show status light";
     public string LightPosition
     {
         get => _lightPosition;

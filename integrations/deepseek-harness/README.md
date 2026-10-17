@@ -5,14 +5,17 @@ inside the user's existing `dsh` process and copies **allowlisted status metadat
 message text — into an OVERSEER-owned local spool. OVERSEER reads the spool as plain files and
 never imports dsh code.
 
-**Status: experimental; not yet qualified with a live desktop session.** The original
-contract was pinned to 0.1.7-rc.1 below. On 2026-09-29 the target installation was
-confirmed as **DSH Desktop 0.2.0-rc.2**, using its dedicated `desktop` profile.
+**Status: experimental; question detection needs an owner retest.** The original
+contract was pinned to 0.1.7-rc.1 below. The target installation is
+**DSH Desktop 0.2.0-rc.2**, using its dedicated `desktop` profile.
 The installed session module still exposes `session/created`, `session/event`,
 `session/disposed`, `Session.header`, `Session.seq`, `eventAt()` and
-`ctx.sessions.list()`. This is source inspection, not an end-to-end qualification.
-The desktop profile does not currently list `overseer-dsh-observer` as a dependency
-or bundle. The observer has not been installed into or run against that profile.
+`ctx.sessions.list()`. The observer was installed into that profile on 2026-10-05;
+the owner confirmed live permission escalation and resume. Producer **1.1.0** adds
+blocking and timed question tracking; actual host question behavior is still pending.
+Installation is once per host profile. A linked install loads updated code on host
+restart; it does not need reinstalling with every OVERSEER download. A copied install
+must retain its permanent directory and be deliberately updated while the host is quit.
 
 ---
 
@@ -74,7 +77,7 @@ order; unknown keys are never added, and unset values are `null`.
 | `evidence` | string | `explicit` \| `inferred` \| `unknown` |
 | `outcome` | string \| null | `completed` \| `aborted` \| `error` \| `ok` \| `failed` \| `null` |
 | `hydration` | boolean | `true` marks replayed/current-state records so OVERSEER can suppress voice |
-| `producerVersion` | string | `dsh-observer/1.0.0` |
+| `producerVersion` | string | `dsh-observer/1.1.0` |
 
 **Kind allowlist:** `session/start`, `session/end`, `turn/start`, `turn/end`, `tool/start`,
 `tool/end`, `approval/asked`, `approval/decided`, `input/asked`, `input/answered`, `plan/mode`,
@@ -95,7 +98,7 @@ opened):
 | `turn/end` reason `max-tokens` / `blocked` / `forked` | `turn/end` | `unknown` | `aborted` | idem |
 | `turn/end` reason `interrupted` | `turn/end` | `error` | `aborted` | idem |
 | `turn/end` reason outside the known set | `turn/end` | `unknown` | `null` | `evidence = unknown` |
-| `tool/call` | `tool/start` | `working` | `null` | `data.turn`, `data.callId` (never `name`, never `arguments`) |
+| `tool/call` | `tool/start` | `working` | `null` | `data.turn`, `data.callId`; exact `name` classifies questions, never exported; arguments never read |
 | `tool/result` | `tool/end` | `working` | `ok` / `failed` from `message.isError` | `data.turn`, `data.message.toolCallId`, `data.message.isError` (never `content`, never `meta`) |
 | `approval/asked` | `approval/asked` | `waiting` | `null` | `data.id`, `data.callId` (never `toolName`, never `reason`) |
 | `approval/decided` | `approval/decided` | `working` \| `idle` \| `error` | `ok` \| `failed` \| `aborted` \| `error` | `data.id`, `data.outcome` |
@@ -108,6 +111,20 @@ opened):
 
 A failed tool (`tool/end` + `outcome: failed`) is **not** a task failure: it stays local to that
 record and leaves the turn open.
+
+Producer 1.1.0 also emits `input/asked` and `input/answered` with both `callId` and
+`requestId` equal to the real `ask_user_question` call ID. Blocking calls settle on
+their own result/end. Timed calls remain pending across results and turn completion
+until DSH's native active set removes them (a queued reply is insufficient).
+Only `timed`, active IDs, `open`/`continued` states and a cursor are inspected.
+The installed `dsh-session-projection` and `dsh-user-questions` 0.2.0-rc.2 sources
+establish the guarded `registrations.get('userQuestions').cells.get(session)` cache
+layout and question state version 2. This is an internal, version-specific seam:
+there is no call to `stateOf()`, native wire validation, full-log fold or answerer.
+Missing/stale/changed/oversized metadata preserves known waits and sets
+`inputStateComplete: false`. The consumer exposes incomplete coverage.
+Cold blocking recovery reads at most 256 trailing events; a missing turn boundary
+leaves coverage incomplete. Timed recovery uses the already-materialized native cache.
 
 ## 4. Behaviour rules
 
@@ -177,7 +194,7 @@ plugin so the profile bundle is loaded.
   "harnessId": "dsh",
   "sourceInstanceId": "dsh-default",
   "sourceEpoch": "dsh-12345-abc-def",
-  "producerVersion": "dsh-observer/1.0.0",
+  "producerVersion": "dsh-observer/1.1.0",
   "updatedAtUtc": "2026-01-01T00:00:00.000Z",
   "evictedSessions": 0,
   "sessions": [
@@ -185,6 +202,7 @@ plugin so the profile bundle is loaded.
       "sessionId": "…", "parentSessionId": null, "projectRoot": "C:\\work",
       "createdAtUtc": "…", "firstSeenUtc": "…", "lastObservedUtc": "…",
       "openTurnId": "dsh:…:turn:3", "planMode": false, "pendingApprovalRequestId": null,
+      "pendingInputRequestIds": [], "inputStateComplete": true,
       "category": "working", "disposed": false,
       "lastSequence": 42, "lastHostSeq": 40, "lastKind": "tool/start",
       "lastEventId": "dsh:…:42", "records": 43
@@ -281,9 +299,12 @@ and `queueDepth` should return to zero. An empty host should publish a `snapshot
 with `sessions: []`.
 
 Restart OVERSEER after installing the bridge. In a real Desktop session, check
-working -> waiting for approval/input -> resumed -> completed/aborted, and verify
+working -> waiting for approval -> resumed -> completed/aborted, and verify
 that OVERSEER reports those states without capturing message bodies or changing
-any approval decision. Test detach and relaunch as well. Record the exact Desktop
+any approval decision. Observer 1.1.0 also detects Desktop 0.2.0-rc.2 question
+metadata: test question -> correlated reply -> resumed, timed continuation and
+quiet restart. Missing or changed question metadata reduces coverage; other host
+versions need qualification. Test detach and relaunch as well. Record the exact Desktop
 version and source/spool identity. Until that run exists, the bridge is experimental.
 
 ### Remove
@@ -321,7 +342,7 @@ or read the harness credential store. Local contract tests use isolated spools.
 
 ```sh
 cd integrations/deepseek-harness
-node --test
+node --test --test-concurrency=1
 ```
 
 Plain Node (`node --test`, Node >= 20). No dependencies, no package install, no TypeScript build
@@ -345,12 +366,13 @@ a worker-thread reader; `fixtures/` holds sanitized synthetic event shapes.
 
 ## 11. Known limitations
 
-- **`input/asked` and `input/answered` are reserved, not emitted.** The pinned `dsh` logs no session
-  event for a human question: the only input seam is the user-question waterfall, which this
-  observer must not intercept. The kinds stay in the allowlist for a future emit-mode seam.
+- **Question support is version-specific.** 1.0.0 does not emit question events and remains
+  Unsupported. 1.1.0 targets the inspected Desktop 0.2.0-rc.2 cache. A host update that changes
+  its shape/version can degrade question coverage until requalified. At most 32 pending IDs
+  are accepted per session; an oversized native set is never treated as a complete empty set.
 - **`thinking` is reserved, not emitted.** Reasoning text is never read, so the observer cannot
   distinguish "thinking" from "working" inside an open turn: an open turn reports `working`, or
-  `waiting` while an approval is pending. `planning` is emitted only by an explicit `plan/mode`
+  `waiting` while an approval or question is pending. `planning` is emitted only by an explicit `plan/mode`
   record (see §4).
 - **Lineage is in `current.json`, not in a record.** The normalized key list is frozen at 19 keys;
   `parentSessionId` is exported in the current-state document.

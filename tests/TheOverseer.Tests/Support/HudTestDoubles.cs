@@ -220,33 +220,34 @@ public sealed class FakeClipboardWriter : IClipboardWriter
 /// <summary>Queued dispatcher so coalescing can be tested without a message loop.</summary>
 public sealed class QueuedUiDispatcher : IUiDispatcher
 {
-    private readonly Queue<Action> _queue = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Action> _queue = new();
+    private int _postCount;
 
-    public int PostCount { get; private set; }
+    public int PostCount => Volatile.Read(ref _postCount);
 
     public bool CheckAccess() => true;
 
     public void Post(Action action)
     {
-        PostCount++;
         _queue.Enqueue(action);
+        Interlocked.Increment(ref _postCount);
     }
 
     public int PendingCount => _queue.Count;
 
     public void DrainAll()
     {
-        while (_queue.Count > 0)
+        while (_queue.TryDequeue(out var action))
         {
-            _queue.Dequeue()();
+            action();
         }
     }
 
     public void DrainOne()
     {
-        if (_queue.Count > 0)
+        if (_queue.TryDequeue(out var action))
         {
-            _queue.Dequeue()();
+            action();
         }
     }
 }

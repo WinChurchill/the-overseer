@@ -224,7 +224,7 @@ internal static class HudIntegrationCheckRunner
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            Check("integration-check-run", false, exception.GetType().Name + ": " + exception.Message);
+            Check("integration-check-run", false, exception.GetType().Name);
         }
         finally
         {

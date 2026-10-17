@@ -89,6 +89,161 @@ function fakeLiveSession(entry) {
   }
 }
 
+function questionHost(t, { timed = false, active = [], events = [] } = {}) {
+  const session = fakeSession('question-session')
+  session.seq = events.length
+  session.eventAt = (index) => events[index]
+  const cells = new WeakMap()
+  const privateField = { get() { throw new Error('PRIVATE CONTENT OPENED') } }
+  function cache(ids, mode = timed, cursor = session.seq - 1) {
+    const entries = ids.map((callId) => Object.defineProperty({ callId, state: 'continued' }, 'questions', privateField))
+    const questions = Object.defineProperty({ active: entries }, 'settled', privateField)
+    cells.set(session, { observedSeq: cursor, state: { timed: mode, questions } })
+  }
+  cache(active)
+  const ctx = fakeContext({
+    sessions: { list: () => [session] },
+    sessionProjections: {
+      registrations: new Map([['userQuestions', { cells, def: { stateVersion: 2 } }]]),
+      stateOf() { throw new Error('UNBOUNDED FOLD CALLED') },
+      cachedSnapshot() { throw new Error('PRIVATE WIRE VIEW OPENED') },
+    },
+  })
+  const observer = createObserver({ spoolRoot: tempRoot('questions'), currentMinIntervalMs: 0, now: () => t0 })
+  t.after(() => observer.dispose())
+  observer.attach(ctx)
+  async function send(type, data, ids = [], mode = timed) {
+    const event = { type, data, seq: session.seq++, time: t0 }
+    events.push(event)
+    ctx.emit('session/event', session, event)
+    // Deliberately drive native metadata AFTER our listener.
+    cache(ids, mode)
+    await Promise.resolve()
+    observer.spool.flushSync()
+    return event
+  }
+  function records() { observer.spool.flushSync(); return readRecords(observer.spool.eventsPath) }
+  return { session, ctx, cells, observer, cache, send, records, privateField }
+}
+
+test('blocking questions use real call IDs without opening question or answer content', async (t) => {
+  const h = questionHost(t)
+  await h.send('turn/start', { turn: 1 })
+  const call = Object.defineProperty({ turn: 1, callId: 'q1', name: 'ask_user_question' }, 'arguments', h.privateField)
+  await h.send('tool/call', call)
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, ['q1'])
+  assert.equal(h.observer.state.inspect(h.session.id).category, 'waiting')
+  const result = Object.defineProperty({ toolCallId: 'q1', isError: false }, 'content', h.privateField)
+  await h.send('tool/result', { turn: 1, message: result })
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, [])
+  const inputs = h.records().filter((r) => r.kind.startsWith('input/'))
+  assert.deepEqual(inputs.map((r) => [r.kind, r.requestId]), [['input/asked', 'q1'], ['input/answered', 'q1']])
+  assert.ok(inputs.every((r) => r.callId === 'q1' && r.producerVersion === 'dsh-observer/1.1.0'))
+  assert.equal(h.observer.health().internalErrors, 0)
+})
+
+test('timed questions survive tool results and completed turns until their admitted reply', async (t) => {
+  const h = questionHost(t, { timed: true })
+  await h.send('turn/start', { turn: 1 })
+  await h.send('tool/call', { turn: 1, callId: 'q1', name: 'ask_user_question' }, ['q1'])
+  await h.send('tool/result', { turn: 1, message: Object.defineProperty({ toolCallId: 'q1' }, 'content', h.privateField) }, ['q1'])
+  await h.send('turn/end', { turn: 1, reason: 'completed' }, ['q1'])
+  assert.equal(h.observer.state.inspect(h.session.id).category, 'waiting')
+  assert.equal(h.observer.state.inspect(h.session.id).openTurn, null)
+  await h.send('turn/start', { turn: 2 }, ['q1'])
+  await h.send('tool/call', { turn: 2, callId: 'q2', name: 'ask_user_question' }, ['q1', 'q2'])
+  // Merely queued replies cannot clear the native active set.
+  await h.send('agent/inbox/claimed', Object.defineProperty({}, 'message', h.privateField), ['q1', 'q2'])
+  await h.send('user/message', Object.defineProperty({}, 'content', h.privateField), ['q2'])
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, ['q2'])
+  await h.send('user/message', {}, [])
+  assert.deepEqual(h.records().filter((r) => r.kind === 'input/answered').map((r) => r.requestId), ['q1', 'q2'])
+})
+
+test('a timed tool call rejected by the native question fold raises no false attention', async (t) => {
+  const h = questionHost(t, { timed: true })
+  await h.send('turn/start', { turn: 1 })
+  await h.send('tool/call', { turn: 1, callId: 'invalid', name: 'ask_user_question' }, [])
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, [])
+  assert.deepEqual(h.records().filter((r) => r.kind === 'input/asked'), [])
+})
+
+test('cold attach restores timed and bounded blocking questions silently', async (t) => {
+  const timed = questionHost(t, { timed: true, active: ['continued'], events: [
+    { type: 'turn/end', seq: 0, data: { turn: 1 } },
+  ] })
+  assert.deepEqual(timed.observer.state.currentDocument().sessions[0].pendingInputRequestIds, ['continued'])
+  assert.ok(timed.records().filter((r) => r.kind === 'input/asked').every((r) => r.hydration))
+  const blocking = questionHost(t, { events: [
+    { type: 'turn/start', seq: 0, data: { turn: 1 } },
+    { type: 'tool/call', seq: 1, data: { turn: 1, callId: 'blocking', name: 'ask_user_question' } },
+  ] })
+  assert.deepEqual(blocking.observer.state.currentDocument().sessions[0].pendingInputRequestIds, ['blocking'])
+  assert.equal(blocking.observer.state.currentDocument().sessions[0].inputStateComplete, true)
+})
+
+test('missing, stale and overflowing native metadata preserve known attention and disclose incomplete coverage', async (t) => {
+  const h = questionHost(t, { timed: true })
+  await h.send('turn/start', { turn: 1 })
+  await h.send('tool/call', { turn: 1, callId: 'q1', name: 'ask_user_question' }, ['q1'])
+  for (const invalid of [undefined,
+    { observedSeq: -1, state: { timed: true, questions: { active: [] } } },
+    { observedSeq: h.session.seq - 1, state: { timed: true, questions: { active: Array.from({ length: 33 }, (_, i) => ({ callId: 'q' + i, state: 'open' })) } } },
+    { observedSeq: h.session.seq - 1, state: { timed: true, questions: { active: [{ callId: 'q1', state: 'invalid' }] } } },
+  ]) {
+    h.cells.set(h.session, invalid)
+    h.observer.publishHeartbeat()
+    assert.equal(h.observer.state.inspect(h.session.id).inputStateComplete, false)
+    assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, ['q1'])
+  }
+  h.cache([])
+  h.observer.publishHeartbeat()
+  assert.equal(h.observer.state.inspect(h.session.id).inputStateComplete, true)
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, [])
+})
+
+test('blocking cancellation, unrelated results and disposal clear only the matching pending request', async (t) => {
+  const h = questionHost(t)
+  await h.send('turn/start', { turn: 1 })
+  await h.send('tool/call', { turn: 1, callId: 'q1', name: 'ask_user_question' })
+  await h.send('tool/result', { turn: 1, message: { toolCallId: 'unrelated', isError: true } })
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, ['q1'])
+  await h.send('tool/result', { turn: 1, message: { toolCallId: 'q1', isError: true } })
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, [])
+  await h.send('tool/call', { turn: 1, callId: 'q2', name: 'ask_user_question' })
+  await h.send('turn/end', { turn: 1, reason: 'aborted' })
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, [])
+  await h.send('turn/start', { turn: 2 })
+  await h.send('tool/call', { turn: 2, callId: 'q3', name: 'ask_user_question' })
+  h.ctx.emit('session/disposed', h.session)
+  assert.deepEqual(h.observer.state.inspect(h.session.id).pendingInputRequestIds, [])
+  assert.equal(h.observer.state.inspect(h.session.id).category, 'idle')
+})
+
+test('cold blocking history outside the scan bound stays incomplete without a full-log read', (t) => {
+  const events = Array.from({ length: 400 }, (_, seq) => ({ type: 'unrelated', seq }))
+  events[0] = { type: 'turn/start', seq: 0, data: { turn: 1 } }
+  const h = questionHost(t, { events })
+  assert.equal(h.observer.state.currentDocument().sessions[0].inputStateComplete, false)
+})
+
+test('pending-question and deferred-event overflow cannot regain false complete coverage', async (t) => {
+  const h = questionHost(t)
+  await h.send('turn/start', { turn: 1 })
+  for (let i = 0; i < 33; i++) await h.send('tool/call', { turn: 1, callId: 'q' + i, name: 'ask_user_question' })
+  assert.equal(h.observer.state.inspect(h.session.id).pendingInputRequestIds.length, 32)
+  h.observer.publishHeartbeat()
+  assert.equal(h.observer.state.inspect(h.session.id).inputStateComplete, false)
+  const batch = questionHost(t)
+  for (let i = 0; i < 150; i++) {
+    const event = { type: i === 0 ? 'turn/start' : 'tool/call', seq: batch.session.seq++, data: { turn: 1, callId: 'c' + i, name: 'ordinary_tool' } }
+    batch.ctx.emit('session/event', batch.session, event)
+  }
+  batch.cache([])
+  await Promise.resolve()
+  assert.equal(batch.observer.state.inspect(batch.session.id).inputStateComplete, false)
+})
+
 test('(a) host callbacks never throw when the spool target is unwritable', async (t) => {
   const root = tempRoot('unwritable')
   const blocker = join(root, 'blocker')

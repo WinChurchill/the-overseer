@@ -1,13 +1,89 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: repository assessment remediation, 2026-09-29.
-Review branch: `fix/repo-assessment`.
-Baseline main: `82e15e31da1bc3d37a8b080118f85efd9d86cdb4`.
-Status: automated review **PASS WITH NONBLOCKING NOTES**; accepted for local merge.
+Plan: RC21 source review and merge follow-up, 2026-10-17.
+Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
+Status: **SOURCE REVIEW PASSED WITH NONBLOCKING NOTES; RELEASE GATES OPEN.**
 Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
-Execution packet: ignored `.agent/HANDOFF.md`; completed disposition recorded there.
-Review role completed by Codex in this chat; this is not an independent second-agent review.
+Private [repository](https://github.com/WinChurchill/the-overseer); original history/RC14 preserved.
+Whole-branch review: [PR #1](https://github.com/WinChurchill/the-overseer/pull/1).
+Source-only follow-up contains Windows task-launch exceptions; five regression cases added; absent from RC21 ZIP.
+Local rebuild/probe pass; testhost parent access/NuGet audit restricted. Fresh hosted Verify is the merge gate.
+- CI RC21 source `c227dd9`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343),
+  SHA256 `AC9AAEDC540744AD19FE45136EA8BFC16DC9C0E9349B053A4133CFDEA64FF2EA`.
+- Clean source: build0 warnings/errors;773 .NET/39 DSH/33 Claude pass.
+  [Hosted Verify](https://github.com/WinChurchill/the-overseer/actions/runs/38212808823) passes.
+  Exact ZIP46 pass/0 fail/0 deferrals; integration17/composition42;
+  RC8 upgrade/rollback25/25 each HUD/Window; secondary DISPLAY43 dpi96 passes.
+- Exact-byte synthetic hour3603s/448 cycles,14/14; peak private147.3MiB,
+  growth48.0MiB/CPU1.29% one core; exit0/no kill. Actual-host hour unverified.
+- Claude atomic identity/budget/fresh-record probe races fixed; docs/CI/site hardened.
+  Initial failed fixtures/CI attempts preserved; original wrapper FAIL is reconciled.
+- RC21 native save/genuine reopen, settings-open Exit and hide/restore pass;
+  two final exit0/no-kill receipts. Separate verified owner launcher/data prepared.
+- Native Now34 before input, independent grouping, passive partial/full reply clearing,
+  themes/Recent menus/filter copy/edge resize pass;540 update samples,0 focus takeovers.
+- RC21 includes empty-filter/footer fixes. Stale accessibility cache was falsified
+  by fresh screenshots; experimental dispatcher changes/tracing discarded. Prior evidence retained.
+- Packet: `artifacts/prepublication/rc21-qualification/owner-handoff/`; external release checks remain open.
+
+## Owner feedback — 2026-10-05
+- RC9: missing selected pack caused silent Preview; actual offline English speech
+  synthesis/validated WAV passes in isolated data. Use Windows speech explicitly;
+  audible owner retest remains pending. Saved provider choices were preserved.
+- DSH observer installed via Desktop bundled manager after owner confirmed full quit,
+  with private profile backups. Relaunch now publishes fresh health, no drops/errors.
+  Production discovery/reader accepts the live stream (21 records, one session);
+  Adapter reads one idle task with complete current coverage and a late-attach history
+  gap. Owner confirmed live approval/resume; RC11 question detection was Unsupported.
+- Recent ComboBox face/popup/item states themed; standalone Desktop Work managed
+  folders resolve to Independent chats, with mappings/Git taking precedence.
+- An older app-copy question is superseded; the later live HUD check showed this
+  chat without attention. RC12 says question pending; no answer was fabricated.
+- Claude's 15 hooks emit work/completion records and its row is visible. Isolated
+  execution/idempotence pass; real input/permission and independent-machine checks pending.
+- RC12 shortcut uses separate writable test settings and real streams; saving verified.
+
+## New DSH question review fix
+- Observer 1.1.0 targets Desktop 0.2.0-rc.2 cached metadata, including timed continuation.
+  Correlated replies and quiet restart recovery work; missing metadata reduces coverage.
+- Native installed-code synthetic contract and real reader fixtures pass; DSH 39/39,
+  Claude 29/29; Release 741 pass/0 fail/skip, recorded in owner-feedback/question-fix-tests.
+- Linked observer updated after owner-confirmed full quit; real question retest pending.
+  Codex approvals remain Unsupported; no publication/merge.
+- Prior RC12 source `68c2d619`, package and owner kit preserved; see RELEASE_READINESS.
+
+## RC13 cleanup and qualification
+- Known Codex function-output envelope no longer makes live coverage uncertain;
+  synthetic hydration/append and read-only live Now projection pass. Full H3 pending.
+- Shared canonical display numbers cover task rows and attention/history/voice edges;
+  cohesive partial files, UI polish and 34-catch audit complete; opt-in diagnostics kept.
+- Clean source `c0ced607ff5ab9ab7df9e10f7c0ea13eff5cde67`; ZIP 76,915,148 bytes, 591 files/90 integrations.
+  SHA-256 `45A9F3F2D91B65DCDC91F25A896EEE49FF29B9DE55F49EC4BFBA71DF7B0E27AA`.
+- Clean build 0 warnings/errors; 749 .NET, DSH 39 and Claude 29 pass. Exact ZIP:
+  42 pass/0 fail/3 activation deferrals; integration 17/17, composition 42/42, 48 renders.
+- No focus takeover/546 samples; scaling and RC12 upgrade/rollback pass in both modes.
+  Gitleaks 8.30.1 history (202 commits), source/payload clear; site 85/12 checks pass.
+- Fresh RC13 folder/shortcut prepared with separate settings; RC12 not replaced.
+  Owner kit binds 16 PENDING checks to RC13; RC12 kit archived. No scratch deletion.
+- Same-chat review PASS WITH NONBLOCKING NOTES; not independent review/public approval.
+
+## Prior RC11 execution results
+- RC11 source `8b1d345`, ZIP/evidence and owner-feedback/rc11-owner-kit preserved.
+- Release 727 tests; exact ZIP 42/0/3, bridges DSH 30/Claude 29; detailed evidence
+  remains in RELEASE_READINESS. Prior resource probes do not satisfy live H15.
+
+## Pre-publication plan
+- Owner selected GitHub source/Releases **and a project website**; proposed GitHub Pages.
+- Current runbook: [release readiness](RELEASE_READINESS.md), P1–P8 / H1–H16 / L1–L10.
+- Audit source/history/privacy and dependencies; qualify actual desktop bridges;
+  prepare current public docs/static site/SEO; build one final hash-bound candidate;
+  collect hosted CI, owner hands-on and clean-machine results; then seek public approval.
+- Initial preflight gaps in public docs, screenshots, site and scan evidence were
+  addressed in RC9; private source/hosted CI are verified, public URLs remain pending.
+- Private source upload/account/history scope are authorized; signing/public exposure
+  and custom domain remain decisions. Public deployment/announcement is not authorized.
+- Prior verification below belongs to its named revisions, not this new plan.
 
 ## Scope and decisions
 - Owner selected MIT for original code/docs, including AGENTS.md and the V1 spec,
@@ -21,21 +97,18 @@ Review role completed by Codex in this chat; this is not an independent second-a
   Publication, signing and channel choices are deferred until qualification.
 - Codex approval detection stays explicitly **Unsupported**, by owner decision.
   Async question detection and correlated answer clearing remain supported.
-- Hosted CI and external release qualification are not claimed as complete.
+- Hosted CI passed prior staging; final-byte/public qualification remains pending.
 
 ## Completed implementation
-- Main fast-forwarded by 146 commits from `663caf5` to `82e15e3`;
-  `ux/first-use` retained and assessment snapshot committed in `ca9906b`.
+- Main advanced from `663caf5` to `82e15e3`; `ux/first-use` and assessment `ca9906b` retained.
 - Added Windows CI: SDK from global.json, Node 24, Release/xUnit, both bridges,
   report/comparison controls and mocked upgrade-placement controls.
 - Header menu reduced to eight actions; tray to six actions plus status.
   Both read actual shared menu state. Appearance/startup/reset/minimize are in settings.
 - Removed unused count-chart control, geometry and projection. Bounded history,
   live task/project hour strips, unknown/partial semantics and voice remain.
-- Archived the entire old ledger intact; current state stays below 200 lines.
-  README consistently identifies RC8 and documents a standard Windows build.
-- Added original-project MIT license and license scope; new archives include LICENSE,
-  upstream MIT and runtime notices. Artwork and frozen specification were not changed.
+- Archived the old ledger intact; current ledger stays at most 200 lines.
+- Added project MIT/license scope; archives include project/upstream/runtime notices.
 - Fixed the existing headless smoke-report error: focus observations are initialized
   even when visible lifecycle checks are skipped.
 
@@ -63,7 +136,7 @@ Evidence: `artifacts/remediation-verification/`, including logs, TRX, renders,
 headless/windowed evidence and private-package manifest. Development failures remain.
 Fresh-clone verification uses this machine's installed SDK and existing package cache
 via environment/PATH; the cloned repository needs no adjacent ../.tools directory.
-Hosted CI is pending: the main repository has no configured Git remote.
+Hosted CI was pending for that historical run; private staging now has a verified pass.
 
 ## Private verification archive
 `1.0.0-dev.remediation+2567976`, unsigned, clean source, 569 payload files,
@@ -98,51 +171,31 @@ All 393 qualification files were preserved and hash-verified under
 full patch mappings and per-file hashes are in `artifacts/retired-worktrees/preservation.json`.
 The merge gate has passed; unrelated historical branches are retained.
 
-## Desktop integration follow-up (2026-09-29)
-- Installed DSH Desktop: 0.2.0-rc.2; bundled Node 24.18.1, protocol 4.
-  Dedicated `.dsh/profiles/desktop` currently has no observer dependency/bundle.
-  Installed session emit seams and list/header/sequence APIs match by source inspection.
-  Use Desktop's Plugins page or its matching bundled CLI while fully quit; do not
-  use a separately installed terminal DSH to manage this profile.
-- Owner uses Claude Code in a desktop/editor app. Windows Claude package 2.9939.2.0
-  is installed; this does not establish the embedded Code engine version.
-  Official docs confirm shared Code hook settings and our command/args exec form.
-  A standalone CLI on PATH is not required. WSL/SSH/cloud spool routing is unqualified.
-- Both suites rechecked: DSH 30/30, Claude 29/29. READMEs now target these workflows.
-  No live profile/settings were changed; actual session invocation is still untested.
-- Standalone bridge directories carry MIT LICENSE files, and the DSH package declares
-  MIT and includes its license. Publisher requires both files in new archives.
+## Desktop integration follow-up (historical 2026-09-29)
+- Source inspection: Desktop 0.2.0-rc.2, Node 24.18.1, protocol 4; session emit APIs match.
+  At that date no observer was installed. The 2026-10-05 installation supersedes it.
+- Claude desktop package 2.9939.2.0 installed; Code engine version not independently queried.
+  Shared user hook settings/command-args verified; standalone CLI not required.
+  WSL/SSH/cloud routing unqualified. Both suites then passed DSH 30 / Claude 29.
+- Standalone bridges are MIT and carry LICENSE; publisher requires both license files.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.
-- Hosted Windows CI after a remote is configured.
+- RC21 bytes qualified; final1.0/signing need a new CI archive and qualification.
 - Clean Windows/browser download/SmartScreen, no-runtime and independent-machine checks.
 - Real DSH Desktop / Claude Code bridge activation, interaction and teardown;
   hosts are installed but both bridges remain experimental.
-- Physical Snap/drag/DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
-- Intentional activation and human tray interaction; excluded from this smoke run.
+- Physical Snap/mixed DPI, sleep/wake, monitor reconnect, audible/device and logon checks.
+- Activation and native header Exit pass; actual tray-menu interaction remains.
 - Signing/distribution choice and public channel, explicitly deferred by owner.
 - Codex approvals intentionally unsupported pending a separately qualified connection.
 
-## Automated review — 2026-09-29
-Verdict: **PASS WITH NONBLOCKING NOTES** against baseline main `82e15e3`.
-- Reviewed menu/state synchronization, startup failure handling, settings bindings,
-  tray fallback, chart removal, retained history/voice behavior and smoke evidence.
-- Monitoring, voice policy, frozen spec, artwork bytes and upstream license are unchanged.
-  All nine retired-branch commits remain reachable; old ledger is preserved byte-for-byte.
-- Fresh build/tests and revision-specific full-duration packaged results support the change.
-  Hosted CI, real desktop session behavior and physical checks remain unexecuted, explicit notes.
-- Final follow-up: both bridge suites pass again; publisher and archive license checks pass.
-  Claude installer preview applied nothing and left Windows user settings absent.
-
 ## Commits and next action
-- `5393442`: menu/settings and dead-chart cleanup.
-- `74bb348`: license, CI, build instructions and documentation/history.
-- `d0186a8`, `9eb6220`: preserve original agent histories without stale source adoption.
-- `2567976`: align the settings fixture with its rendered theme.
-- `92a5473`: fix evidence generation for skipped visible checks.
-- `5916556`: owner-confirmed MIT artwork scope, bridge licenses and desktop setup.
+- Original remediation commit identities remain in IMPLEMENTATION_HISTORY and
+  preserved local refs; GitHub normalization is documented in PRIVATE_GITHUB_STAGING.
 
 The complete pre-remediation ledger is in [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
-Next: hosted Windows CI and real desktop bridge qualification, followed by the owner's
-hands-on and clean-machine tests. Publication remains deferred until those gates pass.
+Next: five owner work blocks; exact48-clause checklist has29 PASS,14 OWNER_ACTION,
+2 NEEDS_ACCESS,1 intentionally Unsupported and2 preserved context failures.
+Use the current owner packet, then seek concrete L5 publication approval.
+Source merge state is recorded in PR #1. No public release has been approved.

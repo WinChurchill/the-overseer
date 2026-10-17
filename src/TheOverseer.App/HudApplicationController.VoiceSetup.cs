@@ -82,7 +82,10 @@ public sealed partial class HudApplicationController
             }
             catch (OperationCanceledException) { }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-            { row.Status = "Could not import. Choose a valid local WAV, at most 15 seconds / 4 MiB."; }
+            {
+                Log(MonitorLogLevel.Warning, "voice-import-unavailable");
+                row.Status = "Could not import. Choose a valid local WAV, at most 15 seconds / 4 MiB.";
+            }
             finally { _importing = false; }
         };
         window.ClearRequested += row =>
@@ -191,7 +194,10 @@ public sealed partial class HudApplicationController
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-        { row.Status = "Recording unavailable — assign a valid WAV."; }
+        {
+            Log(MonitorLogLevel.Warning, "voice-recording-unavailable");
+            row.Status = "Recording unavailable — assign a valid WAV.";
+        }
     }
 
     private async Task PreviewRecording(VoiceSetupRow row)
@@ -213,7 +219,9 @@ public sealed partial class HudApplicationController
             var outcome = await Task.Run(() => preview.PreviewAsync(row.Definition.Kind, cancellation.Token));
             if (!outcome.ClipCreated)
             {
-                row.Status = "No playable recording (" + outcome.Code + "). Assign a WAV or choose another provider.";
+                row.Status = CurrentVoiceSettings.ResolvedProvider == VoiceProviderKind.Pack
+                    ? "No playable recording (" + outcome.Code + "). Click Use Windows speech or assign a WAV."
+                    : "No playable recording (" + outcome.Code + "). Check the provider or assign a WAV.";
                 return;
             }
 
@@ -221,7 +229,10 @@ public sealed partial class HudApplicationController
         }
         catch (OperationCanceledException) { row.Status = "Preview stopped."; }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or HttpRequestException or InvalidOperationException)
-        { row.Status = "Preview unavailable. Check the recording or audio device."; }
+        {
+            Log(MonitorLogLevel.Warning, "voice-preview-unavailable");
+            row.Status = "Preview unavailable. Check the recording or audio device.";
+        }
         catch (Exception)
         {
             Log(MonitorLogLevel.Warning, "voice-preview-failed");

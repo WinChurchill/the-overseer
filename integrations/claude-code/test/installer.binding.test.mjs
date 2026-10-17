@@ -128,6 +128,8 @@ function invokeRecordedHandler(handler, spoolRoot) {
     stderr: run.stderr ?? '',
     directory,
     records: directory ? readRecords(directory) : [],
+    health: directory && fs.existsSync(path.join(directory, 'health.json'))
+      ? readJson(path.join(directory, 'health.json')).counters : null,
   };
 }
 
@@ -258,6 +260,9 @@ test('the generated hook command actually runs after rebinding to a new extracti
   const previews = [];
   for (const { event, handler } of reboundHandlers) {
     const result = invokeRecordedHandler(handler, spoolRoot);
+    assert.equal(result.status, 0, `${event} hook must exit 0`);
+    assert.equal(result.records.length, previews.length + 1,
+      `${event} must publish a new record; earlier records cannot certify this invocation. Health: ${JSON.stringify(result.health)}`);
     previews.push({ event, handler, result });
   }
 
@@ -272,7 +277,7 @@ test('the generated hook command actually runs after rebinding to a new extracti
     assert.equal(record.harnessId, 'claude');
     assert.equal(record.sessionId, 'fixture-session-0001');
     assert.equal(record.kind, 'session/start');
-    assert.equal(record.producerVersion, 'overseer-claude-bridge/1.0.0');
+    assert.equal(record.producerVersion, 'overseer-claude-bridge/1.0.2');
     assert.ok(Number.isInteger(record.sequence) && record.sequence >= 1);
   }
 
