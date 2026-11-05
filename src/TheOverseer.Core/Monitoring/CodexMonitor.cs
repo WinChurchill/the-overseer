@@ -338,10 +338,17 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         }
 
         var trackedKeys = new HashSet<TaskKey>();
+        var uncertainKeys = new HashSet<TaskKey>();
         foreach (var file in _tracked.Values)
         {
-            if (file.EvidenceGap) { reasons.Add(HealthReasons.IncompleteCoverage); coverageComplete = false; }
-            if (file.FailureCode is null && file.IdentityResolved && file.Hydrated && !file.HydrationLimited && !file.EvidenceGap) trackedKeys.Add(file.Key);
+            if (file.EvidenceGap)
+            {
+                reasons.Add(HealthReasons.IncompleteCoverage);
+                if (file.EvidenceGapReason is { } reason) reasons.Add(reason);
+                coverageComplete = false;
+            }
+            if (file.EvidenceGap || file.HydrationLimited || !file.Hydrated) uncertainKeys.Add(file.Key);
+            if (file.FailureCode is null && file.IdentityResolved && file.Hydrated) trackedKeys.Add(file.Key);
         }
 
         _reducer.SetTrackedKeys(trackedKeys);
@@ -351,7 +358,23 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
             _attention.MarkHydrationComplete();
         }
 
-        var tasks = _reducer.Snapshot(now);
+        // Source membership/freshness and state coverage are independent. A
+        // schema gap must qualify known requests, not turn them into absent rows.
+        var reduced = _reducer.Snapshot(now);
+        if (reduced.Any(static task => task.IsStateUncertain))
+        {
+            reasons.Add(HealthReasons.PendingRequestLimit);
+            coverageComplete = false;
+        }
+        var tasks = reduced.Select(task => task with
+        {
+            IsStateUncertain = task.IsStateUncertain || uncertainKeys.Contains(task.Key),
+        }).ToArray();
+        if (tasks.Any(static task => task.HasUnconfirmedInput))
+        {
+            reasons.Add("async-input-status-unconfirmed");
+            coverageComplete = false;
+        }
         var staleCount = tasks.Count(static task => task.IsStale);
         var provisionalCount = tasks.Count(static task => task.IsProvisional);
         if (staleCount > 0)

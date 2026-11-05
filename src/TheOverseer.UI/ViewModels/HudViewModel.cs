@@ -53,6 +53,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         _recentHours = normalized.RecentHours;
         _lightPosition = normalized.LightPosition;
         _lightSize = normalized.LightSize;
+        _focusPins = normalized.FocusPins;
         _sessionStartedAt = sessionStartedAt ?? DateTimeOffset.UtcNow;
         _viewNow = _sessionStartedAt;
         ShowCurrentTasksCommand = new RelayCommand(() => { TaskView = "now"; IsExpanded = true; });

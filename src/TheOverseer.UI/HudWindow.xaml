@@ -820,6 +820,22 @@
         </StackPanel>
 
         <Grid Grid.Row="4">
+          <StackPanel>
+            <Border Margin="14,4,14,10" Padding="10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    Visibility="{Binding HasFocusPins, Converter={StaticResource BoolToVisibility}}">
+              <StackPanel>
+                <TextBlock Text="FOCUS · YOUR PINNED OBJECTIVES" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                <ItemsControl ItemsSource="{Binding FocusPins}">
+                  <ItemsControl.ItemTemplate><DataTemplate>
+                    <StackPanel Margin="0,6,0,0" ToolTip="{Binding Reason}">
+                      <TextBlock Text="{Binding Project}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding Objective}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding NextStep}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
           <Grid>
             <ItemsControl x:Name="ProjectList" ItemsSource="{Binding Projects}" Grid.IsSharedSizeScope="True"
                           ItemTemplate="{StaticResource ProjectRowTemplate}" />
@@ -829,6 +845,7 @@
                        FontSize="{DynamicResource FontSizeBody}"
                        Foreground="{DynamicResource MutedBrush}" />
           </Grid>
+          </StackPanel>
         </Grid>
 
         <!-- Feedback for navigation, tray, startup and save failures. It sits at the

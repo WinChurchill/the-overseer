@@ -1,0 +1,55 @@
+{
+  "generator": "Generate-KokoroPack.py",
+  "voice": "af_heart",
+  "speed": 0.96,
+  "language": "en-us",
+  "modelSha256": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a",
+  "voicesSha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+  "clips": {
+    "permission_required": {
+      "script": "Your approval is needed.",
+      "durationMs": 1603,
+      "sha256": "0fbf48921d527b6820b529a7d08f84e7992b80f915571a4a912820789590192b"
+    },
+    "input_required": {
+      "script": "A task needs your input.",
+      "durationMs": 1720,
+      "sha256": "d0afea4fdb7490393ba7643dca39e1027e537f7333abcede74417e6f3fb1831d"
+    },
+    "task_error": {
+      "script": "A task ran into a problem.",
+      "durationMs": 1902,
+      "sha256": "4c6d1478ffd29a0cf73eff3a0f07198eb4d7a9b8a49aeab23f40f224c962e8b3"
+    },
+    "task_complete": {
+      "script": "Task complete.",
+      "durationMs": 1266,
+      "sha256": "167d381f0a2aafea79d4acf8a1269752d6999b3dc838cb087261904d147224a9"
+    },
+    "all_tasks_complete": {
+      "script": "All tasks are finished.",
+      "durationMs": 1549,
+      "sha256": "818d590e1de612118e7558c002bb9ed083d21e219711005556764fa58ccfd37a"
+    },
+    "monitoring_lost": {
+      "script": "Monitoring connection lost.",
+      "durationMs": 1868,
+      "sha256": "14881a9018fac7d7c4df6dd21ee833955096924b92212f0139e43faa98bf3b99"
+    },
+    "monitoring_restored": {
+      "script": "Monitoring is back online.",
+      "durationMs": 1955,
+      "sha256": "510728adfb18b8fdab834cf14a1630d7975e439431d0e8d0548dce208e935353"
+    },
+    "still_waiting": {
+      "script": "A task is still waiting for you.",
+      "durationMs": 1956,
+      "sha256": "e3f605b76cb689317fd58462f3452efa020b6bfd6a4046f5ae179da5a430fd4a"
+    },
+    "system_online": {
+      "script": "System online.",
+      "durationMs": 1297,
+      "sha256": "6562470ee7783b32315e2f012d1f54ac360c6b70808e175f84609d720d289f8c"
+    }
+  }
+}

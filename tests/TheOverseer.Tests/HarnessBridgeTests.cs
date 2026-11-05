@@ -54,6 +54,72 @@ public sealed class HarnessBridgeTests
         return result.Record!;
     }
 
+    [Theory]
+    [InlineData("input")]
+    [InlineData("approval")]
+    public void ClaudeCallIdentityPreservesRequestsUntilTheirMatchingDecision(string requestKind)
+    {
+        var source = new SourceInstance(HarnessIds.Claude, "claude-test", "Claude");
+        var session = new HarnessBridgeSession(source);
+        HarnessBridgeRecord Record(long sequence, string kind, string? callId = null) => Parse(Line(sequence, kind)) with
+        {
+            HarnessId = HarnessIds.Claude, SourceInstanceId = source.SourceInstanceId, CallId = callId,
+        };
+        session.Apply(Record(1, "session/start"));
+        session.Apply(Record(2, "turn/start"));
+        session.Apply(Record(3, requestKind + "/asked", "question-call"));
+        var pending = Assert.Single(session.Tasks(Start.AddSeconds(3)));
+        Assert.True(pending.NeedsHuman);
+        Assert.Equal(requestKind == "input" ? AgentTaskState.NeedsInput : AgentTaskState.NeedsApproval, pending.State);
+        session.Apply(Record(4, "tool/start", "unrelated"));
+        session.Apply(Record(5, "heartbeat")); // Child-agent notifications are liveness only.
+        session.Apply(Record(6, requestKind == "input" ? "input/answered" : "approval/decided", "unrelated"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(6))).NeedsHuman);
+        session.Apply(Record(7, requestKind == "input" ? "input/answered" : "approval/decided", "question-call"));
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(7))).NeedsHuman);
+        Assert.Equal(AgentTaskState.Working, Assert.Single(session.Tasks(Start.AddSeconds(7))).State);
+    }
+
+    [Theory]
+    [InlineData("input")]
+    [InlineData("approval")]
+    public void UncorrelatedClaudeRequestSurvivesUnrelatedWorkUntilTurnEnd(string requestKind)
+    {
+        var source = new SourceInstance(HarnessIds.Claude, "claude-test", "Claude");
+        var session = new HarnessBridgeSession(source);
+        HarnessBridgeRecord Record(long sequence, string kind) => Parse(Line(sequence, kind)) with
+        {
+            HarnessId = HarnessIds.Claude, SourceInstanceId = source.SourceInstanceId,
+        };
+        session.Apply(Record(1, "session/start"));
+        session.Apply(Record(2, "turn/start"));
+        session.Apply(Record(3, requestKind + "/asked"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(3))).NeedsHuman);
+        session.Apply(Record(4, "tool/start"));
+        session.Apply(Record(5, "plan/mode"));
+        session.Apply(Record(6, requestKind == "input" ? "input/answered" : "approval/decided"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(6))).NeedsHuman);
+        session.Apply(Record(7, "turn/end") with { Outcome = "completed" });
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(7))).NeedsHuman);
+    }
+
+    [Fact]
+    public void RequestCapacityLossCannotBecomeConfirmedZeroAfterKnownReplies()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "session/start")));
+        session.Apply(Parse(Line(2, "turn/start")));
+        for (var index = 0; index < 80; index++)
+            session.Apply(Parse(Line(index + 3, "input/asked", requestId: "request-" + index)));
+        for (var index = 0; index < 80; index++)
+            session.Apply(Parse(Line(index + 83, "input/answered", requestId: "request-" + index)));
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(163)));
+        Assert.True(task.NeedsHuman); // Overflow is retained as bounded uncertainty.
+        Assert.True(task.CoverageIncomplete);
+        session.Apply(Parse(Line(164, "session/end")));
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(164))).NeedsHuman);
+    }
+
     [Fact]
     public void UpgradedDshQuestionsPersistAcrossCompletionAndSettleByRequest()
     {

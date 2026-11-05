@@ -16,6 +16,32 @@ import { createObserverState } from '../src/state.js'
 
 const t0 = 1767225600000
 
+test('wire IDs preserve boundary sessions, derived IDs and request correlation without aliasing', () => {
+  const state = newState()
+  const ids = ['x'.repeat(127), 'x'.repeat(128), 'x'.repeat(128) + 'A', 'x'.repeat(128) + 'B'.repeat(128)]
+  const turns = []
+  const records = ids.map(id => {
+    state.sessionStart(id)
+    turns.push(state.observe({ sessionId: id, type: 'turn/start', seq: 0, data: { turn: 1 } }))
+    return state.observe({ sessionId: id, type: 'approval/asked', seq: 1, data: { id, callId: id } })
+  })
+  for (const field of ['sessionId', 'requestId', 'callId', 'eventId']) {
+    assert.equal(new Set(records.map(record => record[field])).size, 4)
+    assert.ok(records.every(record => record[field].length <= 128))
+  }
+  const snapshot = state.currentDocument()
+  assert.equal(new Set(turns.map(r => r.turnId)).size, 4)
+  assert.ok(turns.every(r => r.turnId.length <= 128))
+  assert.deepEqual(snapshot.sessions.map(s => s.sessionId), records.map(r => r.sessionId))
+  assert.deepEqual(snapshot.sessions.map(s => s.openTurnId), turns.map(r => r.turnId))
+  assert.deepEqual(snapshot.sessions.map(s => s.pendingApprovalRequestId), records.map(r => r.requestId))
+  ids.forEach((id, index) => {
+    const answer = state.observe({ sessionId: id, type: 'approval/decided', seq: 2, data: { id, outcome: 'allowed-once' } })
+    assert.equal(answer.requestId, records[index].requestId)
+  })
+  assert.notEqual(state.sessionStart(records[2].sessionId).sessionId, records[2].sessionId)
+})
+
 test('question reconciliation never reopens a replayed closed turn or clears a different request', () => {
   const state = newState()
   state.observe({ sessionId: 'q', type: 'turn/start', seq: 1, data: { turn: 1 } })

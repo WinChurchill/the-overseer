@@ -1,31 +1,39 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: RC21 source review and merge follow-up, 2026-10-17.
-Branch: `fix/automated-release-qualification`, based on RC14 ledger `1ff8482`.
-Status: **SOURCE REVIEW PASSED WITH NONBLOCKING NOTES; RELEASE GATES OPEN.**
-Input: [independent assessment](../.agent/REPO_STATE_ASSESSMENT.md), preserved unchanged.
-Private [repository](https://github.com/WinChurchill/the-overseer); original history/RC14 preserved.
-Whole-branch review: [PR #1](https://github.com/WinChurchill/the-overseer/pull/1).
-Source-only follow-up contains Windows task-launch exceptions; five regression cases added; absent from RC21 ZIP.
-Local rebuild/probe pass; testhost parent access/NuGet audit restricted. Fresh hosted Verify is the merge gate.
-- CI RC21 source `c227dd9`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343),
+Plan: Local alpha qualification completed, 2026-11-02; secondary screen only.
+Branch: `fix/detection-logic-cleanup`, base `63eff72`; alpha branch push authorized 2026-11-04.
+Status: **LOCAL ALPHA QUALIFIED; EXTERNAL/HOST CHECKS AND PUBLICATION OPEN.**
+- Existing work preserved; Winston authorized commit/push of this task branch only.
+- Main merge, release/tag publication and repository visibility remain unchanged.
+- Kokoro muted default, saved choices preserved; Windows synthesis passes, acoustic open.
+- Actual normal HUD Codex→Kokoro input cue heard once; no Preview/helper used.
+- Older async questions become unconfirmed after existing15m lease, IDs retained;
+  fresh questions rearm and fresh work remains current. Dismissal is not observable.
+- Claude desktop-only reader covers loaded app windows, bounded and nonactivating;
+  dedicated titles/fallback IDs; cosmetic renames; two live Idle workers named.
+- Codex agent-created/handoff chats included; genuine subagents/reviews excluded.
+- Full normal-extraction VSTest930/930, no skips; build0 warnings/errors.
+- Claude44/44, DSH40/40, fixed fixture drift and site85/13 controls pass.
+- Capture passes after native initialization/serialization; secondary test opt-in.
+- Short README retains both setup paths, larger screenshots and tester handoff.
+- Low-integrity workspace explained native Claude/speech gap; normal install passes.
+- Running alpha `.3`: names, reversible summary/divider drag and settings verified.
+- Exact alpha `.3` smoke46/46, no deferrals; cold counter fix preserves250/60ms.
+- Live Claude Code and DSH reply-only trials produced lifecycle events. Input/approval, clean-machine and physical checks remain open.
+- Public matching-source release needs reviewed main integration and exact CI asset.
+
+## Prior RC21 review baseline
+- [PR #1](https://github.com/WinChurchill/the-overseer/pull/1) merged as `63eff72`;
+  navigation exception fix `3767d4a` is absent from the older RC21 ZIP.
+- Pre-merge hosted checks: build 0 warnings/errors, 778 .NET/39 DSH/33 Claude pass.
+- Older RC21 source `c227dd9`; [package](https://github.com/WinChurchill/the-overseer/actions/runs/38212805343),
   SHA256 `AC9AAEDC540744AD19FE45136EA8BFC16DC9C0E9349B053A4133CFDEA64FF2EA`.
-- Clean source: build0 warnings/errors;773 .NET/39 DSH/33 Claude pass.
-  [Hosted Verify](https://github.com/WinChurchill/the-overseer/actions/runs/38212808823) passes.
-  Exact ZIP46 pass/0 fail/0 deferrals; integration17/composition42;
-  RC8 upgrade/rollback25/25 each HUD/Window; secondary DISPLAY43 dpi96 passes.
-- Exact-byte synthetic hour3603s/448 cycles,14/14; peak private147.3MiB,
-  growth48.0MiB/CPU1.29% one core; exit0/no kill. Actual-host hour unverified.
-- Claude atomic identity/budget/fresh-record probe races fixed; docs/CI/site hardened.
-  Initial failed fixtures/CI attempts preserved; original wrapper FAIL is reconciled.
-- RC21 native save/genuine reopen, settings-open Exit and hide/restore pass;
-  two final exit0/no-kill receipts. Separate verified owner launcher/data prepared.
-- Native Now34 before input, independent grouping, passive partial/full reply clearing,
-  themes/Recent menus/filter copy/edge resize pass;540 update samples,0 focus takeovers.
-- RC21 includes empty-filter/footer fixes. Stale accessibility cache was falsified
-  by fresh screenshots; experimental dispatcher changes/tracing discarded. Prior evidence retained.
-- Packet: `artifacts/prepublication/rc21-qualification/owner-handoff/`; external release checks remain open.
+- Exact ZIP46 checks, integration17/composition42, upgrade/rollback25/25 per mode,
+  synthetic hour14/14; source/hash-bound evidence remains in RELEASE_READINESS.
+- Native RC21 lifecycle/input/theme probes and prior failures remain in
+  `artifacts/prepublication/rc21-qualification/owner-handoff/` in the original worktree.
+- Actual-host hour, independent machine and owner release checks remain open.
 
 ## Owner feedback — 2026-10-05
 - RC9: missing selected pack caused silent Preview; actual offline English speech
@@ -170,14 +178,6 @@ All 393 qualification files were preserved and hash-verified under
 `artifacts/retired-worktrees/agent-ui/artifacts` and `agent-voice/artifacts`;
 full patch mappings and per-file hashes are in `artifacts/retired-worktrees/preservation.json`.
 The merge gate has passed; unrelated historical branches are retained.
-
-## Desktop integration follow-up (historical 2026-09-29)
-- Source inspection: Desktop 0.2.0-rc.2, Node 24.18.1, protocol 4; session emit APIs match.
-  At that date no observer was installed. The 2026-10-05 installation supersedes it.
-- Claude desktop package 2.9939.2.0 installed; Code engine version not independently queried.
-  Shared user hook settings/command-args verified; standalone CLI not required.
-  WSL/SSH/cloud routing unqualified. Both suites then passed DSH 30 / Claude 29.
-- Standalone bridges are MIT and carry LICENSE; publisher requires both license files.
 
 ## Remaining release qualification
 See [release readiness](RELEASE_READINESS.md) for protocols and revision-specific gates.

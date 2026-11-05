@@ -101,7 +101,7 @@ public sealed partial class HudViewModel
 
     /// <summary>Attention includes async needs-you on a working task, not just blocking states.</summary>
     internal static bool IsAttention(AgentTask task) =>
-        task.NeedsHuman || task.State is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput;
+        task.HasAttention;
 
     // ---- one health control ---------------------------------------------------
 

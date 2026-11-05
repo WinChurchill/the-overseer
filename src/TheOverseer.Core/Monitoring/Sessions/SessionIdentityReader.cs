@@ -40,12 +40,12 @@ public sealed record SessionIdentity(
 /// </summary>
 public static class SessionIdentityReader
 {
+    // Creation/handoff origin is not visibility: those chats belong to the user.
+    // Exclude only explicit subagent/review origins (and the source.subagent shape).
     private static readonly HashSet<string> InternalThreadSources = new(StringComparer.OrdinalIgnoreCase)
     {
         "subagent",
         "guardian_review",
-        "agent_created_thread",
-        "chatgpt_handoff",
     };
 
     public static SessionIdentity Read(string path, int maxBytes)

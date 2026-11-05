@@ -223,7 +223,7 @@ function New-SanitizedEnvironment {
     }
 
     $removed = New-Object System.Collections.ArrayList
-    foreach ($name in 'DOTNET_ROOT', 'DOTNET_ROOT(x86)', 'DOTNET_HOST_PATH', 'MSBuildSDKsPath', 'DOTNET_CLI_HOME', 'NUGET_PACKAGES', 'DOTNET_CLI_TELEMETRY_SESSIONID', 'DOTNET_STARTUP_HOOKS') {
+    foreach ($name in 'DOTNET_ROOT', 'DOTNET_ROOT(x86)', 'DOTNET_HOST_PATH', 'MSBuildSDKsPath', 'DOTNET_CLI_HOME', 'NUGET_PACKAGES', 'DOTNET_CLI_TELEMETRY_SESSIONID', 'DOTNET_STARTUP_HOOKS', 'OVERSEER_DOTNET') {
         if ($environment.ContainsKey($name)) { $environment.Remove($name); [void]$removed.Add($name) }
     }
 

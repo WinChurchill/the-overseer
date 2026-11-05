@@ -372,14 +372,14 @@ internal static class HudCompositionCheckRunner
     private static void BaselineVoiceCheck(string root, Action<string, bool, string> check)
     {
         var effective = VoiceSettings.Effective(ConfigLoadStatus.Missing, null);
-        check("missing-config-selects-offline-speech",
-            effective.ResolvedProvider == VoiceProviderKind.Speech && effective.Muted,
+        check("missing-config-selects-included-kokoro",
+            effective.ResolvedProvider == VoiceProviderKind.Pack && effective.PackId == VoiceSettings.BundledPackId && effective.Muted,
             "provider=" + effective.ProviderName + " muted=" + effective.Muted);
 
         var directory = Path.Combine(root, "baseline-voice");
         Directory.CreateDirectory(directory);
         var provider = VoiceProviderFactory.Create(directory, () => effective);
-        check("offline-speech-provider-is-constructed", provider is not null,
+        check("included-pack-provider-is-constructed", provider is not null,
             "providerType=" + (provider?.GetType().Name ?? "none"));
         check("provider-requires-no-network-endpoint", effective.Endpoint is null,
             "endpoint=" + (effective.Endpoint ?? "none"));

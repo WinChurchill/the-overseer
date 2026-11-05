@@ -180,7 +180,7 @@ public sealed class TaskViewTests
             var window = new HudWindow { DataContext = vm, Width = 360, Height = 440 };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 Assert.True(window.ShowInTaskbar);
                 Assert.False(window.ShowActivated);

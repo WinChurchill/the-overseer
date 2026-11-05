@@ -181,10 +181,17 @@ internal static class HudIntegrationCheckRunner
                 row.State.StartsWith("limited", StringComparison.Ordinal) &&
                 (row.State.Contains(HealthReasons.FileTruncated, StringComparison.Ordinal) ||
                  row.State.Contains(HealthReasons.StaleTasks, StringComparison.Ordinal))), 45);
-            codex.RemoveFile();
-            var peerSurvived = viewModel.Tasks.Any(static row => row.Key.HarnessId == HarnessIds.Dsh);
+            // The initial peer action is now older than the ten-second action
+            // lease. Publish fresh evidence while Codex is still broken: merely
+            // keeping the old row visible would defeat the production contract.
+            dsh.ApprovalAsked("peer-during-failure");
+            var peerSurvived = await WaitAsync(() => viewModel.Tasks.Any(static row =>
+                row.Key.HarnessId == HarnessIds.Dsh && !row.IsStale &&
+                row.TaskState == AgentTaskState.NeedsApproval), 30);
             Check("codex-degradation-is-disclosed", reported, Summarize(viewModel));
             Check("peer-source-survives-failure", peerSurvived, Summarize(viewModel));
+            dsh.ApprovalDecided("peer-during-failure");
+            codex.RemoveFile();
 
             dsh.Start("session-dsh-2", @"C:\synthetic\dsh-project-two");
             var lateArrival = await WaitAsync(() => viewModel.Tasks.Any(row =>

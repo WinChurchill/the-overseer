@@ -22,8 +22,10 @@ public partial class HudWindow : Window
         if (ViewModel is not { } vm) return;
         var delta = vm.LightPosition switch
         {
-            "left" => -e.HorizontalChange, "right" => e.HorizontalChange,
-            "top" => -e.VerticalChange, "bottom" => e.VerticalChange, _ => 0,
+            // The shared inner edge follows the pointer. The light's outer
+            // edge stays anchored to its dock side in the window.
+            "left" => e.HorizontalChange, "right" => -e.HorizontalChange,
+            "top" => e.VerticalChange, "bottom" => -e.VerticalChange, _ => 0,
         };
         _lightResizeSize = Math.Clamp(_lightResizeSize + delta, 6, 128);
         vm.LightSize = (int)Math.Round(_lightResizeSize);

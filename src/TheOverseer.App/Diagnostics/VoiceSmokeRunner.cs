@@ -13,8 +13,8 @@ namespace TheOverseer.App.Diagnostics;
 
 /// <summary>
 /// Finite Plan 3 voice smoke. Silent by default: it proves the pack, policy,
-/// aggregation and mute contracts with synthetic tones, synthesizes one real
-/// offline baseline script and validates it, and exercises TTS against an owned
+/// aggregation and mute contracts with synthetic tones, validates the real
+/// included Kokoro recordings, and exercises TTS against an owned
 /// loopback server. Every provider is used exactly as selected: there is no
 /// cross-provider fallback. With --audible it additionally plays through the real
 /// sound device and reports what was actually heard separately from API success.
@@ -30,7 +30,7 @@ internal static class VoiceSmokeRunner
         var packDirectory = Path.Combine(dataDirectory, VoicePackProvider.PackFolderName, "example");
         Directory.CreateDirectory(packDirectory);
 
-        Console.WriteLine("OVERSEER voice smoke (synthetic tones; no speech assets were supplied)");
+        Console.WriteLine("OVERSEER voice smoke (included Kokoro; synthetic tones for policy checks)");
         Console.WriteLine("data-directory: " + dataDirectory);
         Console.WriteLine("audible: " + (arguments.Audible ? "on (real sound device)" : "off (silent)"));
 
@@ -38,12 +38,34 @@ internal static class VoiceSmokeRunner
         Console.WriteLine("pack: " + manifest + " (synthetic PCM tones prove audio mechanics, not spoken voice)");
 
         failures += RunPackSmoke(dataDirectory, arguments.Audible);
-        failures += RunSpeechSmoke(dataDirectory, arguments.Audible);
+        failures += RunKokoroSmoke(dataDirectory, arguments.Audible);
+        if (arguments.IncludeWindowsSpeech) failures += RunSpeechSmoke(dataDirectory, arguments.Audible);
+        else Console.WriteLine("Windows speech: optional, unqualified; use --include-windows-speech to check it explicitly.");
         failures += RunTtsSmoke(arguments.Audible);
         if (arguments.Audible) failures += RunNativeCancellationSmoke();
 
         Console.WriteLine(failures == 0 ? "voice smoke: PASS" : "voice smoke: FAIL (" + failures + ")");
         return failures == 0 ? 0 : 1;
+    }
+
+    private static int RunKokoroSmoke(string dataDirectory, bool audible)
+    {
+        var settings = VoiceSettings.BaselineDefault with { Muted = false };
+        var provider = VoiceProviderFactory.Create(dataDirectory, () => settings);
+        var failures = 0;
+        foreach (var item in VoiceEventCatalog.All)
+        {
+            var clip = provider.TryCreateAsync(Candidate(item.Kind), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            var valid = clip is not null && VoicePackValidator.ValidateWav(clip.Wav).IsValid;
+            Console.WriteLine((valid ? "ok   " : "FAIL ") + "included Kokoro " + item.Code);
+            if (!valid) failures++;
+        }
+        using var player = new CountingPlayer(audible);
+        var preview = new VoicePreviewService(dataDirectory, () => settings, player)
+            .PreviewAsync(VoiceEventKind.InputRequired, CancellationToken.None).GetAwaiter().GetResult();
+        if (!preview.ClipCreated || !preview.Played || player.Played.Count != 1) failures++;
+        Console.WriteLine("Kokoro preview: created=" + preview.ClipCreated + " played=" + preview.Played + " code=" + preview.Code);
+        return failures;
     }
 
     private static int RunNativeCancellationSmoke()

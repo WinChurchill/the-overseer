@@ -18,6 +18,29 @@ public static class StaTestHost
 
     public static void Invoke(Action action) => Dispatcher.Invoke(action);
 
+    /// <summary>Opt-in placement for native tests on an occupied workstation.</summary>
+    public static T PrepareWindow<T>(T window) where T : Window
+    {
+        var requested = Environment.GetEnvironmentVariable("OVERSEER_TEST_MONITOR");
+        if (string.IsNullOrWhiteSpace(requested)) return window;
+        var layout = new TheOverseer.App.Desktop.WindowsWindowPlacementService().CaptureLayout();
+        var screen = TheOverseer.App.Diagnostics.HudPlacementOptions.SelectMonitor(layout, requested, allowPrimary: false)
+            ?? throw new InvalidOperationException("The requested secondary test display is unavailable.");
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Left = (screen.X + 20) / screen.DpiScale;
+        window.Top = (screen.Y + 20) / screen.DpiScale;
+        window.ShowActivated = false;
+        return window;
+    }
+
+    public static void ShowWindow(Window window)
+    {
+        PrepareWindow(window).Show();
+        window.UpdateLayout();
+        // Finish native show/input initialization before synthetic mouse events.
+        window.Dispatcher.Invoke(static () => { }, DispatcherPriority.ContextIdle);
+    }
+
     public static void Complete(Task task)
     {
         var frame = new DispatcherFrame();

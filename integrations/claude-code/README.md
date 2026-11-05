@@ -96,13 +96,13 @@ One JSON object per line with **exactly** these keys, in this order. No other ke
 | `kind` | enum | see the mapping table |
 | `turnId` | string or null | documented `prompt_id`, else `turn_id` (MessageDisplay) |
 | `callId` | string or null | documented `tool_use_id` |
-| `requestId` | string or null | documented `agent_id`, else `task_id`, else `elicitation_id` |
+| `requestId` | string or null | `elicitation_id`, else `tool_use_id` for input/approval events; agent/task metadata only for non-request events |
 | `projectRoot` | string or null | documented `cwd`, control characters removed, bounded to 512 characters |
 | `category` | enum `thinking\|planning\|working\|waiting\|error\|complete\|idle\|unknown` | see the mapping table |
 | `evidence` | enum `explicit\|inferred\|unknown` | see the mapping table; forced to `unknown` when `session_id` is missing |
 | `outcome` | enum `completed\|aborted\|error\|ok\|failed` or null | see the mapping table |
 | `hydration` | boolean | always `false`: a live one-shot publication, never a replay/backfill |
-| `producerVersion` | string | `overseer-claude-bridge/1.0.0` |
+| `producerVersion` | string | `overseer-claude-bridge/1.0.5` |
 
 Deliberately **never** stored, even though the payloads contain them: prompt and message text,
 tool names, tool arguments, tool results and errors, transcript and scratchpad paths,
@@ -142,8 +142,8 @@ where they contribute to `eventId` they contribute only as SHA-256 input.
 | `Notification` | `notification_type` = `quota_auto_resume_stale` | `heartbeat` | idle | null | inferred |
 | `Notification` | `notification_type` = `quota_auto_resume_disabled` | `heartbeat` | idle | null | inferred |
 | `Notification` | `notification_type` = anything else | `heartbeat` | unknown | null | unknown |
-| `SubagentStart` | always | `turn/start` | working | null | explicit |
-| `SubagentStop` | always | `turn/end` | complete | `completed` | explicit |
+| `SubagentStart` | always | `heartbeat` | working | null | explicit |
+| `SubagentStop` | always | `heartbeat` | working | null | explicit |
 | `PreCompact` | always | `snapshot` | working | null | explicit |
 | `PostCompact` | always | `snapshot` | complete | `completed` | explicit |
 | `TaskCreated` | always | `heartbeat` | working | null | explicit |
@@ -172,6 +172,10 @@ never guesses a kind it cannot document.
 **Correlation honesty.** `callId` comes only from a documented `tool_use_id`. PermissionRequest
 is documented without a correlation id, so its `callId`/`requestId` stay `null` and its
 `evidence` is `inferred`. No id is ever synthesised.
+The consumer also accepts `callId` as the request identity. Requests with no
+correlation identity remain pending through unrelated tools; a turn/session end
+clears them. An uncorrelated decision cannot safely select which request to clear.
+Two questions from the same agent use their own call IDs, not the agent ID.
 
 ## Semantics that must not be misread
 
@@ -218,6 +222,8 @@ Layout:
 <spool>/claude/<sourceInstanceId>/events.jsonl      append-only records (one JSON object per line)
 <spool>/claude/<sourceInstanceId>/events.lock       writer lock (exclusive create, stale takeover)
 <spool>/claude/<sourceInstanceId>/health.json       bounded counters, no payload data
+<spool>/claude/<sourceInstanceId>/health-pending/   fixed slots for deferred accounting receipts
+<spool>/claude/<sourceInstanceId>/health-incomplete empty marker if accounting capacity/write fails
 <spool>/claude/<sourceInstanceId>/sessions/<key>.seq per-session ingestion counter
 ```
 
@@ -232,6 +238,7 @@ Caps and budgets:
 | record size | 64 KiB per line | the record is dropped and counted, never truncated into invalid JSON |
 | `projectRoot` | 512 characters | truncated at the bound |
 | health counters | fixed key set | `health.json` cannot grow with event volume |
+| deferred accounting | 64 receipt slots, 512 bytes each; same bound for staging files | capacity/write failure signals incomplete accounting; never waits beyond the existing budget |
 | hard exit watchdog | 2.25 s after the 2 s + 250 ms budgets | process exits 0 regardless |
 
 Identity and epoch stability: `instance.json` and `source-epoch.json` are created once with an
@@ -248,6 +255,24 @@ Failure counters in `health.json`: `recordsWritten`, `droppedOversizeInput`, `dr
 Every name the bridge can emit is asserted to be in this allowlist by
 `test/bridge.records.test.mjs`, because an unlisted name is silently discarded and
 would turn a lost record into an invisible one.
+
+Bridge 1.0.3 publishes a complete, metadata-only accounting receipt before attempting
+the shared `health.lock`. If that lock is busy, the updated app reads the receipt
+alongside `health.json`, so a lock-timeout drop remains visible. A later invocation
+folds receipts into the summary. Receipt IDs and totals commit atomically before
+cleanup, preventing duplicate counts if cleanup fails or a process exits mid-fold.
+The original 250 ms acquisition/write budget and 60 ms accounting slice are unchanged.
+Directory setup is acquired within the parent budget before the accounting slice,
+so a cold directory does not consume that smaller allowance before publication.
+No background worker or extra retry budget is added. If all receipt slots are occupied
+or accounting storage fails, a bounded marker reports incomplete coverage when it can
+be written within the remaining budget. Unwritable storage or an exhausted process
+budget cannot guarantee a durable diagnostic; hooks still fail open.
+
+Build the app and bridge from the same revision for this fix. An older app reads
+only folded `health.json` totals and cannot include pending receipts. The updated
+reader still accepts older bridge summaries. Accounting files contain only random
+receipt IDs and allowlisted counter names, never event payloads.
 
 Environment variables read by `bridge.mjs`:
 
@@ -419,6 +444,7 @@ Coverage map:
 | `test/bridge.stdin.test.mjs` | (a) oversized stdin fails open with exit 0 and empty stdout; (b) stalled stdin hits the 2 s deadline; (c) malformed, non-object and empty stdin fail open; a documented payload produces exactly one record with empty stdout even with debug enabled; health counters stay bounded and payload-free |
 | `test/bridge.records.test.mjs` | fixture -> mapping contract (kind/category/outcome/evidence); exact key set and order; 64 KiB bound; correlation ids from documented fields only; privacy (no fixture content, transcript or scratchpad text in any record); (e) duplicate publication keeps `eventId` while distinct calls differ; (h) `sourceEpoch` stable across invocations |
 | `test/bridge.concurrency.test.mjs` | (d) 10 concurrent writers produce whole, non-interleaved lines; (i) per-session `sequence` is unique and monotonic under concurrency; per-session counters start at 1; a held writer lock is abandoned inside the 250 ms budget and counted as `droppedLockTimeout` |
+| `test/bridge.budget.test.mjs` | Parent-budget clamping, simultaneous event/health lock contention, nine concurrent drops, receipt cleanup/reuse deduplication, bounded accounting capacity and slow identity acquisition |
 | `test/installer.test.mjs` | (f) installer refuses malformed settings and never writes without `--apply`; (g) install preserves unrelated hooks and unrelated top-level keys, is byte-stable when re-applied, and uninstall removes only owned entries; uninstall reports entries it cannot remove (exit 3); install refuses a `hooks` value it does not own |
 
 The tests use `fs.mkdtemp` directories and real child processes; they never read or write
@@ -431,7 +457,8 @@ The tests use `fs.mkdtemp` directories and real child processes; they never read
 * Tool names, notification sub-types and permission-decision details are not persisted; the
   record schema is fixed at the 19 keys above, by contract.
 * `MessageDisplay` is mapped but not installed by default because it fires per streamed batch.
-* `SubagentStop` is `turn/end` for the subagent, not for the main conversation.
+* `SubagentStart`/`SubagentStop` are liveness records on the parent session. They
+  never restart/complete its turn, answer its requests or refresh its action lease.
 * Ingestion `sequence` is per session and starts at 1 for each session id.
 * A hook that cannot acquire the spool lock within its budget drops its record (counted). Under
   sustained contention, prefer `--events=` to narrow the installed set rather than assuming

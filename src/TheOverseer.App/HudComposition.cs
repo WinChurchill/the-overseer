@@ -151,6 +151,8 @@ internal static class HudComposition
         {
             new CodexMonitorAdapter(new CodexMonitorSource(monitor), new SourceInstance(HarnessIds.Codex, "codex", "Codex")),
         };
+        if (config.ClaudeProjectsEnabled && !config.DisabledHarnessSources.Contains("claude/projects-desktop", StringComparer.OrdinalIgnoreCase))
+            adapters.Add(new ClaudeProjectsMonitorAdapter());
         foreach (var source in discovery.Sources)
         {
             adapters.Add(new BridgeMonitorAdapter(source, dataDirectory, projects));

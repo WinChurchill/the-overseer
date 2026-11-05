@@ -1,0 +1,55 @@
+<Window x:Class="TheOverseer.UI.FocusWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OVERSEER — Focus" Width="600" Height="680" MinWidth="320" MinHeight="240"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource BackgroundBaseBrush}"
+        Foreground="{DynamicResource ForegroundBrush}" FontSize="13">
+  <Window.Resources>
+    <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+    <Style TargetType="Button"><Setter Property="Margin" Value="0,4,8,4" /><Setter Property="Padding" Value="10,5" />
+      <Setter Property="Background" Value="{DynamicResource PanelOverlayBrush}" /><Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" /></Style>
+    <Style TargetType="TextBox"><Setter Property="Margin" Value="0,4,0,8" /><Setter Property="Padding" Value="6" /><Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" /></Style>
+  </Window.Resources>
+  <DockPanel Margin="18">
+    <StackPanel DockPanel.Dock="Top">
+      <TextBlock Text="Focus" FontSize="24" FontWeight="SemiBold" />
+      <TextBlock Text="Up to three reminders you confirm. They stay until you remove them and do not change live task status." Margin="0,6,0,12" />
+    </StackPanel>
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+      <Button Content="Close" Click="OnClose" DockPanel.Dock="Right" />
+      <TextBlock x:Name="Status" VerticalAlignment="Center" />
+    </DockPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel>
+        <TextBlock Text="YOUR PINS" FontWeight="SemiBold" />
+        <ItemsControl x:Name="Pins" ItemsSource="{Binding FocusPins}">
+          <ItemsControl.ItemTemplate><DataTemplate>
+            <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+              <StackPanel>
+                <TextBlock Text="{Binding Project}" Foreground="{DynamicResource MutedBrush}" />
+                <TextBlock Text="{Binding Objective}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding NextStep}" />
+                <TextBlock Text="{Binding Reason}" Foreground="{DynamicResource MutedBrush}" />
+                <TextBlock Text="{Binding ConfirmedAt, StringFormat=Confirmed {0:yyyy-MM-dd}}" FontSize="11" />
+                <Button Content="Remove pin" Click="OnRemove" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+          </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="ADD OR REVIEW A PIN" FontWeight="SemiBold" Margin="0,16,0,4" />
+        <TextBlock Text="Project (optional)" /><TextBox x:Name="Project" MaxLength="80" />
+        <TextBlock Text="Objective" /><TextBox x:Name="Objective" MaxLength="240" />
+        <TextBlock Text="Next step (optional)" /><TextBox x:Name="NextStep" MaxLength="240" />
+        <TextBlock Text="Reason for priority (optional)" /><TextBox x:Name="Reason" MaxLength="240" />
+        <TextBlock x:Name="SuggestionNote" />
+        <WrapPanel><Button Content="Confirm and pin" Click="OnConfirm" /><Button Content="Next suggestion" Click="OnNext" /></WrapPanel>
+        <TextBlock Text="IMPORT FROM AN AGENT" FontWeight="SemiBold" Margin="0,16,0,4" />
+        <Button Content="Copy focus prompt" Click="OnCopyPrompt" HorizontalAlignment="Left" />
+        <TextBlock Text="Paste the returned JSON, then preview. Importing never replaces existing pins." />
+        <TextBox x:Name="Import" MaxLength="32768" AcceptsReturn="True" Height="110" VerticalScrollBarVisibility="Auto" />
+        <Button Content="Preview JSON" Click="OnPreview" HorizontalAlignment="Left" />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

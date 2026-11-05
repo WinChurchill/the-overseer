@@ -36,7 +36,14 @@ public sealed partial class AgentStateReducer
         return _classifier.Classify(context);
     }
 
-    private AgentTask ToImmutable(MutableTask task) => new(
+    private AgentTask ToImmutable(MutableTask task, DateTimeOffset? observedAt = null)
+    {
+        var now = observedAt ?? task.LastActivityAt;
+        bool IsFresh(RequestRecord request) => now >= request.Since && now - request.Since <= _options.StaleLease;
+        var asyncInputs = task.Requests.Values.Where(static request => !request.IsPermission && !request.IsBlocking).ToArray();
+        // Closing a desktop async prompt has no rollout event. Retain its ID for
+        // a correlated reply; unrelated work cannot renew its current-wait claim.
+        return new(
         task.Key,
         task.Number,
         task.ConversationId,
@@ -54,13 +61,18 @@ public sealed partial class AgentStateReducer
         task.CompletedAt,
         task.IsStale,
         !task.IdentityResolved,
-        task.State is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput || task.NonBlockingInputPending,
+        task.State is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput || asyncInputs.Any(IsFresh) || task.RequestOverflowed,
         task.CancellationObserved,
         task.FailureCode is not null,
         task.AttentionCode,
         task.SourceFiles.Count,
         task.WorkspaceRoot,
-        task.Project);
+        task.Project)
+    {
+        IsStateUncertain = task.RequestOverflowed,
+        HasUnconfirmedInput = asyncInputs.Any(request => !IsFresh(request)),
+    };
+    }
 
     private sealed class MutableTask
     {
@@ -91,6 +103,7 @@ public sealed partial class AgentStateReducer
         public string? FailureCode;
         public string? AttentionCode;
         public bool NonBlockingInputPending;
+        public bool RequestOverflowed;
         public bool IsStale;
         public bool HasActivityInCurrentTurn;
         public int ActivityOrder;

@@ -152,8 +152,8 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             switch (current.Outcome)
             {
                 case BridgeCurrentStateOutcome.Accepted when current.Document is not null:
-                    _session.ApplyCurrentState(current.Document, now);
-                    _lastResyncAt = current.Document.UpdatedAtUtc > now ? now : current.Document.UpdatedAtUtc;
+                    if (_session.ApplyCurrentState(current.Document, now).Accepted)
+                        _lastResyncAt = current.Document.UpdatedAtUtc > now ? now : current.Document.UpdatedAtUtc;
                     break;
                 case BridgeCurrentStateOutcome.Malformed:
                 case BridgeCurrentStateOutcome.UnsupportedSchema:
@@ -212,7 +212,8 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         }
 
         var reasons = new List<string>();
-        var complete = !lanes.Any(lane => lane.IsStale || lane.CoverageIncomplete);
+        var complete = !lanes.Any(lane => lane.IsStale || lane.CoverageIncomplete) &&
+            tasks.All(static task => task.HasCurrentState);
         if (!complete) reasons.Add("bridge-stale-or-incomplete");
         if (!string.Equals(readReason, "ok", StringComparison.Ordinal))
         {
@@ -308,7 +309,10 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             lane.AttentionCode,
             1,
             lane.ProjectRoot,
-            assignment.Project);
+            assignment.Project)
+        {
+            IsStateUncertain = lane.CoverageIncomplete || EvidenceFor(lane) == EvidenceKind.None,
+        };
     }
 
     private static AgentActionKind ActionFor(BridgeTaskState lane) => lane.DetailCode switch

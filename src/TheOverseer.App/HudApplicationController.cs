@@ -77,12 +77,15 @@ public sealed partial class HudApplicationController : IAsyncDisposable
     private string _startupCode = "not-read";
     private string _navigationCode = "none";
     private IReadOnlyList<string> _disabledHarnessSources = Array.Empty<string>();
+    private bool _claudeProjectsEnabled;
 
     public HudApplicationController(HudControllerDependencies dependencies)
     {
         _dependencies = dependencies;
         _voiceSettings = dependencies.Config.Voice.Normalized();
         _disabledHarnessSources = dependencies.Config.DisabledHarnessSources;
+        _claudeProjectsEnabled = dependencies.Config.ClaudeProjectsEnabled &&
+            !dependencies.Config.DisabledHarnessSources.Contains("claude/projects-desktop", StringComparer.OrdinalIgnoreCase);
         _logTask = Task.Run(async () =>
         {
             await foreach (var entry in _logQueue.Reader.ReadAllAsync())

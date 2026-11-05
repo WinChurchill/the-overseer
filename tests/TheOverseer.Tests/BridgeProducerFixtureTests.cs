@@ -32,6 +32,15 @@ public sealed class BridgeProducerFixtureTests
         var snapshot = adapter.Poll();
         Assert.Equal(expected, Assert.Single(snapshot.Tasks).State);
         Assert.Equal(complete, snapshot.CoverageComplete);
+        var task = Assert.Single(snapshot.Tasks);
+        Assert.Equal(!complete, task.IsStateUncertain);
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(TheOverseer.Core.Configuration.HudSettings.Default);
+        vm.ApplySnapshot(TheOverseer.Core.Models.MonitoringSnapshot.Empty(ProducerStart) with
+        {
+            Tasks = snapshot.Tasks,
+        });
+        if (!complete)
+            Assert.Contains("Input status unconfirmed", Assert.Single(vm.Tasks).RowSubtitle);
         Assert.Empty(snapshot.Transitions); // Restart hydration must stay quiet.
         Assert.Equal(CapabilitySupport.Supported, snapshot.Capabilities.InputRequests.Support);
         Assert.DoesNotContain("SECRET_", snapshot.ToString() + string.Join("\n", snapshot.Tasks), StringComparison.Ordinal);

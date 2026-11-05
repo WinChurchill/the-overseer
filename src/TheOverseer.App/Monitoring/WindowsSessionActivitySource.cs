@@ -70,8 +70,10 @@ internal sealed class WindowsSessionActivitySource : IRuntimeActivitySource
 
             var cutoffMilliseconds = cutoff.ToUnixTimeMilliseconds();
             var rowLimit = Math.Clamp(maximumRows, 1, 128);
+            // Agent-created chats and ChatGPT handoffs are user-facing peers.
+            // Genuine subagents/reviews remain excluded; timestamps are hints only.
             var sql = "SELECT id, rollout_path, updated_at_ms FROM threads " +
-                      "WHERE archived = 0 AND thread_source = 'user' AND updated_at_ms >= " +
+                      "WHERE archived = 0 AND thread_source IN ('user', 'agent_created_thread', 'chatgpt_handoff') AND updated_at_ms >= " +
                       cutoffMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                       " ORDER BY updated_at_ms DESC LIMIT " +
                       rowLimit.ToString(System.Globalization.CultureInfo.InvariantCulture);

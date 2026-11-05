@@ -7,6 +7,5 @@
 *.md text eol=lf
 *.png binary
 
-# Preserve the supplied frozen documents byte-for-byte.
-/AGENTS.md -text
+# Preserve the supplied frozen specification byte-for-byte.
 /docs/V1_2_IMPLEMENTATION_SPEC.md -text

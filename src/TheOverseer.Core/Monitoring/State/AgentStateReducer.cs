@@ -141,6 +141,9 @@ public sealed partial class AgentStateReducer
 
         var from = task.State;
         var fromAttention = task.AttentionCode;
+        var inputObservedAt = codexEvent.ObservedAt;
+        var hadFreshAsyncInput = task.Requests.Values.Any(request => !request.IsPermission && !request.IsBlocking &&
+            inputObservedAt >= request.Since && inputObservedAt - request.Since <= _options.StaleLease);
         var transitionKind = ApplyMutation(task, in codexEvent);
 
         var observedAt = codexEvent.EventTime ?? (codexEvent.IsHydration ? DateTimeOffset.MinValue : codexEvent.ObservedAt);
@@ -172,7 +175,8 @@ public sealed partial class AgentStateReducer
             transitionKind == TaskTransitionKind.NonBlockingInputRaised ||
             transitionKind == TaskTransitionKind.NonBlockingInputResolved)
         {
-            if (fromAttention != task.AttentionCode || from != task.State)
+            if (fromAttention != task.AttentionCode || from != task.State ||
+                transitionKind == TaskTransitionKind.NonBlockingInputRaised && !hadFreshAsyncInput)
             {
                 return new ReduceOutcome(true, "attention", new TaskTransition(
                     transitionKind,
@@ -202,7 +206,7 @@ public sealed partial class AgentStateReducer
         {
             task.IsStale = ComputeStale(task, now);
             task.Action = UpdateAction(task);
-            rows.Add(ToImmutable(task));
+            rows.Add(ToImmutable(task, now));
         }
 
         rows.Sort(static (left, right) => left.Number.CompareTo(right.Number));

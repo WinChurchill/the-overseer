@@ -61,7 +61,8 @@
           <ComboBoxItem Content="Windows speech baseline (offline)" Tag="speech" />
           <ComboBoxItem Content="TTS endpoint" Tag="tts" />
         </ComboBox>
-        <Button x:Name="UseBaselineButton" Content="Use Windows speech" Click="OnUseBaseline" Margin="8,0,0,0" />
+        <Button x:Name="UseBaselineButton" Content="Windows speech (optional)" Click="OnUseBaseline" Margin="8,0,0,0" ToolTip="Not qualified for this beta. Use the included Kokoro voice for offline notifications." />
+        <Button x:Name="UseKokoroButton" Content="Use included Kokoro voice" Click="OnUseKokoro" Margin="8,0,0,0" />
       </WrapPanel>
       <TextBlock x:Name="BaselineStatusText" Text="Windows speech baseline (offline): checking…" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,4" />
       <TextBlock Text="The selected provider is used for enabled situations only. Opening this panel is silent and sends no request." FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,16" />

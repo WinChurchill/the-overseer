@@ -1,32 +1,26 @@
-name: Private qualification package
+name: Build release candidate
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: Private candidate version (no v prefix)
+        description: Alpha, beta or RC candidate version (no v prefix)
         required: true
         type: string
-        default: '1.0.0-rc.21'
-  # A new workflow cannot dispatch until on the default branch. This private
-  # branch-only bootstrap avoids merging unreviewed changes into main.
-  push:
-    branches: [fix/automated-release-qualification]
-    paths: [.github/workflows/package.yml]
+        default: '1.0.0-alpha.1'
 permissions:
   contents: read
 concurrency:
-  group: private-package-${{ github.ref }}
+  group: release-package-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   package:
-    if: github.event.repository.private
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
       run:
         shell: pwsh
     env:
-      CANDIDATE_VERSION: ${{ inputs.version || '1.0.0-rc.21' }}
+      CANDIDATE_VERSION: ${{ inputs.version || '1.0.0-alpha.1' }}
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
     steps:
@@ -42,7 +36,7 @@ jobs:
           package-manager-cache: false
       - name: Validate candidate identity
         run: |
-          if ($env:CANDIDATE_VERSION -notmatch '^\d+\.\d+\.\d+-rc\.\d+$') { throw 'Private workflow requires an RC version' }
+          if ($env:CANDIDATE_VERSION -notmatch '^\d+\.\d+\.\d+-(alpha|beta|rc)\.\d+$') { throw 'Use a version such as 1.0.0-alpha.1, 1.0.0-beta.1 or 1.0.0-rc.22' }
       - name: Source verification
         run: |
           dotnet restore TheOverseer.sln
@@ -59,11 +53,11 @@ jobs:
           node --test --test-concurrency=1
           if ($LASTEXITCODE) { throw 'Claude tests failed' }
           Pop-Location
-      - name: Package unsigned private candidate
+      - name: Package unsigned candidate
         run: ./scripts/Publish-Release.ps1 -OutputDirectory artifacts/ci-package -Version $env:CANDIDATE_VERSION -ArchiveName "OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: overseer-private-${{ env.CANDIDATE_VERSION }}-${{ github.sha }}
+          name: overseer-candidate-${{ env.CANDIDATE_VERSION }}-${{ github.sha }}
           path: |
             artifacts/ci-package/*.zip
             artifacts/ci-package/*.sha256

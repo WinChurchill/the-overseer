@@ -15,8 +15,17 @@ Settings, placement, bounded history/logs, spools and user recordings live in
 The app makes no telemetry or analytics request. This static project website has no
 added analytics, trackers or external fonts; the eventual host may retain HTTP logs.
 
-**Voice starts muted.** Offline Windows speech synthesizes fixed generic phrases
-locally using an installed voice. Local packs/recordings play locally. If you select
+The optional Claude Projects desktop observer reads loaded accessibility metadata:
+project name/ID, thread ID, status group and the dedicated displayed worker title.
+Titles stay in the local task view; IDs determine identity and remain the fallback.
+It never invokes controls, navigates Claude, reads chat feeds/edit values/message
+snippets, extracts authentication or uses a browser relay. Aggregate card labels
+are not read. Unexposed project states remain unknown.
+
+**Voice starts muted.** New profiles select the included prerecorded Kokoro pack.
+Local packs/recordings play locally, without a running model or network service.
+Optional Windows speech synthesizes generic phrases using an installed voice.
+If you select
 and configure the optional **TTS endpoint** provider, the app sends generic notification
 text, event code and a `Task N`/aggregate alias to your chosen endpoint. That endpoint
 sees the request and your network address and has its own retention policy. Raw task

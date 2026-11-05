@@ -55,7 +55,7 @@ public sealed class HudVoiceStatusTests
             var window = new HudWindow { DataContext = viewModel, ShowActivated = false };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
 
                 // The old dominant "count of working tasks" graph is gone from every

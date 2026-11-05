@@ -96,8 +96,8 @@ public sealed class HudViewModelTests
         Assert.Equal(AgentTaskState.Working, row.TaskState);
         Assert.True(row.NeedsHuman);
         Assert.Equal("Working", row.StateText);
-        Assert.Contains("question pending", row.MarksText, StringComparison.Ordinal);
-        Assert.Contains("Question pending", row.RowSubtitle, StringComparison.Ordinal);
+        Assert.Contains("question observed", row.MarksText, StringComparison.Ordinal);
+        Assert.Contains("Question observed", row.RowSubtitle, StringComparison.Ordinal);
         Assert.DoesNotContain("· Working", row.RowSubtitle, StringComparison.Ordinal);
         Assert.NotEqual("Needs input", row.StateText);
     }
@@ -399,7 +399,8 @@ public sealed class HudViewModelTests
         Assert.True(viewModel.IsFilterAll);
         Assert.Equal("now", viewModel.TaskView);
         Assert.Equal(2, viewModel.RecentHours);
-        Assert.Equal(2, viewModel.Tasks.Count);
+        Assert.Equal(3, viewModel.Tasks.Count); // Now also retains the unconfirmed request.
+        Assert.Contains("Input status unconfirmed", viewModel.Tasks.Single(row => row.Key.ConversationId == "old").RowSubtitle);
     }
 
     [Theory]

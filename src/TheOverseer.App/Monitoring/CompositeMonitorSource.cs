@@ -342,7 +342,8 @@ public sealed class CompositeMonitorSource : IMonitorSource
                         break;
                 }
 
-                if (!source.CoverageComplete || source.Health == MonitoringHealthLevel.Unavailable)
+                if (!source.CoverageComplete || source.Health == MonitoringHealthLevel.Unavailable ||
+                    source.Tasks.Any(static task => !task.HasCurrentState))
                 {
                     coverage = false;
                 }
@@ -389,9 +390,9 @@ public sealed class CompositeMonitorSource : IMonitorSource
             var capabilities = MonitorCapabilities.Aggregate(readable);
             _displayNumbers.Assign(tasks, transitions, now);
             var counts = ComputeCounts(tasks, coverage && anyReadable, anyReadable);
-            if (tasks.Any(task => !task.IsStale && task.State == AgentTaskState.Working)) _allCompleteArmed = true;
+            if (tasks.Any(task => task.HasCurrentState && task.State == AgentTaskState.Working)) _allCompleteArmed = true;
             if (_allCompleteArmed && coverage && anyReadable && tasks.Count > 0 &&
-                tasks.All(task => !task.IsStale && !task.IsProvisional && task.State == AgentTaskState.Done) &&
+                tasks.All(task => task.HasCurrentState && task.State == AgentTaskState.Done) &&
                 transitions.Any(transition => transition.Kind == AttentionEventKind.TaskCompleted))
             {
                 transitions.Add(new AttentionEvent(AttentionEventKind.AllTasksCompleted, default, 0,
@@ -428,15 +429,17 @@ public sealed class CompositeMonitorSource : IMonitorSource
             return MonitoringCounts.Unknown;
         }
 
+        complete &= tasks.All(static task => task.HasCurrentState);
+
         CountValue Count(Func<AgentTask, bool> predicate)
         {
-            var value = tasks.Count(task => !task.IsStale && predicate(task));
+            var value = tasks.Count(task => task.HasCurrentState && predicate(task));
             return complete ? CountValue.Known(value) : CountValue.Partial(value);
         }
 
         return new MonitoringCounts(
             Count(static task => task.State == AgentTaskState.Working),
-            Count(static task => task.NeedsHuman),
+            Count(static task => task.HasAttention),
             Count(static task => task.State == AgentTaskState.NeedsApproval),
             Count(static task => task.State == AgentTaskState.NeedsInput),
             Count(static task => task.State == AgentTaskState.Error),

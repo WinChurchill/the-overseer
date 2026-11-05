@@ -1,6 +1,170 @@
 # OVERSEER release readiness
 
-## Current qualification — 2026-10-12
+On November 4, Winston authorized committing and pushing `fix/detection-logic-cleanup`.
+Earlier no-push statements below describe their recorded runs. Main merge, release
+publication and repository visibility remain separate steps. The frozen tester ZIP
+is `1.0.0-alpha.1.local.20261103.1`, SHA-256
+`6C83C4987E2EF3B250AAF38F5954214ACFDC480AC31CD57A69E63BD94A39672C`.
+Its exact package smoke passed 46 checks with no deferrals or focus takeovers.
+
+On November 3, one reply-only Claude Code task and one reply-only DSH task
+completed on the local Windows host. Claude Desktop 4.4212.0.0 used its existing
+1.0.4 hooks and recorded session start, turn start, and completion. The installed
+DSH bundled CLI ran with a disposable headless profile and the current observer.
+Its spool recorded session start, working, and completion. These trials cover
+basic lifecycle publication. Interactive input and approval, DSH Desktop UI,
+the candidate Claude hook version in a live host, and clean Windows remain open.
+
+## Publication alpha preparation — 2026-11-02
+
+Latest local candidate: **1.0.0-alpha.1.local.20261102.3**, unsigned, dirty source.
+Its ZIP SHA-256 is `FC5D4F66957CAE984547AE76DEB9F680DE3105BE3E08B455346B1493D6537BA9`.
+Full normal-extraction VSTest **930/930**, Claude **44/44**, DSH **40/40**, all 16
+producer timelines and site **85/85** plus **13** publication controls pass.
+The exact ZIP passes **46/46** package checks, **zero deferrals**, including native
+focus, second-instance activation/restore, saved settings, graceful Exit and voice.
+Actual secondary-monitor checks pass for reversible header/summary dragging,
+same-direction divider resizing, coverage controls and Dark/Light setting saves;
+the original profile contents were restored exactly. Both worker names remain visible.
+
+A fixed-clock regression reproduces the missing malformed-input count when cold
+directory setup consumes the health slice. Bridge1.0.5 acquires that directory in
+the unchanged 250 ms parent before the unchanged 60 ms accounting slice. The earlier
+untraced failure below is retained; its original cause cannot be proven retrospectively.
+Native popup/drag tests now share serialization and finish show/input initialization;
+their original assertions pass. Source-test isolation is opt-in to a named secondary.
+The first qualification helper's taskbar override and a default-TEMP access failure
+were corrected; failed evidence is retained. No test expectations were weakened.
+
+These are local qualification results. A clean Windows environment is unavailable
+through installed local Sandbox/VM tooling. Fresh Claude/DSH real-host attention,
+Claude rename/unmount, physical tray/navigation, mixed-DPI/power/device checks and
+the owner-controlled clean CI/publication steps remain open. No live host was sent
+a message or reconfigured. The source snapshot includes final qualification notes;
+the already-qualified app ZIP retains its pre-qualification documentation snapshot.
+
+Winston selected the next candidate as the publication alpha after manual checks.
+Its added change is dedicated Claude worker titles: title-only local labels,
+stable identity, ID fallback and no rename-driven status/notification change.
+The shared light/interface divider also follows pointer direction for every dock
+side, retaining the 6–128 size limits. Manual checks should include dragging it in
+both directions in the larger app window.
+Use `1.0.0-alpha.1` for the clean CI candidate; local dirty builds have a local
+suffix and are not the published release. Qualification below retains its exact
+historical beta identities. The local alpha `.20261102.2` ZIP has SHA-256
+`9DF9BF2E8E8CBB74CD201EC562CA4F5B9CB51829A1296C87E978A50CADC4A923`:
+150 relevant VSTest cases pass; its exact package smoke recorded **42 pass,
+1 fail, 3 activation deferrals**, with zero foreground takeovers in 544 samples.
+The failure was a malformed-input health counter (expected 2, observed 1);
+all 43 Claude producer tests passed in one isolated rerun of that extraction.
+The cause is unconfirmed; retain the failed run rather than calling the package
+fully green. In the running alpha, two Claude worker titles and a reversible
+40-pixel divider drag were verified on the secondary monitor. Manual publication
+checks below remain open; the source snapshot predates these final ledger notes.
+
+Current source is the uncommitted `fix/detection-logic-cleanup` worktree based on
+`63eff72`. Winston requested a public beta today. The repository was verified
+**private** during this pass; no commits, pushes, visibility changes or publication
+have been performed. Older RC21/realusage archives below are historical binaries.
+
+- New profiles select nine included prerecorded Kokoro cues, still muted. Saved
+  provider/recording choices remain intact. Winston confirms Kokoro Preview works.
+  Silent production-provider/preview/policy/TTS smoke passes. Optional Windows
+  synthesis/preview also pass from a normal per-user application folder; acoustic
+  Windows output remains unverified. Its native assertions are preserved.
+  The running normal HUD was switched explicitly to Kokoro; only its provider
+  preference changed. A fresh real Codex question triggered one cue heard by
+  Winston, without Preview or a separate playback helper. Earlier exact-package
+  policy/provider checks also stayed silent on duplicate snapshots. This qualifies
+  that Codex path/current device, not Claude/DSH.
+- Codex async questions say Question observed. A dismissed card has no observed
+  cancellation record. After the existing 15-minute lease, an older request becomes
+  Input status unconfirmed; it stays available for exact late replies, without
+  poisoning independently current work. Fresh questions rearm. No answer is inferred.
+- The experimental Claude Projects observer discovers at most four app-owned loaded
+  windows and retains one read-only accessibility subscription. It never activates,
+  navigates or controls Claude and uses no browser relay or authentication extraction.
+  Projects directory names are explicitly not worker-state evidence. Closed/unmounted
+  views and account-wide coverage stay unknown. Two Idle workers stayed current
+  across eight polls with Claude in the background and no notification replay.
+  Repeated card/artifact links count once; conflicting metadata stays unconfirmed,
+  including at the session limit. Live worker attention transitions remain open.
+- Native EXEs inherited this agent workspace's Low integrity label (4096), blocking
+  Claude accessibility and Windows speech. The exact ZIP extracted into a normal
+  per-user application folder runs at Medium (8192): the original reader sees both
+  background workers and silent speech checks pass. No ACL/security setting changed.
+  A speculative process-discovery change was removed after this counterfactual;
+  the existing process/window/byte/session/deadline limits remain intact.
+- Focus pins use a bounded JSON preview and explicit confirmation. Pins do not alter
+  live task counts. README/setup/tester instructions and larger screenshots are included.
+- User-facing Codex agent-created/handoff chats are no longer discarded as internal.
+  Both rollout admission and bounded Windows metadata hints include these origins;
+  explicit subagents/reviews stay excluded. A real previously missing chat was
+  verified Working, assigned to its Git project and included in Now without input.
+- Release build: zero warnings/errors. Earlier real xUnit: **904/904**; current
+  expanded run: **909/910**, one native mouse-capture assertion failed while the
+  desktop was in use; zero skips. This is retained as an unresolved UI qualification
+  result, not attributed to Claude or relabeled a pass. Delta-focused regressions:
+  **121/121**. Claude producer **43/43**, DSH **40/40**;
+  fixed producer fixture drift passes. Site **85/85**, publication controls **13/13**.
+  Standard VSTest: **903/904**, one optional Windows SAPI COM80045040 failure;
+  zero skips. Initial parent-watcher abort and rebuilt TRX are retained. Exact-package
+  results are recorded separately in the local handoff.
+
+The refreshed ZIP is a uniquely versioned **local dirty-source candidate**, not a
+published release. Its adjacent build manifest and `.zip.sha256` file identify the exact
+bytes; package smoke evidence must name that archive/hash. With Winston's restart
+approval, the Delta-fixed `.3` app/profile replaced the running `.2` session; both
+older folders remain intact. Its exact secondary-display smoke recorded **42 pass,
+1 fail, 3 deferred**: one foreground change coincided with input, and Winston could
+not confirm whether it was deliberate. Preserve that unresolved result. Intentional
+activation checks remain deferred while he works. Later source fixes need their
+own archive/hash-bound evidence; earlier binaries do not inherit those results.
+The subsequent `.4` exact ZIP passes **43 checks, 0 failures, 3 activation deferrals**,
+including zero foreground takeovers over 543 samples. This does not erase the
+earlier ambiguous result or satisfy physical/manual checks.
+
+No signing identity exists. The existing signing pipeline can sign and timestamp
+four owned PE files when supplied a valid identity; this candidate stays **unsigned**.
+No fake trust or test certificate is substituted. Clean-machine/SmartScreen,
+physical display/power/logon, complete actual-host lifecycle and other host/device
+audio paths remain unverified. These are explicit beta limitations, not
+passes inferred from fixtures. Kokoro replaces Windows speech as the beta baseline.
+
+To publish matching source, Winston must review/commit/push this work (the agent
+must not). Build/CI and source identity then need to match the release asset. Keep
+alpha/unsigned/experimental limitations in release notes and verify public source,
+asset download/hash and website URLs after publication. Do not advertise an updated
+Git pull while these changes exist only in this working tree.
+
+### Concrete owner handoff
+
+1. Review the complete dirty task branch and commit/push the intended changes;
+   merge the reviewed result into `main` so clone instructions fetch this version.
+   The agent has deliberately left all Git publication work to Winston.
+2. Dispatch **Build release candidate** from that exact revision with version
+   `1.0.0-alpha.1`. The workflow accepts alpha/beta/RC versions in private or public
+   repositories, builds/tests and uploads an artifact; it does not publish a release.
+   Record the workflow URL, source SHA, ZIP hash and signing state.
+3. Qualify the downloaded CI ZIP using the existing package script and an idle
+   secondary-screen session. Preserve failures and manual deferrals. Do not substitute
+   a local rebuild for the CI archive whose hash you plan to publish.
+4. Publish matching source and a GitHub **prerelease**, with ZIP, checksum and
+   manifest. Release notes must say Windows x64, unsigned alpha, Kokoro default/muted,
+   experimental bridges/desktop Projects, Codex approvals unsupported, no immediate
+   question-dismissal signal and the remaining unverified checks above.
+5. Configure the existing Pages workflow's repository/site/download variables with
+   that actual release URL. Dispatch it only after source/assets are public. Check
+   public clone, HTTPS site, asset download and SHA-256 from a signed-out session.
+
+Suggested note: “OVERSEER alpha for Windows x64: a local HUD for observed coding-agent
+work and attention, with offline Kokoro cues and optional Focus pins. This unsigned
+alpha has experimental DSH/Claude integrations. Claude Projects coverage is limited
+to exposed desktop views; account-wide/background-worker coverage is not qualified.
+Codex approvals are unsupported. Clean-machine and full actual-host qualification
+remain open. See the included tester handoff before enabling notifications.”
+
+## Historical RC21 qualification — 2026-10-12
 
 Status: **AVAILABLE AUTOMATION COMPLETE; PUBLIC RELEASE NOT READY.** Private draft
 [PR #1](https://github.com/WinChurchill/the-overseer/pull/1), branch
@@ -174,8 +338,8 @@ an ordinary chat message with no question ID: only a correlated reply or turn en
 can clear it. That limit is documented/tested, and no answer text is inferred.
 
 Clean source `c753f037f528cda51b6abccaf7bfb5396ccfa641`, private **1.0.0-rc.14**.
-[ZIP](../artifacts/prepublication/rc14/OVERSEER-1.0.0-rc.14-win-x64.zip),
-[owner handoff](../artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md).
+ZIP (`artifacts/prepublication/rc14/OVERSEER-1.0.0-rc.14-win-x64.zip`; local historical evidence),
+owner handoff (`artifacts/prepublication/owner-handoff/OWNER_HANDOFF.md`; local historical evidence).
 SHA-256 `E02580BA0E24B0DAF204BD0F2D31D73E553AAE083787DB3216D4264545B24988`;
 76,917,941 bytes; 591 payload/90 integration files; unsigned self-contained x64.
 Build 0 warnings/errors; **770 tests pass, zero fail/skip**; [hosted Windows CI](https://github.com/WinChurchill/the-overseer/actions/runs/37423452238)
@@ -191,9 +355,9 @@ real-host, physical, audible and clean-machine gates remain pending.
 ### Prior RC13 qualification — 2026-10-05
 
 Clean source `c0ced607ff5ab9ab7df9e10f7c0ea13eff5cde67`; private candidate **1.0.0-rc.13**.
-[RC13 ZIP](../artifacts/prepublication/rc13/OVERSEER-1.0.0-rc.13-win-x64.zip),
-[archived owner handoff](../artifacts/prepublication/owner-feedback/rc13-owner-kit/OWNER_HANDOFF.md),
-[six-area report](../artifacts/prepublication/rc13-checks/run-20261006T004243Z-9d6995c0/pre-user-report.json).
+RC13 ZIP (`artifacts/prepublication/rc13/OVERSEER-1.0.0-rc.13-win-x64.zip`; local historical evidence),
+archived owner handoff (`artifacts/prepublication/owner-feedback/rc13-owner-kit/OWNER_HANDOFF.md`; local historical evidence),
+six-area report (`artifacts/prepublication/rc13-checks/run-20261006T004243Z-9d6995c0/pre-user-report.json`; local historical evidence).
 SHA-256: `45A9F3F2D91B65DCDC91F25A896EEE49FF29B9DE55F49EC4BFBA71DF7B0E27AA`; 76,915,148 bytes;
 591 payload / 90 integration files; unsigned self-contained x64; .NET/Desktop 10.0.12.
 Clean-source build: 0 warnings/errors, 749 tests pass/0 fail/skip; DSH 39, Claude 29.
@@ -228,9 +392,9 @@ clean-machine qualification remain pending.
 
 That prior replacement was **1.0.0-rc.12**, clean source
 `68c2d6190698c9821179b025441a21dbf6490a4e`.
-[RC12 ZIP](../artifacts/prepublication/rc12/OVERSEER-1.0.0-rc.12-win-x64.zip),
-[archived RC12 handoff](../artifacts/prepublication/owner-feedback/rc12-owner-kit/OWNER_HANDOFF.md),
-[automated report](../artifacts/prepublication/rc12-checks/run-20261005T232402Z-d4134442/pre-user-report.json).
+RC12 ZIP (`artifacts/prepublication/rc12/OVERSEER-1.0.0-rc.12-win-x64.zip`; local historical evidence),
+archived RC12 handoff (`artifacts/prepublication/owner-feedback/rc12-owner-kit/OWNER_HANDOFF.md`; local historical evidence),
+automated report (`artifacts/prepublication/rc12-checks/run-20261005T232402Z-d4134442/pre-user-report.json`; local historical evidence).
 SHA-256: `8EF59BFAC561E6349DE984039E9F64C5F04F4432A328720B1A683AD28A2A6342`;
 76,905,615 bytes; 591 payload / 90 integration files; unsigned self-contained x64.
 Build: 0 warnings/errors; 741 tests pass/0 fail/skip; DSH 39/39, Claude 29/29.
@@ -260,9 +424,9 @@ Unsupported. Current task coverage is complete, with a disclosed late-attach his
 RC11 review found an older unanswered optional question. The subsequent live check
 showed this chat without attention; full H3 and independent-machine checks remain pending.
 The verified replacement is **1.0.0-rc.11**, clean fresh source `8b1d3454179d10fb3f389e2097425883d1803413`.
-[RC11 ZIP](../artifacts/prepublication/rc11/OVERSEER-1.0.0-rc.11-win-x64.zip),
-[preserved RC11 retest handoff](../artifacts/prepublication/owner-feedback/rc11-owner-kit/OWNER_HANDOFF.md),
-[automated report](../artifacts/prepublication/rc11-checks/run-20261005T220959Z-d572c12b/pre-user-report.json).
+RC11 ZIP (`artifacts/prepublication/rc11/OVERSEER-1.0.0-rc.11-win-x64.zip`; local historical evidence),
+preserved RC11 retest handoff (`artifacts/prepublication/owner-feedback/rc11-owner-kit/OWNER_HANDOFF.md`; local historical evidence),
+automated report (`artifacts/prepublication/rc11-checks/run-20261005T220959Z-d572c12b/pre-user-report.json`; local historical evidence).
 SHA-256: `FF8F38446407AD26ACC6DCD9B7898C735C27A24B428FF9BAB5371569FC9A1FFB`.
 Build: 0 warnings/errors; 727 tests pass. Exact package: 42 pass/0 fail/3 focus
 activation deferrals; integration 17/17, composition 42/42, 48 renders, no focus
@@ -274,9 +438,9 @@ All RC11 owner H1–H16 remain pending until observed and recorded against this 
 ### Executed RC9 preparation and owner handoff — 2026-10-05
 
 - Tested candidate: **1.0.0-rc.9**, unsigned private ZIP, source `61d7d078cb39e58b1fbeb55bba220853d65ed491`.
-  [Application ZIP](../artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip),
-  [preserved RC9 packet](../artifacts/prepublication/owner-feedback/rc9-owner-kit/approval-packet.json),
-  [preserved RC9 results](../artifacts/prepublication/owner-feedback/rc9-owner-kit/OWNER_CHECKS.csv).
+  Application ZIP (`artifacts/prepublication/rc9/OVERSEER-1.0.0-rc.9-win-x64.zip`; local historical evidence),
+  preserved RC9 packet (`artifacts/prepublication/owner-feedback/rc9-owner-kit/approval-packet.json`; local historical evidence),
+  preserved RC9 results (`artifacts/prepublication/owner-feedback/rc9-owner-kit/OWNER_CHECKS.csv`; local historical evidence).
 - SHA-256: `E9C27D69BFC2729FD89F266C9E3A9CA9FD6B89E53E17C310D55547A2253C8FA1`. These hashes identify the preserved RC9 run; new owner results must name the replacement hash.
 - Fresh-clone .NET build/test: 0 warnings/errors, 715 pass, 0 fail/skip. DSH 30 and
   Claude 29 pass; extracted bridge tests pass too. NuGet advisory scan found no
@@ -304,7 +468,7 @@ All RC11 owner H1–H16 remain pending until observed and recorded against this 
   review or public release approval. No remote/upload/deployment/public tag created.
 
 For the current RC13 retest, start with the owner retest handoff. The optional
-[setup helper](../artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1) verifies
+setup helper (`artifacts/prepublication/owner-handoff/Start-OwnerCheck.ps1`; local historical evidence) verifies
 the RC13 ZIP, extracts into a spaced/non-ASCII folder and keeps disposable test settings.
 It passed stock Windows PowerShell and a wrong-ZIP/no-write control. Default run
 prepares only; `-Launch` deliberately opens the app. Empty and Live use separate data.

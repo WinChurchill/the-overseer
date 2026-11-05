@@ -27,6 +27,10 @@
       <TextBlock Text="Discovered harness sources and the project buckets they resolve to. Local roots are never shown; enablement is additive and never resets another preference."
                  Margin="0,6,0,14" Foreground="{DynamicResource MutedBrush}" />
       <TextBlock Text="SOURCES" FontWeight="SemiBold" />
+      <CheckBox x:Name="ClaudeProjectsBox" Content="Observe loaded Claude Projects desktop views (experimental)" Margin="0,8,0,4"
+                Click="OnClaudeProjects" />
+      <TextBlock Text="Opt-in desktop preview. Reads project/thread IDs and status groups only. Open the Threads overview in Claude; closed projects and collapsed groups have limited coverage. Applies after OVERSEER restarts."
+                 FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,8" />
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel>

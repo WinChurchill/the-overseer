@@ -34,6 +34,8 @@ public static class HealthReasons
     public const string StaleTasks = "stale-tasks";
     public const string ProvisionalTasks = "provisional-tasks";
     public const string IncompleteCoverage = "coverage-incomplete";
+    public const string UnknownSchema = "unsupported-record-shape";
+    public const string PendingRequestLimit = "pending-request-limit";
     public const string TitleSourceUnavailable = "title-source-unavailable";
     public const string ActivitySourceUnavailable = "activity-source-unavailable";
     public const string ConfigRecovered = "config-recovered";

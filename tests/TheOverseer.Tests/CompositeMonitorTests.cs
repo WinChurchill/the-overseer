@@ -109,6 +109,39 @@ public sealed class CompositeMonitorTests
         Assert.Single(received);
     }
 
+    [Theory]
+    [InlineData(HarnessIds.Codex)]
+    [InlineData(HarnessIds.Claude)]
+    [InlineData(HarnessIds.Dsh)]
+    public async Task UnconfirmedRequestCannotInflateCountsOrHideAnotherHarnessRequest(string harness)
+    {
+        var clock = new ManualTimeProvider(Start);
+        var uncertainSource = new SourceInstance(harness, "uncertain", "Uncertain");
+        var peerSource = new SourceInstance(harness == HarnessIds.Codex ? HarnessIds.Dsh : HarnessIds.Codex, "peer", "Peer");
+        var uncertain = new FakeAdapter(uncertainSource);
+        var peer = new FakeAdapter(peerSource);
+        await using var composite = new CompositeMonitorSource(new IAgentMonitorAdapter[] { uncertain, peer }, timeProvider: clock);
+        await composite.StartAsync(CancellationToken.None);
+        var lastKnown = BuildTask(harness, "uncertain", "same-id", AgentTaskState.NeedsInput) with
+        {
+            NeedsHuman = true, IsStateUncertain = true,
+        };
+        var known = BuildTask(peerSource.HarnessId, "peer", "same-id", AgentTaskState.NeedsInput) with { NeedsHuman = true };
+        uncertain.Push(MonitoringHealthLevel.Degraded, false, new[] { lastKnown });
+        var edge = VoiceTestData.Event(AttentionEventKind.InputRequired, key: known.Key, observedAt: Start);
+        peer.Push(MonitoringHealthLevel.Healthy, true, new[] { known }, new[] { edge });
+        var snapshot = composite.Current;
+        Assert.Equal(CountValue.Partial(1), snapshot.Counts.NeedsHuman);
+        Assert.Equal(2, snapshot.Tasks.Count);
+        Assert.Equal(known.Key, Assert.Single(snapshot.Transitions).Key);
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(snapshot);
+        Assert.Equal(2, vm.Tasks.Count);
+        Assert.Equal("Needs you", vm.StatusHeadline);
+        Assert.Contains(vm.Tasks, row => row.Key == lastKnown.Key && row.RowSubtitle.Contains("Input status unconfirmed"));
+        Assert.Equal(1, vm.Projects.Sum(project => project.NeedsHumanCount));
+    }
+
     [Fact]
     public async Task DisplayNumbersQualifyIdentityAndAgreeWithAttentionAcrossSources()
     {

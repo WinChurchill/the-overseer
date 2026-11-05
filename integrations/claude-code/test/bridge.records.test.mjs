@@ -19,6 +19,24 @@ import {
 
 const spoolEnv = (spoolRoot) => ({ OVERSEER_SPOOL_ROOT: spoolRoot });
 
+test('opaque identity boundaries preserve distinct sessions, requests and event IDs', () => {
+  const ids = ['x'.repeat(127), 'x'.repeat(128), 'x'.repeat(128) + 'A', 'x'.repeat(128) + 'B'.repeat(128)];
+  const records = ids.map(id => buildRecord({ session_id: id, hook_event_name: 'PreToolUse',
+    tool_name: 'AskUserQuestion', tool_use_id: id }, CTX));
+  for (const field of ['sessionId', 'requestId', 'callId', 'eventId']) {
+    assert.equal(new Set(records.map(record => record[field])).size, 4);
+    assert.ok(records.every(record => record[field].length <= 128));
+  }
+  for (let index = 0; index < ids.length; index++) {
+    const answer = buildRecord({ session_id: ids[index], hook_event_name: 'PostToolUse',
+      tool_name: 'AskUserQuestion', tool_use_id: ids[index] }, CTX);
+    assert.equal(answer.sessionId, records[index].sessionId);
+    assert.equal(answer.requestId, records[index].requestId);
+  }
+  const literal = buildRecord({ session_id: records[2].sessionId, hook_event_name: 'SessionStart' }, CTX);
+  assert.notEqual(literal.sessionId, records[2].sessionId, 'literal hash token cannot impersonate the long host ID');
+});
+
 const CTX = {
   sourceInstanceId: 'cc-fixture-instance',
   sourceEpoch: 'epoch-20260924T000000Z-deadbeef',
@@ -43,8 +61,8 @@ const EXPECTED = {
   'notification-permission-prompt.json': ['approval/asked', 'waiting', null, 'inferred'],
   'notification-idle.json': ['heartbeat', 'idle', null, 'inferred'],
   'notification-agent-needs-input.json': ['input/asked', 'waiting', null, 'inferred'],
-  'subagent-start.json': ['turn/start', 'working', null, 'explicit'],
-  'subagent-stop.json': ['turn/end', 'complete', 'completed', 'explicit'],
+  'subagent-start.json': ['heartbeat', 'working', null, 'explicit'],
+  'subagent-stop.json': ['heartbeat', 'working', null, 'explicit'],
   'pre-compact.json': ['snapshot', 'working', null, 'explicit'],
   'post-compact.json': ['snapshot', 'complete', 'completed', 'explicit'],
   'message-display.json': ['heartbeat', 'thinking', null, 'explicit'],
@@ -75,6 +93,27 @@ test('every fixture maps to the documented normalized record', () => {
     assert.equal(record.eventAtUtc, record.observedAtUtc);
     assert.ok(Buffer.byteLength(JSON.stringify(record), 'utf8') <= 64 * 1024);
   }
+});
+
+test('child lifecycle hooks cannot end or restart their parent session turn', () => {
+  const parent = buildRecord(fixture('user-prompt-submit.json'), CTX);
+  for (const name of ['subagent-start.json', 'subagent-stop.json']) {
+    const child = buildRecord(fixture(name), CTX);
+    assert.equal(child.sessionId, parent.sessionId);
+    assert.equal(child.kind, 'heartbeat', name + ' must not mutate parent lifecycle');
+    assert.equal(child.outcome, null, name + ' must not announce parent completion');
+  }
+});
+
+test('questions from the same agent retain independent request identities', () => {
+  const question = { session_id: 'parent', agent_id: 'shared-agent', tool_name: 'AskUserQuestion' };
+  const first = buildRecord({ ...question, hook_event_name: 'PreToolUse', tool_use_id: 'call-one' }, CTX);
+  const second = buildRecord({ ...question, hook_event_name: 'PreToolUse', tool_use_id: 'call-two' }, CTX);
+  const answer = buildRecord({ ...question, hook_event_name: 'PostToolUse', tool_use_id: 'call-one' }, CTX);
+  assert.equal(first.requestId, 'call-one');
+  assert.equal(second.requestId, 'call-two');
+  assert.equal(answer.requestId, first.requestId);
+  assert.notEqual(answer.requestId, second.requestId);
 });
 
 test('correlation ids come only from documented fields', () => {

@@ -44,6 +44,7 @@ public partial class NotificationSettingsWindow : Window
 
     /// <summary>Raised by the explicit Use baseline control.</summary>
     public event Action? BaselineRequested;
+    public event Action? KokoroRequested;
 
     /// <summary>Shows the stored provider without raising a change request.</summary>
     public void ShowProvider(string providerName)
@@ -78,6 +79,7 @@ public partial class NotificationSettingsWindow : Window
     }
 
     private void OnUseBaseline(object sender, RoutedEventArgs e) => BaselineRequested?.Invoke();
+    private void OnUseKokoro(object sender, RoutedEventArgs e) => KokoroRequested?.Invoke();
     private void OnAssign(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is VoiceSetupRow row) AssignRequested?.Invoke(row); }
     private void OnPreview(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is VoiceSetupRow row) PreviewRequested?.Invoke(row); }
     private void OnClear(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is VoiceSetupRow row) ClearRequested?.Invoke(row); }

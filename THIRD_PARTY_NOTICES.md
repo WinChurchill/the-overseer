@@ -77,6 +77,7 @@ and redistributed platform components retain their own terms.
 | Original code, AGENTS.md, V1 specification and other original docs | Owner-directed work produced with coding assistants; project MIT. |
 | Adapted monitoring readers and Windows activity source | codex-monitor-hud at the pinned revision above; MIT, upstream notice retained. |
 | assets/voicepacks/example | Original generated synthetic PCM tones; project MIT. |
+| assets/voicepacks/kokoro-en | Original fixed scripts synthesized locally with Kokoro v1.0 / af_heart using kokoro-onnx 0.6.1. Generated WAVs only; no weights or inference packages redistributed. Sources and exact provenance are in the pack README/source.json. |
 | design/reference/website-light.png and website-dark.png | Generated website references, confirmed by the owner; project MIT. |
 | design/branding/overseer-source.png, overseer-outlined.png and src/TheOverseer.App/Assets/overseer.ico | Generated branding and derived icons, confirmed by the owner; project MIT. |
 

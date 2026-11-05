@@ -67,6 +67,12 @@ public sealed partial class HudApplicationController
             Change(current => current with { Provider = VoiceSettings.SpeechProviderName });
             Refresh();
         };
+        window.KokoroRequested += () =>
+        {
+            Change(current => current with { Provider = VoiceSettings.PackProviderName, PackId = VoiceSettings.BundledPackId });
+            window.ShowProvider(VoiceSettings.PackProviderName);
+            Refresh();
+        };
         window.AssignRequested += async row =>
         {
             if (_importing) return;
@@ -144,9 +150,14 @@ public sealed partial class HudApplicationController
         try
         {
             if (cancellationToken.IsCancellationRequested) return;
-            var baseline = await Task.Run(() => VoiceProviderFactory.DescribeSpeechBaseline(), cancellationToken);
+            var settings = CurrentVoiceSettings;
+            var status = settings.ResolvedProvider == VoiceProviderKind.Speech
+                ? VoiceSetupStatus.Baseline(await Task.Run(() => VoiceProviderFactory.DescribeSpeechBaseline(), cancellationToken)) + " Optional; not qualified for this beta."
+                : settings.ResolvedProvider == VoiceProviderKind.Pack && settings.PackId == VoiceSettings.BundledPackId
+                    ? "Included Kokoro voice · offline · selected. Preview, then unmute when ready."
+                    : "Selected voice provider: " + settings.ProviderName;
             if (cancellationToken.IsCancellationRequested) return;
-            window.ShowStatus(VoiceSetupStatus.Baseline(baseline));
+            window.ShowStatus(status);
             using var provider = VoiceProviderFactory.Create(_dependencies.Paths.DataDirectory, () => CurrentVoiceSettings);
             foreach (var row in rows)
             {
@@ -158,7 +169,7 @@ public sealed partial class HudApplicationController
         catch (Exception)
         {
             Log(MonitorLogLevel.Warning, "voice-status-refresh-failed");
-            window.ShowStatus("Windows speech baseline (offline): status unavailable.");
+            window.ShowStatus("Selected voice provider: status unavailable.");
         }
     }
 
@@ -220,7 +231,7 @@ public sealed partial class HudApplicationController
             if (!outcome.ClipCreated)
             {
                 row.Status = CurrentVoiceSettings.ResolvedProvider == VoiceProviderKind.Pack
-                    ? "No playable recording (" + outcome.Code + "). Click Use Windows speech or assign a WAV."
+                    ? "No playable recording (" + outcome.Code + "). Select the included Kokoro voice or assign a WAV."
                     : "No playable recording (" + outcome.Code + "). Check the provider or assign a WAV.";
                 return;
             }

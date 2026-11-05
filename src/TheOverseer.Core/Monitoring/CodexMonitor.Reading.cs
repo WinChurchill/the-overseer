@@ -116,7 +116,7 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         }
         if (read.OversizeDiscarded)
         {
-            file.EvidenceGap = true;
+            MarkEvidenceGap(file, HealthReasons.RecordOversize);
             reasons.Add(HealthReasons.RecordOversize);
             _counters.Oversize++;
             file.HydrationLimited = true;
@@ -126,7 +126,7 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         {
             if (file.HydrationRecords >= _options.MaxHydrationRecords)
             {
-                file.EvidenceGap = true;
+                MarkEvidenceGap(file, HealthReasons.HydrationBudget);
                 file.HydrationLimited = true;
                 continue;
             }
@@ -218,7 +218,7 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
 
         if (read.OversizeDiscarded)
         {
-            file.EvidenceGap = true;
+            MarkEvidenceGap(file, HealthReasons.RecordOversize);
             reasons.Add(HealthReasons.RecordOversize);
             _counters.Oversize++;
         }

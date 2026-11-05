@@ -1,0 +1,393 @@
+{
+  "schemaVersion": 1,
+  "harness": "dsh",
+  "id": "dsh-D2-blocking",
+  "steps": [
+    {
+      "at": "2026-01-01T00:00:00.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 0,
+          "eventId": "dsh:session:0",
+          "observedAtUtc": "2026-01-01T00:00:00.000Z",
+          "eventAtUtc": "2026-01-01T00:00:00.000Z",
+          "kind": "session/start",
+          "turnId": null,
+          "callId": null,
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "unknown",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "Idle",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:00.000Z"
+      },
+      "current": {
+        "schemaVersion": 1,
+        "harnessId": "dsh",
+        "sourceInstanceId": "behavior",
+        "sourceEpoch": "E1",
+        "producerVersion": "dsh-observer/1.1.0",
+        "updatedAtUtc": "2026-01-01T00:00:00.000Z",
+        "evictedSessions": 0,
+        "sessions": [
+          {
+            "sessionId": "session",
+            "parentSessionId": null,
+            "projectRoot": "C:/synthetic",
+            "createdAtUtc": "2026-01-01T00:00:00.000Z",
+            "firstSeenUtc": "2026-01-01T00:00:00.000Z",
+            "lastObservedUtc": "2026-01-01T00:00:00.000Z",
+            "openTurnId": null,
+            "planMode": false,
+            "pendingApprovalRequestId": null,
+            "pendingInputRequestIds": [],
+            "inputStateComplete": true,
+            "category": "idle",
+            "disposed": false,
+            "lastSequence": 0,
+            "lastHostSeq": -1,
+            "lastKind": "session/start",
+            "lastEventId": "dsh:session:0",
+            "records": 1
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:01.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 1,
+          "eventId": "dsh:session:1",
+          "observedAtUtc": "2026-01-01T00:00:01.000Z",
+          "eventAtUtc": "2026-01-01T00:00:01.000Z",
+          "kind": "turn/start",
+          "turnId": "dsh:session:turn:1",
+          "callId": null,
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "Working",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:01.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:02.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 2,
+          "eventId": "dsh:session:2",
+          "observedAtUtc": "2026-01-01T00:00:02.000Z",
+          "eventAtUtc": "2026-01-01T00:00:02.000Z",
+          "kind": "tool/start",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        },
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 3,
+          "eventId": "dsh:session:3",
+          "observedAtUtc": "2026-01-01T00:00:02.000Z",
+          "eventAtUtc": null,
+          "kind": "input/asked",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": "q",
+          "projectRoot": "C:/synthetic",
+          "category": "waiting",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "NeedsInput",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [
+          "InputRequired"
+        ],
+        "watermark": "2026-01-01T00:00:02.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:03.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 4,
+          "eventId": "dsh:session:4",
+          "observedAtUtc": "2026-01-01T00:00:03.000Z",
+          "eventAtUtc": "2026-01-01T00:00:03.000Z",
+          "kind": "tool/end",
+          "turnId": "dsh:session:turn:1",
+          "callId": "other",
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "NeedsInput",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:03.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:04.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 5,
+          "eventId": "dsh:session:5",
+          "observedAtUtc": "2026-01-01T00:00:04.000Z",
+          "eventAtUtc": "2026-01-01T00:00:04.000Z",
+          "kind": "tool/end",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        },
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 6,
+          "eventId": "dsh:session:6",
+          "observedAtUtc": "2026-01-01T00:00:04.000Z",
+          "eventAtUtc": null,
+          "kind": "input/answered",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": "q",
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "Working",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:04.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:05.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 7,
+          "eventId": "dsh:session:7",
+          "observedAtUtc": "2026-01-01T00:00:05.000Z",
+          "eventAtUtc": "2026-01-01T00:00:05.000Z",
+          "kind": "turn/end",
+          "turnId": "dsh:session:turn:1",
+          "callId": null,
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "complete",
+          "evidence": "explicit",
+          "outcome": "completed",
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "Done",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [
+          "TaskCompleted"
+        ],
+        "watermark": "2026-01-01T00:00:05.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:06.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 5,
+          "eventId": "dsh:session:5",
+          "observedAtUtc": "2026-01-01T00:00:04.000Z",
+          "eventAtUtc": "2026-01-01T00:00:04.000Z",
+          "kind": "tool/end",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        },
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 6,
+          "eventId": "dsh:session:6",
+          "observedAtUtc": "2026-01-01T00:00:04.000Z",
+          "eventAtUtc": null,
+          "kind": "input/answered",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": "q",
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "Done",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:05.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:07.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "dsh",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 8,
+          "eventId": "dsh:session:8",
+          "observedAtUtc": "2026-01-01T00:00:07.000Z",
+          "eventAtUtc": "2026-01-01T00:00:07.000Z",
+          "kind": "tool/start",
+          "turnId": "dsh:session:turn:1",
+          "callId": "q",
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "unknown",
+          "evidence": "inferred",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "dsh-observer/1.1.0"
+        }
+      ],
+      "expected": {
+        "state": "Done",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:07.000Z"
+      }
+    }
+  ]
+}

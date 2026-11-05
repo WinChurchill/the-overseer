@@ -9,8 +9,8 @@ using TheOverseer.UI.ViewModels;
 
 namespace TheOverseer.Tests;
 
-// Opening a native popup captures the mouse. Run this collection after the other
-// UI collections so dispatcher pumping cannot interleave another window's drag test.
+// Popups and drag assertions share native mouse capture. Keep both classes in
+// this nonparallel collection so dispatcher pumping cannot interleave their tests.
 [CollectionDefinition("Recent popup", DisableParallelization = true)]
 public sealed class RecentPopupCollection { }
 
@@ -29,7 +29,7 @@ public sealed class RecentSelectorTests
             {
                 var palette = HudThemeManager.Load(HudTheme.Dark);
                 window.Resources.MergedDictionaries.Add(palette);
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 window.Dispatcher.Invoke(static () => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
                 var selector = (ComboBox)window.FindName("RecentHoursBox");

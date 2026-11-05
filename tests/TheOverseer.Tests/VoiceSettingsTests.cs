@@ -151,8 +151,9 @@ public sealed class VoiceSettingsTests : IDisposable
         Assert.Equal(VoiceProviderKind.Pack, VoiceSettings.Default.ResolvedProvider);
         Assert.True(VoiceSettings.Default.Muted);
 
-        Assert.Equal(VoiceProviderKind.Speech, VoiceSettings.BaselineDefault.ResolvedProvider);
-        Assert.Equal("speech", VoiceSettings.BaselineDefault.ProviderName);
+        Assert.Equal(VoiceProviderKind.Pack, VoiceSettings.BaselineDefault.ResolvedProvider);
+        Assert.Equal("pack", VoiceSettings.BaselineDefault.ProviderName);
+        Assert.Equal(VoiceSettings.BundledPackId, VoiceSettings.BaselineDefault.PackId);
         Assert.True(VoiceSettings.BaselineDefault.Muted);
     }
 
@@ -167,10 +168,10 @@ public sealed class VoiceSettingsTests : IDisposable
 
         var effective = VoiceSettings.Effective(loaded.Status, loaded.Config.Voice);
 
-        Assert.Equal(VoiceProviderKind.Speech, effective.ResolvedProvider);
-        Assert.Equal("speech", effective.ProviderName);
+        Assert.Equal(VoiceProviderKind.Pack, effective.ResolvedProvider);
+        Assert.Equal("pack", effective.ProviderName);
         Assert.True(effective.Muted);
-        Assert.Equal(VoiceSettings.DefaultPackId, effective.PackId);
+        Assert.Equal(VoiceSettings.BundledPackId, effective.PackId);
         Assert.Null(effective.Endpoint);
         Assert.Empty(effective.Clips);
         Assert.All(VoiceEventCatalog.All, item => Assert.Equal(item.DefaultEnabled, effective.IsEnabled(item.Kind)));

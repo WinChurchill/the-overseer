@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readHealth } from './spool.mjs';
 
 export const INTEGRATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BRIDGE_PATH = path.join(INTEGRATION_ROOT, 'bridge.mjs');
@@ -122,11 +123,7 @@ export function readRecords(dir) {
 }
 
 export function readHealthJson(dir) {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(dir, 'health.json'), 'utf8'));
-  } catch {
-    return null;
-  }
+  return readHealth(dir);
 }
 
 export function readSourceEpoch(dir) {

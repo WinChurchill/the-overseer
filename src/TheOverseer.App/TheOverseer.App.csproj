@@ -48,6 +48,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets\overseer.ico" LogicalName="TheOverseer.App.Assets.overseer.ico" />
+    <Content Include="..\..\assets\voicepacks\kokoro-en\**\*" Link="voicepacks\kokoro-en\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\TheOverseer.Core\TheOverseer.Core.csproj" />
     <ProjectReference Include="..\TheOverseer.UI\TheOverseer.UI.csproj" />
   </ItemGroup>

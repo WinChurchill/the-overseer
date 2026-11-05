@@ -43,7 +43,7 @@ public static class TaskActivityRecorder
     /// <summary>Displayed classification for one task, with its evidence strength.</summary>
     public static (ActivityCategory Category, ActivityEvidence Evidence, string Detail, bool IsMarker, string MarkerIdentity) Classify(AgentTask task)
     {
-        if (task.IsStale || task.IsProvisional || task.Evidence == EvidenceKind.None)
+        if (!task.HasCurrentState || task.Evidence == EvidenceKind.None)
         {
             // No trustworthy observation: coverage stays unknown, never idle.
             return (ActivityCategory.Unknown, ActivityEvidence.Unknown, "no-observation", false, string.Empty);

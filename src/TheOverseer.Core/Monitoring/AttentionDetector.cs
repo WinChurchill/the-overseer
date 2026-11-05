@@ -64,7 +64,7 @@ public sealed class AttentionDetector
                 continue;
             }
 
-            if (!byKey.TryGetValue(transition.Key, out var task) || task.IsStale || task.IsProvisional ||
+            if (!byKey.TryGetValue(transition.Key, out var task) || !task.HasCurrentState ||
                 task.State != transition.To || task.TurnId != transition.TurnId)
             {
                 continue;
@@ -109,7 +109,7 @@ public sealed class AttentionDetector
                 continue;
             }
 
-            if (!byKey.TryGetValue(transition.Key, out var task) || task.IsStale || task.IsProvisional ||
+            if (!byKey.TryGetValue(transition.Key, out var task) || !task.HasCurrentState ||
                 !task.NeedsHuman || task.TurnId != transition.TurnId)
             {
                 continue;
@@ -137,7 +137,7 @@ public sealed class AttentionDetector
         TrimLastStates(tasks);
 
         if (HydrationComplete && coverageComplete &&
-            !tasks.Any(static task => task.IsStale || task.IsProvisional ||
+            !tasks.Any(static task => !task.HasCurrentState ||
                 task.State is AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval) &&
             previouslyRunning.Count > 0 &&
             events.Exists(static item => item.Kind == AttentionEventKind.TaskCompleted))
@@ -147,7 +147,7 @@ public sealed class AttentionDetector
             {
                 if (!byKey.TryGetValue(key, out var task) ||
                     task.State != AgentTaskState.Done ||
-                    task.IsStale ||
+                    !task.HasCurrentState ||
                     task.CancellationObserved ||
                     task.TerminalFailureObserved)
                 {

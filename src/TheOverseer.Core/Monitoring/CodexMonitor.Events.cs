@@ -55,7 +55,7 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         switch (result.Outcome)
         {
             case ParseOutcome.Malformed:
-                file.EvidenceGap = true;
+                MarkEvidenceGap(file, HealthReasons.FileMalformed);
                 _counters.Malformed++;
                 malformedThisCycle = true;
                 if (_malformedPaths.Count < 256)
@@ -65,11 +65,11 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
 
                 return;
             case ParseOutcome.Oversize:
-                file.EvidenceGap = true;
+                MarkEvidenceGap(file, HealthReasons.RecordOversize);
                 _counters.Oversize++;
                 return;
             case ParseOutcome.UnknownSchema:
-                file.EvidenceGap = true;
+                MarkEvidenceGap(file, HealthReasons.UnknownSchema);
                 _counters.UnknownSchema++;
                 return;
             case ParseOutcome.Ignored:
@@ -133,6 +133,7 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         {
             file.HydrationLimited = false;
             file.EvidenceGap = false;
+            file.EvidenceGapReason = null;
         }
         if (outcome.Transition is { } transition)
         {
@@ -146,6 +147,12 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         foreach (var sibling in _tracked.Values.Where(item => item.Key == file.Key)) ResetFile(sibling);
     }
 
+    private static void MarkEvidenceGap(TrackedSessionFile file, string reason)
+    {
+        file.EvidenceGap = true;
+        file.EvidenceGapReason = reason; // Fixed reason codes only; never record contents.
+    }
+
     private static void ResetFile(TrackedSessionFile file)
     {
         file.Reader.Reset();
@@ -156,6 +163,7 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
         file.CurrentTurnId = string.Empty;
         file.HydrationLimited = false;
         file.EvidenceGap = false;
+        file.EvidenceGapReason = null;
         file.SourceOrder = 0;
         file.Signature = 0;
     }

@@ -7,6 +7,7 @@ using TheOverseer.UI.ViewModels;
 
 namespace TheOverseer.Tests;
 
+[Collection("Recent popup")]
 public sealed class HudWindowTests
 {
     [Fact]
@@ -18,7 +19,7 @@ public sealed class HudWindowTests
             try
             {
                 window.SetWindowView(true);
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(window);
                 Assert.NotNull(chrome);
@@ -73,7 +74,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = viewModel, ShowActivated = false };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 viewModel.IsExpanded = true;
                 window.UpdateLayout();
@@ -108,7 +109,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = viewModel, ShowActivated = false };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
 
                 var drag = (FrameworkElement)window.FindName("DragRegion")!;
@@ -137,7 +138,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = vm };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 var region = (System.Windows.Controls.Grid)window.FindName("DragRegion");
                 var summary = (FrameworkElement)window.FindName("SummaryRegion");
@@ -205,7 +206,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = vm, Width = 360, Height = 392 };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 var list = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList");
                 var button = FindVisuals<System.Windows.Controls.Button>(list)
@@ -245,7 +246,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = viewModel, Width = 440, Height = 640 };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
 
                 var list = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList")!;
@@ -286,7 +287,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = viewModel, Width = 440, Height = 640 };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 var list = (System.Windows.Controls.ItemsControl)window.FindName("ProjectList")!;
                 var first = viewModel.Projects[0];
@@ -319,7 +320,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = new HudViewModel(HudSettings.Default) };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.UpdateLayout();
                 var close = (System.Windows.Controls.Button)window.FindName("CloseButton")!;
                 Assert.Equal("Hide to tray", close.ToolTip);
@@ -347,7 +348,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = viewModel, ShowActivated = false };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.SetWindowView(true);
                 window.Height = 240;
                 window.UpdateLayout();
@@ -383,7 +384,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = vm, Width = 440, Height = height, ShowActivated = false };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.SetWindowView(true);
                 window.Height = height;
                 window.UpdateLayout();
@@ -418,7 +419,7 @@ public sealed class HudWindowTests
             var window = new HudWindow { DataContext = viewModel, Width = 320, Height = 220, ShowActivated = false };
             try
             {
-                window.Show();
+                StaTestHost.ShowWindow(window);
                 window.SetWindowView(true);
                 window.Width = 320;
                 window.Height = 220;

@@ -52,7 +52,7 @@ public sealed partial class HudViewModel
     {
         "recent" => "Tasks with observed activity in the last " + RecentHours + " hours. Counts above cover all monitored work.",
         "session" => "Tasks touched since OVERSEER started at " + _sessionStartedAt.ToLocalTime().ToString("t") + ". Counts above cover all monitored work.",
-        _ => "Current work and attention, plus completions/errors from the last 10 minutes. Older or stale tasks remain in Recent. Counts above cover all monitored work.",
+        _ => "Current work and unresolved attention, plus completions/errors from the last 10 minutes. Unconfirmed requests stay visible with a qualifier. Counts above cover all monitored work.",
     };
 
     public ICommand ShowCurrentTasksCommand { get; }
@@ -97,14 +97,13 @@ public sealed partial class HudViewModel
     private bool MatchesFilter(AgentTask task) => _taskFilter switch
     {
         "attention" => IsAttention(task),
-        "working" => task.State == AgentTaskState.Working && !task.IsStale,
+        "working" => task.State == AgentTaskState.Working && task.HasCurrentState,
         _ => true,
     };
 
     private static bool IsCurrent(AgentTask task, DateTimeOffset now) =>
-        !task.IsStale && !task.IsProvisional &&
+        task.HasAttention || task.HasUnconfirmedAttention || task.HasCurrentState &&
         (task.State is AgentTaskState.Working or AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput ||
-         task.NeedsHuman ||
          (task.IsTerminal && (task.CompletedAt ?? task.LastActivityAt) >= now.AddMinutes(-10)));
 
     private void UpdateVisualStatus(MonitoringSnapshot snapshot, DateTimeOffset now)
@@ -139,6 +138,12 @@ public sealed partial class HudViewModel
             StatusKind = "attention";
             StatusHeadline = "Needs you";
             StatusSymbol = "!";
+        }
+        else if (snapshot.Tasks.Any(static task => task.HasUnconfirmedAttention))
+        {
+            StatusKind = "uncertain";
+            StatusHeadline = "Attention unconfirmed";
+            StatusSymbol = "?";
         }
         else if (snapshot.Tasks.Any(task => task.State == AgentTaskState.Error && IsCurrent(task, now)))
         {

@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "harness": "claude",
+  "id": "claude-C3-approval",
+  "steps": [
+    {
+      "at": "2026-01-01T00:00:00.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 1,
+          "eventId": "ccev-513712f5799f2aec4a181b636ddf679a",
+          "observedAtUtc": "2026-01-01T00:00:00.000Z",
+          "eventAtUtc": "2026-01-01T00:00:00.000Z",
+          "kind": "session/start",
+          "turnId": null,
+          "callId": null,
+          "requestId": "same-agent",
+          "projectRoot": "C:/synthetic",
+          "category": "idle",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "Idle",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:01.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 2,
+          "eventId": "ccev-8227f55a3e9493cc674632454ee2236b",
+          "observedAtUtc": "2026-01-01T00:00:01.000Z",
+          "eventAtUtc": "2026-01-01T00:00:01.000Z",
+          "kind": "turn/start",
+          "turnId": "parent-1",
+          "callId": null,
+          "requestId": "same-agent",
+          "projectRoot": "C:/synthetic",
+          "category": "thinking",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "Working",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:01.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:02.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 3,
+          "eventId": "ccev-c064e7915f46be3b74e3484a1df80ed0",
+          "observedAtUtc": "2026-01-01T00:00:02.000Z",
+          "eventAtUtc": "2026-01-01T00:00:02.000Z",
+          "kind": "approval/asked",
+          "turnId": null,
+          "callId": null,
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "waiting",
+          "evidence": "inferred",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "NeedsApproval",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [
+          "PermissionRequired"
+        ],
+        "watermark": "2026-01-01T00:00:02.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:03.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 4,
+          "eventId": "ccev-496288515a3d33d77221687e94002fdf",
+          "observedAtUtc": "2026-01-01T00:00:03.000Z",
+          "eventAtUtc": "2026-01-01T00:00:03.000Z",
+          "kind": "input/asked",
+          "turnId": null,
+          "callId": "q",
+          "requestId": "q",
+          "projectRoot": "C:/synthetic",
+          "category": "waiting",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "NeedsApproval",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [
+          "InputRequired"
+        ],
+        "watermark": "2026-01-01T00:00:03.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:04.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 5,
+          "eventId": "ccev-709cec41b9f9baad38781fb610448f10",
+          "observedAtUtc": "2026-01-01T00:00:04.000Z",
+          "eventAtUtc": "2026-01-01T00:00:04.000Z",
+          "kind": "approval/decided",
+          "turnId": null,
+          "callId": null,
+          "requestId": null,
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "aborted",
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "NeedsApproval",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:04.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:05.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 6,
+          "eventId": "ccev-923338c78235a1cc99be49283c9a702b",
+          "observedAtUtc": "2026-01-01T00:00:05.000Z",
+          "eventAtUtc": "2026-01-01T00:00:05.000Z",
+          "kind": "approval/decided",
+          "turnId": null,
+          "callId": "other",
+          "requestId": "other",
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "aborted",
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "NeedsApproval",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:05.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:06.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 7,
+          "eventId": "ccev-a3d62044b234c9e0449212c1e90f9438",
+          "observedAtUtc": "2026-01-01T00:00:06.000Z",
+          "eventAtUtc": "2026-01-01T00:00:06.000Z",
+          "kind": "input/answered",
+          "turnId": null,
+          "callId": "q",
+          "requestId": "q",
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "NeedsApproval",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:06.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:07.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 8,
+          "eventId": "ccev-461173781185c33daf2e37253caac51c",
+          "observedAtUtc": "2026-01-01T00:00:07.000Z",
+          "eventAtUtc": "2026-01-01T00:00:07.000Z",
+          "kind": "turn/end",
+          "turnId": "parent-1",
+          "callId": null,
+          "requestId": "same-agent",
+          "projectRoot": "C:/synthetic",
+          "category": "complete",
+          "evidence": "explicit",
+          "outcome": "completed",
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "Done",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [
+          "TaskCompleted"
+        ],
+        "watermark": "2026-01-01T00:00:07.000Z"
+      }
+    }
+  ]
+}

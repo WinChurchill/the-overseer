@@ -15,54 +15,55 @@ public sealed class VoicePackProvider : IVoiceProvider, IDisposable
     public const string ManifestFileName = "manifest.json";
 
     private readonly string _packsRoot;
+    private readonly string _bundledPacksRoot;
     private readonly Func<VoiceSettings> _settings;
     private readonly Dictionary<string, int> _roundRobin = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _loadGate = new(1, 1);
-    private VoicePackManifest? _manifest;
+    private sealed record LoadedPack(VoicePackManifest Manifest, string Root);
+    private LoadedPack? _loaded;
     private string _lastCode = "idle";
 
-    public VoicePackProvider(string dataDirectory, Func<VoiceSettings> settings)
+    public VoicePackProvider(string dataDirectory, Func<VoiceSettings> settings, string? bundledPacksRoot = null)
     {
         _packsRoot = Path.Combine(dataDirectory, PackFolderName);
+        _bundledPacksRoot = bundledPacksRoot ?? Path.Combine(AppContext.BaseDirectory, PackFolderName);
         _settings = settings;
     }
 
     public string Id => "pack";
 
-    public VoiceProviderStatus Status => new("pack", _manifest is not null, _lastCode);
+    public VoiceProviderStatus Status => new("pack", _loaded?.Manifest.Id == _settings().PackId, _lastCode);
 
     public string PacksRoot => _packsRoot;
 
-    /// <summary>Loads and validates the manifest once; safe to call repeatedly.</summary>
-    public async ValueTask<VoicePackManifest?> EnsureManifestAsync(CancellationToken cancellationToken)
-    {
-        if (_manifest is not null)
-        {
-            return _manifest;
-        }
+    /// <summary>Loads the selected manifest; changing pack takes effect on the next cue.</summary>
+    public async ValueTask<VoicePackManifest?> EnsureManifestAsync(CancellationToken cancellationToken) =>
+        (await LoadAsync(cancellationToken).ConfigureAwait(false))?.Manifest;
 
+    private async ValueTask<LoadedPack?> LoadAsync(CancellationToken cancellationToken)
+    {
+        var packId = VoicePackValidator.SafePackId(_settings().PackId);
+        if (packId is null) { _lastCode = "pack-id"; return null; }
         await _loadGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_manifest is not null)
+            if (_loaded?.Manifest.Id == packId)
             {
-                return _manifest;
+                return _loaded;
             }
-
-            var settings = _settings();
-            var packId = VoicePackValidator.SafePackId(settings.PackId);
-            if (packId is null)
-            {
-                _lastCode = "pack-id";
-                return null;
-            }
-
+            _loaded = null;
             var packRoot = Path.Combine(_packsRoot, packId);
             if (!VoicePackValidator.IsContained(_packsRoot, packRoot))
             {
                 _lastCode = "pack-escape";
                 return null;
             }
+
+            // A user pack always wins, including an invalid one. Only the named
+            // shipped pack can resolve beside the executable, without copying it
+            // into user settings or starting an inference engine.
+            if (!Directory.Exists(packRoot) && packId == "kokoro-en")
+                packRoot = Path.Combine(_bundledPacksRoot, packId);
 
             var manifestPath = Path.Combine(packRoot, ManifestFileName);
             if (!File.Exists(manifestPath))
@@ -98,9 +99,9 @@ public sealed class VoicePackProvider : IVoiceProvider, IDisposable
                 return null;
             }
 
-            _manifest = validation.Manifest;
+            _loaded = new LoadedPack(validation.Manifest, packRoot);
             _lastCode = "ok";
-            return _manifest;
+            return _loaded;
         }
         catch (IOException)
         {
@@ -133,11 +134,12 @@ public sealed class VoicePackProvider : IVoiceProvider, IDisposable
 
     private async ValueTask<VoiceClip?> CreateClipAsync(VoiceCandidate candidate, CancellationToken cancellationToken)
     {
-        var manifest = await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
-        if (manifest is null)
+        var loaded = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        if (loaded is null)
         {
             return null;
         }
+        var manifest = loaded.Manifest;
 
         var eventKey = VoiceNotificationFormatter.EventCode(candidate.Kind);
         if (!manifest.Events.TryGetValue(eventKey, out var clips) || clips.Count == 0)
@@ -146,10 +148,18 @@ public sealed class VoicePackProvider : IVoiceProvider, IDisposable
             return null;
         }
 
-        var index = _roundRobin.TryGetValue(eventKey, out var next) ? next % clips.Count : 0;
-        _roundRobin[eventKey] = index + 1;
+        int index;
+        lock (_roundRobin)
+        {
+            var rotationKey = manifest.Id + ":" + eventKey;
+            index = _roundRobin.TryGetValue(rotationKey, out var next) ? next % clips.Count : 0;
+            // Only two packs can be cached in a rotation history; it is cosmetic
+            // and must not grow with repeated user configuration changes.
+            if (_roundRobin.Count >= VoiceEventCatalog.All.Count * 2) _roundRobin.Clear();
+            _roundRobin[rotationKey] = index + 1;
+        }
 
-        var packRoot = Path.Combine(_packsRoot, manifest.Id);
+        var packRoot = loaded.Root;
         var relative = clips[index];
         var full = Path.GetFullPath(Path.Combine(packRoot, relative.Replace('/', Path.DirectorySeparatorChar)));
         if (!VoicePackValidator.IsContained(packRoot, full))

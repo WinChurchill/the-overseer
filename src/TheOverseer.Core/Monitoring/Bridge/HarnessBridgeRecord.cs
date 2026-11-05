@@ -106,6 +106,9 @@ public static class HarnessBridgeParser
                 return BridgeParseResult.Reject(BridgeParseOutcome.UnsupportedSchema, "unsupported-schema");
             }
 
+            if (!ValidIdentifiers(root))
+                return BridgeParseResult.Reject(BridgeParseOutcome.Malformed, "invalid-identity");
+
             var harnessId = HarnessIds.Normalize(Identifier(root, "harnessId"));
             var sourceInstanceId = Identifier(root, "sourceInstanceId");
             var sessionId = Identifier(root, "sessionId");
@@ -165,6 +168,20 @@ public static class HarnessBridgeParser
 
     private static string Identifier(JsonElement root, string name) =>
         Bounded(root, name, MaximumIdentifierChars) ?? string.Empty;
+
+    internal static bool ValidIdentifiers(JsonElement root)
+    {
+        foreach (var name in new[] { "harnessId", "sourceInstanceId", "sourceEpoch", "sessionId", "eventId",
+            "turnId", "callId", "requestId", "producerVersion", "parentSessionId", "openTurnId",
+            "pendingApprovalRequestId", "lastEventId" })
+        {
+            if (!root.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) continue;
+            if (value.ValueKind != JsonValueKind.String) return false;
+            var text = value.GetString()!;
+            if (text.Length > MaximumIdentifierChars || text != text.Trim() || text.Any(char.IsControl)) return false;
+        }
+        return true;
+    }
 
     private static string? IdentifierOrNull(JsonElement root, string name) =>
         Bounded(root, name, MaximumIdentifierChars);

@@ -277,7 +277,7 @@ test('the generated hook command actually runs after rebinding to a new extracti
     assert.equal(record.harnessId, 'claude');
     assert.equal(record.sessionId, 'fixture-session-0001');
     assert.equal(record.kind, 'session/start');
-    assert.equal(record.producerVersion, 'overseer-claude-bridge/1.0.2');
+    assert.equal(record.producerVersion, 'overseer-claude-bridge/1.0.5');
     assert.ok(Number.isInteger(record.sequence) && record.sequence >= 1);
   }
 

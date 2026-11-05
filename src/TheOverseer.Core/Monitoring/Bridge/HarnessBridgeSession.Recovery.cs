@@ -35,6 +35,11 @@ public sealed partial class HarnessBridgeSession
                 return new BridgeResyncResult(0, 0, 0, 0, false, false, "snapshot-stale");
             }
 
+            var sourceEpochChanged = _hasEpoch && !string.Equals(_currentEpoch, document.SourceEpoch, StringComparison.Ordinal);
+            var epochReason = AdmitEpoch(document.SourceEpoch);
+            if (epochReason is not null)
+                return new BridgeResyncResult(0, 0, 0, 0, false, false, "snapshot-" + epochReason);
+
             var hadDropNote = _producerIncomplete;
             _lastSnapshotAtUtc = document.UpdatedAtUtc;
             _resyncs++;
@@ -49,7 +54,7 @@ public sealed partial class HarnessBridgeSession
             {
                 var lane = GetOrCreate(entry.SessionId);
                 changed.Add(entry.SessionId);
-                var epochChanged = lane.Epoch.Length > 0 && !string.Equals(lane.Epoch, document.SourceEpoch, StringComparison.Ordinal);
+                var epochChanged = lane.HasEpoch && !string.Equals(lane.Epoch, document.SourceEpoch, StringComparison.Ordinal);
                 if (epochChanged)
                 {
                     lane.HistoryGap = true;
@@ -58,7 +63,7 @@ public sealed partial class HarnessBridgeSession
                     lane.TurnEnded = false;
                 }
 
-                if (entry.LastSequence < lane.LastSequence)
+                if (!epochChanged && entry.LastSequence < lane.LastSequence)
                 {
                     // The document predates records already folded: never go back.
                     superseded++;
@@ -70,6 +75,7 @@ public sealed partial class HarnessBridgeSession
                 var stamp = Bound(document.UpdatedAtUtc, receiptAtUtc);
                 var sessionObserved = entry.LastObservedUtc is { } last && last <= stamp ? last : stamp;
                 lane.Epoch = document.SourceEpoch;
+                lane.HasEpoch = true;
                 lane.LastSequence = entry.LastSequence;
                 lane.SnapshotWatermark = entry.LastSequence;
                 if (entry.LastEventId.Length > 0) lane.LastEventId = entry.LastEventId;
@@ -204,7 +210,7 @@ public sealed partial class HarnessBridgeSession
             _producerIncomplete = false;
             _producerReason = string.Empty;
 
-            return new BridgeResyncResult(applied, recovered, retired, superseded, false, _emptyAuthoritative, "ok");
+            return new BridgeResyncResult(applied, recovered, retired, superseded, sourceEpochChanged, _emptyAuthoritative, "ok");
         }
     }
 

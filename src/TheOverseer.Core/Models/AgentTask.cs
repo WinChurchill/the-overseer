@@ -90,6 +90,23 @@ public sealed record AgentTask(
     ProjectDescriptor? Project = null)
 {
     /// <summary>
+    /// Records were lost, unread or unrecognized, so the last observed state is
+    /// unconfirmed. This is independent of the source's activity/freshness lease.
+    /// </summary>
+    public bool IsStateUncertain { get; init; }
+
+    /// <summary>Shared eligibility for current counts, history and live alerts.</summary>
+    public bool HasCurrentState => !IsStale && !IsProvisional && !IsStateUncertain;
+
+    /// <summary>An older async question has no fresh reply/dismissal status; work state is independent.</summary>
+    public bool HasUnconfirmedInput { get; init; }
+
+    /// <summary>Last observed unresolved attention, including nonblocking input.</summary>
+    public bool HasAttention => NeedsHuman || State is AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval;
+
+    public bool HasUnconfirmedAttention => HasUnconfirmedInput || HasAttention && !HasCurrentState;
+
+    /// <summary>
     /// Project attribution. Unassigned is a real answer, not a missing one.
     /// The root is local metadata and never reaches logs, voice or exports.
     /// </summary>

@@ -333,7 +333,11 @@ or read the harness credential store. Local contract tests use isolated spools.
   `request/header`, `request/context`, `tool/ptc-dispatch`, and every other vocabulary member —
   are never opened at all. `tool/result` reads exactly two fields: `message.toolCallId` and
   `message.isError`.
-- Paths and ids are bounded (project root 512 chars, ids 256 chars) before they reach a record.
+- Project roots stay within 512 characters. Wire identities stay within the reader's
+  128-character cap: oversized host IDs use a full SHA-256 token rather than a
+  truncated prefix. Literal IDs beginning `sha256-` are also encoded to keep the
+  token namespace distinct. Native question metadata retains its 256-character
+  admission bound; request/session/derived IDs agree between events and current state.
 - The spool is local files owned by OVERSEER. The plugin performs no network I/O, starts no
   subprocess, reads no credential store, and imports nothing from `dsh` (Node standard library
   only). `fixtures/` contains invented data only.

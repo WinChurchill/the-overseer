@@ -8,7 +8,8 @@ body:
   - type: input
     id: identity
     attributes:
-      label: Application version and ZIP SHA-256
+      label: Source commit or package version and ZIP SHA-256
+      description: For source builds include git rev-parse HEAD and whether there are local changes. For packages include release.json source identity and the archive hash.
     validations:
       required: true
   - type: input

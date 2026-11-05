@@ -29,7 +29,7 @@
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { LIMITS, PRODUCER_VERSION } from './normalize.js'
+import { LIMITS, PRODUCER_VERSION, wireId } from './normalize.js'
 import { createObserverState, MAX_PENDING_INPUTS, MAX_TRACKED_SESSIONS } from './state.js'
 import {
   DEFAULT_HEARTBEAT_MS,
@@ -143,7 +143,7 @@ function readSessionId(session) {
 
 function questionId(value) {
   return typeof value === 'string' && value.trim() === value && value.length > 0
-    && value.length <= LIMITS.idChars ? value : null
+    && value.length <= LIMITS.idChars ? wireId(value) : null
 }
 
 /**

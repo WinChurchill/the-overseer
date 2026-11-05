@@ -216,6 +216,9 @@ internal static class MonitorDebugRunner
             builder.Append(" / stale");
         }
 
+        if (task.IsStateUncertain) builder.Append(" / state-unconfirmed");
+        if (task.HasAttention) builder.Append(task.HasCurrentState ? " / request-pending" : " / request-unconfirmed");
+
         if (task.IsProvisional)
         {
             builder.Append(" / provisional-identity");

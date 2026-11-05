@@ -579,7 +579,7 @@ public sealed class HudDispatchTests
 
             Assert.Equal(
                 new[] { "Always on top", "Expand all projects", "Collapse all projects", "Compact / expanded HUD",
-                    "Light & voice…", "Projects & sources…", "Hide to tray", "Exit" },
+                    "Light & voice…", "Projects & sources…", "Focus…", "Hide to tray", "Exit" },
                 items.Select(item => item.Header!.ToString()).ToArray());
             Assert.All(items, item => Assert.Empty(item.Items));
             // Check state changes immediately, even with the menu closed and no actual tray.
@@ -965,7 +965,7 @@ public sealed class HudDispatchTests
             config,
             HudWindowState.Default,
             new HudControllerPaths(_directory, ConfigPath, StatePath),
-            () => new HudWindow(),
+            () => StaTestHost.PrepareWindow(new HudWindow()),
             TimeProvider.System,
             StartHidden: startHidden,
             TrayEnabled: false,

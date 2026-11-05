@@ -77,7 +77,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         ViewModel.NotifyStatus("Tray unavailable — right-click the header for controls.");
     }
 
-    /// <summary>Eight daily actions; appearance and startup options live in settings.</summary>
+    /// <summary>Daily actions; appearance and startup options live in settings.</summary>
     private void CreateWindowMenu()
     {
         var menu = new System.Windows.Controls.ContextMenu { Cursor = System.Windows.Input.Cursors.Arrow, ForceCursor = true };
@@ -98,6 +98,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         Add("Compact / expanded HUD", ToggleWindowView);
         Add("Light & voice…", OpenNotificationSettings);
         Add("Projects & sources…", OpenProjectSources);
+        Add("Focus…", OpenFocus);
         var hide = Add("Hide to tray", HideToTray);
         hide.SetBinding(System.Windows.Controls.MenuItem.IsEnabledProperty,
             new System.Windows.Data.Binding("Snapshot.CanHideToTray") { Source = MenuState });
@@ -137,7 +138,14 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         }
 
         var model = BuildProjectSources();
-        var window = new ProjectSourcesWindow(model) { Owner = _window, Icon = AppIcon.WindowImage };
+        var window = new ProjectSourcesWindow(model, _claudeProjectsEnabled) { Owner = _window, Icon = AppIcon.WindowImage };
+        window.ClaudeProjectsChanged += enabled =>
+        {
+            _claudeProjectsEnabled = enabled;
+            if (enabled) _disabledHarnessSources = _disabledHarnessSources.Where(item => item != "claude/projects-desktop").ToArray();
+            ScheduleStateSave();
+            ViewModel.NotifyStatus("Claude Projects observation saved — applies after OVERSEER restarts.");
+        };
         _projectSources = window;
         model.Changed += (_, _) =>
         {
@@ -202,6 +210,9 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
         foreach (var key in order)
         {
+            // This source has its own opt-in checkbox, including when no task
+            // has yet been observed. Avoid two controls with conflicting state.
+            if (key == "claude/projects-desktop") continue;
             var separator = key.IndexOf('/');
             var harness = separator < 0 ? key : key[..separator];
             var instance = separator < 0 ? string.Empty : key[(separator + 1)..];

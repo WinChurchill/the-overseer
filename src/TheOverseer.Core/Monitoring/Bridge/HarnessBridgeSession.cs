@@ -121,6 +121,10 @@ public sealed partial class HarnessBridgeSession
     private bool _emptyAuthoritative;
     private bool _producerGap;
     private DateTimeOffset _lastGapAt;
+    private string _currentEpoch = string.Empty;
+    private bool _hasEpoch;
+    private readonly HashSet<string> _retiredEpochs = new(StringComparer.Ordinal);
+    private bool _epochHistoryFull;
 
     public HarnessBridgeSession(
         SourceInstance source,
@@ -165,7 +169,7 @@ public sealed partial class HarnessBridgeSession
         {
             lock (_gate)
             {
-                return _producerIncomplete || _sessions.Values.Any(static lane => !lane.CurrentStateComplete);
+                return _epochHistoryFull || _producerIncomplete || _sessions.Values.Any(static lane => !lane.CurrentStateComplete);
             }
         }
     }
@@ -227,6 +231,9 @@ public sealed partial class HarnessBridgeSession
         {
             _producerIncomplete = true;
             _producerReason = reasonCode;
+            // Lost/rejected records may have answered any retained request. A
+            // source-level warning alone must not leave its old task count confirmed.
+            foreach (var lane in _sessions.Values) lane.CurrentStateComplete = false;
             var stamp = atUtc ?? DateTimeOffset.UtcNow;
             _producerIncompleteAt = stamp;
             // The lost records are history that was never observed: current state can
@@ -251,13 +258,14 @@ public sealed partial class HarnessBridgeSession
                 return new BridgeApplyResult(BridgeApplyOutcome.Rejected, null, "wrong-source");
             }
 
-            if (record.ProducerVersion.Length > 0)
+            var epochReason = AdmitEpoch(record.SourceEpoch);
+            if (epochReason is not null)
             {
-                _producerVersion = record.ProducerVersion;
+                return new BridgeApplyResult(BridgeApplyOutcome.Superseded, null, epochReason);
             }
 
             var lane = GetOrCreate(record.SessionId);
-            if (lane.Epoch.Length > 0 && !string.Equals(lane.Epoch, record.SourceEpoch, StringComparison.Ordinal))
+            if (lane.HasEpoch && !string.Equals(lane.Epoch, record.SourceEpoch, StringComparison.Ordinal))
             {
                 // A reconnect with a new producer epoch is not a new voice episode,
                 // but the records between the epochs were never observed and the
@@ -270,10 +278,20 @@ public sealed partial class HarnessBridgeSession
                 lane.SnapshotWatermark = -1;
                 lane.LastEventId = string.Empty;
                 lane.Epoch = record.SourceEpoch;
+                lane.Approvals.Clear();
+                lane.Inputs.Clear();
+                lane.OpenCalls.Clear();
+                lane.NeedsHuman = false;
+                lane.AttentionCode = null;
+                lane.State = AgentTaskState.Idle;
+                lane.TurnId = string.Empty;
+                lane.TurnEnded = false;
+                lane.TurnOutcome = BridgeTurnOutcome.None;
             }
-            else if (lane.Epoch.Length == 0)
+            else if (!lane.HasEpoch)
             {
                 lane.Epoch = record.SourceEpoch;
+                lane.HasEpoch = true;
                 lane.CurrentStateComplete = false;
             }
 
@@ -305,6 +323,7 @@ public sealed partial class HarnessBridgeSession
             }
 
             lane.LastSequence = record.Sequence;
+            if (record.ProducerVersion.Length > 0) _producerVersion = record.ProducerVersion;
             lane.LastEventId = record.EventId;
             if (!string.IsNullOrWhiteSpace(record.ProjectRoot) && lane.ProjectRoot.Length == 0)
             {
@@ -314,7 +333,7 @@ public sealed partial class HarnessBridgeSession
             var stamp = Stamp(lane, record.ObservedAtUtc, receiptAtUtc);
             // New evidence makes a previously retired session live again.
             lane.Retired = false;
-            var observedAction = !IsLivenessOnly(record.Kind);
+            var observedAction = !IsLivenessOnly(record.Kind) && !IgnoresAction(lane, record);
             lane.LastObservedAt = Later(lane.LastObservedAt, stamp);
             if (observedAction)
             {
@@ -368,7 +387,7 @@ public sealed partial class HarnessBridgeSession
                     lane.AttentionCode,
                     lane.LastObservedAt,
                     stale,
-                    !lane.CurrentStateComplete,
+                    _epochHistoryFull || !lane.CurrentStateComplete,
                     lane.ProjectRoot,
                     lane.LastSequence,
                     lane.FirstObservedAt,
@@ -399,6 +418,7 @@ public sealed partial class HarnessBridgeSession
         " retired=" + _retired.ToString(CultureInfo.InvariantCulture) +
         " sessions=" + _sessions.Count.ToString(CultureInfo.InvariantCulture) +
         " resync=" + _lastResyncReason +
+        (_epochHistoryFull ? " epochs=limit" : string.Empty) +
         (_producerIncomplete ? " producer=" + _producerReason : string.Empty);
 
     private SessionLane GetOrCreate(string sessionId)
@@ -450,6 +470,7 @@ public sealed partial class HarnessBridgeSession
     {
         public string SessionId = string.Empty;
         public string Epoch = string.Empty;
+        public bool HasEpoch;
         public string LastEventId = string.Empty;
         public long LastSequence = -1;
         public long SnapshotWatermark = -1;
@@ -476,8 +497,8 @@ public sealed partial class HarnessBridgeSession
         public DateTimeOffset StateSince;
         public DateTimeOffset? TurnStartedAt;
         public DateTimeOffset? CompletedAt;
-        public readonly HashSet<string> Approvals = new(StringComparer.Ordinal);
-        public readonly HashSet<string> Inputs = new(StringComparer.Ordinal);
+        public readonly PendingRequests Approvals = new();
+        public readonly PendingRequests Inputs = new();
         public readonly HashSet<string> OpenCalls = new(StringComparer.Ordinal);
     }
 }

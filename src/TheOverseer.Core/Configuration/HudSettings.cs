@@ -45,6 +45,9 @@ public sealed record HudSettings
     [JsonPropertyName("lightSize")]
     public int LightSize { get; init; } = 32;
 
+    [JsonPropertyName("focusPins")]
+    public IReadOnlyList<TheOverseer.Core.Models.FocusPin> FocusPins { get; init; } = Array.Empty<TheOverseer.Core.Models.FocusPin>();
+
     public static string NormalizeLightPosition(string? value) => value?.ToLowerInvariant() switch
     {
         "top" => "top", "bottom" => "bottom", "left" => "left", "off" => "off", _ => "right",
@@ -73,6 +76,7 @@ public sealed record HudSettings
         RecentHours = Math.Clamp(RecentHours, 1, 24),
         LightPosition = NormalizeLightPosition(LightPosition),
         LightSize = Math.Clamp(LightSize, 6, 128),
+        FocusPins = TheOverseer.Core.Models.FocusPinContract.Normalize(FocusPins),
     };
 
     /// <summary>Finite, clamped, readable opacity. Never NaN, infinity or off-range.</summary>

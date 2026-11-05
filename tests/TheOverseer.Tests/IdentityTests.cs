@@ -54,14 +54,33 @@ public sealed class IdentityTests : IDisposable
     [Theory]
     [InlineData("guardian_review")]
     [InlineData("subagent")]
-    [InlineData("agent_created_thread")]
-    [InlineData("chatgpt_handoff")]
     public void ExplicitInternalThreadSourcesAreExcluded(string threadSource)
     {
         var path = _home.WriteRollout(
             "01a0c68f-d03c-7352-b737-43bb94f76b81",
             new[] { Records.SessionMeta("01a0c68f-d03c-7352-b737-43bb94f76b81", threadSource: threadSource) });
         Assert.True(SessionIdentityReader.Read(path, 64 * 1024).IsExplicitInternal);
+    }
+
+    [Theory]
+    [InlineData("agent_created_thread", false, false)]
+    [InlineData("agent_created_thread", true, false)]
+    [InlineData("agent_created_thread", false, true)]
+    [InlineData("agent_created_thread", true, true)]
+    [InlineData("chatgpt_handoff", false, false)]
+    [InlineData("chatgpt_handoff", true, false)]
+    [InlineData("chatgpt_handoff", false, true)]
+    [InlineData("chatgpt_handoff", true, true)]
+    public void UserFacingOriginsAreVisibleUnlessSourceExplicitlyIdentifiesASubagent(
+        string threadSource, bool hasParent, bool subagent)
+    {
+        const string id = "01a0c690-0000-0000-0000-000000000099";
+        var path = _home.WriteRollout(id, new[] { Records.SessionMeta(id,
+            threadSource: threadSource, parentThreadId: hasParent ? "parent-chat" : null, subagent: subagent) });
+        var identity = SessionIdentityReader.Read(path, 64 * 1024);
+        Assert.True(identity.Found);
+        Assert.Equal(subagent, identity.IsExplicitInternal);
+        Assert.Equal(hasParent, identity.HasParentThread);
     }
 
     [Fact]

@@ -36,6 +36,7 @@ internal sealed class TrackedSessionFile
 
     public bool HydrationLimited { get; set; }
     public bool EvidenceGap { get; set; }
+    public string? EvidenceGapReason { get; set; }
 
     public long HydrationEnd { get; set; } = -1;
     public int HydrationRecords { get; set; }

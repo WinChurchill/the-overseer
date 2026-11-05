@@ -9,6 +9,7 @@ using TheOverseer.App.Voice;
 using TheOverseer.Core.History;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Voice;
+using TheOverseer.Core.Models;
 using TheOverseer.UI;
 using TheOverseer.UI.ViewModels;
 
@@ -277,6 +278,47 @@ internal static class HudFixtureRunner
             var path = Path.Combine(outputDirectory, $"{theme.ToString().ToLowerInvariant()}-window-{size.Item1}x{size.Item2}.png");
             RenderWindow(window, path);
             rendered.Add(path);
+        }
+
+        // Larger app-window overview for onboarding, separate from layout stress cases.
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            HudThemeManager.Apply(Application.Current, theme);
+            var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, LightSize = 18 });
+            vm.ApplySnapshot(SyntheticHudScenarios.ReadmeOverview());
+            vm.ApplyVoiceStatus(VoiceStatus.Initial);
+            vm.SetAllProjectsExpanded(true);
+            var window = new HudWindow
+            {
+                DataContext = vm, ShowActivated = false, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000, Top = -4000, Width = 720, Height = 640,
+            };
+            window.SetWindowView(true);
+            var path = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-readme-window.png");
+            RenderWindow(window, path);
+            rendered.Add(path);
+        }
+
+        foreach (var theme in new[] { HudTheme.Light, HudTheme.Dark })
+        {
+            HudThemeManager.Apply(Application.Current, theme);
+            var pin = new FocusPin("0123456789abcdef0123456789abcdef", "Sample research",
+                "Finish the evaluation before expanding scope", "Review the held-out results", "Confirmed user objective", SyntheticHudScenarios.Now);
+            var vm = new HudViewModel(HudSettings.Default with { Opacity = 1, FocusPins = new[] { pin } });
+            vm.ApplySnapshot(SyntheticHudScenarios.ReadmeOverview());
+            vm.IsExpanded = true;
+            var hudPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-focus-hud.png");
+            Render(vm, theme, hudPath);
+            rendered.Add(hudPath);
+            var editor = new FocusWindow(vm, () => SyntheticHudScenarios.Now)
+            {
+                ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000, Top = -4000,
+            };
+            var editorPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-focus-editor.png");
+            RenderWindow(editor, editorPath);
+            rendered.Add(editorPath);
         }
 
         Console.WriteLine("hud fixture rendered " + rendered.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " views:");

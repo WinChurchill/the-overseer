@@ -231,6 +231,7 @@ public sealed partial class AgentStateReducer
         };
         while (task.Requests.Count > task.RequestLimit)
         {
+            task.RequestOverflowed = true;
             var oldest = task.Requests.Values.MinBy(static request => request.Since)!.RequestId;
             if (task.Requests.Remove(oldest) && task.Requests.Count == 0)
             {
@@ -279,6 +280,7 @@ public sealed partial class AgentStateReducer
 
     private static void ClearRequests(MutableTask task, string turnId)
     {
+        if (turnId.Length == 0 || task.TurnId == turnId) task.RequestOverflowed = false;
         if (task.Requests.Count == 0)
         {
             task.NonBlockingInputPending = false;

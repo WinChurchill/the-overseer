@@ -82,6 +82,25 @@ public static class SyntheticHudScenarios
         };
     }
 
+    /// <summary>README overview uses supported Codex input waits, not approval placeholders.</summary>
+    public static MonitoringSnapshot ReadmeOverview()
+    {
+        var mixed = Mixed();
+        var tasks = mixed.Tasks.Select(task => task.Number switch
+        {
+            1 => task with
+            {
+                State = AgentTaskState.NeedsInput,
+                Action = new AgentAction(AgentActionKind.WaitingForInput, EvidenceKind.Explicit, "input-requested"),
+                AttentionCode = "input-requested",
+            },
+            2 => task with { Label = "Review simulation configuration" },
+            _ => task,
+        }).ToArray();
+        return Snapshot(tasks, MonitoringHealthLevel.Degraded, mixed.Health.Reasons,
+            coverageComplete: false, known: true) with { Sources = mixed.Sources };
+    }
+
     /// <summary>One project with three tasks: the single-project render case.</summary>
     public static MonitoringSnapshot SingleProject()
     {

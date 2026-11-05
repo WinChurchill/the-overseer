@@ -140,6 +140,12 @@ public static class HudText
     /// </summary>
     public static string ReasonAction(string? reasonCode) => ReasonCode(reasonCode) switch
     {
+        "async-input-status-unconfirmed" => "An earlier async question has no fresh status. Codex does not report prompt dismissal in this stream.",
+        "projects-directory-has-no-worker-state" => "Claude's Projects list exposes names but no worker status. Open a project's Threads overview; background loaded views can be observed.",
+        "projects-overview-not-visible" => "Open the Threads overview in Claude. OVERSEER does not navigate for you.",
+        "projects-visible-overviews-only" or "projects-account-coverage-unverified" => "Only open Claude overviews are observed; account totals remain partial.",
+        "projects-membership-incomplete" => "Expand the status groups in Claude to expose more threads.",
+        "projects-reader-timeout" or "projects-reader-busy" or "projects-accessibility-unavailable" => "Reopen Claude's Threads overview. Previous observations stay qualified until readable.",
         HealthReasons.RootMissing => "Set the harness root in Projects & sources.",
         HealthReasons.RootInaccessible or HealthReasons.ReadFailure => "Check that OVERSEER can read the harness data.",
         HealthReasons.RootEmpty => "No sessions have been written yet.",
@@ -205,9 +211,10 @@ public static class HudText
     public static string Marks(AgentTask task)
     {
         var marks = new List<string>(4);
+        if (task.HasUnconfirmedInput) marks.Add("Input status unconfirmed");
         if (task.NeedsHuman && task.State == AgentTaskState.Working)
         {
-            marks.Add("question pending");
+            marks.Add("question observed");
         }
 
         if (task.IsStale)
@@ -218,6 +225,11 @@ public static class HudText
         if (task.IsProvisional)
         {
             marks.Add("provisional");
+        }
+
+        if (task.IsStateUncertain)
+        {
+            marks.Add("state unconfirmed");
         }
 
         if (task.CancellationObserved)

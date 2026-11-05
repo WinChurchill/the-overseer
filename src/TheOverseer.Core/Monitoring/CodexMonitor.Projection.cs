@@ -16,16 +16,16 @@ public sealed partial class CodexMonitor : IAsyncDisposable, IDisposable
             return MonitoringCounts.Unknown;
         }
 
-        var authoritative = tasks.Where(static task => !task.IsStale && !task.IsProvisional).ToArray();
+        var authoritative = tasks.Where(static task => task.HasCurrentState).ToArray();
         var partial = !coverageComplete ||
-                      tasks.Any(static task => task.IsStale || task.IsProvisional);
+                      tasks.Any(static task => !task.HasCurrentState);
 
         CountValue Count(Func<AgentTask, bool> predicate) =>
             partial ? CountValue.Partial(authoritative.Count(predicate)) : CountValue.Known(authoritative.Count(predicate));
 
         return new MonitoringCounts(
             Count(static task => task.State == AgentTaskState.Working),
-            Count(static task => task.NeedsHuman),
+            Count(static task => task.HasAttention),
             Count(static task => task.State == AgentTaskState.NeedsApproval),
             Count(static task => task.State == AgentTaskState.NeedsInput),
             Count(static task => task.State == AgentTaskState.Error),

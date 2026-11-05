@@ -26,6 +26,10 @@ param(
     [string] $Version = '1.0.0',
     [string] $ArchiveName = 'OVERSEER-v1-win-x64.zip',
     [string] $NuGetConfig,
+    [string] $SigningCertificateThumbprint,
+    [ValidateSet('CurrentUser', 'LocalMachine')][string] $SigningCertificateStore = 'CurrentUser',
+    [string] $SignToolPath,
+    [string] $SigningTimestampServer,
     [switch] $AllowDirtyTree,
     [switch] $KeepStaging
 )
@@ -33,6 +37,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+
+# Signing is explicit and happens before any payload hashes or ZIP are produced.
+# Never generate a test certificate or modify a trust store to satisfy this gate.
+$signingCertificate = $null
+if ($SigningCertificateThumbprint) {
+    $thumbprint = $SigningCertificateThumbprint.Replace(' ', '')
+    if ($thumbprint -notmatch '^[0-9a-fA-F]{40}$') { throw 'A certificate thumbprint must contain 40 hexadecimal characters.' }
+    $signingCertificate = Get-Item -LiteralPath ('Cert:\' + $SigningCertificateStore + '\My\' + $thumbprint) -ErrorAction Stop
+    if (-not $signingCertificate.HasPrivateKey -or $signingCertificate.NotAfter -le (Get-Date) -or
+        $signingCertificate.NotBefore -gt (Get-Date) -or
+        @($signingCertificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq '1.3.6.1.5.5.7.3.3' }).Count -eq 0) {
+        throw 'The selected identity must be a currently valid code-signing certificate with its private key.'
+    }
+    if (-not $SignToolPath -or -not (Test-Path -LiteralPath $SignToolPath -PathType Leaf)) { throw 'Supply the installed Windows SDK signtool.exe path.' }
+    $timestampUri = $null
+    if (-not [Uri]::TryCreate($SigningTimestampServer, [UriKind]::Absolute, [ref]$timestampUri) -or
+        $timestampUri.Scheme -ne 'https' -or $timestampUri.UserInfo -or $timestampUri.Fragment) {
+        throw 'Supply an HTTPS RFC3161 timestamp server without credentials or fragment.'
+    }
+} elseif ($SignToolPath -or $SigningTimestampServer) {
+    throw 'Signing options require a signing certificate thumbprint.'
+}
 
 function Write-Step([string] $message) { Write-Host ('==> ' + $message) }
 
@@ -246,7 +272,13 @@ try {
         @{ Source = (Join-Path $repoRoot 'SUPPORT.md'); Target = 'SUPPORT.md' },
         @{ Source = (Join-Path $repoRoot 'SECURITY.md'); Target = 'SECURITY.md' },
         @{ Source = (Join-Path $repoRoot 'CONTRIBUTING.md'); Target = 'CONTRIBUTING.md' },
+        @{ Source = (Join-Path $repoRoot 'AGENTS.md'); Target = 'AGENTS.md' },
+        @{ Source = (Join-Path $repoRoot 'docs/IMPLEMENTATION_STATE.md'); Target = 'docs/IMPLEMENTATION_STATE.md' },
+        @{ Source = (Join-Path $repoRoot 'docs/RELEASE_READINESS.md'); Target = 'docs/RELEASE_READINESS.md' },
         @{ Source = (Join-Path $repoRoot 'docs/UPGRADE_AND_ROLLBACK.md'); Target = 'docs/UPGRADE_AND_ROLLBACK.md' },
+        @{ Source = (Join-Path $repoRoot 'docs/TESTER_HANDOFF.md'); Target = 'docs/TESTER_HANDOFF.md' },
+        @{ Source = (Join-Path $repoRoot 'docs/images/hud-dark.png'); Target = 'docs/images/hud-dark.png' },
+        @{ Source = (Join-Path $repoRoot 'docs/images/hud-light.png'); Target = 'docs/images/hud-light.png' },
         @{ Source = (Join-Path $repoRoot 'site/assets/hud-dark.png'); Target = 'site/assets/hud-dark.png' },
         @{ Source = (Join-Path $repoRoot 'site/assets/hud-light.png'); Target = 'site/assets/hud-light.png' },
         @{ Source = (Join-Path $repoRoot 'THIRD_PARTY_NOTICES.md'); Target = 'THIRD_PARTY_NOTICES.md' },
@@ -283,13 +315,6 @@ try {
     New-Item -ItemType Directory -Force -Path $exampleTarget | Out-Null
     Copy-Item -Path (Join-Path $examplePack '*') -Destination $exampleTarget -Recurse -Force
 
-    # The package has no source checkout. Keep offline instructions/screenshots,
-    # but turn the three source-only README links into text rather than broken links.
-    $packageReadme = Join-Path $payloadRoot 'README.md'
-    $readmeText = Get-Content -LiteralPath $packageReadme -Raw
-    $readmeText = [regex]::Replace($readmeText, '\[([^\]]+)\]\((docs/(?:IMPLEMENTATION_STATE|RELEASE_READINESS)\.md|site/README\.md)\)', '$1 (in the source repository)')
-    Set-Content -LiteralPath $packageReadme -Value $readmeText -Encoding utf8
-
     # ---- optional integrations ----------------------------------------------
     # The harness bridges ship as their own assets, with notices, reversible
     # installers and their tests, so a user never needs this checkout. Their spool
@@ -303,7 +328,61 @@ try {
     $integrationFiles = @(Get-ChildItem -LiteralPath $integrationTarget -Recurse -File | Sort-Object FullName)
     $integrationNames = @($integrationFiles | ForEach-Object { $_.FullName.Substring($integrationTarget.Length + 1).Replace('\', '/') })
 
+    # Keep user guides/images usable offline. Source-only Markdown links point to
+    # the recorded source revision instead of nonexistent files in the archive.
+    $repoPrefix = $repoRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    foreach ($doc in Get-ChildItem -LiteralPath $payloadRoot -Recurse -Filter '*.md' -File) {
+        $relativeDoc = [IO.Path]::GetRelativePath($payloadRoot, $doc.FullName)
+        $sourceDirectory = Split-Path -Parent (Join-Path $repoRoot $relativeDoc)
+        $text = Get-Content -LiteralPath $doc.FullName -Raw
+        $text = [regex]::Replace($text, '\[([^\]]+)\]\(([^\s)]+)\)', {
+            param($match)
+            $target = $match.Groups[2].Value
+            if ($target -match '^(?:[a-z][a-z0-9+.-]*:|#|//)') { return $match.Value }
+            $parts = $target -split '#', 2
+            $localTarget = Join-Path $doc.DirectoryName $parts[0]
+            if (Test-Path -LiteralPath $localTarget) { return $match.Value }
+            $sourceTarget = [IO.Path]::GetFullPath((Join-Path $sourceDirectory $parts[0]))
+            if (-not $sourceTarget.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+                -not (Test-Path -LiteralPath $sourceTarget)) {
+                throw ('broken documentation link in ' + $relativeDoc + ': ' + $target)
+            }
+            $relativeSource = [IO.Path]::GetRelativePath($repoRoot, $sourceTarget).Replace('\', '/')
+            $url = 'https://github.com/WinChurchill/the-overseer/blob/' + $sourceCommit + '/' + $relativeSource
+            if ($parts.Count -gt 1) { $url += '#' + $parts[1] }
+            return '[' + $match.Groups[1].Value + '](' + $url + ')'
+        })
+        Set-Content -LiteralPath $doc.FullName -Value $text -Encoding utf8 -NoNewline
+    }
+
     # ---- machine-readable release identity ----------------------------------
+    $ownedBinaries = @('TheOverseer.App.exe', 'TheOverseer.App.dll', 'TheOverseer.Core.dll', 'TheOverseer.UI.dll')
+    $binarySignatures = [Collections.Generic.List[object]]::new()
+    foreach ($binary in $ownedBinaries) {
+        $signaturePath = Join-Path $payloadRoot $binary
+        if ($signingCertificate) {
+            $signArguments = @('sign', '/sha1', $signingCertificate.Thumbprint, '/s', 'My', '/fd', 'SHA256',
+                '/tr', $SigningTimestampServer, '/td', 'SHA256')
+            if ($SigningCertificateStore -eq 'LocalMachine') { $signArguments += '/sm' }
+            $signArguments += $signaturePath
+            Invoke-Checked $SignToolPath $signArguments ('Authenticode signing: ' + $binary)
+            Invoke-Checked $SignToolPath @('verify', '/pa', '/all', '/v', $signaturePath) ('Authenticode verification: ' + $binary)
+        }
+        $signature = Get-AuthenticodeSignature -LiteralPath $signaturePath
+        if ($signingCertificate -and ($signature.Status -ne 'Valid' -or -not $signature.TimeStamperCertificate -or
+            $signature.SignerCertificate.Thumbprint -ne $signingCertificate.Thumbprint)) {
+            throw ('Signed payload must have a valid matching Authenticode identity and a timestamp: ' + $binary)
+        }
+        $binarySignatures.Add([ordered]@{ file = $binary; status = $signature.Status.ToString();
+            signerThumbprint = if ($signature.SignerCertificate) { $signature.SignerCertificate.Thumbprint } else { $null };
+            timestamped = [bool]$signature.TimeStamperCertificate })
+    }
+    $signing = [ordered]@{
+        status = $binarySignatures[0].status
+        signerThumbprint = $binarySignatures[0].signerThumbprint
+        timestamped = $binarySignatures[0].timestamped
+        files = $binarySignatures.ToArray()
+    }
     $release = [ordered]@{
         projectLicense = 'MIT'
         licenseScope = 'Original code, docs and generated artwork: MIT; upstream and runtime terms are in THIRD_PARTY_NOTICES.md.'
@@ -316,13 +395,14 @@ try {
         sourceShortCommit = $sourceShort
         sourceBranch = $sourceBranch
         sourceTreeDirty = $dirty
+        signing = $signing
         sdkVersion = $sdkVersion
         runtimeIdentifier = $RuntimeIdentifier
         configuration = $Configuration
         selfContained = $true
         generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
         integrations = $integrationNames
-        dataDirectoryNote = 'Runtime data (settings, state, logs and bridge spools) stays under the data directory (%LOCALAPPDATA%\OVERSEER unless --data-directory is passed) and is not stored in this package folder.'
+        dataDirectoryNote = 'App settings, state and logs use %LOCALAPPDATA%\OVERSEER unless --data-directory is passed. Bridge producers use their own documented spool settings; --data-directory does not redirect them. Runtime data is not stored in this package folder.'
     }
     $release | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $payloadRoot 'release.json') -Encoding utf8
 
@@ -345,6 +425,9 @@ try {
         (Join-Path $payloadRoot $executableName),
         (Join-Path $payloadRoot 'LICENSE'),
         (Join-Path $payloadRoot 'README.md'),
+        (Join-Path $payloadRoot 'docs/TESTER_HANDOFF.md'),
+        (Join-Path $payloadRoot 'docs/images/hud-dark.png'),
+        (Join-Path $payloadRoot 'docs/images/hud-light.png'),
         (Join-Path $payloadRoot 'THIRD_PARTY_NOTICES.md'),
         (Join-Path $payloadRoot 'release.json'),
         (Join-Path $payloadRoot 'integrations/deepseek-harness/README.md'),
@@ -442,6 +525,7 @@ try {
         sdkVersion = $sdkVersion
         includedFrameworks = $includedFrameworks
         generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+        signing = $signing
         archive = $ArchiveName
         archiveBytes = $archiveBytes
         archiveSha256 = $archiveHash

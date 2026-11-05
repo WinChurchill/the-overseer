@@ -69,6 +69,10 @@ public sealed record MonitorConfig
     /// </summary>
     [JsonPropertyName("maximumHarnessSources")]
     public int MaximumHarnessSources { get; init; } = 8;
+
+    /// <summary>Read status metadata from open Claude Projects overviews. Opt-in.</summary>
+    [JsonPropertyName("claudeProjectsEnabled")]
+    public bool ClaudeProjectsEnabled { get; init; }
 }
 
 public sealed record MonitorLimits

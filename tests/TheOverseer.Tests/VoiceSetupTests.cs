@@ -13,10 +13,10 @@ namespace TheOverseer.Tests;
 public sealed class VoiceSetupTests
 {
     [Theory]
-    [InlineData("right", 12, 0)]
-    [InlineData("left", -12, 0)]
-    [InlineData("top", 0, -12)]
-    [InlineData("bottom", 0, 12)]
+    [InlineData("right", -12, 0)]
+    [InlineData("left", 12, 0)]
+    [InlineData("top", 0, 12)]
+    [InlineData("bottom", 0, -12)]
     public void LightSurfaceDragResizesWithBounds(string position, double x, double y)
     {
         StaTestHost.Invoke(() =>
@@ -33,6 +33,56 @@ public sealed class VoiceSetupTests
                 Assert.Equal(128, vm.LightSize);
                 grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(-x * 100, -y * 100) { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
                 Assert.Equal(6, vm.LightSize);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Theory]
+    [InlineData("left", 12, 0)]
+    [InlineData("right", 12, 0)]
+    [InlineData("top", 0, 12)]
+    [InlineData("bottom", 0, 12)]
+    public void SharedLightBoundaryFollowsPointerAndReversesWithoutMovingTheWindow(string position, double x, double y)
+    {
+        StaTestHost.Invoke(() =>
+        {
+            var vm = new HudViewModel(HudSettings.Default with { LightPosition = position, LightSize = 48 });
+            var window = new HudWindow { DataContext = vm, Width = 720, Height = 640 };
+            try
+            {
+                // Arrange the actual content tree without creating a native
+                // window; this stays independent of the desktop's active monitor.
+                var surface = (FrameworkElement)window.Content;
+                void Layout()
+                {
+                    surface.Measure(new Size(720, 640));
+                    surface.Arrange(new Rect(0, 0, 720, 640));
+                    surface.UpdateLayout();
+                }
+                var light = (FrameworkElement)window.FindName("StatusLight");
+                double Boundary()
+                {
+                    var corner = light.TranslatePoint(new Point(0, 0), surface);
+                    return position switch { "left" => corner.X + light.ActualWidth, "right" => corner.X,
+                        "top" => corner.Y + light.ActualHeight, _ => corner.Y };
+                }
+                var grip = (System.Windows.Controls.Primitives.Thumb)window.FindName("LightResizeGrip");
+                void Drag(double dx, double dy) => grip.RaiseEvent(new System.Windows.Controls.Primitives.DragDeltaEventArgs(dx, dy)
+                    { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragDeltaEvent });
+                Layout();
+                var before = Boundary();
+                grip.RaiseEvent(new System.Windows.Controls.Primitives.DragStartedEventArgs(0, 0)
+                    { RoutedEvent = System.Windows.Controls.Primitives.Thumb.DragStartedEvent });
+                Drag(x, y); Layout();
+                Assert.Equal(before + x + y, Boundary(), 5);
+                Assert.Equal(720, surface.ActualWidth);
+                Assert.Equal(640, surface.ActualHeight);
+                Assert.Equal(720, window.Width);
+                Assert.Equal(640, window.Height);
+                Drag(-x, -y); Layout();
+                Assert.Equal(before, Boundary(), 5);
+                Assert.Equal(48, vm.LightSize);
             }
             finally { window.Close(); }
         });
@@ -121,7 +171,7 @@ public sealed class VoiceSetupTests
             window.ShowActivated = false;
             try
             {
-                window.Show(); window.UpdateLayout();
+                StaTestHost.ShowWindow(window); window.UpdateLayout();
                 var light = (Border)window.FindName("StatusLight");
                 Assert.Equal(Visibility.Visible, light.Visibility);
                 // Layout rounds DIPs to the monitor's physical pixel grid.

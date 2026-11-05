@@ -38,6 +38,8 @@ public sealed class StartupArguments
     /// <summary>Finite Plan 3 voice smoke (silent unless --audible is given).</summary>
     public bool VoiceSmoke { get; private init; }
 
+    public bool IncludeWindowsSpeech { get; private init; }
+
     /// <summary>Play through the real sound device during the voice smoke.</summary>
     public bool Audible { get; private init; }
 
@@ -83,6 +85,7 @@ public sealed class StartupArguments
         HudCompositionCheck = HudCompositionCheck,
         HudEnduranceCheck = HudEnduranceCheck,
         VoiceSmoke = VoiceSmoke,
+        IncludeWindowsSpeech = IncludeWindowsSpeech,
         Audible = Audible,
         VoicePackCheck = VoicePackCheck,
         StartInTray = StartInTray,
@@ -108,6 +111,7 @@ public sealed class StartupArguments
         var enduranceCheck = false;
         var allowPrimaryPlacement = false;
         var voiceSmoke = false;
+        var includeWindowsSpeech = false;
         var voicePackCheck = false;
         var audible = false;
         var startInTray = false;
@@ -146,6 +150,9 @@ public sealed class StartupArguments
                     break;
                 case "--voice-smoke":
                     voiceSmoke = true;
+                    break;
+                case "--include-windows-speech":
+                    includeWindowsSpeech = true;
                     break;
                 case "--voice-pack-check":
                     voicePackCheck = true;
@@ -213,6 +220,12 @@ public sealed class StartupArguments
             }
         }
 
+        if (includeWindowsSpeech && !voiceSmoke)
+        {
+            error = "--include-windows-speech requires --voice-smoke";
+            return false;
+        }
+
         if (seconds < 1 || seconds > MaximumDurationSeconds)
         {
             error = "duration must be between 1 and " + MaximumDurationSeconds.ToString(CultureInfo.InvariantCulture) + " seconds";
@@ -228,6 +241,7 @@ public sealed class StartupArguments
             HudCompositionCheck = compositionCheck,
             HudEnduranceCheck = enduranceCheck,
             VoiceSmoke = voiceSmoke,
+            IncludeWindowsSpeech = includeWindowsSpeech,
             VoicePackCheck = voicePackCheck,
             Audible = audible,
             StartInTray = startInTray,
@@ -251,7 +265,7 @@ public sealed class StartupArguments
        TheOverseer.App --hud-integration-check [--output-directory DIR]   (invented producers through the real monitor and HUD)
        TheOverseer.App --hud-composition-check [--output-directory DIR]   (the real startup composition and discovery, invented producers)
        TheOverseer.App --hud-endurance-check --start-in-tray --no-tray --duration 3600 --output-directory DIR
-       TheOverseer.App --voice-smoke [--audible] [--data-directory PATH]
+       TheOverseer.App --voice-smoke [--audible] [--include-windows-speech] [--data-directory PATH]
        TheOverseer.App --voice-pack-check [--data-directory PATH]
 
        --placement-monitor DEVICE   diagnostics/tests: start the HUD on this monitor

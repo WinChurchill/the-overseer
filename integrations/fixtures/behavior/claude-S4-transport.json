@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "harness": "claude",
+  "id": "claude-S4-transport",
+  "steps": [
+    {
+      "at": "2026-01-01T00:00:00.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 1,
+          "eventId": "ccev-513712f5799f2aec4a181b636ddf679a",
+          "observedAtUtc": "2026-01-01T00:00:00.000Z",
+          "eventAtUtc": "2026-01-01T00:00:00.000Z",
+          "kind": "session/start",
+          "turnId": null,
+          "callId": null,
+          "requestId": "same-agent",
+          "projectRoot": "C:/synthetic",
+          "category": "idle",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "Idle",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:01.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 2,
+          "eventId": "ccev-8227f55a3e9493cc674632454ee2236b",
+          "observedAtUtc": "2026-01-01T00:00:01.000Z",
+          "eventAtUtc": "2026-01-01T00:00:01.000Z",
+          "kind": "turn/start",
+          "turnId": "parent-1",
+          "callId": null,
+          "requestId": "same-agent",
+          "projectRoot": "C:/synthetic",
+          "category": "thinking",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "Working",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:01.000Z"
+      }
+    },
+    {
+      "at": "2026-01-01T00:00:02.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 3,
+          "eventId": "ccev-706aa667b2434cddbcc6cfab6c430c0b",
+          "observedAtUtc": "2026-01-01T00:00:02.000Z",
+          "eventAtUtc": "2026-01-01T00:00:02.000Z",
+          "kind": "input/asked",
+          "turnId": null,
+          "callId": "same-id",
+          "requestId": "same-id",
+          "projectRoot": "C:/synthetic",
+          "category": "waiting",
+          "evidence": "explicit",
+          "outcome": null,
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "Working",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:01.000Z"
+      },
+      "operation": "split-start"
+    },
+    {
+      "at": "2026-01-01T00:00:03.000Z",
+      "records": [],
+      "expected": {
+        "state": "NeedsInput",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [
+          "InputRequired"
+        ],
+        "watermark": "2026-01-01T00:00:02.000Z"
+      },
+      "operation": "split-finish"
+    },
+    {
+      "at": "2026-01-01T00:00:04.000Z",
+      "records": [
+        {
+          "schemaVersion": 1,
+          "harnessId": "claude",
+          "sourceInstanceId": "behavior",
+          "sourceEpoch": "E1",
+          "sessionId": "session",
+          "sequence": 4,
+          "eventId": "ccev-da53d222adcf3d64201e7bc1b20a3306",
+          "observedAtUtc": "2026-01-01T00:00:04.000Z",
+          "eventAtUtc": "2026-01-01T00:00:04.000Z",
+          "kind": "input/answered",
+          "turnId": null,
+          "callId": "same-id",
+          "requestId": "same-id",
+          "projectRoot": "C:/synthetic",
+          "category": "working",
+          "evidence": "explicit",
+          "outcome": "ok",
+          "hydration": false,
+          "producerVersion": "overseer-claude-bridge/1.0.5"
+        }
+      ],
+      "expected": {
+        "state": "NeedsInput",
+        "needsHuman": true,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:02.000Z"
+      },
+      "operation": "rotate-split-start"
+    },
+    {
+      "at": "2026-01-01T00:00:05.000Z",
+      "records": [],
+      "expected": {
+        "state": "Working",
+        "needsHuman": false,
+        "uncertain": false,
+        "stale": false,
+        "current": true,
+        "complete": true,
+        "attention": [],
+        "watermark": "2026-01-01T00:00:04.000Z"
+      },
+      "operation": "split-finish"
+    }
+  ],
+  "peerRecords": [
+    {
+      "schemaVersion": 1,
+      "harnessId": "dsh",
+      "sourceInstanceId": "behavior",
+      "sourceEpoch": "E1",
+      "sessionId": "session",
+      "sequence": 0,
+      "eventId": "dsh:session:0",
+      "observedAtUtc": "2026-01-01T00:00:00.000Z",
+      "eventAtUtc": "2026-01-01T00:00:00.000Z",
+      "kind": "session/start",
+      "turnId": null,
+      "callId": null,
+      "requestId": null,
+      "projectRoot": "C:/synthetic",
+      "category": "unknown",
+      "evidence": "explicit",
+      "outcome": null,
+      "hydration": false,
+      "producerVersion": "dsh-observer/1.1.0"
+    },
+    {
+      "schemaVersion": 1,
+      "harnessId": "dsh",
+      "sourceInstanceId": "behavior",
+      "sourceEpoch": "E1",
+      "sessionId": "session",
+      "sequence": 1,
+      "eventId": "dsh:session:1",
+      "observedAtUtc": "2026-01-01T00:00:00.000Z",
+      "eventAtUtc": "2026-01-01T00:00:00.000Z",
+      "kind": "turn/start",
+      "turnId": "dsh:session:turn:1",
+      "callId": null,
+      "requestId": null,
+      "projectRoot": "C:/synthetic",
+      "category": "working",
+      "evidence": "explicit",
+      "outcome": null,
+      "hydration": false,
+      "producerVersion": "dsh-observer/1.1.0"
+    },
+    {
+      "schemaVersion": 1,
+      "harnessId": "dsh",
+      "sourceInstanceId": "behavior",
+      "sourceEpoch": "E1",
+      "sessionId": "session",
+      "sequence": 2,
+      "eventId": "dsh:session:2",
+      "observedAtUtc": "2026-01-01T00:00:00.000Z",
+      "eventAtUtc": "2026-01-01T00:00:00.000Z",
+      "kind": "tool/start",
+      "turnId": "dsh:session:turn:1",
+      "callId": "same-id",
+      "requestId": null,
+      "projectRoot": "C:/synthetic",
+      "category": "working",
+      "evidence": "explicit",
+      "outcome": null,
+      "hydration": false,
+      "producerVersion": "dsh-observer/1.1.0"
+    },
+    {
+      "schemaVersion": 1,
+      "harnessId": "dsh",
+      "sourceInstanceId": "behavior",
+      "sourceEpoch": "E1",
+      "sessionId": "session",
+      "sequence": 3,
+      "eventId": "dsh:session:3",
+      "observedAtUtc": "2026-01-01T00:00:00.000Z",
+      "eventAtUtc": null,
+      "kind": "input/asked",
+      "turnId": "dsh:session:turn:1",
+      "callId": "same-id",
+      "requestId": "same-id",
+      "projectRoot": "C:/synthetic",
+      "category": "waiting",
+      "evidence": "explicit",
+      "outcome": null,
+      "hydration": false,
+      "producerVersion": "dsh-observer/1.1.0"
+    }
+  ]
+}

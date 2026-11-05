@@ -1,136 +1,64 @@
-# OVERSEER — Windows HUD for AI coding agents
+# OVERSEER
 
-See what your agents are doing and when they need you, in one small Windows window.
-OVERSEER groups observed work by project, shows the limits of its coverage and can
-speak short notifications. It observes; it never answers requests or controls an agent.
+OVERSEER is a Windows HUD for AI coding agents. See which projects are active, which
+tasks need input, and what happened recently. Optional voice cues announce changes.
 
-**Publication status:** private qualification is underway. Automated evidence
-and remaining owner checks are recorded in the version-bound handoff; no public
-release has been approved.
-The automated qualification round has qualified private RC21 from CI; see
-[the automation runbook](docs/AUTOMATED_QUALIFICATION.md). It preserves RC14 and
-does not certify pending live-host, clean-machine or physical checks.
-The source is staged privately at [WinChurchill/the-overseer](https://github.com/WinChurchill/the-overseer)
-(current work: `fix/automated-release-qualification`). There is no public download yet. GitHub Releases and a project website are prepared
-for launch after [release qualification](docs/RELEASE_READINESS.md). Do not confuse
-GitHub's source ZIP with the self-contained Windows application ZIP.
+<img src="docs/images/hud-dark.png" width="720" alt="OVERSEER in window mode, showing projects with tasks working and waiting for input." />
 
-![OVERSEER compact HUD in the dark theme, showing staged counts and limited coverage](site/assets/hud-dark.png)
-![The same compact HUD in the light theme](site/assets/hud-light.png)
+<details>
+<summary>Light theme</summary>
+<img src="docs/images/hud-light.png" width="720" alt="The same OVERSEER window in the light theme." />
+</details>
 
-*Sanitized fixture screenshots with synthetic counts; these do not demonstrate live
-host qualification. Both themes use the same controls and layout.*
+*App screenshots with sample tasks.*
 
-## What it can observe
+## Run the app
 
-| Source | Observed work and attention | Qualification and limits |
-| --- | --- | --- |
-| Codex local Windows rollout files | Work, completion/error, asynchronous questions and correlated answers | Contract and packaged tests pass. Owner live-session checks pending. **Approval detection is Unsupported.** |
-| DSH Desktop / DeepSeek Harness observer | Turn/tool boundaries, approval wait/resume, question wait/resume, completion/error and explicit plan mode | Experimental. Observer 1.1.0 targets Desktop 0.2.0-rc.2; missing native question metadata reduces coverage. Owner confirmed live permissions; question retest pending. Observer 1.0.0 has no question detection. |
-| Claude Code desktop Code tab or editor hooks | Work, input/permission waits, resume and completion/error | Experimental. Windows-local execution only for this qualification. Actual host/engine checks pending. WSL, SSH and cloud spool routing unqualified. |
+For a published build, download the Windows x64 app ZIP and its checksum, verify the
+hash, extract the whole folder, and open **TheOverseer.App.exe**. The ZIP includes its
+.NET runtime. [Releases](https://github.com/WinChurchill/the-overseer/releases) ·
+[Package instructions](docs/TESTER_HANDOFF.md#using-an-application-zip)
 
-No missing source becomes a fabricated healthy zero. Monitoring details distinguish
-fresh, partial, stale and unavailable coverage. Task titles and project paths may be
-visible locally; no transcript is copied into OVERSEER history or diagnostic logs.
-Read [privacy](PRIVACY.md) before choosing an optional network TTS provider.
+### Clone and run
 
-Codex questions clear on a matching question-widget reply or turn completion/abort.
-An answer typed as ordinary chat does not carry the question's ID, so its pending
-marker can remain until the turn ends. OVERSEER does not guess from answer text.
-
-## Install and first run
-
-1. Obtain the versioned `OVERSEER-<version>-win-x64.zip` and its SHA-256 from the
-   supplied qualification packet (later, the GitHub release).
-2. Check the hash, extract the **whole folder** to a short per-user location, then run
-   `TheOverseer.App.exe` as a standard user. Keep its files together.
-3. Start your normal Codex work. Use **Projects & sources…** for roots, mappings and
-   optional bridges; use the health control for coverage and the next setup action.
-4. Voice starts muted. **Light & voice…** lets you preview offline Windows speech,
-   change theme/opacity and configure startup, the light and voice.
-
-The application includes its .NET runtime: no SDK, system .NET, Node or repository
-is needed to launch it. Optional bridge producers need Node in their **host execution
-environment** (DSH 20+, Claude 18+); the application does not install that runtime.
-Target: Windows x64. ARM64, x86, macOS and Linux are unqualified. Clean-machine/OS
-build qualification is pending; tested OS and host versions will accompany a release.
-The private RC is unsigned. Keep normal Windows protections enabled; record any
-warning or policy block in the test results.
-
-Keep extraction paths short, for example a folder you own under
-`%LOCALAPPDATA%\OVERSEER-App`. Deeply nested paths can make Windows fail to load
-WPF native files with `0x800700CE` (filename or extension too long). Re-extract
-the same verified archive to a shorter owned path; retain the failed result.
-
-Runtime data is separate under `%LOCALAPPDATA%\OVERSEER`: settings, placement,
-local history, recordings, spools and bounded logs. For a disposable test, launch:
+On Windows x64, use Git, PowerShell 7, and the x64 .NET 10 SDK.
+[SDK download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 
 ```powershell
-.\TheOverseer.App.exe --data-directory "C:\Users\Public\OVERSEER Test Data"
+git clone https://github.com/WinChurchill/the-overseer.git
+Set-Location the-overseer
+$testData = Join-Path $env:LOCALAPPDATA 'OVERSEER-Tester\source'
+dotnet run --project src/TheOverseer.App/TheOverseer.App.csproj -c Release -- --data-directory "$testData"
 ```
 
-Choose a test folder your account owns. Bridges use their documented spool overrides
-when testing isolated data; changing the app's folder alone does not redirect producers.
-A no-host first run should show unknown/offline coverage and a setup action, with voice
-muted. Existing settings are preserved.
+The first build restores packages. The separate data folder holds tester settings,
+history, and logs. The HUD still reads your local agent sources.
 
-## Everyday controls
+## Connect a source
 
-- **NEED YOU / WORKING** selects the corresponding filter and expands the list.
-- **Now / Recent / This session**, project groups and history strips change the view.
-  Counts still summarize all observed work. Unknown history is not idle time.
-- The **microphone button** mutes/unmutes. **Light · reason / Light off** toggles
-  the status light and describes its current meaning.
-- **⋯** opens eight actions: Always on top, Expand all projects, Collapse all projects,
-  Compact/expanded HUD, Light & voice…, Projects & sources…, Hide to tray and Exit.
-- Drag a clear header strip to move; use the border to resize. Maximize/restore and
-  Windows Snap are available. Smallest supported layout is 300 × 220 DIP.
-- The tray restores the HUD and offers pin, mute, settings and Exit. Closing hides
-  while a usable tray exists; without one it exits. Normal status updates do not
-  intentionally activate the window. Intentional restore/activation needs owner testing.
-- A resolved Codex desktop task opens its `codex://threads/<id>` route. Other harnesses
-  offer task-id copying. OVERSEER does not submit a response or approval.
-  Windows Store activation is available when the ordinary shell has no association;
-  success means an open request was accepted, not proof of the exact chat focusing.
+| Source | Setup |
+| --- | --- |
+| Codex on Windows | Local sessions are discovered automatically. Use `--codex-home` for a different Codex home. |
+| Claude Code | Install the optional experimental hooks. [Claude Code setup](integrations/claude-code/README.md) |
+| Claude Projects | Enable **Observe loaded Claude Projects desktop views** in **⋯ → Projects & sources…**, restart OVERSEER, and open **Threads / Overview** in Claude. [Coverage and limits](integrations/README.md#claude-projects-and-cloud-workers) |
+| DeepSeek Harness | Install the optional experimental observer. [DSH setup](integrations/deepseek-harness/README.md) |
 
-## Optional integrations
+Start a small task and compare it with **Now**. Open the coverage indicator if a
+source is missing or stale. Codex approvals are unsupported. The Claude Projects
+observer covers loaded desktop overviews.
 
-Follow the [integration index](integrations/README.md) and the bridge-specific guides:
-[DSH Desktop](integrations/deepseek-harness/README.md),
-[Claude Code desktop/editor](integrations/claude-code/README.md).
-Keep bridge files at a permanent path, preview/back up changes and restart OVERSEER
-after install/removal/rebinding: discovery happens at startup.
+## Use the HUD
 
-DSH Desktop owns its dedicated `desktop` profile. Use its Plugins page, or its bundled
-CLI **after fully quitting Desktop**; a terminal DSH profile is a separate environment.
-Claude Code hooks belong to the Code settings for the session's execution environment,
-not the desktop chat MCP settings. A standalone `claude` command is not required.
-Installers preview by default and preserve unrelated settings; `--apply` is explicit.
+- Select **Needs you** or **Working** to filter tasks. Use **Recent** and **History**
+  to inspect past activity.
+- Drag the header to move the HUD. Drag the divider to resize the status light.
+- Voice starts muted. Open **⋯ → Light & voice…** to preview the included offline
+  Kokoro cues, then unmute when ready.
+- Close hides the HUD to the tray. Choose **⋯ → Exit** to stop it.
 
-## Update, rollback and uninstall
+The current alpha targets Windows x64 and ships unsigned. For testing, support, or
+development, see the [tester handoff](docs/TESTER_HANDOFF.md), [support](SUPPORT.md),
+[contributing](CONTRIBUTING.md), and [agent instructions](AGENTS.md).
 
-Stop the app, back up its data directory, extract the new version into a **new** folder
-and start it. Repair shortcuts/startup and any bridge path that moved. Keep the old
-folder and backup until accepted. To roll back, stop the app and restore that backup
-before starting the old copy. See [upgrade and rollback](docs/UPGRADE_AND_ROLLBACK.md).
-
-To uninstall, disable Start with Windows, remove installed bridge hooks/plugins using
-their guides, then Exit and delete the application folder. Remaining OVERSEER data is
-optional to delete after stopping producers; it includes your settings and recordings.
-Unrelated host settings must remain intact.
-
-## Build, report a bug or contribute
-
-The [contribution guide](CONTRIBUTING.md) gives the .NET 10 / Node / PowerShell build
-and test commands. [Support](SUPPORT.md) explains what to attach to a bug report;
-[security reporting](SECURITY.md) explains the private route planned for publication.
-Never attach raw agent sessions, credentials or your full settings/data directory.
-
-Current results and limitations: [implementation state](docs/IMPLEMENTATION_STATE.md).
-Owner tests and publication gates: [release readiness](docs/RELEASE_READINESS.md).
-The project website is built locally from `site/` using `node scripts/Build-Site.mjs`;
-its [build and deployment guidance](site/README.md) keeps publication gated.
-
-Original code, docs and generated artwork: [MIT](LICENSE), copyright Winston Lin.
-Adapted monitoring code retains the upstream MIT notice; redistributed .NET runtime
-terms ship separately. See [third-party notices](THIRD_PARTY_NOTICES.md).
+[Updates and rollback](docs/UPGRADE_AND_ROLLBACK.md) · [Privacy](PRIVACY.md) ·
+[Security](SECURITY.md) · [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

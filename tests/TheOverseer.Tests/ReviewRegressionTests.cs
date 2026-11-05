@@ -317,7 +317,9 @@ public sealed class ReviewRegressionTests
         using var monitor = new CodexMonitor(options, new[] { Profile(home) }, timeProvider: new ManualTimeProvider(Now));
         for (var index = 0; index < 8; index++) monitor.Refresh();
         Assert.False(monitor.Current.Health.CoverageComplete);
-        Assert.True(Assert.Single(monitor.Current.Tasks).IsStale);
+        Assert.True(Assert.Single(monitor.Current.Tasks).IsStateUncertain);
+        Assert.False(Assert.Single(monitor.Current.Tasks).HasCurrentState);
+        Assert.Equal(CountValue.Partial(0), monitor.Current.Counts.Working);
         Assert.Empty(monitor.Current.Transitions);
     }
 }

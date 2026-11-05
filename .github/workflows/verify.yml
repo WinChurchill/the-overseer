@@ -45,6 +45,8 @@ jobs:
       - name: Claude bridge contracts
         working-directory: integrations/claude-code
         run: node --test --test-concurrency=1
+      - name: Producer behavior fixture drift
+        run: node integrations/fixtures/behavior/generate.mjs --check
       - name: Pre-user report controls
         run: ./scripts/Test-PreUserReport.ps1
       - name: Upgrade comparison controls

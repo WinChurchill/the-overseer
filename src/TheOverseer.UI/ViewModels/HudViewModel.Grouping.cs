@@ -81,17 +81,17 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             }
 
             entry.Total++;
-            if (task.State == AgentTaskState.Working && !task.IsStale)
+            if (task.State == AgentTaskState.Working && task.HasCurrentState)
             {
                 entry.Working++;
             }
 
-            if (task.NeedsHuman)
+            if (task.HasAttention && task.HasCurrentState)
             {
                 entry.NeedsHuman++;
             }
 
-            if (task.IsStale || task.IsProvisional)
+            if (!task.HasCurrentState)
             {
                 entry.Partial = true;
             }

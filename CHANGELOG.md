@@ -1,6 +1,31 @@
 # OVERSEER changelog
 
-## Unreleased — RC21 source review follow-up
+## Unreleased — publication alpha candidate
+
+- Show dedicated Claude Projects worker titles with stable IDs and a bounded
+  fallback; title changes do not change task state, timers or notifications.
+- Prepare alpha-version packaging for manual publication qualification.
+- Make the light/interface divider follow the pointer for every dock position,
+  preserving the existing size limits.
+- Acquire cold Claude accounting directories before the health slice starts,
+  retaining the 250 ms parent and 60 ms health limits; add a fixed-clock regression.
+- Serialize native popup/drag tests and allow explicit secondary-monitor placement.
+
+- Fix missing user-facing Codex chats created by another agent or through a
+  ChatGPT handoff. Rollout admission and bounded Windows runtime discovery now
+  include them; actual subagents and internal review threads remain excluded.
+- Default new profiles to nine included offline Kokoro cues, still muted. Preserve
+  saved provider choices; leave Windows speech optional and unqualified.
+- Qualify older Codex async questions as unconfirmed after the existing evidence
+  lease; preserve late-answer correlation and independently current work.
+- Add an opt-in, read-only Claude Projects desktop observer with bounded loaded
+  window discovery and explicit unknown/account coverage limits.
+  Count repeated worker/card links once; conflicting status stays unconfirmed
+  even when the session budget is full.
+- Add persistent Focus pins with bounded JSON preview and explicit confirmation.
+- Fix bridge accounting under lock contention, identity collisions, retired epochs,
+  request correlation and recovery; add 16 fixed producer scenario timelines.
+- Refresh source setup, tester handoff and larger app screenshots.
 
 - Windows task-link activation failures now produce a visible failed-launch message
   instead of allowing non-COM exceptions to escape onto the HUD thread.

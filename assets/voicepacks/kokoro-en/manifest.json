@@ -1,0 +1,35 @@
+{
+  "id": "kokoro-en",
+  "name": "Kokoro English",
+  "language": "en",
+  "version": 1,
+  "events": {
+    "permission_required": [
+      "permission_required.wav"
+    ],
+    "input_required": [
+      "input_required.wav"
+    ],
+    "task_error": [
+      "task_error.wav"
+    ],
+    "task_complete": [
+      "task_complete.wav"
+    ],
+    "all_tasks_complete": [
+      "all_tasks_complete.wav"
+    ],
+    "monitoring_lost": [
+      "monitoring_lost.wav"
+    ],
+    "monitoring_restored": [
+      "monitoring_restored.wav"
+    ],
+    "still_waiting": [
+      "still_waiting.wav"
+    ],
+    "system_online": [
+      "system_online.wav"
+    ]
+  }
+}

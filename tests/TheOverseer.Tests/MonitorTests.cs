@@ -89,6 +89,36 @@ public sealed class MonitorTests : IDisposable
     }
 
     [Theory]
+    [InlineData("agent_created_thread")]
+    [InlineData("chatgpt_handoff")]
+    public void UserFacingCreatedChatsReachTheirGitProjectAndNowViewWithoutAnAlert(string threadSource)
+    {
+        const string visible = "01a0c700-0000-0000-0000-000000000096";
+        const string child = "01a0c700-0000-0000-0000-000000000097";
+        const string workspace = @"C:\Users\fixture\Documents\Codex\2026-01-02\delta";
+        _home.WriteRollout(visible, new[] { Records.SessionMeta(visible, cwd: workspace,
+            originator: "codex_work_desktop", threadSource: threadSource), Records.TaskStarted("visible-turn") });
+        _home.WriteRollout(child, new[] { Records.SessionMeta(child, cwd: workspace,
+            threadSource: threadSource, subagent: true), Records.TaskStarted("child-turn") });
+        var gitPath = ProjectResolver.Normalize(workspace) + @"\.git";
+        var resolver = new ProjectResolver(probe: new ProjectResolverProbe(
+            path => path == gitPath, _ => false, (_, _) => null));
+        using var monitor = new CodexMonitor(MonitorOptions.Default, new[] { Profile }, timeProvider: _clock, projectResolver: resolver);
+        var snapshot = monitor.Refresh();
+        var task = Assert.Single(snapshot.Tasks);
+        Assert.Equal(visible, task.ConversationId);
+        Assert.True(task.HasCurrentState);
+        Assert.Equal("delta", task.AssignedProject.DisplayName);
+        Assert.Equal(ProjectResolution.GitRoot, task.AssignedProject.Resolution);
+        Assert.Equal(CountValue.Known(1), snapshot.Counts.Working);
+        var vm = new TheOverseer.UI.ViewModels.HudViewModel(HudSettings.Default);
+        vm.ApplySnapshot(snapshot);
+        Assert.Equal(visible, Assert.Single(vm.Tasks).Key.ConversationId);
+        Assert.Equal("delta", Assert.Single(vm.Tasks).ProjectGroupLabel);
+        Assert.Empty(snapshot.Transitions);
+    }
+
+    [Theory]
     [InlineData("image", false)]
     [InlineData("image", true)]
     [InlineData("world", false)]
@@ -146,7 +176,9 @@ public sealed class MonitorTests : IDisposable
         _home.WriteRollout(id, new[] { Records.SessionMeta(id), Records.TaskStarted("turn"), "{\"type\":\"future_record\",\"payload\":{}}" });
         using var monitor = Create();
         var snapshot = monitor.Refresh();
-        Assert.True(Single(snapshot).IsStale);
+        Assert.True(Single(snapshot).IsStateUncertain);
+        Assert.False(Single(snapshot).HasCurrentState);
+        Assert.Contains(HealthReasons.UnknownSchema, snapshot.Health.Reasons);
         Assert.False(snapshot.Counts.Working.IsComplete);
         Assert.Equal(0, snapshot.Counts.Working.Value);
     }

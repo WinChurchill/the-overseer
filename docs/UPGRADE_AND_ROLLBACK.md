@@ -1,7 +1,8 @@
 # Upgrade and rollback
 
-Every claim here is produced by `scripts/Test-ReleaseUpgrade.ps1`; what it does not test is
-listed under "Not verified" rather than implied.
+The automated upgrade evidence comes from `scripts/Test-ReleaseUpgrade.ps1` and
+applies to the archive pair it tested. Manual update/removal steps are below;
+the check's limits are listed under "Not verified".
 
 ## Supported upgrade path
 
@@ -20,6 +21,9 @@ listed under "Not verified" rather than implied.
    entry once (Settings -> "Start with Windows"). Keep the backup until the new version has passed your acceptance checks.
 
 ## Running the upgrade check
+
+This is a contributor command, run from a source checkout in PowerShell 7 with the
+specified archives available. Ordinary testers can follow the manual steps above.
 
 ```powershell
 pwsh -NoProfile -File scripts/Test-ReleaseUpgrade.ps1 `
@@ -105,6 +109,18 @@ That restore is a file-level replacement of a stopped instance; restoring while 
 running is not tested, and neither is rolling the application folder itself back: there is
 no uninstaller and no in-place downgrade, so keep the old folder until the new version is
 accepted.
+
+## Uninstall
+
+1. If enabled, turn off **Start with Windows** in **Light & voice…**; settings save automatically.
+2. Remove installed bridge hooks/plugins using the [integration guides](../integrations/README.md)
+   before deleting their files. Preserve unrelated host settings and restart the host.
+3. Use **⋯ → Exit**, then remove only the application folder you extracted.
+4. Keep the data directory if you want settings/history/recordings for later. Once
+   the app and bridge producers are stopped, you may delete that OVERSEER data folder
+   separately. Never delete the agent host's session directory as part of removal.
+
+These are manual removal instructions; the upgrade test does not uninstall a live app.
 
 ## Exit codes and evidence
 

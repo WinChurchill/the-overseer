@@ -39,7 +39,7 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
     private int _abandoned;
 
     public SapiSpeechSynthesisEngine()
-        : this(RenderWithSapi, ProbeAvailability, temporaryDirectory: null)
+        : this(RenderWithSapi, ProbeAvailabilityOnSta, temporaryDirectory: null)
     {
     }
 
@@ -221,10 +221,22 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
         }
     }
 
+    private static string ProbeAvailabilityOnSta()
+    {
+        var result = "speech-probe-timeout";
+        var thread = new Thread(() => result = ProbeAvailability()) { IsBackground = true, Name = "OVERSEER.SpeechProbe" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        // The probe uses the same COM apartment model as synthesis and cannot
+        // block opening settings indefinitely. A timeout reports unavailable.
+        return thread.Join(TimeSpan.FromSeconds(2)) ? result : "speech-probe-timeout";
+    }
+
     /// <summary>Probe: is there a usable English voice on this machine?</summary>
     private static string ProbeAvailability()
     {
         object? voice = null;
+        object? voices = null;
         try
         {
             voice = Create("SAPI.SpVoice");
@@ -234,8 +246,8 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
             }
 
             dynamic spVoice = voice;
-            dynamic voices = spVoice.GetVoices("Language=409", string.Empty);
-            return voices.Count > 0 ? "ok" : "speech-no-english-voice";
+            voices = spVoice.GetVoices("Language=409", string.Empty);
+            return ((dynamic)voices).Count > 0 ? "ok" : "speech-no-english-voice";
         }
         catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or InvalidOperationException or NotSupportedException)
         {
@@ -243,6 +255,7 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
         }
         finally
         {
+            TryRelease(voices);
             TryRelease(voice);
         }
     }
@@ -252,6 +265,9 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
     {
         object? voice = null;
         object? stream = null;
+        object? voices = null;
+        object? selectedVoice = null;
+        var stage = "initialize";
         try
         {
             voice = Create("SAPI.SpVoice");
@@ -266,18 +282,23 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
 
             // Explicit English (409) engine selection: no locale guessing and no
             // silent fallback to a non-English voice.
-            dynamic voices = spVoice.GetVoices("Language=409", string.Empty);
-            if (voices.Count == 0)
+            voices = spVoice.GetVoices("Language=409", string.Empty);
+            if (((dynamic)voices).Count == 0)
             {
                 return SpeechSynthesisResult.Failed("speech-no-english-voice");
             }
 
-            spVoice.Voice = voices.Item(0);
+            stage = "select-voice";
+            selectedVoice = ((dynamic)voices).Item(0);
+            spVoice.Voice = selectedVoice;
+            stage = "open-stream";
             spStream.Open(path, SsfmCreateForWrite, false);
+            stage = "set-output";
             spVoice.AudioOutputStream = spStream;
 
             // Asynchronous speak with a bounded wait: a hanging engine ends this
             // worker by itself instead of holding its slot until the caller gives up.
+            stage = "synthesize";
             spVoice.Speak(script, SvsFlagsAsync);
             if (!spVoice.WaitUntilDone((int)Math.Clamp(timeout.TotalMilliseconds, 1, int.MaxValue)))
             {
@@ -286,6 +307,7 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
             }
 
             spStream.Close();
+            TryRelease(stream);
             stream = null;
 
             if (!File.Exists(path))
@@ -321,11 +343,15 @@ public sealed class SapiSpeechSynthesisEngine : ISpeechSynthesisEngine
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.Runtime.InteropServices.COMException or IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
-            return SpeechSynthesisResult.Failed("speech-error:" + exception.GetType().Name);
+            return SpeechSynthesisResult.Failed("speech-error:" + exception.GetType().Name + ":" + stage + ":" +
+                exception.HResult.ToString("X8", System.Globalization.CultureInfo.InvariantCulture));
         }
         finally
         {
             TryClose(stream);
+            TryRelease(stream);
+            TryRelease(selectedVoice);
+            TryRelease(voices);
             TryRelease(voice);
         }
     }

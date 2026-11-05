@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 
 export const SCHEMA_VERSION = 1;
 export const HARNESS_ID = 'claude';
-export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.2';
+export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.5';
 
 export const MAX_ID_CHARS = 128;
 export const MAX_PROJECT_ROOT_CHARS = 512;
@@ -103,8 +103,10 @@ const EVENT_MAP = Object.freeze({
   // correlated to a call: callId stays null and evidence is "inferred".
   PermissionRequest: ['approval/asked', 'waiting', null, 'inferred'],
   PermissionDenied: ['approval/decided', 'working', 'aborted', 'explicit'],
-  SubagentStart: ['turn/start', 'working', null, 'explicit'],
-  SubagentStop: ['turn/end', 'complete', 'completed', 'explicit'],
+  // These share the parent's session_id. A child finishing does not finish
+  // the parent's turn or answer its requests (hooks reference, SubagentStop).
+  SubagentStart: ['heartbeat', 'working', null, 'explicit'],
+  SubagentStop: ['heartbeat', 'working', null, 'explicit'],
   PreCompact: ['snapshot', 'working', null, 'explicit'],
   PostCompact: ['snapshot', 'complete', 'completed', 'explicit'],
   TaskCreated: ['heartbeat', 'working', null, 'explicit'],
@@ -139,6 +141,15 @@ export function safeToken(value, max = MAX_ID_CHARS) {
 
 export function safeProjectRoot(value) {
   return safeToken(value, MAX_PROJECT_ROOT_CHARS);
+}
+
+/** Opaque host identities must never alias through prefix truncation. */
+export function safeIdentity(value) {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  if (value.length > MAX_ID_CHARS || value.startsWith('sha256-') || value !== value.trim() || /[\x00-\x1f\x7f]/.test(value)) {
+    return 'sha256-' + createHash('sha256').update(value, 'utf8').digest('hex');
+  }
+  return value;
 }
 
 function isQuestionTool(tool) {
@@ -210,13 +221,13 @@ export function deriveEventId(payload, { sourceInstanceId, sessionId, kind }) {
     sessionId,
     kind,
     safeToken(payload.hook_event_name, 64) ?? '',
-    safeToken(payload.tool_use_id) ?? '',
-    safeToken(payload.prompt_id) ?? '',
-    safeToken(payload.turn_id) ?? '',
-    safeToken(payload.agent_id) ?? '',
-    safeToken(payload.task_id) ?? '',
-    safeToken(payload.elicitation_id) ?? '',
-    safeToken(payload.message_id) ?? '',
+    safeIdentity(payload.tool_use_id) ?? '',
+    safeIdentity(payload.prompt_id) ?? '',
+    safeIdentity(payload.turn_id) ?? '',
+    safeIdentity(payload.agent_id) ?? '',
+    safeIdentity(payload.task_id) ?? '',
+    safeIdentity(payload.elicitation_id) ?? '',
+    safeIdentity(payload.message_id) ?? '',
     safeToken(payload.notification_type, 64) ?? '',
     safeToken(payload.source, 32) ?? '',
     safeToken(payload.reason, 64) ?? '',
@@ -234,10 +245,15 @@ export function deriveEventId(payload, { sourceInstanceId, sessionId, kind }) {
 export function buildRecord(payload, ctx) {
   if (!isPlainObject(payload)) return null;
   const cls = classify(payload);
-  const sessionId = safeToken(payload.session_id) ?? 'unknown';
-  const turnId = safeToken(payload.prompt_id) ?? safeToken(payload.turn_id);
-  const callId = safeToken(payload.tool_use_id);
-  const requestId = safeToken(payload.agent_id) ?? safeToken(payload.task_id) ?? safeToken(payload.elicitation_id);
+  const sessionId = safeIdentity(payload.session_id) ?? 'unknown';
+  const turnId = safeIdentity(payload.prompt_id) ?? safeIdentity(payload.turn_id);
+  const callId = safeIdentity(payload.tool_use_id);
+  const isRequest = ['approval/asked', 'approval/decided', 'input/asked', 'input/answered'].includes(cls.kind);
+  // Agent/task identities are not request identities. Two questions from one
+  // agent must remain independently answerable by their tool/elicitation IDs.
+  const requestId = safeIdentity(payload.elicitation_id) ?? (isRequest
+    ? callId
+    : safeIdentity(payload.agent_id) ?? safeIdentity(payload.task_id));
   const projectRoot = safeProjectRoot(payload.cwd);
   // A payload without session_id cannot be attributed; say so instead of guessing.
   const evidence = sessionId === 'unknown' ? 'unknown' : cls.evidence;

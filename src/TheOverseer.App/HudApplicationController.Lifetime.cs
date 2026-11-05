@@ -91,11 +91,13 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                 RecentHours = ViewModel.RecentHours,
                 LightPosition = ViewModel.LightPosition,
                 LightSize = ViewModel.LightSize,
+                FocusPins = ViewModel.FocusPins,
             },
             Voice = voice,
             // Additive: source enablement is written with every other setting
             // preserved, never reset.
             DisabledHarnessSources = _disabledHarnessSources,
+            ClaudeProjectsEnabled = _claudeProjectsEnabled,
         };
         var writer = _dependencies.Persistence ?? new FileHudPersistence();
         var result = await Task.Run(() => writer.Save(_dependencies.Paths, state, config));
@@ -246,6 +248,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
         _chrome = null;
         _notificationSettings?.Close();
         _projectSources?.Close();
+        _focusWindow?.Close();
         StopVoicePreview();
         _ageTimer.Stop();
         _saveTimer.Stop();

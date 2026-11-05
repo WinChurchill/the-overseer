@@ -5,12 +5,27 @@ namespace TheOverseer.Core.Monitoring.Bridge;
 
 public sealed partial class HarnessBridgeSession
 {
+    private static string? RequestIdentity(HarnessBridgeRecord record) =>
+        !string.IsNullOrWhiteSpace(record.RequestId) ? record.RequestId :
+        !string.IsNullOrWhiteSpace(record.CallId) ? record.CallId : null;
+
+    private static void TrackRequest(SessionLane lane, PendingRequests requests, HarnessBridgeRecord record)
+    {
+        if (!requests.Add(RequestIdentity(record))) lane.CurrentStateComplete = false;
+    }
+
     private BridgeAttentionEdge? Fold(SessionLane lane, HarnessBridgeRecord record, DateTimeOffset stamp, bool gapDetected)
     {
         lane.LastStamp = stamp;
         var turn = string.IsNullOrWhiteSpace(record.TurnId) ? lane.TurnId : record.TurnId!;
         var quiet = record.Hydration;
         var livenessOnly = IsLivenessOnly(record.Kind);
+        if (IgnoresAction(lane, record))
+        {
+            // Late lifecycle records are history, not current category/action evidence.
+            _ignored++;
+            return null;
+        }
         if (!livenessOnly && !string.IsNullOrWhiteSpace(record.Category))
         {
             // A heartbeat reports the tracked category; that is not new evidence.
@@ -59,20 +74,13 @@ public sealed partial class HarnessBridgeSession
                 lane.TurnEnded = false;
                 lane.OutcomeUnknown = false;
                 lane.TurnOutcome = BridgeTurnOutcome.None;
-                if (MonitorCapabilities.HasDshQuestionEvents(Source.HarnessId, _producerVersion) && lane.Inputs.Count > 0) Settle(lane);
+                if (lane.Approvals.Count > 0 || lane.Inputs.Count > 0) Settle(lane);
                 return null;
 
             case "turn/end":
                 return EndTurn(lane, record, stamp, quiet, turn);
 
             case "tool/start":
-                if (lane.TurnEnded)
-                {
-                    // A late tool start cannot reopen a correlated completed turn.
-                    _ignored++;
-                    return null;
-                }
-
                 lane.TurnId = turn;
                 if (!string.IsNullOrWhiteSpace(record.CallId))
                 {
@@ -126,17 +134,14 @@ public sealed partial class HarnessBridgeSession
                 lane.AttentionCode = "approval-pending";
                 lane.DetailCode = "waiting-for-approval";
                 lane.Category = "waiting";
-                if (!string.IsNullOrWhiteSpace(record.RequestId))
-                {
-                    lane.Approvals.Add(record.RequestId!);
-                }
+                TrackRequest(lane, lane.Approvals, record);
 
                 return quiet ? null : Edge(lane, record, AttentionEventKind.PermissionRequired, "approval-pending");
 
             case "approval/decided":
-                if (!string.IsNullOrWhiteSpace(record.RequestId))
+                if (RequestIdentity(record) is { } approvalId)
                 {
-                    lane.Approvals.Remove(record.RequestId!);
+                    lane.Approvals.Remove(approvalId);
                 }
 
                 Settle(lane);
@@ -149,19 +154,16 @@ public sealed partial class HarnessBridgeSession
                 lane.AttentionCode = "input-pending";
                 lane.DetailCode = "waiting-for-input";
                 lane.Category = "waiting";
-                if (!string.IsNullOrWhiteSpace(record.RequestId))
-                {
-                    lane.Inputs.Add(record.RequestId!);
-                }
+                TrackRequest(lane, lane.Inputs, record);
 
                 Settle(lane);
 
                 return quiet ? null : Edge(lane, record, AttentionEventKind.InputRequired, "input-pending");
 
             case "input/answered":
-                if (!string.IsNullOrWhiteSpace(record.RequestId))
+                if (RequestIdentity(record) is { } inputId)
                 {
-                    lane.Inputs.Remove(record.RequestId!);
+                    lane.Inputs.Remove(inputId);
                 }
 
                 Settle(lane);
@@ -194,6 +196,11 @@ public sealed partial class HarnessBridgeSession
                 return null;
         }
     }
+
+    private static bool IgnoresAction(SessionLane lane, HarnessBridgeRecord record) =>
+        record.Kind == "tool/start" && lane.TurnEnded ||
+        record.Kind == "turn/end" && lane.TurnId.Length > 0 && !string.IsNullOrWhiteSpace(record.TurnId) &&
+        !string.Equals(lane.TurnId, record.TurnId, StringComparison.Ordinal);
 
     private BridgeAttentionEdge? EndTurn(SessionLane lane, HarnessBridgeRecord record, DateTimeOffset stamp, bool quiet, string turn)
     {

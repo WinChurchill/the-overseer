@@ -31,6 +31,8 @@
  * @module overseer-dsh-observer/normalize
  */
 
+import { createHash } from 'node:crypto'
+
 /** Normalized record schema version. */
 export const SCHEMA_VERSION = 1
 
@@ -122,6 +124,13 @@ export function clampText(value, max) {
   return trimmed.length > max ? trimmed.slice(0, max) : trimmed
 }
 
+/** Preserve opaque identity within the consumer's existing 128-character cap. */
+export function wireId(value) {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  return value.length > 128 || value.startsWith('sha256-') || value !== value.trim() || /[\x00-\x1f\x7f]/.test(value)
+    ? 'sha256-' + createHash('sha256').update(value, 'utf8').digest('hex') : value
+}
+
 /** @returns the value as a plain JSON record, or undefined. */
 function asRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined
@@ -129,7 +138,7 @@ function asRecord(value) {
 
 /** @returns a bounded non-empty string field, or null. */
 function readString(source, key, max) {
-  return clampText(asRecord(source)?.[key], max)
+  return max === LIMITS.idChars ? wireId(asRecord(source)?.[key]) : clampText(asRecord(source)?.[key], max)
 }
 
 /** @returns a non-negative safe integer field, or null. */

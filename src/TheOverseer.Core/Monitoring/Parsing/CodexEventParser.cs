@@ -97,7 +97,7 @@ public static class CodexEventParser
                 "compacted" => Build(RawCodexEventKind.HistoryCompacted, in context, payload),
                 // Model-context comparison data, not a task lifecycle signal.
                 // Never inspect or retain its arbitrary state contents.
-                "world_state" => new ParseResult(null, ParseOutcome.Ignored),
+                "world_state" or "inter_agent_communication_metadata" => new ParseResult(null, ParseOutcome.Ignored),
                 _ => new ParseResult(null, ParseOutcome.UnknownSchema),
             };
 
@@ -143,7 +143,7 @@ public static class CodexEventParser
             // Desktop also emits an item envelope for a function result. It is
             // output-only, not an unknown lifecycle record. The corresponding
             // response_item carries call correlation; never inspect output here.
-            "FunctionCallOutput" => new ParseResult(null, ParseOutcome.Ignored),
+            "FunctionCallOutput" or "SubAgentActivity" => new ParseResult(null, ParseOutcome.Ignored),
             "CommandExecution" => BuildCommandExecution(payload, item, in context),
             "FileChange" => Build(RawCodexEventKind.ItemActivity, in context, payload,
                 ToolCallCategory.FileChange, AgentActionKind.EditingFiles, "file-change"),
@@ -172,6 +172,10 @@ public static class CodexEventParser
         var kindText = GetString(payload, "type", 64);
         return kindText switch
         {
+            // Tool declarations and child-agent messages describe context, not
+            // this conversation's lifecycle or an answer to its pending input.
+            // Never read their arbitrary tools/content or import child state.
+            "additional_tools" or "agent_message" => new ParseResult(null, ParseOutcome.Ignored),
             "function_call" or "custom_tool_call" => BuildToolCall(payload, in context),
             "function_call_output" or "custom_tool_call_output" => BuildToolCompletion(payload, in context),
             "reasoning" => Build(RawCodexEventKind.ItemActivity, in context, payload,

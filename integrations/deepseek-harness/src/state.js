@@ -43,6 +43,7 @@ import {
   SCHEMA_VERSION,
   clampText,
   describeEvent,
+  wireId,
 } from './normalize.js'
 
 /** Maximum number of session states kept in memory (least-recently-observed evicted first). */
@@ -63,7 +64,7 @@ const SOURCE_SCOPE_KEY = '*'
  * @returns `dsh:<sessionId>:<sequence>`, with `*` for a null session id.
  */
 export function eventIdFor(sessionId, sequence) {
-  return `${HARNESS_ID}:${sessionId ?? SOURCE_SCOPE_KEY}:${sequence}`
+  return wireId(`${HARNESS_ID}:${sessionId ?? SOURCE_SCOPE_KEY}:${sequence}`)
 }
 
 /**
@@ -74,7 +75,7 @@ export function eventIdFor(sessionId, sequence) {
  */
 export function turnIdFor(sessionId, turnNumber) {
   if (sessionId === null || turnNumber === null || turnNumber === undefined) return null
-  return `${HARNESS_ID}:${sessionId}:turn:${turnNumber}`
+  return wireId(`${HARNESS_ID}:${sessionId}:turn:${turnNumber}`)
 }
 
 /**
@@ -229,7 +230,7 @@ export function createObserverState(options = {}) {
       harnessId: HARNESS_ID,
       sourceInstanceId,
       sourceEpoch,
-      sessionId,
+      sessionId: wireId(sessionId),
       sequence,
       eventId: eventIdFor(sessionId, sequence),
       observedAtUtc: isoTimestamp(now()),
@@ -238,8 +239,9 @@ export function createObserverState(options = {}) {
       turnId: fields.turnNumber === null || fields.turnNumber === undefined
         ? null
         : turnIdFor(sessionId, fields.turnNumber),
-      callId: clampText(fields.callId, LIMITS.idChars),
-      requestId: clampText(fields.requestId, LIMITS.idChars),
+      // Event normalization/native metadata canonicalize opaque call IDs once.
+      callId: fields.callId ?? null,
+      requestId: fields.requestId ?? null,
       projectRoot: track.projectRoot,
       category,
       evidence,
@@ -287,7 +289,7 @@ export function createObserverState(options = {}) {
   function sessionStart(sessionId, meta = {}) {
     const track = trackFor(sessionId)
     if (meta.projectRoot !== undefined) track.projectRoot = clampText(meta.projectRoot, LIMITS.projectRootChars)
-    if (meta.parentSessionId !== undefined) track.parentSessionId = clampText(meta.parentSessionId, LIMITS.idChars)
+    if (meta.parentSessionId !== undefined) track.parentSessionId = wireId(meta.parentSessionId)
     if (meta.createdAtMs !== undefined) track.createdAtMs = meta.createdAtMs
     track.disposed = false
     track.lastObservedMs = now()
@@ -508,7 +510,7 @@ export function createObserverState(options = {}) {
   function seedSession(meta) {
     const track = trackFor(meta.sessionId)
     if (meta.projectRoot !== undefined) track.projectRoot = clampText(meta.projectRoot, LIMITS.projectRootChars)
-    if (meta.parentSessionId !== undefined) track.parentSessionId = clampText(meta.parentSessionId, LIMITS.idChars)
+    if (meta.parentSessionId !== undefined) track.parentSessionId = wireId(meta.parentSessionId)
     if (meta.createdAtMs !== undefined) track.createdAtMs = meta.createdAtMs
     if (meta.openTurnNumber !== undefined) track.openTurn = meta.openTurnNumber
     if (meta.closedTurnNumber !== null && meta.closedTurnNumber !== undefined) closeTurn(track, meta.closedTurnNumber)
@@ -631,7 +633,7 @@ export function createObserverState(options = {}) {
     for (const track of sessions.values()) {
       if (track.sessionId === null) continue
       entries.push({
-        sessionId: track.sessionId,
+        sessionId: wireId(track.sessionId),
         parentSessionId: track.parentSessionId,
         projectRoot: track.projectRoot,
         createdAtUtc: isoTimestamp(track.createdAtMs),

@@ -9,7 +9,7 @@
  *   - appends one bounded (<= 64 KiB) JSON line to the OVERSEER spool;
  *   - never returns a permission decision, never prints to stdout, always exits 0;
  *   - all acquisition/write work is bounded by a 250 ms budget, after which the
- *     record is dropped and a bounded counter in health.json is incremented.
+ *     record is dropped and its accounting receipt is published within the same budget.
  *
  * Upstream documentation (retrieved 2026-09-24):
  *   https://code.claude.com/docs/en/hooks
@@ -24,6 +24,7 @@ import {
   ensureSourceEpoch,
   ensureSourceInstance,
   instanceDir,
+  prepareHealthDirectory,
   publishRecord,
   resolveSpoolRoot,
 } from './lib/spool.mjs';
@@ -114,7 +115,11 @@ function countFailure(spoolRoot, counter) {
     debug('failure-counter-skipped', counter);
     return;
   }
-  bumpHealth(instanceDir(spoolRoot, instance.sourceInstanceId), counter, budget);
+  const dir = instanceDir(spoolRoot, instance.sourceInstanceId);
+  // A cold directory can consume the small health slice before any receipt is
+  // attempted. Acquire it inside the unchanged parent budget first.
+  prepareHealthDirectory(dir, budget);
+  bumpHealth(dir, counter, budget);
   debug('counted', counter);
 }
 
@@ -152,6 +157,7 @@ async function run() {
     return;
   }
   const dir = instanceDir(spoolRoot, instance.sourceInstanceId);
+  prepareHealthDirectory(dir, writePhase);
   const counters = [];
 
   const epoch = ensureSourceEpoch(dir, instance.sourceInstanceId);

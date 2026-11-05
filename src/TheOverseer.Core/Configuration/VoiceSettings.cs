@@ -24,16 +24,17 @@ public sealed record VoiceSettings
     public const int MaximumPackIdChars = 32;
     public const int MaximumEndpointChars = 512;
     public const string DefaultPackId = "example";
+    public const string BundledPackId = "kokoro-en";
 
     public static VoiceSettings Default { get; } = new();
 
     /// <summary>
     /// Default for a data directory that has no configuration file at all: the
-    /// offline Windows speech baseline is selected and voice is still muted. It is
+    /// included Kokoro pack is selected and voice is still muted. It is
     /// only ever applied when no stored file exists, so a user's explicit pack,
     /// TTS, mute, endpoint, event and clip preferences are never reset.
     /// </summary>
-    public static VoiceSettings BaselineDefault { get; } = Default with { Provider = SpeechProviderName };
+    public static VoiceSettings BaselineDefault { get; } = Default with { Provider = PackProviderName, PackId = BundledPackId };
 
     public const string PackProviderName = "pack";
     public const string SpeechProviderName = "speech";

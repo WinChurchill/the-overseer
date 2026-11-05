@@ -51,6 +51,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         NeedsHuman = task.NeedsHuman;
         IsStale = task.IsStale;
         IsProvisional = task.IsProvisional;
+        IsStateUncertain = task.IsStateUncertain;
         CanNavigate = canNavigate;
         NavigationHint = navigationHint;
         Surface = task.Surface;
@@ -200,6 +201,8 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
 
     public bool IsProvisional { get; private set; }
 
+    public bool IsStateUncertain { get; private set; }
+
     public bool CanNavigate { get; }
 
     /// <summary>Honest route wording for this task's harness.</summary>
@@ -208,7 +211,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
     public string NumberText => "#" + Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Uses the same visual status palette as the overall HUD.</summary>
-    public string StatusKind => IsStale || IsProvisional ? "uncertain"
+    public string StatusKind => IsStale || IsProvisional || IsStateUncertain ? "uncertain"
         : NeedsHuman || TaskState is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput ? "attention"
         : TaskState == AgentTaskState.Error ? "error"
         : TaskState == AgentTaskState.Working ? "working" : "idle";
@@ -225,9 +228,11 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         {
             var attention = NeedsHuman || TaskState is AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput;
             var questionPending = NeedsHuman && TaskState == AgentTaskState.Working;
-            var status = questionPending ? "Question pending" : attention || ActionText.Length == 0 ? StateText : ActionText;
+            var status = questionPending ? "Question observed" : attention || ActionText.Length == 0 ? StateText : ActionText;
+            if (attention && (IsStale || IsProvisional || IsStateUncertain))
+                status = TaskState == AgentTaskState.NeedsApproval ? "Approval status unconfirmed" : "Input status unconfirmed";
             var marks = questionPending
-                ? string.Join(" · ", MarksText.Split(" · ").Where(mark => mark != "question pending"))
+                ? string.Join(" · ", MarksText.Split(" · ").Where(mark => mark != "question observed"))
                 : MarksText;
             // Keep long source-instance identifiers in DetailText so they cannot
             // consume the row's entire status line at compact widths.
@@ -318,6 +323,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         NeedsHuman = task.NeedsHuman;
         IsStale = task.IsStale;
         IsProvisional = task.IsProvisional;
+        IsStateUncertain = task.IsStateUncertain;
         TurnId = task.TurnId;
         _startedAt = task.StartedAt;
         Raise(nameof(Label));
@@ -329,6 +335,7 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
         Raise(nameof(NeedsHuman));
         Raise(nameof(IsStale));
         Raise(nameof(IsProvisional));
+        Raise(nameof(IsStateUncertain));
         Raise(nameof(TurnId));
         Raise(nameof(RowSubtitle));
         Raise(nameof(NumberText));

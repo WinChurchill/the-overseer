@@ -132,6 +132,9 @@ public static class HarnessBridgeCurrentStateParser
                 return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Malformed, null, "snapshot-missing-updated-at");
             }
 
+            if (!HarnessBridgeParser.ValidIdentifiers(root))
+                return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-invalid-identity");
+
             var harnessId = HarnessIds.Normalize(Identifier(root, "harnessId"));
             var sourceInstanceId = Identifier(root, "sourceInstanceId");
             if (harnessId.Length == 0 || sourceInstanceId.Length == 0)
@@ -155,6 +158,8 @@ public static class HarnessBridgeCurrentStateParser
                     }
 
                     var sessionId = Identifier(entry, "sessionId");
+                    if (!HarnessBridgeParser.ValidIdentifiers(entry) || sessions.Any(session => session.SessionId == sessionId))
+                        return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-invalid-identity");
                     if (sessionId.Length == 0)
                     {
                         continue;
@@ -168,7 +173,7 @@ public static class HarnessBridgeCurrentStateParser
                         foreach (var value in pending.EnumerateArray())
                         {
                             var id = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-                            if (string.IsNullOrWhiteSpace(id) || id != id.Trim() || id.Length > MaximumIdentifierChars || inputs.Contains(id, StringComparer.Ordinal))
+                            if (string.IsNullOrWhiteSpace(id) || id != id.Trim() || id.Length > MaximumIdentifierChars || id.Any(char.IsControl) || inputs.Contains(id, StringComparer.Ordinal))
                                 return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-invalid-inputs");
                             inputs.Add(id);
                         }

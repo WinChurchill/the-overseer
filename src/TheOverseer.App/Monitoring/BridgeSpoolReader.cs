@@ -28,6 +28,8 @@ public sealed class BridgeSpoolReader
     public const int HardMaximumBytesPerPass = 1 * 1024 * 1024;
 
     private const int MaximumHealthBytes = 64 * 1024;
+    private const int MaximumHealthReceipts = 64;
+    private const int MaximumHealthReceiptBytes = 512;
     private const int MaximumCurrentBytes = 512 * 1024;
     private const int MaximumRotatedFilesPerPass = 4;
     private const int HeadFingerprintBytes = 64;
@@ -255,57 +257,51 @@ public sealed class BridgeSpoolReader
         _healthReason = "ok";
         try
         {
-            if (!File.Exists(HealthPath))
+            var healthBudget = Math.Min(MaximumHealthBytes, Math.Min(_maximumBytesPerPass / 8, _remainingBytes));
+            using var document = ReadHealthDocument(HealthPath, MaximumHealthBytes, ref healthBudget);
+            var dropped = document is null ? 0 : CountProducerDrops(document.RootElement.GetProperty("counters"));
+            var pending = Path.Combine(Directory, "health-pending");
+            if (File.Exists(Path.Combine(Directory, "health-incomplete")))
             {
-                return 0;
+                _healthReason = "bridge-health-accounting-incomplete";
             }
-
-            using var stream = new FileStream(HealthPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var budget = (int)Math.Min(Math.Min(MaximumHealthBytes, _maximumBytesPerPass / 8), stream.Length);
-            if (budget < stream.Length)
+            if (System.IO.Directory.Exists(pending))
             {
-                _healthReason = "bridge-health-size";
-                return _lastProducerDrops;
-            }
-            var buffer = new byte[budget];
-            var read = ReadBudgeted(stream, buffer, 0, budget);
-            using var document = JsonDocument.Parse(Encoding.UTF8.GetString(buffer, 0, read));
-            if (document.RootElement.ValueKind != JsonValueKind.Object ||
-                !document.RootElement.TryGetProperty("counters", out var counters) || counters.ValueKind != JsonValueKind.Object)
-            {
-                _healthReason = "bridge-health-malformed";
-                return _lastProducerDrops;
-            }
-
-            // The shipped producers publish a total `dropped` counter plus its
-            // breakdown (droppedOldest, droppedOversize, ...). Summing both would
-            // double-count the same loss, so the total wins when it is present.
-            if (counters.TryGetProperty("dropped", out var total) &&
-                total.ValueKind == JsonValueKind.Number && total.TryGetInt32(out var value))
-            {
-                return _lastProducerDrops = Math.Max(0, value);
-            }
-
-            var dropped = 0;
-            foreach (var property in counters.EnumerateObject())
-            {
-                if (!property.Name.StartsWith("dropped", StringComparison.OrdinalIgnoreCase) &&
-                    !property.Name.StartsWith("overflow", StringComparison.OrdinalIgnoreCase))
+                // Fixed slot names bound metadata work, even if unrelated files fill the directory.
+                for (var slot = 0; slot < MaximumHealthReceipts; slot++)
                 {
-                    continue;
+                    var key = slot.ToString("D2", CultureInfo.InvariantCulture);
+                    using var receipt = ReadHealthDocument(Path.Combine(pending, key + ".json"), MaximumHealthReceiptBytes, ref healthBudget, receipt: true);
+                    if (receipt is null) continue;
+                    var root = receipt.RootElement;
+                    var id = root.GetProperty("id").GetString();
+                    if (document is not null && document.RootElement.TryGetProperty("accountedReceipts", out var accounted) &&
+                        accounted.ValueKind == JsonValueKind.Object &&
+                        accounted.TryGetProperty(slot.ToString(CultureInfo.InvariantCulture), out var committed) &&
+                        committed.ValueKind == JsonValueKind.String && committed.GetString() == id)
+                    {
+                        continue;
+                    }
+                    foreach (var counter in root.GetProperty("counters").EnumerateArray())
+                    {
+                        if (counter.GetString()!.StartsWith("dropped", StringComparison.Ordinal))
+                            dropped = (int)Math.Min(int.MaxValue, (long)dropped + 1);
+                    }
                 }
-
-                if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var breakdown) && breakdown > 0)
+                // Folding commits a new summary before deleting/reusing receipts. Never
+                // combine a receipt snapshot with another summary's deduplication IDs.
+                using var after = ReadHealthDocument(HealthPath, MaximumHealthBytes, ref healthBudget);
+                if (HealthRevision(document) != HealthRevision(after))
                 {
-                    dropped = (int)Math.Min(int.MaxValue, (long)dropped + breakdown);
+                    _healthReason = "bridge-health-updating";
+                    return _lastProducerDrops;
                 }
             }
-
             return _lastProducerDrops = dropped;
         }
         catch (JsonException)
         {
-            _healthReason = "bridge-health-malformed";
+            if (_healthReason == "ok") _healthReason = "bridge-health-malformed";
             return _lastProducerDrops;
         }
         catch (IOException)
@@ -318,6 +314,90 @@ public sealed class BridgeSpoolReader
             _healthReason = "bridge-health-denied";
             return _lastProducerDrops;
         }
+    }
+
+    private static string? HealthRevision(JsonDocument? document) =>
+        document is not null && document.RootElement.TryGetProperty("healthRevision", out var revision) && revision.ValueKind == JsonValueKind.String
+            ? revision.GetString() : null;
+
+    private JsonDocument? ReadHealthDocument(string file, int maximumBytes, ref int healthBudget, bool receipt = false)
+    {
+        FileStream stream;
+        try { stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+        using (stream)
+        {
+            if (stream.Length > Math.Min(maximumBytes, healthBudget))
+            {
+                _healthReason = "bridge-health-size";
+                throw new JsonException();
+            }
+            var buffer = new byte[(int)stream.Length];
+            var read = 0;
+            while (read < buffer.Length)
+            {
+                var count = ReadBudgeted(stream, buffer, read, buffer.Length - read);
+                if (count == 0) throw new JsonException();
+                read += count;
+            }
+            healthBudget -= read;
+            var document = JsonDocument.Parse(buffer);
+            var root = document.RootElement;
+            var counters = default(JsonElement);
+            var valid = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("counters", out counters) &&
+                (receipt ? counters.ValueKind == JsonValueKind.Array : counters.ValueKind == JsonValueKind.Object);
+            if (valid && receipt)
+            {
+                valid = root.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String &&
+                    Guid.TryParseExact(id.GetString(), "D", out _) && counters.GetArrayLength() <= 14 &&
+                    counters.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String && item.GetString() is
+                        "recordsWritten" or "droppedOversizeInput" or "droppedEmptyInput" or "droppedMalformedInput" or
+                        "droppedStdinDeadline" or "droppedStdinError" or "droppedLockTimeout" or "droppedOversizeRecord" or
+                        "droppedWriteFailed" or "droppedCorruptSourceEpoch" or "droppedUnsupportedPayload" or
+                        "droppedInternalError" or "recoveredCorruptFile" or "unknownEvents");
+            }
+            if (valid && !receipt && root.TryGetProperty("healthRevision", out var revision))
+                valid = revision.ValueKind == JsonValueKind.String;
+            if (valid && !receipt && root.TryGetProperty("accountedReceipts", out var accounted))
+                valid = accounted.ValueKind == JsonValueKind.Object && accounted.EnumerateObject().All(item =>
+                    item.Value.ValueKind == JsonValueKind.String && Guid.TryParseExact(item.Value.GetString(), "D", out _));
+            if (!valid)
+            {
+                document.Dispose();
+                throw new JsonException();
+            }
+            return document;
+        }
+    }
+
+    private static int CountProducerDrops(JsonElement counters)
+    {
+        // The shipped producers publish a total `dropped` counter plus its
+        // breakdown (droppedOldest, droppedOversize, ...). Summing both would
+        // double-count the same loss, so the total wins when it is present.
+        if (counters.TryGetProperty("dropped", out var total) &&
+            total.ValueKind == JsonValueKind.Number && total.TryGetInt32(out var value))
+        {
+            return Math.Max(0, value);
+        }
+
+        var dropped = 0;
+        foreach (var property in counters.EnumerateObject())
+        {
+            if (!property.Name.StartsWith("dropped", StringComparison.OrdinalIgnoreCase) &&
+                !property.Name.StartsWith("overflow", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var breakdown) && breakdown > 0)
+            {
+                dropped = (int)Math.Min(int.MaxValue, (long)dropped + breakdown);
+            }
+        }
+
+        return dropped;
     }
 
     private ulong ReadHeadFingerprint()

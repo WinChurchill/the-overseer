@@ -61,12 +61,12 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 state.Attention = true;
             }
 
-            if (task.State == AgentTaskState.Working && !task.IsStale)
+            if (task.State == AgentTaskState.Working && task.HasCurrentState)
             {
                 state.Working = true;
             }
 
-            state.Ready |= !task.IsStale && !task.IsProvisional;
+            state.Ready |= task.HasCurrentState;
 
             states[id] = state;
         }
