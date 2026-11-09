@@ -42,6 +42,16 @@ export const HARNESS_ID = 'dsh'
 /** Producer string published on every record. */
 export const PRODUCER_VERSION = 'dsh-observer/1.1.0'
 
+export const DEFAULT_SOURCE_ID = 'dsh-default'
+
+/** Normalize a configured identity to one Windows-safe directory segment. */
+export function sanitizeSourceId(value) {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  const safe = raw.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, LIMITS.sourceIdChars)
+  if (!safe || safe === '.' || safe === '..') return DEFAULT_SOURCE_ID
+  return safe.replace(/\.+$/, dots => '_'.repeat(dots.length))
+}
+
 /**
  * The complete and closed key set of one normalized record, in canonical
  * serialization order. A record is built from exactly these keys; nothing else
@@ -121,12 +131,17 @@ export function clampText(value, max) {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   if (trimmed === '') return null
-  return trimmed.length > max ? trimmed.slice(0, max) : trimmed
+  // The wire limit counts UTF-16 code units. Leave out a split surrogate pair.
+  let end = Math.min(trimmed.length, max)
+  if (end < trimmed.length && /[\uD800-\uDBFF]/.test(trimmed[end - 1]) &&
+      /[\uDC00-\uDFFF]/.test(trimmed[end])) end--
+  return trimmed.slice(0, end).replace(/[\uD800-\uDFFF]/gu, '\uFFFD')
 }
 
 /** Preserve opaque identity within the consumer's existing 128-character cap. */
 export function wireId(value) {
   if (typeof value !== 'string' || value.trim() === '') return null
+  if (/[\uD800-\uDFFF]/u.test(value)) return 'sha256-u16-' + createHash('sha256').update(value, 'utf16le').digest('hex')
   return value.length > 128 || value.startsWith('sha256-') || value !== value.trim() || /[\x00-\x1f\x7f]/.test(value)
     ? 'sha256-' + createHash('sha256').update(value, 'utf8').digest('hex') : value
 }

@@ -131,9 +131,9 @@ export function safeToken(value, max = MAX_ID_CHARS) {
   let out = '';
   for (const ch of value) {
     const code = ch.codePointAt(0);
-    if (code < 0x20 || code === 0x7f) continue;
+    if (code < 0x20 || code === 0x7f || (code >= 0xd800 && code <= 0xdfff)) continue;
+    if (out.length + ch.length > max) break;
     out += ch;
-    if (out.length >= max) break;
   }
   out = out.trim();
   return out.length > 0 ? out : null;
@@ -146,6 +146,7 @@ export function safeProjectRoot(value) {
 /** Opaque host identities must never alias through prefix truncation. */
 export function safeIdentity(value) {
   if (typeof value !== 'string' || value.trim() === '') return null;
+  if (/[\uD800-\uDFFF]/u.test(value)) return 'sha256-u16-' + createHash('sha256').update(value, 'utf16le').digest('hex');
   if (value.length > MAX_ID_CHARS || value.startsWith('sha256-') || value !== value.trim() || /[\x00-\x1f\x7f]/.test(value)) {
     return 'sha256-' + createHash('sha256').update(value, 'utf8').digest('hex');
   }
@@ -172,7 +173,7 @@ export function classify(payload) {
 
   if (event === 'Notification') {
     const type = safeToken(payload.notification_type, 64);
-    const mapped = type ? NOTIFICATION_MAP[type] : undefined;
+    const mapped = type && Object.hasOwn(NOTIFICATION_MAP, type) ? NOTIFICATION_MAP[type] : undefined;
     if (!mapped) {
       return { event, kind: 'heartbeat', category: 'unknown', evidence: 'unknown', outcome: null, known: false };
     }
@@ -201,7 +202,7 @@ export function classify(payload) {
     return { event, kind: 'tool/end', category: 'working', evidence: 'explicit', outcome: 'ok', known: true };
   }
 
-  const mapped = EVENT_MAP[event];
+  const mapped = Object.hasOwn(EVENT_MAP, event) ? EVENT_MAP[event] : undefined;
   if (!mapped) {
     // Documented but unmapped, or an event this bridge has never seen.
     return { event, kind: 'heartbeat', category: 'unknown', evidence: 'unknown', outcome: null, known: false };

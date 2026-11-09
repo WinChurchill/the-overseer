@@ -55,18 +55,9 @@ public static class CodexEventParser
             return new ParseResult(null, ParseOutcome.Oversize);
         }
 
-        JsonDocument document;
         try
         {
-            document = JsonDocument.Parse(line, new JsonDocumentOptions { MaxDepth = 32 });
-        }
-        catch (JsonException)
-        {
-            return new ParseResult(null, ParseOutcome.Malformed);
-        }
-
-        using (document)
-        {
+            using var document = JsonDocument.Parse(line, new JsonDocumentOptions { MaxDepth = 32 });
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object ||
                 !root.TryGetProperty("type", out var typeNode) ||
@@ -83,6 +74,10 @@ public static class CodexEventParser
 
             var datedContext = context with { RecordTime = ReadTimestamp(root, "timestamp") };
             return Dispatch(recordType, payload, datedContext);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            return new ParseResult(null, ParseOutcome.Malformed);
         }
     }
 

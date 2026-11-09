@@ -26,6 +26,14 @@ public sealed class CodexEventParserTests
     }
 
     [Fact]
+    public void MalformedUnicodeInReadMetadataIsRejected()
+    {
+        var result = CodexEventParser.ParseLine("""{"type":"event_msg","payload":{"type":"\ud83d"}}""", Context());
+        Assert.Equal(ParseOutcome.Malformed, result.Outcome);
+        Assert.Null(result.Event);
+    }
+
+    [Fact]
     public void LifecycleRecordsMapToStartsCompletionsAndAborts()
     {
         var started = Parse(Records.TaskStarted("turn-1"));

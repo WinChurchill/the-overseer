@@ -1,11 +1,12 @@
 # OVERSEER Implementation State
 
 ## Current
-Plan: Local alpha qualification completed, 2026-11-02; secondary screen only.
-Branch: `fix/detection-logic-cleanup`, base `63eff72`; alpha branch push authorized 2026-11-04.
-Status: **LOCAL ALPHA QUALIFIED; EXTERNAL/HOST CHECKS AND PUBLICATION OPEN.**
-- Existing work preserved; Winston authorized commit/push of this task branch only.
-- Main merge, release/tag publication and repository visibility remain unchanged.
+Branch: `fix/detection-logic-cleanup` at `4f1cbb5` with local tester and hardening changes.
+Status: **SNAPSHOT RECOVERY FIXED IN SOURCE; HOSTED CI AND RELEASE CHECKS OPEN.**
+- Bridge readers isolate malformed records, reject static links and stamp snapshots by opened-file identity.
+- Claude caps event segments and startup replay. Per-session checkpoints preserve sequence.
+- Claude repairs invalid identity JSON, retains live-owner locks and journals accounting intent.
+- DSH normalizes IDs, preserves unrelated temp files and retries a failed rotation reopen.
 - Kokoro muted default, saved choices preserved; Windows synthesis passes, acoustic open.
 - Actual normal HUD Codex→Kokoro input cue heard once; no Preview/helper used.
 - Older async questions become unconfirmed after existing15m lease, IDs retained;
@@ -13,12 +14,10 @@ Status: **LOCAL ALPHA QUALIFIED; EXTERNAL/HOST CHECKS AND PUBLICATION OPEN.**
 - Claude desktop-only reader covers loaded app windows, bounded and nonactivating;
   dedicated titles/fallback IDs; cosmetic renames; two live Idle workers named.
 - Codex agent-created/handoff chats included; genuine subagents/reviews excluded.
-- Full normal-extraction VSTest930/930, no skips; build0 warnings/errors.
-- Claude44/44, DSH40/40, fixed fixture drift and site85/13 controls pass.
-- Capture passes after native initialization/serialization; secondary test opt-in.
+- Release build clean. VSTest942/942, Claude54/54, DSH45/45, 16 timelines and 85 site/13 controls pass.
+- Overload uses bounded receipts and explicit incomplete coverage. Counter files grow per session.
 - Short README retains both setup paths, larger screenshots and tester handoff.
 - Low-integrity workspace explained native Claude/speech gap; normal install passes.
-- Running alpha `.3`: names, reversible summary/divider drag and settings verified.
 - Exact alpha `.3` smoke46/46, no deferrals; cold counter fix preserves250/60ms.
 - Live Claude Code and DSH reply-only trials produced lifecycle events. Input/approval, clean-machine and physical checks remain open.
 - Public matching-source release needs reviewed main integration and exact CI asset.

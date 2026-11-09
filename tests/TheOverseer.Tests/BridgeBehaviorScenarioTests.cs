@@ -5,6 +5,7 @@ using TheOverseer.App.Monitoring;
 using TheOverseer.Core.Configuration;
 using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
+using TheOverseer.Core.Monitoring.Bridge;
 using TheOverseer.Tests.Support;
 using TheOverseer.UI.ViewModels;
 
@@ -54,11 +55,50 @@ public sealed class BridgeBehaviorScenarioTests
             sourceInstanceId = "behavior", sourceEpoch = "E1", producerVersion = records[^1].GetProperty("producerVersion").GetString(),
             updatedAtUtc = clock.GetUtcNow(), sessions = new[] { new { sessionId = "session", lastSequence,
                 lastObservedUtc = clock.GetUtcNow(), openTurnId = "turn", category = "working", inputStateComplete = true } } };
-        File.WriteAllText(Path.Combine(home.Root, "current.json"), JsonSerializer.Serialize(Snapshot(sequence - 1)));
+        var current = Path.Combine(home.Root, "current.json");
+        var writeTime = clock.GetUtcNow().UtcDateTime;
+        var olderStamp = ReplaceSnapshot(current, JsonSerializer.Serialize(Snapshot(sequence - 1)), writeTime);
         Assert.True(Assert.Single(adapter.Poll().Tasks).IsStateUncertain);
-        File.WriteAllText(Path.Combine(home.Root, "current.json"), JsonSerializer.Serialize(Snapshot(sequence + 1)));
+        Assert.Equal(olderStamp, ReplaceSnapshot(current, JsonSerializer.Serialize(Snapshot(sequence + 1)), writeTime));
         Assert.True(Assert.Single(adapter.Poll().Tasks).HasCurrentState);
         Assert.Equal(CountValue.Known(0), composite.Current.Counts.NeedsHuman);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SameSizeSameTimestampReplacementInvalidatesCachedAndPartialSnapshots(bool readInChunks)
+    {
+        using var home = new SyntheticCodexHome();
+        var source = new SourceInstance("dsh", "behavior", "Behavior");
+        var reader = new BridgeSpoolReader(home.Root) { MaximumBytesPerPass = 4096 };
+        var writeTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        string Snapshot(long sequence) => JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1, harnessId = source.HarnessId, sourceInstanceId = source.SourceInstanceId,
+            sourceEpoch = "E1", updatedAtUtc = writeTime,
+            sessions = new[] { new { sessionId = "session", lastSequence = sequence } },
+        }) + (readInChunks ? new string(' ', 8192) : "");
+
+        var originalStamp = ReplaceSnapshot(reader.CurrentPath, Snapshot(3), writeTime);
+        var original = reader.ReadCurrentState(source);
+        if (readInChunks)
+            Assert.Equal("snapshot-budget-pending", original.ReasonCode);
+        else
+            Assert.Equal(3L, Assert.Single(original.Document!.Sessions).LastSequence);
+
+        Assert.Equal(originalStamp, ReplaceSnapshot(reader.CurrentPath, Snapshot(5), writeTime));
+        BridgeCurrentStateParseResult result = original;
+        for (var pass = 0; pass < 4; pass++)
+        {
+            reader.ReadNewLines(out _, out _);
+            result = reader.ReadCurrentState(source);
+            Assert.InRange(reader.BytesReadThisPass, 0, reader.MaximumBytesPerPass);
+            if (result.Outcome == BridgeCurrentStateOutcome.Accepted) break;
+            Assert.Equal("snapshot-budget-pending", result.ReasonCode);
+        }
+        Assert.Equal(BridgeCurrentStateOutcome.Accepted, result.Outcome);
+        Assert.Equal(5L, Assert.Single(result.Document!.Sessions).LastSequence);
     }
 
     [Theory]
@@ -225,6 +265,16 @@ public sealed class BridgeBehaviorScenarioTests
             if (composite is not null) await composite.DisposeAsync();
             else await adapter.DisposeAsync();
         }
+    }
+
+    private static (long Length, DateTime LastWrite) ReplaceSnapshot(string path, string json, DateTime writeTime)
+    {
+        var staging = path + ".staged";
+        File.WriteAllText(staging, json);
+        File.SetLastWriteTimeUtc(staging, writeTime);
+        File.Move(staging, path, overwrite: true);
+        var info = new FileInfo(path);
+        return (info.Length, info.LastWriteTimeUtc);
     }
 
     private static string FixturePath(string name)

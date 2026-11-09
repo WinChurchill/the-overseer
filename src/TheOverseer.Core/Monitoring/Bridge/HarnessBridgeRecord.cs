@@ -77,18 +77,9 @@ public static class HarnessBridgeParser
             return BridgeParseResult.Reject(BridgeParseOutcome.Malformed, "record-too-large");
         }
 
-        JsonDocument document;
         try
         {
-            document = JsonDocument.Parse(line);
-        }
-        catch (JsonException)
-        {
-            return BridgeParseResult.Reject(BridgeParseOutcome.Malformed, "malformed-json");
-        }
-
-        using (document)
-        {
+            using var document = JsonDocument.Parse(line);
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
@@ -151,6 +142,11 @@ public static class HarnessBridgeParser
                 Identifier(root, "producerVersion"));
 
             return new BridgeParseResult(BridgeParseOutcome.Accepted, record, "ok");
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            // JSON parsing alone does not validate escaped UTF-16 strings.
+            return BridgeParseResult.Reject(BridgeParseOutcome.Malformed, "malformed-json");
         }
     }
 

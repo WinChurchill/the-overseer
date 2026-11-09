@@ -67,19 +67,24 @@ public static class HarnessSources
         var scanned = 0;
         foreach (var (harnessId, root, required) in roots)
         {
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            if (string.IsNullOrWhiteSpace(root))
             {
                 capped |= required;
                 continue;
             }
 
-            var resolvedRoot = Path.GetFullPath(root);
-            if (!seenRoots.Add(harnessId + ":" + resolvedRoot.TrimEnd(Path.DirectorySeparatorChar))) continue;
-
-            scanned++;
             List<string> directories;
             try
             {
+                var resolvedRoot = Path.GetFullPath(root);
+                BridgeSpoolFiles.CheckDirectories(resolvedRoot, 2);
+                if (!Directory.Exists(resolvedRoot))
+                {
+                    capped |= required;
+                    continue;
+                }
+                if (!seenRoots.Add(harnessId + ":" + resolvedRoot.TrimEnd(Path.DirectorySeparatorChar))) continue;
+                scanned++;
                 directories = Directory.EnumerateDirectories(resolvedRoot)
                     .Take(perRoot + 1)
                     .ToList();
@@ -94,6 +99,11 @@ public static class HarnessSources
                 capped = true;
                 continue;
             }
+            catch (ArgumentException)
+            {
+                capped |= required;
+                continue;
+            }
 
             if (directories.Count > perRoot)
             {
@@ -105,6 +115,12 @@ public static class HarnessSources
 
             foreach (var directory in directories.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
             {
+                try { BridgeSpoolFiles.CheckDirectories(directory, 1); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    capped = true;
+                    continue;
+                }
                 var instanceId = Path.GetFileName(directory);
                 if (string.IsNullOrWhiteSpace(instanceId) || instanceId.Length > 64)
                 {

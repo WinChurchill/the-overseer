@@ -4,7 +4,7 @@ Opt-in, reversible integration that converts documented Claude Code hook events 
 bounded, metadata-only records appended to an OVERSEER-owned local spool.
 
 * Node.js >= 18, ESM, standard library only, zero dependencies, no network access at hook time.
-* The hook helper never returns a permission decision, never writes to stdout, and always exits 0.
+* The hook helper emits no permission decision. It exits 0 with empty stdout on handled failures.
 * Nothing is written to a Claude settings file unless `--apply` is passed.
 * Bridge 1.0.2 atomically publishes new install identity/epoch documents using
   same-directory exclusive hard links. Use a Windows-local spool on a filesystem
@@ -220,11 +220,13 @@ Layout:
 <spool>/claude/instance.json                        stable sourceInstanceId for this install
 <spool>/claude/<sourceInstanceId>/source-epoch.json stable sourceEpoch for this install
 <spool>/claude/<sourceInstanceId>/events.jsonl      append-only records (one JSON object per line)
+<spool>/claude/<sourceInstanceId>/events-previous.jsonl previous event segment
 <spool>/claude/<sourceInstanceId>/events.lock       writer lock (exclusive create, stale takeover)
 <spool>/claude/<sourceInstanceId>/health.json       bounded counters, no payload data
 <spool>/claude/<sourceInstanceId>/health-pending/   fixed slots for deferred accounting receipts
 <spool>/claude/<sourceInstanceId>/health-incomplete empty marker if accounting capacity/write fails
 <spool>/claude/<sourceInstanceId>/sessions/<key>.seq per-session ingestion counter
+<spool>/claude/<sourceInstanceId>/sessions/<key>.seq.recovery independent recovery checkpoint
 ```
 
 Caps and budgets:
@@ -234,18 +236,29 @@ Caps and budgets:
 | stdin size | 1 MiB | stdin is destroyed, nothing is recorded, `droppedOversizeInput` |
 | stdin deadline | 2 s from process start | stdin is destroyed, nothing is recorded, `droppedStdinDeadline`; empty stdout, exit 0 |
 | acquisition + write budget | 250 ms | the record is dropped, `droppedLockTimeout`, `droppedOversizeRecord` or `droppedWriteFailed` |
-| failed append | - | `droppedWriteFailed`; the per-session sequence counter is only advanced after a successful append, so a failed write leaves no gap |
+| failed append | - | `droppedWriteFailed`; the bridge rolls back a known failed append when storage allows it |
 | record size | 64 KiB per line | the record is dropped and counted, never truncated into invalid JSON |
-| `projectRoot` | 512 characters | truncated at the bound |
+| event log | 4 MiB per segment, two segments | rotates under the existing writer lock; the next write to an oversized legacy log retains its recent complete records |
+| startup replay | up to 256 KiB across the retained segments | attaches near the newest complete records and reports skipped history |
+| `projectRoot` | 512 UTF-16 code units | truncates without splitting a surrogate pair |
 | health counters | fixed key set | `health.json` cannot grow with event volume |
-| deferred accounting | 64 receipt slots, 512 bytes each; same bound for staging files | capacity/write failure signals incomplete accounting; never waits beyond the existing budget |
-| hard exit watchdog | 2.25 s after the 2 s + 250 ms budgets | process exits 0 regardless |
+| deferred accounting | 64 receipt slots, 512 bytes each, plus 64 fixed intent names | a missing outcome is visible as incomplete accounting when its intent survives |
+| fallback watchdog | 2.5 s timer after the helper starts | exits 0 when the event loop can run the timer |
+
+These are cooperative timing limits. Synchronous filesystem calls and OS
+scheduling can extend the observed wall time.
+
+Sequence recovery uses an independent checkpoint for each session. Loss of the
+primary counter resumes from the checkpoint without changing the source epoch or
+other sessions. A bounded suffix of the event log can recover a recent legacy
+counter. If an interruption leaves a reserved number, a subsequent record can
+expose a gap. Recovery requires a surviving checkpoint or retained ordering evidence.
 
 Identity and epoch stability: `instance.json` and `source-epoch.json` are created once with an
 exclusive publication of a complete document and then only read, so every hook invocation of an install publishes the
-same `sourceInstanceId` and `sourceEpoch`. A file that exists but cannot be parsed is moved aside
-as `<file>.corrupt-<utcstamp>-<hex>` and recreated once (counted as `recoveredCorruptFile`) -
-that is the only path that can change an epoch, and it is visible in the spool. If you need a
+same `sourceInstanceId` and `sourceEpoch`. Invalid identity JSON is moved aside
+under a short repair lock and recreated. At most one `<file>.corrupt` backup is
+retained. This recovery is counted as `recoveredCorruptFile`. If you need a
 fresh epoch on purpose, stop publishing and delete `source-epoch.json`.
 
 Failure counters in `health.json`: `recordsWritten`, `droppedOversizeInput`, `droppedEmptyInput`,
@@ -258,8 +271,9 @@ would turn a lost record into an invisible one.
 
 Bridge 1.0.3 publishes a complete, metadata-only accounting receipt before attempting
 the shared `health.lock`. If that lock is busy, the updated app reads the receipt
-alongside `health.json`, so a lock-timeout drop remains visible. A later invocation
-folds receipts into the summary. Receipt IDs and totals commit atomically before
+alongside `health.json`, so a lock-timeout drop remains visible. After publishing
+a receipt, a writer folds receipts only if it can acquire the health lock immediately.
+Receipt IDs and totals commit atomically before
 cleanup, preventing duplicate counts if cleanup fails or a process exits mid-fold.
 The original 250 ms acquisition/write budget and 60 ms accounting slice are unchanged.
 Directory setup is acquired within the parent budget before the accounting slice,
@@ -268,6 +282,12 @@ No background worker or extra retry budget is added. If all receipt slots are oc
 or accounting storage fails, a bounded marker reports incomplete coverage when it can
 be written within the remaining budget. Unwritable storage or an exhausted process
 budget cannot guarantee a durable diagnostic; hooks still fail open.
+
+The bridge reserves an intent before attempting the event write. The app treats
+an unfinished intent as incomplete coverage. A later writer can reclaim an
+abandoned intent after confirming its owner is gone and persisting the incomplete
+marker. Spool directories must be ordinary directories. Event append rejects
+linked files, and stale-looking locks are retained while their owners are alive.
 
 Build the app and bridge from the same revision for this fix. An older app reads
 only folded `health.json` totals and cannot include pending receipts. The updated
@@ -392,7 +412,7 @@ Each installed event gets one matcher-less group (which the docs define as "ever
           {
             "type": "command",
             "command": "node",
-            "args": ["D:\\OVERSEER\\the-overseer\\integrations\\claude-code\\bridge.mjs", "overseer-claude-bridge"],
+            "args": ["C:\\Tools\\overseer-claude\\bridge.mjs", "overseer-claude-bridge"],
             "timeout": 10
           }
         ]
@@ -402,8 +422,8 @@ Each installed event gets one matcher-less group (which the docs define as "ever
 }
 ```
 
-`timeout` is set to 10 s so a stuck hook is cancelled long before Claude Code's 600 s default;
-the bridge itself gives up after roughly 2.25 s.
+The installed hook sets a 10-second host timeout. The bridge schedules its own
+2.5-second fallback timer, which can run when the event loop regains control.
 
 ## Uninstall and rollback
 

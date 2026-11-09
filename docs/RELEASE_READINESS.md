@@ -1,9 +1,9 @@
 # OVERSEER release readiness
 
-On November 4, Winston authorized committing and pushing `fix/detection-logic-cleanup`.
-Earlier no-push statements below describe their recorded runs. Main merge, release
-publication and repository visibility remain separate steps. The frozen tester ZIP
-is `1.0.0-alpha.1.local.20261103.1`, SHA-256
+The planned public alpha is an unsigned Windows x64 ZIP built from reviewed
+source. Qualify the CI archive on clean Windows and record its source commit
+and SHA-256 before publication. Earlier local results apply to their own archives.
+The November 3 tester ZIP was `1.0.0-alpha.1.local.20261103.1`, SHA-256
 `6C83C4987E2EF3B250AAF38F5954214ACFDC480AC31CD57A69E63BD94A39672C`.
 Its exact package smoke passed 46 checks with no deferrals or focus takeovers.
 
@@ -17,7 +17,7 @@ the candidate Claude hook version in a live host, and clean Windows remain open.
 
 ## Publication alpha preparation — 2026-11-02
 
-Latest local candidate: **1.0.0-alpha.1.local.20261102.3**, unsigned, dirty source.
+Local candidate for this run: **1.0.0-alpha.1.local.20261102.3**, unsigned, dirty source.
 Its ZIP SHA-256 is `FC5D4F66957CAE984547AE76DEB9F680DE3105BE3E08B455346B1493D6537BA9`.
 Full normal-extraction VSTest **930/930**, Claude **44/44**, DSH **40/40**, all 16
 producer timelines and site **85/85** plus **13** publication controls pass.
@@ -186,11 +186,9 @@ pass against that source. Later handoff/documentation commits do not change thes
 | Site/security/docs | Local draft85 static checks/13 publication controls; same-layout RC20 browser checks at390/768/1280px. History/tracked-source/text-payload secret scans,zero known vulnerable NuGet packages,and9 exact license checks recorded in the private packet. No live HTTPS/public download/SEO claim. Contributor guidance includes identity,fixtures,adapters and bounded build workers. |
 | Handoff/review | Ignored `artifacts/prepublication/rc21-qualification/owner-handoff/`: exact ZIP/checksum/manifest,48-clause CSV,normal-use resource collector,clean-machine helper,native screenshots and publication steps.29 PASS,14 OWNER_ACTION,2 NEEDS_ACCESS,1 intentionally Unsupported,2 preserved context failures. Same-chat review; required main review and final public approval remain. |
 
-**Open the verified candidate:** `D:\OVERSEER\Open OVERSEER RC21 (verified).lnk`
-uses the exact594 CI payload files and separate owner data, with copied preferences
-and existing bridge roots. No synthetic source override. Its owner profile has not
-been launched for actual-host testing. Keep its `verified-rc21` app/data folder.
-Original installs,data,shortcuts,profiles and failed evidence are preserved.
+The local RC21 shortcut used the 594 CI payload files and a separate data
+folder with copied preferences and existing bridge roots. Actual-host testing
+was still pending. The original installation and failed evidence were preserved.
 
 **Diagnosis/retry provenance:** RC19's original prepared location had atomic-write
 denials in an escalated diagnostic context; ordinary managed controls and fresh

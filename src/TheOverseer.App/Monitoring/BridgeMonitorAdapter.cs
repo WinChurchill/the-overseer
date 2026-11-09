@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using TheOverseer.Core.Diagnostics;
 using TheOverseer.Core.Models;
 using TheOverseer.Core.Monitoring;
@@ -73,7 +74,10 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         if (Interlocked.Exchange(ref _started, 1) != 0) return Task.CompletedTask;
         _attachedAt = _timeProvider.GetUtcNow();
         _session = new HarnessBridgeSession(Source, _staleLease, _budget.MaximumSessions, _actionLease);
-        _reader = new BridgeSpoolReader(SpoolDirectory) { MaximumBytesPerPass = _budget.BytesPerPass };
+        _reader = new BridgeSpoolReader(SpoolDirectory, tailOnAttach: Source.HarnessId == HarnessIds.Claude)
+        {
+            MaximumBytesPerPass = _budget.BytesPerPass,
+        };
         _loop ??= Task.Run(() => RunAsync(cancellationToken), CancellationToken.None);
         return Task.CompletedTask;
     }
@@ -189,8 +193,16 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
 
             if (readReason is "bridge-rotated-unread" or "bridge-record-oversize" or "bridge-events-missing")
                 _session.NoteProducerIncomplete(readReason, now);
+            else if (readReason == "bridge-backlog-trimmed")
+                _session.NoteHistoryGap(now);
 
             return Publish(readReason, "bridge", transitions);
+        }
+        catch (Exception exception) when (exception is JsonException or (InvalidOperationException and not ObjectDisposedException))
+        {
+            const string reason = "bridge-poll-failed";
+            _session.NoteProducerIncomplete(reason, _timeProvider.GetUtcNow());
+            return Publish(reason, "bridge");
         }
         finally
         {

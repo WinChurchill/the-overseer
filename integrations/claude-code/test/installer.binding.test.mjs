@@ -52,14 +52,8 @@ for (const failure of ['missing', 'broken', 'missing-no-verify', 'mixed-paths'])
  * never copied). This is the shape that used to be written into settings anyway.
  */
 function partialExtraction(parent, name = 'partial') {
-  const root = path.join(parent, name);
-  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
-  for (const file of ['install.mjs', 'uninstall.mjs']) {
-    fs.copyFileSync(path.join(INTEGRATION_ROOT, file), path.join(root, file));
-  }
-  for (const file of ['mapping.mjs', 'settings.mjs', 'spool.mjs', 'verify.mjs']) {
-    fs.copyFileSync(path.join(INTEGRATION_ROOT, 'lib', file), path.join(root, 'lib', file));
-  }
+  const root = fullExtraction(parent, name);
+  fs.unlinkSync(path.join(root, 'bridge.mjs'));
   return root;
 }
 

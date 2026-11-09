@@ -28,7 +28,7 @@
 
 import * as defaultFs from 'node:fs'
 import { join } from 'node:path'
-import { HARNESS_ID, LIMITS, PRODUCER_VERSION } from './normalize.js'
+import { HARNESS_ID, LIMITS, PRODUCER_VERSION, sanitizeSourceId } from './normalize.js'
 
 /** Spool document version stamped into `health.json` and `current.json`. */
 export const SPOOL_SCHEMA_VERSION = 1
@@ -72,6 +72,7 @@ export const MAX_DRAIN_PER_TICK = 128
 export const UNAVAILABLE_RETRY_MS = 1_000
 
 const ROTATED_RE = /^events-\d{8}T\d{6}Z(-\d+)?\.jsonl$/
+const OWNED_TEMP_RE = /^(?:current|health)\.json\.\d+\.\d+\.tmp$/
 
 /**
  * Clamp a numeric knob, rejecting unusable values.
@@ -114,7 +115,7 @@ export function createSpool(options = {}) {
   const fs = options.fs ?? defaultFs
   const now = typeof options.now === 'function' ? options.now : Date.now
   const spoolRoot = String(options.spoolRoot ?? '.')
-  const sourceInstanceId = String(options.sourceInstanceId ?? 'dsh-default')
+  const sourceInstanceId = sanitizeSourceId(options.sourceInstanceId)
   const queueLimit = clampNumber(options.queueLimit, QUEUE_LIMIT_MIN, QUEUE_LIMIT_MAX, DEFAULT_QUEUE_LIMIT)
   const maxRecordBytes = clampNumber(options.maxRecordBytes, 256, MAX_RECORD_BYTES, MAX_RECORD_BYTES)
   const currentMinIntervalMs = clampNumber(options.currentMinIntervalMs, 0, 60_000, CURRENT_WRITE_INTERVAL_MS)
@@ -126,7 +127,8 @@ export function createSpool(options = {}) {
   const maxFiles = clampNumber(options.maxFiles, 1, SPOOL_MAX_FILES, SPOOL_MAX_FILES)
   const rotatedTtlMs = clampNumber(options.rotatedTtlMs, 1000, ROTATED_TTL_MS, ROTATED_TTL_MS)
 
-  const directory = join(spoolRoot, HARNESS_ID, sourceInstanceId)
+  const harnessDirectory = join(spoolRoot, HARNESS_ID)
+  const directory = join(harnessDirectory, sourceInstanceId)
   const eventsPath = join(directory, 'events.jsonl')
   const currentPath = join(directory, 'current.json')
   const healthPath = join(directory, 'health.json')
@@ -206,7 +208,10 @@ export function createSpool(options = {}) {
   /** Create the adapter directory; `current.json` and `health.json` need it too. */
   function ensureDirectory() {
     try {
-      fs.mkdirSync(directory, { recursive: true })
+      for (const folder of [spoolRoot, harnessDirectory, directory]) {
+        if (!fs.lstatSync(folder, { throwIfNoEntry: false })) fs.mkdirSync(folder, { recursive: true })
+        if (!fs.lstatSync(folder).isDirectory()) throw new Error('unsafe-spool-directory')
+      }
       return true
     } catch (error) {
       counters.unavailable += 1
@@ -221,10 +226,18 @@ export function createSpool(options = {}) {
     if (fd !== null) return true
     if (!ensureDirectory()) return false
     try {
-      fd = fs.openSync(eventsPath, 'a')
+      const existing = fs.lstatSync(eventsPath, { throwIfNoEntry: false })
+      if (existing && (!existing.isFile() || existing.nlink !== 1)) throw new Error('unsafe-events-file')
+      fd = fs.openSync(eventsPath, existing ? fs.constants.O_WRONLY | fs.constants.O_APPEND : 'ax')
+      const opened = fs.fstatSync(fd)
+      if (!opened.isFile() || opened.nlink !== 1 ||
+          (existing && (existing.ino !== opened.ino || existing.dev !== opened.dev))) {
+        throw new Error('unsafe-events-file')
+      }
       unavailable = false
       return true
     } catch (error) {
+      closeFd()
       counters.unavailable += 1
       unavailable = true
       noteError(error)
@@ -244,37 +257,21 @@ export function createSpool(options = {}) {
 
   function rotateIfNeeded() {
     if (fd === null) return
-    let size = 0
-    try {
-      size = fs.fstatSync(fd).size
-    } catch (error) {
-      noteError(error)
-      return
-    }
-    if (size <= eventFileBytes) return
+    const stat = fs.fstatSync(fd)
+    if (stat.nlink !== 1) throw new Error('unsafe-events-file')
+    if (stat.size <= eventFileBytes) return
     closeFd()
     const stamp = utcStamp(now())
     let target = join(directory, `events-${stamp}.jsonl`)
     let suffix = 0
-    while (fileExists(target)) {
+    while (fs.lstatSync(target, { throwIfNoEntry: false })) {
       suffix += 1
+      if (suffix > SPOOL_MAX_FILES) throw new Error('rotation-name-limit')
       target = join(directory, `events-${stamp}-${suffix}.jsonl`)
     }
-    try {
-      fs.renameSync(eventsPath, target)
-      counters.rotations += 1
-    } catch (error) {
-      noteError(error)
-    }
-  }
-
-  function fileExists(path) {
-    try {
-      return fs.existsSync(path)
-    } catch {
-      // Existence check is advisory: a failed probe is treated as "no file".
-      return false
-    }
+    if (!ensureDirectory()) throw new Error('unsafe-spool-directory')
+    fs.renameSync(eventsPath, target)
+    counters.rotations += 1
   }
 
   /**
@@ -293,18 +290,18 @@ export function createSpool(options = {}) {
     tmpCounter += 1
     // Same directory as the target, so the rename cannot cross a volume.
     const tmp = `${target}.${process.pid}.${tmpCounter}.tmp`
-    let lastError = null
+    let owned = false
     try {
-      fs.writeFileSync(tmp, text, 'utf8')
+      fs.writeFileSync(tmp, text, { encoding: 'utf8', flag: 'wx' })
+      owned = true
       fs.renameSync(tmp, target)
       return true
     } catch (error) {
-      lastError = error
+      noteError(error)
     }
 
-    noteError(lastError)
     try {
-      fs.rmSync(tmp, { force: true })
+      if (owned) fs.rmSync(tmp, { force: true })
     } catch {
       // Nothing further can be done about a temp file that cannot be removed.
     }
@@ -368,12 +365,21 @@ export function createSpool(options = {}) {
   function runCleanup() {
     if (now() - lastCleanupMs < cleanupIntervalMs) return
     lastCleanupMs = now()
-    let names = []
+    if (!ensureDirectory()) return
+    const names = []
+    let entries
     try {
-      names = fs.readdirSync(directory)
+      entries = fs.opendirSync(directory)
+      for (let index = 0; index < SPOOL_MAX_FILES; index += 1) {
+        const entry = entries.readSync()
+        if (!entry) break
+        if (entry.isFile()) names.push(entry.name)
+      }
     } catch {
       // A directory that cannot be listed has nothing this pass can bound.
       return
+    } finally {
+      if (entries) try { entries.closeSync() } catch { /* cleanup is best effort */ }
     }
     const rotated = []
     let files = 0
@@ -382,7 +388,7 @@ export function createSpool(options = {}) {
       const full = join(directory, name)
       let stat
       try {
-        stat = fs.statSync(full)
+        stat = fs.lstatSync(full)
       } catch {
         continue
       }
@@ -391,7 +397,7 @@ export function createSpool(options = {}) {
       bytes += stat.size
       if (ROTATED_RE.test(name)) {
         rotated.push({ name, full, size: stat.size, mtimeMs: stat.mtimeMs })
-      } else if (name.endsWith('.tmp') && now() - stat.mtimeMs > rotatedTtlMs) {
+      } else if (OWNED_TEMP_RE.test(name) && now() - stat.mtimeMs > rotatedTtlMs) {
         removeFile(full)
       }
     }
@@ -420,33 +426,38 @@ export function createSpool(options = {}) {
     }
   }
 
+  /** Write one queued record. A failed rotation reopen leaves it queued. */
+  function writeQueuedRecord() {
+    let writing = false
+    try {
+      if (!ensureTarget()) return false
+      rotateIfNeeded()
+      if (!ensureTarget()) return false
+      const buffer = Buffer.from(`${queue.shift()}\n`, 'utf8')
+      writing = true
+      if (fs.writeSync(fd, buffer) !== buffer.length) throw new Error('short-event-append')
+      counters.written += 1
+      counters.bytesWritten += buffer.length
+      lastWriteMs = now()
+      return true
+    } catch (error) {
+      counters.writeErrors += 1
+      if (writing) {
+        counters.dropped += 1
+        counters.droppedError += 1
+      }
+      unavailable = true
+      noteError(error)
+      closeFd()
+      return false
+    }
+  }
+
   function drain() {
     if (closed) return
     try {
-      if (queue.length > 0 && ensureTarget()) {
-        let written = 0
-        while (queue.length > 0 && written < maxDrainPerTick) {
-          const line = queue.shift()
-          try {
-            rotateIfNeeded()
-            // A rotation closes the descriptor and renames the file: reopen the
-            // fresh events.jsonl so the record that triggered the rotation is
-            // written instead of being silently swallowed.
-            if (fd === null && !ensureTarget()) break
-            const buffer = Buffer.from(`${line}\n`, 'utf8')
-            fs.writeSync(fd, buffer)
-            counters.written += 1
-            counters.bytesWritten += buffer.length
-            lastWriteMs = now()
-            written += 1
-          } catch (error) {
-            counters.writeErrors += 1
-            counters.dropped += 1
-            noteError(error)
-            closeFd()
-            break
-          }
-        }
+      for (let written = 0; queue.length > 0 && written < maxDrainPerTick; written += 1) {
+        if (!writeQueuedRecord()) break
       }
       runCleanup()
       writeCurrent(false)
@@ -536,24 +547,7 @@ export function createSpool(options = {}) {
     while (!closed && guard < 100_000) {
       guard += 1
       if (queue.length > 0) {
-        if (!ensureTarget()) break
-        const line = queue.shift()
-        try {
-          rotateIfNeeded()
-          // See drain(): the rotated record still has to be published.
-          if (fd === null && !ensureTarget()) break
-          const buffer = Buffer.from(`${line}\n`, 'utf8')
-          fs.writeSync(fd, buffer)
-          counters.written += 1
-          counters.bytesWritten += buffer.length
-          lastWriteMs = now()
-        } catch (error) {
-          counters.writeErrors += 1
-          counters.dropped += 1
-          noteError(error)
-          closeFd()
-          break
-        }
+        if (!writeQueuedRecord()) break
         continue
       }
       if (currentDirty) {

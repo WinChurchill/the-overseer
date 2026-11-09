@@ -380,6 +380,46 @@ public sealed class CompositeMonitorTests
     }
 
     [Fact]
+    public async Task MalformedUnicodeInEventsAndSnapshotDoesNotStopLiveOrRestartedPolling()
+    {
+        using var home = new SyntheticCodexHome();
+        var spool = HarnessSources.SpoolDirectory(home.Root, Dsh);
+        Directory.CreateDirectory(spool);
+        var events = Path.Combine(spool, "events.jsonl");
+        string Record(string session, string path) => """
+            {"schemaVersion":1,"harnessId":"dsh","sourceInstanceId":"dsh-default","sourceEpoch":"epoch",
+             "sessionId":"SESSION","sequence":1,"observedAtUtc":"TIME","kind":"session/start","projectRoot":"PATH"}
+            """.ReplaceLineEndings("").Replace("SESSION", session).Replace("PATH", path)
+            .Replace("TIME", DateTimeOffset.UtcNow.ToString("o"));
+        File.WriteAllLines(events, new[] { Record("bad", @"C:/bad\uD83D"), Record("good", "C:/good") });
+        File.WriteAllText(Path.Combine(spool, "current.json"), """
+            {"schemaVersion":1,"harnessId":"dsh","sourceInstanceId":"dsh-default","sourceEpoch":"epoch",
+             "updatedAtUtc":"2026-11-08T00:00:00Z","sessions":[{"sessionId":"bad","projectRoot":"C:/bad\uD83D"}]}
+            """);
+
+        await using (var adapter = new BridgeMonitorAdapter(Dsh, home.Root, pollInterval: TimeSpan.FromMilliseconds(20)))
+        {
+            var good = new TaskCompletionSource<SourceSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var later = new TaskCompletionSource<SourceSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+            adapter.SnapshotAvailable += snapshot =>
+            {
+                if (snapshot.Tasks.Any(task => task.ConversationId == "good")) good.TrySetResult(snapshot);
+                if (snapshot.Tasks.Any(task => task.ConversationId == "later")) later.TrySetResult(snapshot);
+            };
+            await adapter.StartAsync(CancellationToken.None);
+            var initial = await good.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal("good", Assert.Single(initial.Tasks).ConversationId);
+            Assert.Contains("bridge-coverage-incomplete", initial.HealthReasons);
+            File.AppendAllLines(events, new[] { Record("later", "C:/later") });
+            Assert.Equal(2, (await later.Task.WaitAsync(TimeSpan.FromSeconds(5))).Tasks.Count);
+        }
+
+        await using var restarted = new BridgeMonitorAdapter(Dsh, home.Root);
+        await restarted.StartAsync(new CancellationToken(canceled: true));
+        Assert.Equal(2, restarted.Poll().Tasks.Count);
+    }
+
+    [Fact]
     public void InvalidUtf8DoesNotMoveTheReaderPastTheNextRecord()
     {
         var root = Path.Combine(Path.GetTempPath(), "overseer-tests", Guid.NewGuid().ToString("N"));

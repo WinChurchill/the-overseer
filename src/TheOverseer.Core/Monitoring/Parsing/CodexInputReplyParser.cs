@@ -70,6 +70,9 @@ internal static class CodexInputReplyParser
             }
             return answers.ToArray();
         }
-        catch (JsonException) { return Array.Empty<InputAnswerReference>(); }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            return Array.Empty<InputAnswerReference>();
+        }
     }
 }

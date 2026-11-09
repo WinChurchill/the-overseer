@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TheOverseer.App.Monitoring;
+using TheOverseer.Tests.Support;
 
 namespace TheOverseer.Tests;
 
@@ -52,6 +53,44 @@ public sealed class BridgeHealthAccountingTests
     }
 
     [Fact]
+    public void AReceiptMayShareOnlyItsExpectedStagingFile()
+    {
+        WithSpool(root =>
+        {
+            var receipt = ReceiptPath(root, 0);
+            var staging = receipt + ".tmp";
+            WriteReceipt(root, 0, Guid.NewGuid().ToString(), "droppedLockTimeout");
+            File.Move(receipt, staging);
+            WindowsTestLinks.CreateHardLink(receipt, staging);
+            var reader = new BridgeSpoolReader(root);
+            reader.ReadNewLines(out var reason, out var drops);
+            Assert.Equal("ok", reason);
+            Assert.Equal(1, drops);
+
+            File.Delete(staging);
+            WindowsTestLinks.CreateHardLink(Path.Combine(root, "foreign.json"), receipt);
+            reader.ReadNewLines(out reason, out drops);
+            Assert.Equal("bridge-spool-linked", reason);
+            Assert.Equal(1, drops);
+        });
+    }
+
+    [Fact]
+    public void AnAbandonedIntentMakesCoverageIncompleteWithoutInventingDrops()
+    {
+        WithSpool(root =>
+        {
+            var intent = ReceiptPath(root, 0) + ".intent";
+            File.WriteAllText(intent, "1");
+            File.SetLastWriteTimeUtc(intent, DateTime.UtcNow.AddMinutes(-1));
+            var reader = new BridgeSpoolReader(root);
+            reader.ReadNewLines(out var reason, out var drops);
+            Assert.Equal("bridge-health-accounting-incomplete", reason);
+            Assert.Equal(0, drops);
+        });
+    }
+
+    [Fact]
     public void AccountingOverflowIsPartialCoverageRatherThanHealthyZero()
     {
         WithSpool(root =>
@@ -68,6 +107,7 @@ public sealed class BridgeHealthAccountingTests
     [Theory]
     [InlineData("not-json")]
     [InlineData("{\"id\":1,\"counters\":[]}")]
+    [InlineData("{\"id\":\"\\ud83d\",\"counters\":[\"droppedLockTimeout\"]}")]
     [InlineData("{\"id\":\"00000000-0000-0000-0000-000000000001\",\"counters\":[\"unlisted\"]}")]
     public void MalformedReceiptsReduceCoverage(string contents)
     {

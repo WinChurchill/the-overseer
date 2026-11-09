@@ -97,18 +97,9 @@ public static class HarnessBridgeCurrentStateParser
             return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Malformed, null, "snapshot-too-large");
         }
 
-        JsonDocument document;
         try
         {
-            document = JsonDocument.Parse(json);
-        }
-        catch (JsonException)
-        {
-            return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Malformed, null, "snapshot-malformed");
-        }
-
-        using (document)
-        {
+            using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
@@ -214,6 +205,10 @@ public static class HarnessBridgeCurrentStateParser
                 sessions);
 
             return state.Validate(source);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            return new BridgeCurrentStateParseResult(BridgeCurrentStateOutcome.Malformed, null, "snapshot-malformed");
         }
     }
 

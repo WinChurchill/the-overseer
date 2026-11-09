@@ -166,6 +166,48 @@ public sealed class MultiHarnessReviewTests
     }
 
     [Fact]
+    public void ClaudeAttachSkipsOversizedLegacyBacklogAndContinuesAtLiveOffset()
+    {
+        using var home = new SyntheticCodexHome();
+        var reader = new BridgeSpoolReader(home.Root, tailOnAttach: true);
+        File.WriteAllText(reader.EventsPath, "old\n" + new string('x', 2 * 1024 * 1024) + "\nrecent\n");
+        Assert.Equal("recent", Assert.Single(reader.ReadNewLines(out var reason, out _)));
+        Assert.Equal("bridge-backlog-trimmed", reason);
+        Assert.InRange(reader.BytesReadThisPass, 1, 257 * 1024);
+        File.AppendAllText(reader.EventsPath, "live\n");
+        Assert.Equal("live", Assert.Single(reader.ReadNewLines(out reason, out _)));
+        Assert.Equal("ok", reason);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClaudeRetainedSegmentHydratesAndSurvivesTheMissingActiveFileDuringRotation(bool interruptedAtStartup)
+    {
+        using var home = new SyntheticCodexHome();
+        var reader = new BridgeSpoolReader(home.Root, tailOnAttach: true);
+        var previous = Path.Combine(home.Root, "events-previous.jsonl");
+        File.WriteAllText(previous, "retained\n");
+        if (interruptedAtStartup)
+        {
+            Assert.Equal("retained", Assert.Single(reader.ReadNewLines(out var missing, out _)));
+            Assert.Equal("bridge-events-missing", missing);
+            Assert.Empty(reader.ReadNewLines(out _, out _));
+        }
+        File.WriteAllText(reader.EventsPath, "active\n");
+        var expected = interruptedAtStartup ? new[] { "active" } : new[] { "retained", "active" };
+        Assert.Equal(expected, reader.ReadNewLines(out _, out _));
+        File.AppendAllText(reader.EventsPath, "unread\n");
+        File.Move(reader.EventsPath, previous, overwrite: true);
+        Assert.Empty(reader.ReadNewLines(out var reason, out _));
+        Assert.Equal("bridge-events-missing", reason);
+        File.WriteAllText(reader.EventsPath, "replacement that grew beyond the old offset\n");
+        Assert.Equal(new[] { "unread", "replacement that grew beyond the old offset" },
+            reader.ReadNewLines(out reason, out _));
+        Assert.Equal("ok", reason);
+    }
+
+    [Fact]
     public void RotationHonorsSharedBudgetAndReportsAnUnrecoverableTail()
     {
         using var home = new SyntheticCodexHome();

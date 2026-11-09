@@ -243,6 +243,16 @@ public sealed partial class HarnessBridgeSession
         }
     }
 
+    /// <summary>Older retained evidence was skipped during bounded startup.</summary>
+    public void NoteHistoryGap(DateTimeOffset atUtc)
+    {
+        lock (_gate)
+        {
+            _producerGap = true;
+            if (atUtc > _lastGapAt) _lastGapAt = atUtc;
+        }
+    }
+
     public BridgeApplyResult Apply(HarnessBridgeRecord record, DateTimeOffset? receiptAtUtc = null)
     {
         if (record is null)

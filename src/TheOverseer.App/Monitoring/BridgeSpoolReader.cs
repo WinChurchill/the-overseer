@@ -32,11 +32,14 @@ public sealed class BridgeSpoolReader
     private const int MaximumHealthReceiptBytes = 512;
     private const int MaximumCurrentBytes = 512 * 1024;
     private const int MaximumRotatedFilesPerPass = 4;
-    private const int HeadFingerprintBytes = 64;
+    private const int ClaudeAttachBytes = 256 * 1024;
+    private const string ClaudePreviousEvents = "events-previous.jsonl";
+    private const int HeadFingerprintBytes = 256;
+    private readonly bool _tailOnAttach;
 
-    private (long Length, DateTime LastWrite) _currentStamp = (-1, DateTime.MinValue);
+    private BridgeSpoolFiles.FileStamp _currentStamp;
     private BridgeCurrentStateParseResult? _currentCache;
-    private (long Length, DateTime LastWrite) _pendingStamp = (-1, DateTime.MinValue);
+    private BridgeSpoolFiles.FileStamp _pendingStamp;
     private byte[]? _pendingCurrent;
     private int _pendingCurrentRead;
     private int _remainingBytes = HardMaximumBytesPerPass;
@@ -50,10 +53,15 @@ public sealed class BridgeSpoolReader
     private long _eventsLength = -1;
     private DateTime _eventsCreationUtc;
     private ulong _eventsHeadHash;
+    private int _eventsHeadBytes;
 
     private int _maximumBytesPerPass = HardMaximumBytesPerPass;
 
-    public BridgeSpoolReader(string directory) => Directory = directory;
+    public BridgeSpoolReader(string directory, bool tailOnAttach = false)
+    {
+        Directory = directory;
+        _tailOnAttach = tailOnAttach;
+    }
 
     public string Directory { get; }
 
@@ -91,30 +99,38 @@ public sealed class BridgeSpoolReader
         droppedByProducer = 0;
         _remainingBytes = _maximumBytesPerPass;
         BytesReadThisPass = 0;
-        // Leave room for authoritative snapshots even under sustained event traffic.
-        _eventAllowance = File.Exists(CurrentPath) ? _maximumBytesPerPass / 2 : _maximumBytesPerPass;
         var lines = new List<string>();
         try
         {
+            BridgeSpoolFiles.CheckDirectories(Directory, 3);
+            // Leave room for authoritative snapshots even under sustained event traffic.
+            _eventAllowance = File.Exists(CurrentPath) ? _maximumBytesPerPass / 2 : _maximumBytesPerPass;
             droppedByProducer = ReadProducerDrops();
             if (_healthReason != "ok") reasonCode = _healthReason;
             if (!File.Exists(EventsPath))
             {
+                if (_eventsLength < 0 && _tailOnAttach && File.Exists(Path.Combine(Directory, ClaudePreviousEvents)))
+                {
+                    // A cold attach during an interrupted rotation can still
+                    // hydrate the retained segment once.
+                    ReadAttachTail(0, lines);
+                    _eventsLength = 0;
+                }
                 if (_eventsLength >= 0) reasonCode = "bridge-events-missing";
-                _eventsLength = -1;
-                _eventsOffset = 0;
-                _partialLine.Clear();
-                _discardingLine = false;
+                // A rename can briefly leave no active segment. Keep its cursor
+                // until the next segment appears so we can recover the old tail.
                 return lines;
             }
 
             var info = new FileInfo(EventsPath);
             var creation = info.CreationTimeUtc;
-            var head = ReadHeadFingerprint();
+            var (head, headBytes) = ReadHeadFingerprint(_eventsHeadBytes == 0
+                ? Math.Min(HeadFingerprintBytes, _maximumBytesPerPass / 4)
+                : _eventsHeadBytes);
             var replaced = _eventsLength >= 0 &&
                 (info.Length < _eventsOffset ||
                  creation != _eventsCreationUtc ||
-                 (info.Length <= _eventsOffset && head != _eventsHeadHash));
+                 (headBytes > 0 && headBytes == _eventsHeadBytes && head != _eventsHeadHash));
             if (replaced)
             {
                 // The file this reader was following was rotated or replaced.
@@ -130,8 +146,15 @@ public sealed class BridgeSpoolReader
                 _discardingLine = false;
             }
 
+            if (_tailOnAttach && _eventsLength < 0 && ReadAttachTail(info.Length, lines) && reasonCode == "ok")
+                reasonCode = "bridge-backlog-trimmed";
+
             _eventsCreationUtc = creation;
-            _eventsHeadHash = head;
+            if (_eventsLength < 0 || replaced || _eventsHeadBytes == 0)
+            {
+                _eventsHeadHash = head;
+                _eventsHeadBytes = headBytes;
+            }
             _eventsLength = info.Length;
             if (info.Length <= _eventsOffset)
             {
@@ -139,7 +162,7 @@ public sealed class BridgeSpoolReader
             }
 
             var budget = (int)Math.Min(Math.Min(_remainingBytes, _eventAllowance), info.Length - _eventsOffset);
-            using var stream = new FileStream(EventsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var stream = BridgeSpoolFiles.OpenRead(EventsPath);
             stream.Seek(_eventsOffset, SeekOrigin.Begin);
             var buffer = new byte[budget];
             var read = 0;
@@ -183,6 +206,11 @@ public sealed class BridgeSpoolReader
 
             return lines;
         }
+        catch (UnsafeSpoolPathException)
+        {
+            reasonCode = "bridge-spool-linked";
+            return lines;
+        }
         catch (IOException)
         {
             reasonCode = "bridge-io";
@@ -203,28 +231,21 @@ public sealed class BridgeSpoolReader
     {
         try
         {
-            if (!File.Exists(CurrentPath))
-            {
-                _pendingCurrent = null;
-                _currentCache = null;
-                return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-absent");
-            }
-
-            var stamp = new FileInfo(CurrentPath);
-            var identity = (stamp.Length, stamp.LastWriteTimeUtc);
-            if (identity == _currentStamp && _currentCache is not null) return _currentCache;
+            BridgeSpoolFiles.CheckDirectories(Directory, 3);
+            using var stream = BridgeSpoolFiles.OpenRead(CurrentPath, out var stamp);
+            if (stamp == _currentStamp && _currentCache is not null) return _currentCache;
             if (stamp.Length <= 0 || stamp.Length > MaximumCurrentBytes)
                 return new(BridgeCurrentStateOutcome.Malformed, null, "snapshot-size");
 
             // Large documents progress across polls without borrowing another
-            // source's budget. Cache identity and value are published together.
-            if (_pendingCurrent is null || identity != _pendingStamp)
+            // source's budget. Atomic replacements can share length and write
+            // time, so cache and resume reads only for the same opened file.
+            if (_pendingCurrent is null || stamp != _pendingStamp)
             {
-                _pendingStamp = identity;
+                _pendingStamp = stamp;
                 _pendingCurrent = new byte[(int)stamp.Length];
                 _pendingCurrentRead = 0;
             }
-            using var stream = new FileStream(CurrentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             stream.Seek(_pendingCurrentRead, SeekOrigin.Begin);
             while (_pendingCurrentRead < _pendingCurrent.Length && _remainingBytes > 0)
             {
@@ -232,8 +253,8 @@ public sealed class BridgeSpoolReader
                 if (read == 0) break;
                 _pendingCurrentRead += read;
             }
-            var after = new FileInfo(CurrentPath);
-            if ((after.Length, after.LastWriteTimeUtc) != identity)
+            using var current = BridgeSpoolFiles.OpenRead(CurrentPath, out var after);
+            if (after != stamp)
             {
                 _pendingCurrent = null;
                 return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-changing");
@@ -243,10 +264,17 @@ public sealed class BridgeSpoolReader
 
             var parsed = HarnessBridgeCurrentStateParser.Parse(Encoding.UTF8.GetString(_pendingCurrent), source);
             _pendingCurrent = null;
-            _currentStamp = identity;
+            _currentStamp = stamp;
             _currentCache = parsed;
             return parsed;
         }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            _pendingCurrent = null;
+            _currentCache = null;
+            return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-absent");
+        }
+        catch (UnsafeSpoolPathException) { return new(BridgeCurrentStateOutcome.Ignored, null, "bridge-spool-linked"); }
         catch (IOException) { return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-io"); }
         catch (UnauthorizedAccessException) { return new(BridgeCurrentStateOutcome.Ignored, null, "snapshot-denied"); }
     }
@@ -257,10 +285,12 @@ public sealed class BridgeSpoolReader
         _healthReason = "ok";
         try
         {
+            BridgeSpoolFiles.CheckDirectories(Directory, 3);
             var healthBudget = Math.Min(MaximumHealthBytes, Math.Min(_maximumBytesPerPass / 8, _remainingBytes));
             using var document = ReadHealthDocument(HealthPath, MaximumHealthBytes, ref healthBudget);
             var dropped = document is null ? 0 : CountProducerDrops(document.RootElement.GetProperty("counters"));
             var pending = Path.Combine(Directory, "health-pending");
+            BridgeSpoolFiles.CheckDirectories(pending, 1);
             if (File.Exists(Path.Combine(Directory, "health-incomplete")))
             {
                 _healthReason = "bridge-health-accounting-incomplete";
@@ -271,7 +301,15 @@ public sealed class BridgeSpoolReader
                 for (var slot = 0; slot < MaximumHealthReceipts; slot++)
                 {
                     var key = slot.ToString("D2", CultureInfo.InvariantCulture);
-                    using var receipt = ReadHealthDocument(Path.Combine(pending, key + ".json"), MaximumHealthReceiptBytes, ref healthBudget, receipt: true);
+                    var file = Path.Combine(pending, key + ".json");
+                    var intent = new FileInfo(file + ".intent");
+                    if (_healthReason != "bridge-health-accounting-incomplete" && intent.Exists)
+                    {
+                        if ((intent.Attributes & FileAttributes.ReparsePoint) != 0) throw new UnsafeSpoolPathException();
+                        _healthReason = DateTime.UtcNow - intent.LastWriteTimeUtc > TimeSpan.FromMilliseconds(250)
+                            ? "bridge-health-accounting-incomplete" : "bridge-health-updating";
+                    }
+                    using var receipt = ReadHealthDocument(file, MaximumHealthReceiptBytes, ref healthBudget, receipt: true);
                     if (receipt is null) continue;
                     var root = receipt.RootElement;
                     var id = root.GetProperty("id").GetString();
@@ -299,9 +337,14 @@ public sealed class BridgeSpoolReader
             }
             return _lastProducerDrops = dropped;
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
             if (_healthReason == "ok") _healthReason = "bridge-health-malformed";
+            return _lastProducerDrops;
+        }
+        catch (UnsafeSpoolPathException)
+        {
+            _healthReason = "bridge-spool-linked";
             return _lastProducerDrops;
         }
         catch (IOException)
@@ -323,7 +366,7 @@ public sealed class BridgeSpoolReader
     private JsonDocument? ReadHealthDocument(string file, int maximumBytes, ref int healthBudget, bool receipt = false)
     {
         FileStream stream;
-        try { stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); }
+        try { stream = BridgeSpoolFiles.OpenRead(file, publishingReceipt: receipt); }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
         using (stream)
@@ -343,32 +386,41 @@ public sealed class BridgeSpoolReader
             }
             healthBudget -= read;
             var document = JsonDocument.Parse(buffer);
-            var root = document.RootElement;
-            var counters = default(JsonElement);
-            var valid = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("counters", out counters) &&
-                (receipt ? counters.ValueKind == JsonValueKind.Array : counters.ValueKind == JsonValueKind.Object);
-            if (valid && receipt)
+            try
             {
-                valid = root.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String &&
-                    Guid.TryParseExact(id.GetString(), "D", out _) && counters.GetArrayLength() <= 14 &&
-                    counters.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String && item.GetString() is
-                        "recordsWritten" or "droppedOversizeInput" or "droppedEmptyInput" or "droppedMalformedInput" or
-                        "droppedStdinDeadline" or "droppedStdinError" or "droppedLockTimeout" or "droppedOversizeRecord" or
-                        "droppedWriteFailed" or "droppedCorruptSourceEpoch" or "droppedUnsupportedPayload" or
-                        "droppedInternalError" or "recoveredCorruptFile" or "unknownEvents");
+                ValidateHealthDocument(document, receipt);
+                return document;
             }
-            if (valid && !receipt && root.TryGetProperty("healthRevision", out var revision))
-                valid = revision.ValueKind == JsonValueKind.String;
-            if (valid && !receipt && root.TryGetProperty("accountedReceipts", out var accounted))
-                valid = accounted.ValueKind == JsonValueKind.Object && accounted.EnumerateObject().All(item =>
-                    item.Value.ValueKind == JsonValueKind.String && Guid.TryParseExact(item.Value.GetString(), "D", out _));
-            if (!valid)
+            catch
             {
                 document.Dispose();
-                throw new JsonException();
+                throw;
             }
-            return document;
         }
+    }
+
+    private static void ValidateHealthDocument(JsonDocument document, bool receipt)
+    {
+        var root = document.RootElement;
+        var counters = default(JsonElement);
+        var valid = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("counters", out counters) &&
+            (receipt ? counters.ValueKind == JsonValueKind.Array : counters.ValueKind == JsonValueKind.Object);
+        if (valid && receipt)
+        {
+            valid = root.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String &&
+                Guid.TryParseExact(id.GetString(), "D", out _) && counters.GetArrayLength() <= 14 &&
+                counters.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String && item.GetString() is
+                    "recordsWritten" or "droppedOversizeInput" or "droppedEmptyInput" or "droppedMalformedInput" or
+                    "droppedStdinDeadline" or "droppedStdinError" or "droppedLockTimeout" or "droppedOversizeRecord" or
+                    "droppedWriteFailed" or "droppedCorruptSourceEpoch" or "droppedUnsupportedPayload" or
+                    "droppedInternalError" or "recoveredCorruptFile" or "unknownEvents");
+        }
+        if (valid && !receipt && root.TryGetProperty("healthRevision", out var revision))
+            valid = revision.ValueKind == JsonValueKind.String && revision.GetString() is not null;
+        if (valid && !receipt && root.TryGetProperty("accountedReceipts", out var accounted))
+            valid = accounted.ValueKind == JsonValueKind.Object && accounted.EnumerateObject().All(item =>
+                item.Value.ValueKind == JsonValueKind.String && Guid.TryParseExact(item.Value.GetString(), "D", out _));
+        if (!valid) throw new JsonException();
     }
 
     private static int CountProducerDrops(JsonElement counters)
@@ -400,22 +452,23 @@ public sealed class BridgeSpoolReader
         return dropped;
     }
 
-    private ulong ReadHeadFingerprint()
+    private (ulong Hash, int Bytes) ReadHeadFingerprint(int byteCount)
     {
+        if (byteCount == 0) return default;
         try
         {
-            using var stream = new FileStream(EventsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var buffer = new byte[HeadFingerprintBytes];
+            using var stream = BridgeSpoolFiles.OpenRead(EventsPath);
+            var buffer = new byte[byteCount];
             var read = ReadBudgeted(stream, buffer, 0, buffer.Length);
-            return Hash(buffer, read);
+            return (Hash(buffer, read), read);
         }
         catch (IOException)
         {
-            return 0;
+            return default;
         }
         catch (UnauthorizedAccessException)
         {
-            return 0;
+            return default;
         }
     }
 
@@ -428,6 +481,38 @@ public sealed class BridgeSpoolReader
         }
 
         return hash;
+    }
+
+    /// <summary>Keep the newest bounded window across the active and previous Claude segments.</summary>
+    private bool ReadAttachTail(long activeLength, List<string> lines)
+    {
+        var window = Math.Min(ClaudeAttachBytes, _eventAllowance);
+        if (window == 0) return false;
+        if (activeLength > window)
+        {
+            _eventsOffset = activeLength - window;
+            _discardingLine = true;
+            return true;
+        }
+
+        var previous = Path.Combine(Directory, ClaudePreviousEvents);
+        if (!File.Exists(previous)) return false;
+        using var stream = BridgeSpoolFiles.OpenRead(previous);
+        var length = stream.Length;
+        var spare = Math.Max(0, Math.Min(window, _remainingBytes) - activeLength);
+        var budget = (int)Math.Min(spare, length);
+        if (budget == 0) return length > 0;
+        var start = length - budget;
+        stream.Seek(start, SeekOrigin.Begin);
+        var buffer = new byte[budget];
+        var read = ReadBudgeted(stream, buffer, 0, budget);
+        _eventAllowance -= read;
+        if (read == 0) return length > 0;
+        var first = start == 0 ? 0 : Array.IndexOf(buffer, (byte)'\n', 0, read) + 1;
+        var end = Array.LastIndexOf(buffer, (byte)'\n', read - 1, read) + 1;
+        if ((start == 0 || first > 0) && end > first)
+            AppendLines(lines, Encoding.UTF8.GetString(buffer, first, end - first));
+        return start > 0 || end != budget;
     }
 
     /// <summary>
@@ -451,9 +536,9 @@ public sealed class BridgeSpoolReader
             {
                 var file = files[index];
                 if (file.CreationTimeUtc != _eventsCreationUtc || file.Length < _eventsOffset) continue;
-                var size = (int)Math.Min(HeadFingerprintBytes, _eventsLength);
-                if (_remainingBytes < size) return false;
-                using var probe = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var size = _eventsHeadBytes;
+                if (size == 0 || _remainingBytes < size) return false;
+                using var probe = BridgeSpoolFiles.OpenRead(file.FullName);
                 var head = new byte[size];
                 var count = ReadBudgeted(probe, head, 0, size);
                 if (count == size && Hash(head, count) == _eventsHeadHash) { matching = index; break; }
@@ -468,7 +553,7 @@ public sealed class BridgeSpoolReader
                 if (available == 0) continue;
                 var budget = (int)Math.Min(Math.Min(_remainingBytes, _eventAllowance), available);
                 if (budget <= 0) return false;
-                using var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var stream = BridgeSpoolFiles.OpenRead(file.FullName);
                 stream.Seek(start, SeekOrigin.Begin);
                 var buffer = new byte[budget];
                 var read = 0;

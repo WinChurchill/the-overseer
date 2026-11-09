@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { utcStamp } from './spool.mjs';
+import { utcStamp } from './spool-io.mjs';
 
 /** Ownership marker: present in the handler args of every OVERSEER entry. */
 export const MARKER = 'overseer-claude-bridge';
@@ -61,12 +61,12 @@ function detectStyle(raw) {
   if (match) {
     indent = match[1].includes('\t') ? '\t' : match[1].length;
   }
-  return { indent, trailingNewline: /\n\s*$/.test(raw) };
+  return { indent, trailingNewline: /\n\s*$/.test(raw), bom: raw.startsWith('\uFEFF') };
 }
 
 export function serializeSettings(data, style) {
   const text = JSON.stringify(data, null, style.indent);
-  return style.trailingNewline ? text + '\n' : text;
+  return (style.bom ? '\uFEFF' : '') + text + (style.trailingNewline ? '\n' : '');
 }
 
 /**
@@ -93,7 +93,7 @@ export function loadSettings(filePath) {
 
   let data;
   try {
-    data = JSON.parse(raw);
+    data = JSON.parse(raw.startsWith('\uFEFF') ? raw.slice(1) : raw);
   } catch (err) {
     return {
       path: absolute,

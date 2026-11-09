@@ -84,6 +84,30 @@ test('installer refuses malformed settings and never writes without --apply', as
   assert.equal(fs.readFileSync(notAnObject, 'utf8'), '[1,2,3]\n');
 });
 
+test('install and uninstall preserve a UTF-8 BOM and the original backup', async (t) => {
+  const dir = tempDir();
+  t.after(() => removeDir(dir));
+  const settings = path.join(dir, 'settings.json');
+  const original = '\uFEFF' + JSON.stringify(userSettings(), null, 2) + '\n';
+  fs.writeFileSync(settings, original, 'utf8');
+
+  const preview = await runNode(INSTALL_PATH, [settings, '--events=SessionStart']);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.equal(fs.readFileSync(settings, 'utf8'), original);
+
+  const install = await runNode(INSTALL_PATH, [settings, '--events=SessionStart', '--apply']);
+  assert.equal(install.status, 0, install.stderr);
+  const installed = fs.readFileSync(settings, 'utf8');
+  assert.equal(installed[0], '\uFEFF');
+  assert.equal(ownedHandlers(JSON.parse(installed.slice(1))).length, 1);
+  const backup = path.join(dir, listBackups(settings)[0]);
+  assert.equal(fs.readFileSync(backup, 'utf8'), original);
+
+  const uninstall = await runNode(UNINSTALL_PATH, [settings, '--apply']);
+  assert.equal(uninstall.status, 0, uninstall.stderr);
+  assert.equal(fs.readFileSync(settings, 'utf8'), original);
+});
+
 test('install preserves unrelated entries, is idempotent, and uninstall removes only owned entries', async (t) => {
   const dir = tempDir();
   t.after(() => removeDir(dir));

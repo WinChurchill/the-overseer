@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Subject | `THE OVERSEER PROJECT` / repository `the-overseer` |
-| Repository root | `D:\OVERSEER\the-overseer` |
+| Repository root | `the-overseer` checkout |
 | Assessed revision | `82e15e3c` on branch `ux/first-use` (working tree clean) |
 | Assessment date | 2026-09-29 (local `Pacific Standard Time`, UTC-7) |
 | Produced by | external assessment session (not an Astra/DeepSeek loop role, not part of the project ledger) |
@@ -46,14 +46,16 @@ Headline: the code and its local verification are in good shape; the project is 
 
 ## 2. Five-command re-verification recipe
 
-Run from the repository root. The workspace SDK is **not** on `PATH` on this machine (section 3.1), so set the environment explicitly:
+Run from the repository root. This historical run used an SDK staged in a
+sibling `.tools` directory. Set the path to match your local tool layout:
 
 ```powershell
-$env:DOTNET_ROOT       = 'D:\OVERSEER\.tools\dotnet'
-$env:PATH              = "D:\OVERSEER\.tools\dotnet;$env:PATH"
-$env:DOTNET_CLI_HOME   = 'D:\OVERSEER\.tools\cli-home'
-$env:NUGET_PACKAGES    = 'D:\OVERSEER\.tools\nuget-packages'
-$dotnet                = 'D:\OVERSEER\.tools\dotnet\dotnet.exe'
+$overseerTools         = Join-Path (Split-Path -Parent (Get-Location).Path) '.tools'
+$env:DOTNET_ROOT       = Join-Path $overseerTools 'dotnet'
+$env:PATH              = "$env:DOTNET_ROOT;$env:PATH"
+$env:DOTNET_CLI_HOME   = Join-Path $overseerTools 'cli-home'
+$env:NUGET_PACKAGES    = Join-Path $overseerTools 'nuget-packages'
+$dotnet                = Join-Path $env:DOTNET_ROOT 'dotnet.exe'
 
 # 0. always first — prevents the false build failure in section 3.2
 & $dotnet build-server shutdown
@@ -90,7 +92,9 @@ pwsh -NoProfile -File scripts/Test-PreUserRelease.ps1 `
 
 ### 3.1 There is no .NET SDK outside the repo
 
-`C:\Program Files\dotnet\dotnet.exe` exists but reports **"No .NET SDKs were found"**. The only SDK is `10.0.401` at `D:\OVERSEER\.tools\dotnet`, which lives **outside** the repository (`../.tools/dotnet`) and is untracked. `global.json` pins `10.0.100` with `rollForward: latestFeature`.
+The system .NET launcher reported **"No .NET SDKs were found"**. This run used
+the untracked workspace SDK `10.0.401` at `../.tools/dotnet`.
+`global.json` pins `10.0.100` with `rollForward: latestFeature`.
 
 Consequences:
 
@@ -121,18 +125,17 @@ Not cleaned up by that command: **33 stale `dotnet` processes** were still runni
 
 ### 3.3 The workspace ACLs were partially broken
 
-At session start, every shell command failed at sandbox setup (`grantWrite(D:\OVERSEER)`), and after that writes into `the-overseer\`, `artifacts\` and `src\` were denied. Root cause: the workspace root lacked effective `WRITE_OWNER` for the signed-in account.
+At session start, every shell command failed at sandbox setup, and writes into
+the checkout were denied. The workspace root lacked effective `WRITE_OWNER`
+for the signed-in account.
 
-Repaired with the DSH sandbox-ACL diagnostic script, which backed up the DACL and verified the granted right. Rollback artifacts:
-
-```text
-D:\dsh-acl-recovery\acl-backup-528dd2acfdd34cad881bf785d1251b81.json
-D:\dsh-acl-recovery\acl-backup-528dd2acfdd34cad881bf785d1251b81.json.ps1
-```
+The DSH sandbox ACL diagnostic backed up the DACL and verified the granted
+right. The rollback files were kept with the workstation's diagnostic evidence.
 
 The subtree scan was truncated at 2,000 directories, so deeper directories were never fully audited. If a write is denied at a path for no apparent reason, suspect this class of problem rather than the code.
 
-Note for forensics: this tree contains ACL entries for `PL15\CodexSandboxUsers`, ownership by `PL15\CodexSandboxOffline` on several directories, and orphaned `S-1-5-21-…` ACEs from other accounts. Treat the ACL state as a known-messy area.
+Some directories retained entries for sandbox accounts and orphaned account
+identifiers. Treat these ACL observations as specific to that workspace.
 
 ### 3.4 Evidence timestamps are UTC, ledger dates are local (UTC-7)
 

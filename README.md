@@ -40,7 +40,7 @@ history, and logs. The HUD still reads your local agent sources.
 | --- | --- |
 | Codex on Windows | Local sessions are discovered automatically. Use `--codex-home` for a different Codex home. |
 | Claude Code | Install the optional experimental hooks. [Claude Code setup](integrations/claude-code/README.md) |
-| Claude Projects | Enable **Observe loaded Claude Projects desktop views** in **⋯ → Projects & sources…**, restart OVERSEER, and open **Threads / Overview** in Claude. [Coverage and limits](integrations/README.md#claude-projects-and-cloud-workers) |
+| Claude Projects | Enable the experimental **Observe loaded Claude Projects desktop views** option in **⋯ → Projects & sources…**, restart OVERSEER, and open **Threads / Overview** in Claude. [Coverage and limits](integrations/README.md#claude-projects-and-cloud-workers) |
 | DeepSeek Harness | Install the optional experimental observer. [DSH setup](integrations/deepseek-harness/README.md) |
 
 Start a small task and compare it with **Now**. Open the coverage indicator if a
@@ -56,7 +56,7 @@ observer covers loaded desktop overviews.
   Kokoro cues, then unmute when ready.
 - Close hides the HUD to the tray. Choose **⋯ → Exit** to stop it.
 
-The current alpha targets Windows x64 and ships unsigned. For testing, support, or
+The alpha targets Windows x64. The app ZIP is unsigned. For testing, support, or
 development, see the [tester handoff](docs/TESTER_HANDOFF.md), [support](SUPPORT.md),
 [contributing](CONTRIBUTING.md), and [agent instructions](AGENTS.md).
 

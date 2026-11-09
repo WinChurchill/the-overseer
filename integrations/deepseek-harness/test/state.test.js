@@ -16,6 +16,17 @@ import { createObserverState } from '../src/state.js'
 
 const t0 = 1767225600000
 
+test('paths at the wire boundary stay well formed in events and snapshots', () => {
+  const state = newState()
+  const base = 'C:/' + 'a'.repeat(508)
+  assert.equal(state.sessionStart('split', { projectRoot: base + '😀tail' }).projectRoot, base)
+  assert.equal(state.sessionStart('malformed', { projectRoot: 'C:/a\ud83dz' }).projectRoot, 'C:/a�z')
+  assert.equal(state.sessionStart('fits', { projectRoot: base.slice(0, -1) + '😀tail' }).projectRoot,
+    base.slice(0, -1) + '😀')
+  assert.deepEqual(state.currentDocument().sessions.map(session => session.projectRoot),
+    [base, 'C:/a�z', base.slice(0, -1) + '😀'])
+})
+
 test('wire IDs preserve boundary sessions, derived IDs and request correlation without aliasing', () => {
   const state = newState()
   const ids = ['x'.repeat(127), 'x'.repeat(128), 'x'.repeat(128) + 'A', 'x'.repeat(128) + 'B'.repeat(128)]

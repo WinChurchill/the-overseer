@@ -222,7 +222,7 @@ rotations, pruned, expired, currentWrites, healthWrites), `lastError`, `unavaila
 |---|---|---|
 | In-process queue | 512 records (env-clamped 16..8192) | drops the **oldest** record, increments `dropped`/`droppedOldest`; the callback never blocks and never touches disk |
 | Record size | 64 KiB serialized | oversized record refused, `droppedOversize` counted |
-| Event file rotation | 4 MiB | `events.jsonl` renamed to `events-<utcstamp>.jsonl`, `rotations` counted; the record that triggered the rotation is written to the fresh file, never swallowed |
+| Event file rotation | 4 MiB | `events.jsonl` renamed to `events-<utcstamp>.jsonl`; if reopening fails, the head record stays queued for retry |
 | Rotated-file TTL | 1 hour | expired OVERSEER-owned rotated files and stale `.tmp` files are deleted (`pruned`/`expired`) |
 | Spool soft cap | 16 MiB | oldest rotated files pruned until under the cap |
 | File cap | 4096 files | oldest rotated files pruned until under the cap |

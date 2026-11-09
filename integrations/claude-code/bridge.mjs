@@ -20,11 +20,11 @@ import process from 'node:process';
 import { PRODUCER_VERSION, buildRecord, classify, validateRecord } from './lib/mapping.mjs';
 import {
   Deadline,
+  beginHealthAccounting,
   bumpHealth,
   ensureSourceEpoch,
   ensureSourceInstance,
   instanceDir,
-  prepareHealthDirectory,
   publishRecord,
   resolveSpoolRoot,
 } from './lib/spool.mjs';
@@ -110,7 +110,7 @@ const STDIN_FAILURE_COUNTER = {
  */
 function countFailure(spoolRoot, counter) {
   const budget = new Deadline(WRITE_BUDGET_MS);
-  const instance = ensureSourceInstance(spoolRoot);
+  const instance = ensureSourceInstance(spoolRoot, process.env, budget);
   if (!instance.sourceInstanceId) {
     debug('failure-counter-skipped', counter);
     return;
@@ -118,8 +118,8 @@ function countFailure(spoolRoot, counter) {
   const dir = instanceDir(spoolRoot, instance.sourceInstanceId);
   // A cold directory can consume the small health slice before any receipt is
   // attempted. Acquire it inside the unchanged parent budget first.
-  prepareHealthDirectory(dir, budget);
-  bumpHealth(dir, counter, budget);
+  const intent = beginHealthAccounting(dir, budget);
+  bumpHealth(dir, counter, budget, intent);
   debug('counted', counter);
 }
 
@@ -151,19 +151,20 @@ async function run() {
   // Everything below shares one bounded acquisition/write budget.
   const writePhase = new Deadline(WRITE_BUDGET_MS);
 
-  const instance = ensureSourceInstance(spoolRoot);
+  const instance = ensureSourceInstance(spoolRoot, process.env, writePhase);
   if (!instance.sourceInstanceId) {
     debug('instance-unavailable');
     return;
   }
   const dir = instanceDir(spoolRoot, instance.sourceInstanceId);
-  prepareHealthDirectory(dir, writePhase);
+  const intent = beginHealthAccounting(dir, writePhase);
+  const account = counters => bumpHealth(dir, counters, writePhase, intent);
   const counters = [];
 
-  const epoch = ensureSourceEpoch(dir, instance.sourceInstanceId);
+  const epoch = ensureSourceEpoch(dir, instance.sourceInstanceId, writePhase);
   if (!epoch.sourceEpoch) {
     debug('source-epoch-unavailable', epoch.error ?? 'unknown');
-    bumpHealth(dir, epoch.error === 'identity-unstable' ? 'droppedCorruptSourceEpoch' : 'droppedInternalError', writePhase);
+    account(epoch.error === 'identity-unstable' ? 'droppedCorruptSourceEpoch' : 'droppedInternalError');
     return;
   }
   if (epoch.recovered || instance.recovered) counters.push('recoveredCorruptFile');
@@ -178,14 +179,14 @@ async function run() {
     producerVersion: PRODUCER_VERSION,
   });
   if (!record) {
-    bumpHealth(dir, 'droppedUnsupportedPayload', writePhase);
+    account('droppedUnsupportedPayload');
     return;
   }
 
   const problems = validateRecord(record, { requireSequence: false });
   if (problems.length > 0) {
     debug('record-rejected', problems.length);
-    bumpHealth(dir, 'droppedInternalError', writePhase);
+    account('droppedInternalError');
     return;
   }
 
@@ -199,8 +200,9 @@ async function run() {
   });
 
   if (result.ok) {
+    if (result.recovered && !counters.includes('recoveredCorruptFile')) counters.push('recoveredCorruptFile');
     counters.push('recordsWritten');
-    bumpHealth(dir, counters, writePhase);
+    account(counters);
     debug('wrote', record.kind, 'sequence', String(result.sequence));
     return;
   }
@@ -215,7 +217,7 @@ async function run() {
     counters.push('droppedWriteFailed');
   }
 
-  bumpHealth(dir, counters, writePhase);
+  account(counters);
   debug('dropped', result.reason);
 }
 

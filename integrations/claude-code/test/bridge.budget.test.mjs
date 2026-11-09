@@ -32,6 +32,29 @@ test('accounting sub-deadlines never extend the parent write budget', (t) => {
   assert.ok(fold.end <= health.end);
 });
 
+test('expiration before the event lock leaves durable evidence of an unmatched hook', async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  await runBridge(fixture('stop.json'), { env });
+  const dir = instanceDirectory(root);
+  const worker = path.join(root, 'deadline.mjs');
+  fs.writeFileSync(worker, [
+    "import fs from 'node:fs';",
+    'let now = Date.now();',
+    'Date.now = () => now;',
+    'const stat = fs.lstatSync;',
+    "fs.lstatSync = (file, ...args) => { if (String(file).endsWith('sessions')) now += 251; return stat(file, ...args); };",
+    'await import(' + JSON.stringify(pathToFileURL(BRIDGE_PATH).href) + ');',
+  ].join('\n'));
+  const result = await runNode(worker, [], { env, input: JSON.stringify(fixture('stop.json')) });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, '');
+  assert.equal(readLines(dir).length, 1);
+  assert.equal(readHealth(dir).counters.recordsWritten, 1);
+  assert.equal(readHealth(dir).accountingIncomplete, true);
+});
+
 test('cold failure-accounting setup uses the parent budget before the health slice', async (t) => {
   const root = tempDir();
   t.after(() => removeDir(root));

@@ -1,9 +1,9 @@
 # Support and bug reports
 
-During private qualification, send a sanitized result to Winston through the existing
-private test conversation, or use the [repository bug form](https://github.com/WinChurchill/the-overseer/issues/new?template=bug_report.yml)
-if you have access. The [tester handoff](docs/TESTER_HANDOFF.md) has a checklist,
-troubleshooting steps and a copyable result template.
+Use the [repository bug form](https://github.com/WinChurchill/the-overseer/issues/new?template=bug_report.yml)
+for a public bug report. If you received a private test build, reply through the
+channel that supplied it. The [tester handoff](docs/TESTER_HANDOFF.md) includes a
+checklist, troubleshooting steps and a report template.
 
 Include the source commit SHA and local-change status for a source build, or
 application version, `release.json` source identity and ZIP SHA-256 for a package.

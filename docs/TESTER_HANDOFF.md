@@ -25,10 +25,9 @@ alone does not identify the tested code. Use Windows Settings → System → Abo
 the Windows build, and Display for scaling. Record the agent host and engine versions
 from that host; do not infer them from a separate CLI installation.
 
-The reviewed `main` merge is `63eff72a5b30512b9a6fad5b9f26850567551809`
-([PR #1](https://github.com/WinChurchill/the-overseer/pull/1)). It contains the task-launch
-exception fix `3767d4a`. The existing **RC21 ZIP** was built from `c227dd9` and predates
-that fix. Neither identity should be substituted for the actual commit/hash you test.
+For historical comparison, the **RC21 ZIP** was built from `c227dd9`. The task-launch
+exception fix `3767d4a` landed later in [PR #1](https://github.com/WinChurchill/the-overseer/pull/1).
+Record the source commit or archive hash of the build you actually test.
 
 ## 2. First launch and source setup
 
@@ -105,9 +104,9 @@ network speech service or complete an hour-long soak for this first session.
 
 ## 4. Report and hand back
 
-Send a sanitized result to Winston through the existing private test conversation,
-or use the [repository bug form](https://github.com/WinChurchill/the-overseer/issues/new?template=bug_report.yml)
-if you have access. Copy this template:
+Send a sanitized result through the channel that supplied the build or use the
+[repository bug form](https://github.com/WinChurchill/the-overseer/issues/new?template=bug_report.yml).
+Copy this template:
 
 ```text
 Source SHA + local changes, OR package version + ZIP SHA-256:

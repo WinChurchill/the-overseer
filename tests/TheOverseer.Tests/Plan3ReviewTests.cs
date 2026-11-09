@@ -216,33 +216,7 @@ public sealed class Plan3ReviewTests
         File.WriteAllBytes(Path.Combine(outside, "clip.wav"), VoicePackValidator.CreateTone(440, .05));
         try
         {
-            var start = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"),
-                UseShellExecute = false, CreateNoWindow = true,
-            };
-            start.ArgumentList.Add("-NoProfile");
-            start.ArgumentList.Add("-NonInteractive");
-            start.ArgumentList.Add("-Command");
-            start.ArgumentList.Add("$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path $env:OVERSEER_TEST_LINK -Target $env:OVERSEER_TEST_TARGET | Out-Null");
-            start.Environment["OVERSEER_TEST_LINK"] = link;
-            start.Environment["OVERSEER_TEST_TARGET"] = outside;
-            using var process = System.Diagnostics.Process.Start(start)!;
-            try
-            {
-                // Cold hosted Windows PowerShell startup is fixture setup, not
-                // the voice provider's runtime budget. Never leave a late writer
-                // alive while the owned junction directory is being cleaned up.
-                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
-            }
-            catch (TimeoutException)
-            {
-                process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync();
-                throw;
-            }
-            Assert.Equal(0, process.ExitCode);
-            Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
+            await WindowsTestLinks.CreateJunctionAsync(link, outside);
             using var provider = new VoicePackProvider(root, () => new VoiceSettings { PackId = "example" });
             Assert.Null(await provider.TryCreateAsync(Candidate(), CancellationToken.None));
             Assert.Contains("reparse", provider.Status.LastCode, StringComparison.Ordinal);

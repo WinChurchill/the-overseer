@@ -7,10 +7,12 @@
  *   <spoolRoot>/claude/instance.json                     install identity
  *   <spoolRoot>/claude/<sourceInstanceId>/source-epoch.json   install epoch
  *   <spoolRoot>/claude/<sourceInstanceId>/events.jsonl        append-only records
+ *   <spoolRoot>/claude/<sourceInstanceId>/events-previous.jsonl   previous segment
  *   <spoolRoot>/claude/<sourceInstanceId>/events.lock         writer lock
  *   <spoolRoot>/claude/<sourceInstanceId>/health.json         bounded counters
  *   <spoolRoot>/claude/<sourceInstanceId>/health-pending/     bounded accounting receipts
  *   <spoolRoot>/claude/<sourceInstanceId>/sessions/<key>.seq  per-session order
+ *   <spoolRoot>/claude/<sourceInstanceId>/sessions/<key>.seq.recovery  recovery checkpoint
  *
  * Every operation is best-effort and bounded by a Deadline. Nothing here ever
  * throws towards the hook caller: a failure is reported as a reason code.
@@ -19,145 +21,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { Deadline, ensureRegularDirectory, readJson, regularFile, sleepSync, utcStamp, withLock } from './spool-io.mjs';
 
-import { MAX_RECORD_BYTES } from './mapping.mjs';
-
-/** Fixed, bounded counter set. health.json never grows with event volume. */
-export const HEALTH_COUNTERS = Object.freeze([
-  'recordsWritten',
-  'droppedOversizeInput',
-  'droppedEmptyInput',
-  'droppedMalformedInput',
-  'droppedStdinDeadline',
-  'droppedStdinError',
-  'droppedLockTimeout',
-  'droppedOversizeRecord',
-  // A genuine append/lock failure is a distinct outcome from a lock timeout; it
-  // must be counted, or a lost record would be invisible in health.json.
-  'droppedWriteFailed',
-  'droppedCorruptSourceEpoch',
-  'droppedUnsupportedPayload',
-  'droppedInternalError',
-  'recoveredCorruptFile',
-  'unknownEvents',
-]);
-
-const STALE_LOCK_MS = 5000;
-const HEALTH_MAX_MS = 60;
-const HEALTH_MARKER_RESERVE_MS = 10;
-export const HEALTH_RECEIPT_SLOTS = 64;
-export const MAX_HEALTH_RECEIPT_BYTES = 512;
-
-function receiptPath(dir, slot) {
-  return path.join(dir, 'health-pending', String(slot).padStart(2, '0') + '.json');
-}
-
-/** Cold directory acquisition belongs to the caller's parent write budget. */
-export function prepareHealthDirectory(dir, deadline) {
-  if (!dir || deadline.expired()) return false;
-  try {
-    const pending = path.join(dir, 'health-pending');
-    if (!fs.existsSync(pending)) fs.mkdirSync(pending, { recursive: true });
-    return true;
-  } catch { return false; /* fail open */ }
-}
-
-function readReceipt(file) {
-  let fd;
-  try {
-    fd = fs.openSync(file, 'r');
-    const buffer = Buffer.alloc(MAX_HEALTH_RECEIPT_BYTES + 1);
-    const length = fs.readSync(fd, buffer, 0, buffer.length, 0);
-    if (length > MAX_HEALTH_RECEIPT_BYTES) return { invalid: true };
-    const value = JSON.parse(buffer.subarray(0, length).toString('utf8'));
-    if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) || !Array.isArray(value.counters) ||
-        value.counters.length > HEALTH_COUNTERS.length ||
-        value.counters.some(name => !HEALTH_COUNTERS.includes(name))) return { invalid: true };
-    return { value };
-  } catch (error) {
-    return error?.code === 'ENOENT' ? {} : { invalid: true };
-  } finally {
-    if (fd !== undefined) try { fs.closeSync(fd); } catch { /* fail open */ }
-  }
-}
-
-function markAccountingIncomplete(dir, deadline) {
-  if (deadline?.expired()) return;
-  try { fs.closeSync(fs.openSync(path.join(dir, 'health-incomplete'), 'a')); } catch { /* fail open */ }
-}
-
-/** Publish a complete receipt without taking the shared health lock. Fixed slots bound disk use. */
-function publishHealthReceipt(dir, counters, deadline) {
-  if (!prepareHealthDirectory(dir, deadline)) return false;
-  const text = JSON.stringify({ id: randomUUID(), counters });
-  if (Buffer.byteLength(text, 'utf8') > MAX_HEALTH_RECEIPT_BYTES) {
-    return false;
-  }
-  const start = randomBytes(1)[0] % HEALTH_RECEIPT_SLOTS;
-  for (let attempt = 0; attempt < HEALTH_RECEIPT_SLOTS && !deadline.expired(); attempt++) {
-    const slot = (start + attempt) % HEALTH_RECEIPT_SLOTS;
-    const file = receiptPath(dir, slot);
-    if (fs.existsSync(file)) continue;
-    const staging = file + '.tmp';
-    let fd;
-    let owned = false;
-    try {
-      fd = fs.openSync(staging, 'wx');
-      owned = true;
-      fs.writeFileSync(fd, text, 'utf8');
-      fs.closeSync(fd);
-      fd = undefined;
-      // Readers see a complete immutable document. A peer cannot replace it.
-      fs.linkSync(staging, file);
-      return true;
-    } catch (error) {
-      if (error?.code !== 'EEXIST') break;
-    } finally {
-      if (fd !== undefined) try { fs.closeSync(fd); } catch { /* fail open */ }
-      if (owned) try { fs.unlinkSync(staging); } catch { /* bounded orphan slot */ }
-    }
-  }
-  return false;
-}
-
-function addCounters(target, names) {
-  for (const name of names) {
-    if (!HEALTH_COUNTERS.includes(name)) continue;
-    target[name] = Math.min((target[name] ?? 0) + 1, Number.MAX_SAFE_INTEGER);
-  }
-}
-
-export class Deadline {
-  constructor(ms) {
-    this.end = Date.now() + Math.max(0, ms);
-  }
-  remaining() {
-    return this.end - Date.now();
-  }
-  expired() {
-    return Date.now() >= this.end;
-  }
-  /** Sub-deadline clamped to what is left of this one. */
-  child(ms) {
-    const child = new Deadline(0);
-    child.end = Math.min(this.end, Date.now() + Math.max(0, ms));
-    return child;
-  }
-}
-
-function sleepSync(ms) {
-  if (!(ms > 0)) return;
-  try {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function utcStamp(date = new Date()) {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-}
+export { Deadline, utcStamp, withLock } from './spool-io.mjs';
+export { EVENT_FILE_BYTES, publishRecord } from './event-log.mjs';
+export {
+  HEALTH_COUNTERS, HEALTH_RECEIPT_SLOTS, MAX_HEALTH_RECEIPT_BYTES,
+  beginHealthAccounting, bumpHealth, prepareHealthDirectory, readHealth,
+} from './health-accounting.mjs';
 
 export function resolveSpoolRoot(env = process.env) {
   const explicit = typeof env.OVERSEER_SPOOL_ROOT === 'string' ? env.OVERSEER_SPOOL_ROOT.trim() : '';
@@ -181,7 +53,7 @@ export function sanitizeInstanceId(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(trimmed)) return null;
-  if (trimmed === '.' || trimmed === '..') return null;
+  if (trimmed.endsWith('.')) return null;
   return trimmed;
 }
 
@@ -191,40 +63,30 @@ function sanitizeEpoch(value) {
   return /^epoch-[A-Za-z0-9-]{8,64}$/.test(trimmed) ? trimmed : null;
 }
 
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function writeJsonAtomic(file, value) {
-  const tmp = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
-  try {
-    fs.renameSync(tmp, file);
-  } catch (err) {
-    try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ }
-    throw err;
-  }
-}
-
 /**
  * Read an existing identity file or create it exactly once. A file that exists
  * but cannot be parsed is moved aside (bounded recovery) rather than silently
  * regenerating the identity on every invocation.
  */
-function ensureExclusiveJson(file, create, extract) {
+function ensureExclusiveJson(file, create, extract, deadline) {
   const recovered = { hit: false };
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 3 && !deadline.expired(); attempt++) {
     const existing = readJson(file);
-    if (existing) {
-      const value = extract(existing);
-      if (value) return { value, created: false, recovered: recovered.hit };
+    const valid = existing && extract(existing);
+    if (valid) return { value: valid, created: false, recovered: recovered.hit };
+    if (regularFile(file)) {
       try {
-        fs.renameSync(file, `${file}.corrupt-${utcStamp()}-${randomBytes(2).toString('hex')}`);
-        recovered.hit = true;
+        const repair = withLock(file + '.repair.lock', deadline.child(12), () => {
+          const current = readJson(file);
+          const fixed = current && extract(current);
+          if (fixed) return fixed;
+          if (regularFile(file)) {
+            fs.renameSync(file, file + '.corrupt');
+            recovered.hit = true;
+          }
+          return null;
+        });
+        if (repair.value) return { value: repair.value, created: false, recovered: recovered.hit };
       } catch { /* ignore */ }
       continue;
     }
@@ -253,11 +115,12 @@ function ensureExclusiveJson(file, create, extract) {
  * reused by every later invocation; OVERSEER_CLAUDE_SOURCE_INSTANCE_ID
  * overrides it for tests and advanced setups.
  */
-export function ensureSourceInstance(spoolRoot, env = process.env) {
+export function ensureSourceInstance(spoolRoot, env = process.env, deadline = new Deadline(250)) {
+  ensureRegularDirectory(spoolRoot);
+  const dir = path.join(spoolRoot, 'claude');
+  ensureRegularDirectory(dir);
   const override = sanitizeInstanceId(env.OVERSEER_CLAUDE_SOURCE_INSTANCE_ID);
   if (override) return { sourceInstanceId: override, fromEnv: true, created: false, recovered: false };
-  const dir = path.join(spoolRoot, 'claude');
-  fs.mkdirSync(dir, { recursive: true });
   const result = ensureExclusiveJson(
     path.join(dir, 'instance.json'),
     () => ({
@@ -270,14 +133,15 @@ export function ensureSourceInstance(spoolRoot, env = process.env) {
       const sourceInstanceId = sanitizeInstanceId(parsed.sourceInstanceId);
       return sourceInstanceId ? { sourceInstanceId } : null;
     },
+    deadline,
   );
   if (!result.value) return { sourceInstanceId: null, error: result.error };
   return { sourceInstanceId: result.value.sourceInstanceId, fromEnv: false, created: result.created, recovered: result.recovered };
 }
 
 /** Stable source epoch for this install, stored once per source instance. */
-export function ensureSourceEpoch(dir, sourceInstanceId) {
-  fs.mkdirSync(dir, { recursive: true });
+export function ensureSourceEpoch(dir, sourceInstanceId, deadline = new Deadline(250)) {
+  ensureRegularDirectory(dir);
   const result = ensureExclusiveJson(
     path.join(dir, 'source-epoch.json'),
     () => ({
@@ -291,248 +155,8 @@ export function ensureSourceEpoch(dir, sourceInstanceId) {
       const sourceEpoch = sanitizeEpoch(parsed.sourceEpoch);
       return sourceEpoch ? { sourceEpoch } : null;
     },
+    deadline,
   );
   if (!result.value) return { sourceEpoch: null, error: result.error };
   return { sourceEpoch: result.value.sourceEpoch, created: result.created, recovered: result.recovered };
-}
-
-function tryAcquireLock(lockPath) {
-  try {
-    const fd = fs.openSync(lockPath, 'wx');
-    try {
-      fs.writeSync(fd, `${process.pid} ${Date.now()}\n`);
-    } finally {
-      fs.closeSync(fd);
-    }
-    return true;
-  } catch (err) {
-    if (err && err.code === 'EEXIST') return false;
-    throw err;
-  }
-}
-
-/**
- * Exclusive-create lock with a stale-lock takeover and a hard deadline.
- * Returns { acquired, value } - never blocks past the deadline.
- */
-export function withLock(lockPath, deadline, fn) {
-  let acquired = false;
-  while (!deadline.expired()) {
-    if (tryAcquireLock(lockPath)) { acquired = true; break; }
-    let stale = false;
-    try {
-      const stat = fs.statSync(lockPath);
-      stale = Date.now() - stat.mtimeMs > STALE_LOCK_MS;
-    } catch {
-      continue; // lock disappeared between open and stat: retry at once
-    }
-    if (stale) {
-      try { fs.rmSync(lockPath, { force: true }); } catch { /* ignore */ }
-      continue;
-    }
-    sleepSync(Math.min(4, Math.max(1, deadline.remaining())));
-  }
-  if (!acquired) return { acquired: false, value: null };
-  try {
-    return { acquired: true, value: fn() };
-  } finally {
-    try { fs.rmSync(lockPath, { force: true }); } catch { /* ignore */ }
-  }
-}
-
-function sessionCounterFile(dir, sessionId) {
-  const digest = createHash('sha256').update(sessionId, 'utf8').digest('hex').slice(0, 16);
-  const safe = sessionId.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 48) || 'session';
-  return path.join(dir, 'sessions', `${safe}-${digest}.seq`);
-}
-
-/**
- * Per-session ingestion order. Read and persisted inside the writer lock, so two
- * concurrent hook invocations never receive the same number. Ingestion order is
- * the order the spool received events; it is not proof of causal hook order
- * upstream.
- *
- * The counter is only advanced by `commitSequence` after the record has actually
- * been appended: a failed append must not consume a number, because a consumed
- * number without a record is an unexplainable gap in the published sequence.
- */
-function readSequence(dir, sessionId) {
-  const file = sessionCounterFile(dir, sessionId);
-  try {
-    const parsed = Number.parseInt(fs.readFileSync(file, 'utf8').trim(), 10);
-    if (Number.isSafeInteger(parsed) && parsed > 0) return parsed;
-  } catch { /* missing or unreadable counter starts at zero */ }
-  return 0;
-}
-
-function commitSequence(dir, sessionId, sequence) {
-  const file = sessionCounterFile(dir, sessionId);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
-  fs.writeFileSync(tmp, String(sequence), { encoding: 'utf8', flag: 'wx' });
-  try {
-    fs.renameSync(tmp, file);
-  } catch (err) {
-    try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ }
-    throw err;
-  }
-}
-
-/**
- * Atomically append one bounded JSON line. The write happens under the spool
- * lock with a single buffered write, so concurrent hook invocations can never
- * interleave a line.
- */
-export function publishRecord({ dir, record, deadline }) {
-  fs.mkdirSync(path.join(dir, 'sessions'), { recursive: true });
-  const lockPath = path.join(dir, 'events.lock');
-  const eventsPath = path.join(dir, 'events.jsonl');
-  let outcome;
-  try {
-    outcome = withLock(lockPath, deadline, () => {
-      const sequence = readSequence(dir, record.sessionId) + 1;
-      const line = JSON.stringify({ ...record, sequence }) + '\n';
-      const bytes = Buffer.byteLength(line, 'utf8');
-      if (bytes > MAX_RECORD_BYTES) return { ok: false, reason: 'record-too-large' };
-      const buffer = Buffer.from(line, 'utf8');
-      const fd = fs.openSync(eventsPath, 'a');
-      try {
-        let offset = 0;
-        while (offset < buffer.length) {
-          const written = fs.writeSync(fd, buffer, offset, buffer.length - offset, null);
-          if (!Number.isFinite(written) || written <= 0) {
-            // A zero-progress write must never spin forever or look successful.
-            throw new Error('short append');
-          }
-
-          offset += written;
-        }
-        try { fs.fsyncSync(fd); } catch { /* durability is best effort */ }
-      } finally {
-        try { fs.closeSync(fd); } catch { /* ignore */ }
-      }
-
-      // The append succeeded, so the number is now consumed.
-      commitSequence(dir, record.sessionId, sequence);
-      return { ok: true, sequence, bytes };
-    });
-  } catch (err) {
-    return { ok: false, reason: 'write-failed', detail: err && err.code ? err.code : 'unknown' };
-  }
-  if (!outcome.acquired) return { ok: false, reason: 'lock-timeout' };
-  return outcome.value;
-}
-
-function foldHealthReceipts(dir, deadline) {
-  const lockPath = path.join(dir, 'health.lock');
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-    withLock(lockPath, deadline, () => {
-      const file = path.join(dir, 'health.json');
-      const existing = readJson(file);
-      if (!existing && fs.existsSync(file)) markAccountingIncomplete(dir, deadline);
-      const previous = existing && typeof existing.counters === 'object' && existing.counters !== null ? existing.counters : {};
-      const next = {};
-      for (const name of HEALTH_COUNTERS) {
-        const value = Number.isFinite(previous[name]) && previous[name] > 0 ? Math.floor(previous[name]) : 0;
-        if (value > 0) next[name] = Math.min(value, Number.MAX_SAFE_INTEGER);
-      }
-      const accountedReceipts = {};
-      const consumed = [];
-      for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {
-        const prior = existing?.accountedReceipts?.[slot];
-        if (typeof prior === 'string') accountedReceipts[slot] = prior;
-        if (deadline.expired()) continue;
-        const file = receiptPath(dir, slot);
-        const receipt = readReceipt(file);
-        if (receipt.invalid) { markAccountingIncomplete(dir, deadline); continue; }
-        if (!receipt.value) continue;
-        if (accountedReceipts[slot] !== receipt.value.id) addCounters(next, receipt.value.counters);
-        accountedReceipts[slot] = receipt.value.id;
-        consumed.push(file);
-      }
-      if (deadline.expired()) return;
-      writeJsonAtomic(file, {
-        schemaVersion: 1,
-        harnessId: 'claude',
-        sourceInstanceId: path.basename(dir),
-        updatedAtUtc: new Date().toISOString(),
-        healthRevision: randomUUID(),
-        accountedReceipts,
-        counters: next,
-      });
-      // Commit the totals and receipt IDs together before cleanup. A crash or an
-      // unlink failure leaves a receipt that readers and the next fold deduplicate.
-      for (const file of consumed) {
-        if (deadline.expired()) break;
-        try { fs.unlinkSync(file); } catch { /* the committed ID prevents replay */ }
-      }
-    });
-  } catch {
-    /* the already-published receipt remains visible; never fail the hook */
-  }
-}
-
-/**
- * Publish accounting before attempting shared aggregation. Both operations share
- * the existing health slice of the caller's write budget; no extra wait is added.
- */
-export function bumpHealth(dir, counters, deadline) {
-  if (!dir) return;
-  const list = (Array.isArray(counters) ? counters : [counters]).filter(name => HEALTH_COUNTERS.includes(name));
-  const budget = deadline instanceof Deadline
-    ? deadline.child(HEALTH_MAX_MS)
-    : new Deadline(HEALTH_MAX_MS);
-  if (budget.remaining() <= 0) return;
-  try {
-    let published = publishHealthReceipt(dir, list, budget.child(Math.max(0, budget.remaining() - HEALTH_MARKER_RESERVE_MS)));
-    if (!published) {
-      // A full buffer must not prevent future compaction. Reclaim space once,
-      // keeping time in the same slice for a retry or the incomplete marker.
-      foldHealthReceipts(dir, budget.child(Math.max(0, budget.remaining() - 2 * HEALTH_MARKER_RESERVE_MS)));
-      if (!budget.expired()) published = publishHealthReceipt(dir, list,
-        budget.child(Math.max(0, budget.remaining() - HEALTH_MARKER_RESERVE_MS)));
-    }
-    if (published) foldHealthReceipts(dir, budget);
-    else markAccountingIncomplete(dir, budget);
-  } catch { markAccountingIncomplete(dir, budget); /* fail open */ }
-}
-
-export function readHealth(dir) {
-  // A fold can delete or reuse a slot while a reader is inspecting it. Retry a
-  // changed summary instead of combining receipts with a different checkpoint.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const summary = readJson(path.join(dir, 'health.json'));
-    const counters = { ...summary?.counters };
-    let incomplete = fs.existsSync(path.join(dir, 'health-incomplete')) ||
-      (!summary && fs.existsSync(path.join(dir, 'health.json')));
-    let found = false;
-    for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {
-      const receipt = readReceipt(receiptPath(dir, slot));
-      incomplete ||= receipt.invalid === true;
-      if (!receipt.value) continue;
-      found = true;
-      if (summary?.accountedReceipts?.[slot] !== receipt.value.id) addCounters(counters, receipt.value.counters);
-    }
-    const after = readJson(path.join(dir, 'health.json'));
-    if (summary?.healthRevision !== after?.healthRevision) continue;
-    if (!summary && !found && !incomplete) return null;
-    return { ...summary, counters, accountingIncomplete: incomplete };
-  }
-  return { ...readJson(path.join(dir, 'health.json')), accountingIncomplete: true };
-}
-
-export function readEvents(dir) {
-  let raw;
-  try {
-    raw = fs.readFileSync(path.join(dir, 'events.jsonl'), 'utf8');
-  } catch {
-    return [];
-  }
-  const records = [];
-  for (const line of raw.split('\n')) {
-    if (!line) continue;
-    records.push(JSON.parse(line));
-  }
-  return records;
 }

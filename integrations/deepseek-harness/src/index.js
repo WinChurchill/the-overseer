@@ -29,7 +29,7 @@
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { LIMITS, PRODUCER_VERSION, wireId } from './normalize.js'
+import { LIMITS, PRODUCER_VERSION, sanitizeSourceId, wireId } from './normalize.js'
 import { createObserverState, MAX_PENDING_INPUTS, MAX_TRACKED_SESSIONS } from './state.js'
 import {
   DEFAULT_HEARTBEAT_MS,
@@ -57,7 +57,7 @@ export const QUEUE_ENV = 'OVERSEER_DSH_QUEUE'
 export const HEARTBEAT_ENV = 'OVERSEER_DSH_HEARTBEAT_SECONDS'
 
 /** Default source instance id. */
-export const DEFAULT_SOURCE_ID = 'dsh-default'
+export { DEFAULT_SOURCE_ID, sanitizeSourceId } from './normalize.js'
 /** Maximum live sessions described by one attach snapshot. */
 export const MAX_SNAPSHOT_SESSIONS = 256
 /** Maximum trailing events read per session at attach to recover turn state. */
@@ -82,17 +82,6 @@ export function defaultSpoolRoot(env = process.env) {
     ? env.XDG_STATE_HOME
     : join(homedir(), '.local', 'state')
   return join(base, 'overseer', 'bridges')
-}
-
-/**
- * Restrict the source instance id to one path-safe directory segment.
- * @param value - configured value.
- * @returns a non-empty `[A-Za-z0-9._-]` segment, at most 128 characters.
- */
-export function sanitizeSourceId(value) {
-  const raw = typeof value === 'string' && value.trim() !== '' ? value.trim() : DEFAULT_SOURCE_ID
-  const safe = raw.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, LIMITS.sourceIdChars)
-  return safe === '' ? DEFAULT_SOURCE_ID : safe
 }
 
 /**
