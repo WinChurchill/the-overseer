@@ -454,22 +454,12 @@ public sealed class BridgeSpoolReader
 
     private (ulong Hash, int Bytes) ReadHeadFingerprint(int byteCount)
     {
+        // Check access even at EOF and when the budget allows no fingerprint bytes.
+        using var stream = BridgeSpoolFiles.OpenRead(EventsPath);
         if (byteCount == 0) return default;
-        try
-        {
-            using var stream = BridgeSpoolFiles.OpenRead(EventsPath);
-            var buffer = new byte[byteCount];
-            var read = ReadBudgeted(stream, buffer, 0, buffer.Length);
-            return (Hash(buffer, read), read);
-        }
-        catch (IOException)
-        {
-            return default;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return default;
-        }
+        var buffer = new byte[byteCount];
+        var read = ReadBudgeted(stream, buffer, 0, buffer.Length);
+        return (Hash(buffer, read), read);
     }
 
     private static ulong Hash(byte[] buffer, int length)

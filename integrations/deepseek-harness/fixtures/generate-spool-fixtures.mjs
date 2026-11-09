@@ -59,6 +59,15 @@ function scenario(name, { nowStepMs = 10, queueLimit = 64, eventFileBytes = 4 * 
   return { now, state, spool, emit, outDir: spool.directory }
 }
 
+function closeFixture(target) {
+  target.spool.close()
+  // The producer writes its real spool location into this diagnostic field.
+  const healthPath = join(target.outDir, 'health.json')
+  const health = JSON.parse(readFileSync(healthPath, 'utf8'))
+  health.directory = `C:/synthetic/bridges/dsh/${SOURCE}`
+  writeFileSync(healthPath, JSON.stringify(health) + '\n')
+}
+
 /** Names of the rotated event files this adapter owns, sorted for a stable fixture. */
 function listRotated(directory) {
   return readdirSync(directory).filter((name) => /^events-\d{8}T\d{6}Z(-\d+)?\.jsonl$/.test(name)).sort()
@@ -106,7 +115,7 @@ function replayEvents(target, id, events) {
   for (const record of target.state.heartbeats()) target.emit(record)
   target.spool.flushSync()
   const health = target.spool.health()
-  target.spool.close()
+  closeFixture(target)
   writeFileSync(join(outRoot, 'live', 'expected.json'), JSON.stringify({
     description: 'What the live fixture must contain; generated, not hand-written.',
     sourceInstanceId: SOURCE,
@@ -137,7 +146,7 @@ function replayEvents(target, id, events) {
   for (const record of target.state.heartbeats()) target.emit(record)
   target.spool.flushSync()
   const health = target.spool.health()
-  target.spool.close()
+  closeFixture(target)
   writeFileSync(join(outRoot, 'rotated', 'expected.json'), JSON.stringify({
     description: 'Rotation happened in the middle of the stream; the tail of events.jsonl follows the rotated file.',
     sourceInstanceId: SOURCE,
@@ -164,7 +173,7 @@ function replayEvents(target, id, events) {
   for (const record of target.state.heartbeats()) target.emit(record)
   target.spool.flushSync()
   const health = target.spool.health()
-  target.spool.close()
+  closeFixture(target)
   writeFileSync(join(outRoot, 'dropped', 'expected.json'), JSON.stringify({
     description: 'The queue dropped the oldest records; current.json still reflects the full folded state.',
     sourceInstanceId: SOURCE,

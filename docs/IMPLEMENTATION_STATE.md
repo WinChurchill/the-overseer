@@ -1,8 +1,10 @@
 # OVERSEER Implementation State
 
 ## Current
-Branch: `fix/detection-logic-cleanup` at `4f1cbb5` with local tester and hardening changes.
-Status: **SNAPSHOT RECOVERY FIXED IN SOURCE; HOSTED CI AND RELEASE CHECKS OPEN.**
+Branch: `fix/detection-logic-cleanup`, based on the verified `main` revision `2bcd9b8`.
+Status: **EOF LOCK AND FIXTURE PATHS FIXED IN SOURCE. PUBLICATION GATES REMAIN OPEN.**
+- An event log locked at EOF reports reduced coverage. Unlock resumes from the same offset.
+- Three DSH fixture health documents use synthetic directories. Older history still contains workstation paths.
 - Bridge readers isolate malformed records, reject static links and stamp snapshots by opened-file identity.
 - Claude caps event segments and startup replay. Per-session checkpoints preserve sequence.
 - Claude repairs invalid identity JSON, retains live-owner locks and journals accounting intent.
