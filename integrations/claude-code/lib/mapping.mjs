@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 
 export const SCHEMA_VERSION = 1;
 export const HARNESS_ID = 'claude';
-export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.6';
+export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.7';
 
 export const MAX_ID_CHARS = 128;
 export const MAX_PROJECT_ROOT_CHARS = 512;

@@ -119,6 +119,7 @@ function countFailure(spoolRoot, counter) {
   // A cold directory can consume the small health slice before any receipt is
   // attempted. Acquire it inside the unchanged parent budget first.
   const intent = beginHealthAccounting(dir, budget);
+  if (!intent) return; // Admission failure is already an explicit loss episode.
   bumpHealth(dir, counter, budget, intent);
   debug('counted', counter);
 }
@@ -158,6 +159,12 @@ async function run() {
   }
   const dir = instanceDir(spoolRoot, instance.sourceInstanceId);
   const intent = beginHealthAccounting(dir, writePhase);
+  if (!intent) {
+    // Never land an event after its bounded accounting admission failed: the
+    // durable loss marker must not later count a successfully published event.
+    debug('accounting-admission-unavailable');
+    return;
+  }
   const account = counters => bumpHealth(dir, counters, writePhase, intent);
   const counters = [];
 

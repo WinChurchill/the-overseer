@@ -2,15 +2,19 @@
 
 ## Current work
 
-The live-attention fixes on `fix/detection-logic-cleanup` passed local validation
-and independent review. The repository remains private. Hosted Verify and the
-private alpha.3 package passed on the preceding `9ab2ed2` revision. The current
-source requires hosted Verify, merge, and exact-ZIP qualification from merged main.
+The live-attention fixes merged in PR #2 at `163934c`. Main Verify then exposed a
+Claude accounting overcount. The follow-up on `fix/detection-logic-cleanup` separates
+temporary scan/read coverage from loss and preserves completed accounting proof.
+It needs hosted Verify, follow-up merge and a new exact-ZIP qualification. The
+repository remains private; alpha.3 and the first alpha.4 build predate this fix.
 
 - Claude publishes health directly when uncontended and uses fixed receipts under
   contention. The 250 ms write budget, 60 ms accounting slice and 64 slots remain.
 - Abandoned intents and corrupt receipts preserve explicit loss evidence before
   cleanup. Completed loss episodes can recover without hiding their counters.
+- Temporary scans and recoverable I/O retain limited coverage without inventing
+  drops. Bounded nonce proofs distinguish completed intents from slot reuse;
+  failed admission declines metadata publication and capacity recovers after exits.
 - Pending attention confirmation belongs to each observed request. Loss withdraws
   confirmation, and an answer only settles its matching request.
 - A Claude approval without identity can bind to one known blocker only when the
@@ -30,12 +34,17 @@ source requires hosted Verify, merge, and exact-ZIP qualification from merged ma
 
 Independent reviewers reproduced and verified fixes for approval and accounting
 defects in the incoming handoff and reviewed the subsequent live-attention fixes.
-Local Release build is clean. All 975 .NET tests pass, including 16 live-attention
+Local Release build is clean. All 978 .NET tests pass, including 16 live-attention
 regressions/controls. Five of the first 14 cases failed before the fix. The unchanged
-producer suites passed 60 Claude and 45 DeepSeek tests and 16 producer timelines.
+producer suites passed 70 Claude and 45 DeepSeek tests and 16 producer timelines.
 Two earlier local Claude timing failures are retained. Preserved-spool review
 and the isolated full rerun passed. Both hosted Verify jobs and the branch package
 workflow passed on `9ab2ed2`; no tests were weakened or skipped.
+
+Main's later 10-landed-plus-one-drop failure has a deterministic matching scan
+reproduction. New 1.0.7 cases cover scan/read recovery, exhausted cleanup, failed
+admission, corrupt summaries, capacity recovery and nonce reuse. The original
+failed CI spool was not retained; the local counterexamples and logs are preserved.
 
 A delayed permission notification without sufficient correlation can conservatively
 retain attention until an explicit settling boundary. Failed incomplete-marker

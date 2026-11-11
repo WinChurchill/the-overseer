@@ -32,6 +32,40 @@ test('accounting sub-deadlines never extend the parent write budget', (t) => {
   assert.ok(fold.end <= health.end);
 });
 
+test('failed accounting admission declines publication instead of counting a landed event as lost', async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  const worker = path.join(root, 'failed-admission.mjs');
+  fs.writeFileSync(worker, `
+import fs from 'node:fs';
+let now = 1000;
+Date.now = () => now;
+const write = fs.writeFileSync;
+fs.writeFileSync = (file, value, options) => {
+  if (String(file).endsWith('.intent') && options?.flag === 'wx') {
+    now += 11;
+    const error = new Error('raced intent slot'); error.code = 'EEXIST'; throw error;
+  }
+  return write(file, value, options);
+};
+await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
+`);
+  const result = await runNode(worker, [], { env, input: JSON.stringify(fixture('stop.json')) });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, '');
+  assert.equal(result.timedOut, false);
+  const dir = instanceDirectory(root);
+  assert.equal(readLines(dir).length, 0);
+  assert.equal(readHealth(dir).accountingIncomplete, true);
+  assert.equal((await recoverCapacity(root, env)).status, 0);
+  const recovered = readHealth(dir);
+  assert.equal(readLines(dir).length, 1);
+  assert.equal(recovered.counters.recordsWritten, 1);
+  assert.equal(recovered.counters.droppedUnaccounted, 1);
+  assert.equal(recovered.accountingIncomplete, false);
+});
+
 test('expiration before the event lock leaves durable evidence of an unmatched hook', async (t) => {
   const root = tempDir();
   t.after(() => removeDir(root));
@@ -312,6 +346,235 @@ test('slow pending enumeration reserves time to persist incomplete coverage', as
   bumpHealth(dir, 'recordsWritten', new Deadline(250), intent);
   assert.ok(now <= 1060, 'pending enumeration stays inside the existing health slice');
   assert.ok(inspectedEntries < 10, 'enumeration stops before the slow directory is exhausted');
+  assert.equal(readHealth(dir).accountingIncomplete, true);
+});
+
+test('a partial accounting scan never invents a drop for successfully published records', async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
+  const dir = instanceDirectory(root);
+  const pending = path.join(dir, 'health-pending');
+  for (let index = 0; index < 10; index++) fs.writeFileSync(path.join(pending, 'foreign-' + index + '.txt'), 'fixture');
+  const worker = path.join(root, 'slow-successful-scan.mjs');
+  fs.writeFileSync(worker, `
+import fs from 'node:fs';
+let now = 1000;
+Date.now = () => now;
+const open = fs.opendirSync;
+fs.opendirSync = (...args) => {
+  const directory = open(...args);
+  const read = directory.readSync.bind(directory);
+  directory.readSync = () => { now += 10; return read(); };
+  return directory;
+};
+await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
+`);
+  const result = await runNode(worker, [], { env, input: JSON.stringify(fixture('stop.json')) });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, '');
+  assert.equal(result.timedOut, false);
+  assert.equal(readLines(dir).length, 2);
+  assert.equal(readHealth(dir).counters.recordsWritten, 2);
+  assert.equal(readHealth(dir).accountingIncomplete, true, 'the unfinished scan stays visible');
+
+  assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
+  const recovered = readHealth(dir);
+  assert.equal(readLines(dir).length, 3);
+  assert.equal(recovered.counters.recordsWritten, 3);
+  assert.equal(recovered.counters.droppedUnaccounted ?? 0, 0, 'a later full scan cannot turn successful records into a loss');
+  assert.equal(recovered.accountingIncomplete, false);
+});
+
+test('a temporarily unreadable receipt recovers without becoming an unaccounted loss', async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
+  const dir = instanceDirectory(root);
+  const receipt = path.join(dir, 'health-pending', '03.json');
+  fs.writeFileSync(receipt, JSON.stringify({ id: randomUUID(), counters: ['droppedLockTimeout'] }));
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const open = fs.openSync;
+  let failed = false;
+  const opening = t.mock.method(fs, 'openSync', (file, ...args) => {
+    if (!failed && String(file) === receipt) {
+      failed = true;
+      const error = new Error('temporary receipt I/O');
+      error.code = 'EIO';
+      throw error;
+    }
+    return open(file, ...args);
+  });
+  let parent = new Deadline(250);
+  bumpHealth(dir, 'recordsWritten', parent, beginHealthAccounting(dir, parent));
+  assert.equal(failed, true);
+  assert.equal(fs.existsSync(receipt), true, 'temporary I/O cannot retire the receipt');
+  assert.equal(readHealth(dir).accountingIncomplete, true);
+  opening.mock.restore();
+
+  const unlink = fs.unlinkSync;
+  const cleanup = t.mock.method(fs, 'unlinkSync', (file, ...args) => {
+    if (path.basename(String(file)) === 'health-scan-incomplete') throw new Error('scan marker cleanup failed');
+    return unlink(file, ...args);
+  });
+  parent = new Deadline(250);
+  bumpHealth(dir, 'recordsWritten', parent, beginHealthAccounting(dir, parent));
+  assert.equal(readHealth(dir).counters.droppedLockTimeout, 1);
+  assert.equal(readHealth(dir).counters.droppedUnaccounted ?? 0, 0);
+  assert.equal(readHealth(dir).accountingIncomplete, true, 'failed marker cleanup remains visible');
+  cleanup.mock.restore();
+  parent = new Deadline(250);
+  bumpHealth(dir, 'recordsWritten', parent, beginHealthAccounting(dir, parent));
+  const recovered = readHealth(dir);
+  assert.equal(recovered.counters.recordsWritten, 4);
+  assert.equal(recovered.counters.droppedLockTimeout, 1);
+  assert.equal(recovered.counters.droppedUnaccounted ?? 0, 0);
+  assert.equal(recovered.accountingIncomplete, false);
+});
+
+for (const mode of ['receipt', 'summary']) {
+  test(`a committed ${mode} covers its intent when cleanup has no time left`, async (t) => {
+    const root = tempDir();
+    t.after(() => removeDir(root));
+    const env = { OVERSEER_SPOOL_ROOT: root };
+    assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
+    const dir = instanceDirectory(root);
+    const lock = path.join(dir, 'health.lock');
+    if (mode === 'receipt') fs.writeFileSync(lock, 'owned fixture lock');
+    const worker = path.join(root, 'late-cleanup.mjs');
+    fs.writeFileSync(worker, `
+import fs from 'node:fs';
+let now = Date.now();
+Date.now = () => now;
+const operation = ${JSON.stringify(mode)} === 'receipt' ? 'linkSync' : 'renameSync';
+const original = fs[operation];
+fs[operation] = (from, to, ...args) => {
+  const result = original(from, to, ...args);
+  if (${JSON.stringify(mode)} === 'receipt' ? String(to).includes('health-pending') && String(to).endsWith('.json')
+      : String(to).endsWith('health.json')) now += 70;
+  return result;
+};
+await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
+`);
+    const result = await runNode(worker, [], { env, input: JSON.stringify(fixture('stop.json')) });
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.equal(result.timedOut, false);
+    assert.equal(readLines(dir).length, 2);
+    const pending = path.join(dir, 'health-pending');
+    const intents = fs.readdirSync(pending).filter(name => name.endsWith('.intent'));
+    assert.equal(intents.length, 1, 'the injected I/O pause exhausts the slice before cleanup');
+    assert.equal(readHealth(dir).counters.recordsWritten, 2);
+    assert.equal(readHealth(dir).accountingIncomplete, false, 'durable accounting proves this intent already resolved');
+    if (mode === 'receipt') fs.unlinkSync(lock);
+    for (const name of intents) {
+      const old = new Date(Date.now() - 60_000);
+      fs.utimesSync(path.join(pending, name), old, old);
+    }
+    assert.equal((await recoverCapacity(root, env)).status, 0);
+    const recovered = readHealth(dir);
+    assert.equal(recovered.counters.recordsWritten, 3);
+    assert.equal(recovered.counters.droppedUnaccounted ?? 0, 0, 'retiring a proven intent cannot invent a loss');
+    assert.equal(recovered.accountingIncomplete, false);
+  });
+}
+
+for (const summaryState of ['valid', 'corrupt', 'oversized']) test(`abandoned nonce capacity recovers with ${summaryState} summary`, async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
+  const dir = instanceDirectory(root);
+  if (summaryState !== 'valid') fs.writeFileSync(path.join(dir, 'health.json'), summaryState === 'corrupt' ? 'not JSON' : 'x'.repeat(64 * 1024 + 1));
+  const pending = path.join(dir, 'health-pending');
+  const old = new Date(Date.now() - 60_000);
+  for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {
+    const file = path.join(pending, String(slot).padStart(2, '0') + '.json.intent');
+    fs.writeFileSync(file, '2147483646 ' + randomUUID());
+    fs.utimesSync(file, old, old);
+  }
+  assert.equal((await recoverCapacity(root, env)).status, 0);
+  const recovered = readHealth(dir);
+  assert.equal(readLines(dir).length, 2, 'a healthy later hook must be admitted');
+  assert.equal(recovered.counters.recordsWritten, summaryState === 'valid' ? 2 : 1);
+  assert.equal(recovered.counters.droppedUnaccounted, 1, 'unknown prior outcomes stay explicit');
+  assert.equal(recovered.accountingIncomplete, false);
+  assert.equal(fs.readdirSync(pending).filter(name => name.endsWith('.intent')).length, 0);
+});
+
+test('temporary summary I/O cannot turn completed nonce intents into new losses', async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  assert.equal((await recoverCapacity(root, env)).status, 0);
+  const dir = instanceDirectory(root);
+  const pending = path.join(dir, 'health-pending');
+  const accountedIntents = {};
+  const old = new Date(Date.now() - 60_000);
+  for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {
+    const id = randomUUID();
+    const intent = path.join(pending, String(slot).padStart(2, '0') + '.json.intent');
+    fs.writeFileSync(intent, '2147483646 ' + id);
+    fs.utimesSync(intent, old, old);
+    accountedIntents[slot] = id;
+  }
+  const summary = path.join(dir, 'health.json');
+  fs.writeFileSync(summary, JSON.stringify({ counters: { recordsWritten: 64 }, accountedIntents, healthRevision: randomUUID() }));
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const open = fs.openSync;
+  const reading = t.mock.method(fs, 'openSync', (file, ...args) => {
+    if (String(file) === summary) { const error = new Error('temporary summary read'); error.code = 'EIO'; throw error; }
+    return open(file, ...args);
+  });
+  assert.equal(beginHealthAccounting(dir, new Deadline(250)), null);
+  assert.equal(fs.readdirSync(pending).filter(name => name.endsWith('.intent')).length, 64, 'unknown proof cannot retire prior intents');
+  reading.mock.restore();
+  assert.equal((await recoverCapacity(root, env)).status, 0);
+  const recovered = readHealth(dir);
+  assert.equal(recovered.counters.recordsWritten, 65);
+  assert.equal(recovered.counters.droppedUnaccounted, 1, 'only the declined admission becomes a loss episode');
+  assert.equal(recovered.accountingIncomplete, false);
+});
+
+test('partial folds and receipt reuse cannot replace the current intent proof with an older nonce', async (t) => {
+  const root = tempDir();
+  t.after(() => removeDir(root));
+  const env = { OVERSEER_SPOOL_ROOT: root };
+  assert.equal((await recoverCapacity(root, env)).status, 0);
+  const dir = instanceDirectory(root);
+  const pending = path.join(dir, 'health-pending');
+  const current = randomUUID();
+  fs.writeFileSync(path.join(pending, '07.json.intent'), process.pid + ' ' + current);
+  fs.writeFileSync(path.join(pending, '01.json'), JSON.stringify({ id: current, counters: ['recordsWritten'] }));
+  fs.writeFileSync(path.join(pending, '02.json'), JSON.stringify({ id: randomUUID(), counters: ['recordsWritten'] }));
+  let now = 1000;
+  t.mock.method(Date, 'now', () => now);
+  const listing = t.mock.method(fs, 'opendirSync', () => {
+    const entries = ['01.json', '02.json', '03.json', 'foreign.txt'];
+    return { readSync: () => { now += 10; const name = entries.shift(); return name ? { name } : null; }, closeSync() {} };
+  });
+  let parent = new Deadline(250);
+  bumpHealth(dir, 'recordsWritten', parent, beginHealthAccounting(dir, parent));
+  assert.equal(readHealth(dir).accountedIntents['7'], current, 'actual current token wins, independently of receipt order');
+  assert.equal(fs.existsSync(path.join(pending, '01.json')), true, 'partial discovery retains covering receipts');
+  assert.equal(fs.existsSync(path.join(pending, '02.json')), true);
+  fs.writeFileSync(path.join(pending, '03.json'), JSON.stringify({ id: randomUUID(), counters: ['recordsWritten'] }));
+  parent = new Deadline(250);
+  bumpHealth(dir, 'recordsWritten', parent, beginHealthAccounting(dir, parent));
+  assert.equal(readHealth(dir).accountedIntents['7'], current);
+  listing.mock.restore();
+  parent = new Deadline(250);
+  bumpHealth(dir, 'recordsWritten', parent, beginHealthAccounting(dir, parent));
+  const recovered = readHealth(dir);
+  assert.equal(recovered.counters.recordsWritten, 7);
+  assert.equal(recovered.counters.droppedUnaccounted ?? 0, 0);
+  assert.equal(recovered.accountingIncomplete, false);
+  // Slot reuse belongs to a different invocation, even under the same PID.
+  fs.writeFileSync(path.join(pending, '07.json.intent'), process.pid + ' ' + randomUUID());
   assert.equal(readHealth(dir).accountingIncomplete, true);
 });
 
