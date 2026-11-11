@@ -171,7 +171,9 @@ function reclaimIntent(dir, file, deadline) {
  */
 export function beginHealthAccounting(dir, deadline) {
   if (!prepareHealthDirectory(dir, deadline)) return null;
-  const budget = deadline.child(HEALTH_MARKER_RESERVE_MS);
+  // Registration is acquisition work in the parent budget. Keep the complete
+  // accounting slice available; the 10 ms marker reserve is not an admission cap.
+  const budget = deadline.child(Math.max(0, deadline.remaining() - HEALTH_MAX_MS));
   const start = randomBytes(1)[0] % HEALTH_RECEIPT_SLOTS;
   for (let attempt = 0; attempt < HEALTH_RECEIPT_SLOTS && !budget.expired(); attempt++) {
     const file = receiptPath(dir, (start + attempt) % HEALTH_RECEIPT_SLOTS) + '.intent';

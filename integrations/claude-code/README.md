@@ -304,6 +304,8 @@ cleanup, preventing duplicate counts if cleanup fails or a process exits mid-fol
 The original 250 ms acquisition/write budget and 60 ms accounting slice are unchanged.
 Directory setup is acquired within the parent budget before the accounting slice,
 so a cold directory does not consume that smaller allowance before publication.
+Intent registration also uses the remaining parent acquisition allowance while
+reserving the full 60 ms accounting slice; it does not borrow the 10 ms marker reserve.
 No background worker or extra retry budget is added. If all receipt slots are occupied
 or accounting storage fails, a bounded marker reports incomplete coverage when it can
 be written within the remaining budget. Unwritable storage or an exhausted process

@@ -66,6 +66,41 @@ await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
   assert.equal(recovered.accountingIncomplete, false);
 });
 
+for (const malformed of [false, true]) {
+  test(`cold occupied intent lookup preserves ${malformed ? 'failure accounting' : 'publication'} inside the parent budget`, async (t) => {
+    const root = tempDir();
+    t.after(() => removeDir(root));
+    const env = { OVERSEER_SPOOL_ROOT: root };
+    const worker = path.join(root, 'cold-intent-lookup.mjs');
+    fs.writeFileSync(worker, `
+import fs from 'node:fs';
+let now = Date.now();
+Date.now = () => now;
+const exists = fs.existsSync;
+let delayed = false;
+fs.existsSync = file => {
+  if (!delayed && String(file).endsWith('.json.intent')) {
+    delayed = true;
+    fs.writeFileSync(file, String(process.pid));
+    now += 70; // One occupied slot is slow; 63 free slots remain.
+    return true;
+  }
+  return exists(file);
+};
+await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
+`);
+    const result = await runNode(worker, [], { env, input: malformed ? 'not JSON' : JSON.stringify(fixture('stop.json')) });
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.equal(result.timedOut, false);
+    const dir = instanceDirectory(root);
+    assert.equal(readLines(dir).length, malformed ? 0 : 1);
+    const health = readHealth(dir);
+    assert.equal(health.counters[malformed ? 'droppedMalformedInput' : 'recordsWritten'], 1);
+    assert.equal(health.counters.droppedUnaccounted ?? 0, 0);
+  });
+}
+
 test('expiration before the event lock leaves durable evidence of an unmatched hook', async (t) => {
   const root = tempDir();
   t.after(() => removeDir(root));
