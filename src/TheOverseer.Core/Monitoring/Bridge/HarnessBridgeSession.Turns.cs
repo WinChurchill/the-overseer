@@ -199,6 +199,21 @@ public sealed partial class HarnessBridgeSession
                 TrackRequest(lane, lane.Approvals, record);
                 if (RequestIdentity(record) is null) BindUncorrelatedApproval(lane, approvalPending);
 
+                // Claude also emits permission notifications for AskUserQuestion.
+                // Reuse the same complete-call-set correlation that clears this
+                // duplicate on answer; keep the explicit input episode and cue.
+                if (!approvalPending && record.Evidence == "inferred" && RequestIdentity(record) is null &&
+                    lane.Approvals.Count == 1 && lane.ApprovalBlocker is { } question &&
+                    string.Equals(question, lane.Inputs.SingleIdentity, StringComparison.Ordinal))
+                {
+                    lane.Approvals.ClearUncorrelated();
+                    lane.ApprovalBlocker = null;
+                    lane.State = AgentTaskState.NeedsInput;
+                    lane.AttentionCode = "input-pending";
+                    lane.DetailCode = "waiting-for-input";
+                    return null;
+                }
+
                 return quiet ? null : Edge(lane, record, AttentionEventKind.PermissionRequired, "approval-pending");
 
             case "approval/decided":
@@ -239,6 +254,10 @@ public sealed partial class HarnessBridgeSession
                 return null;
 
             case "plan/mode":
+                // The producer maps both pre- and post-tool plan hooks here, so
+                // this marker cannot prove whether its call is still open.
+                lane.OpenCallsComplete = false;
+                lane.ApprovalBlocker = null;
                 // Plan mode is a point marker, never sustained planning duration, and
                 // it never hides an unanswered request either.
                 lane.DetailCode = "plan-update";

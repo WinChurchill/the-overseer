@@ -2,9 +2,10 @@
 
 ## Current work
 
-Branch `fix/detection-logic-cleanup` is based on `98ec4a5`.
-The repository remains private. The Claude 1.0.6 source passed independent review.
-The release workflow must build the reviewed merged revision before hook rebinding.
+The live-attention fixes on `fix/detection-logic-cleanup` passed local validation
+and independent review. The repository remains private. Hosted Verify and the
+private alpha.3 package passed on the preceding `9ab2ed2` revision. The current
+source requires hosted Verify, merge, and exact-ZIP qualification from merged main.
 
 - Claude publishes health directly when uncontended and uses fixed receipts under
   contention. The 250 ms write budget, 60 ms accounting slice and 64 slots remain.
@@ -17,18 +18,37 @@ The release workflow must build the reviewed merged revision before hook rebindi
   DSH retains its explicit correlation rules.
 - Question tools publish input events. Standalone permission notifications remain
   attention signals because some sandbox prompts have no PermissionRequest hook.
+- A newly inferred permission for the sole known question shares its input episode
+  and cue. Existing approvals, competing calls and incomplete call sets stay separate.
+  Collapsed plan-mode markers invalidate call-set inference until a new boundary.
+- Confirmed requests persist beyond the ten-second work-action lease. Source
+  staleness, lost coverage and matching replies still withdraw or settle attention.
 - The EOF lock fix reports reduced coverage even after the log is caught up.
   Unlock resumes from the same cursor. DeepSeek fixtures use synthetic directories.
 - Snapshot caches use opened-file identity. Malformed sources and static links are
   isolated so healthy peers continue. Producer logs, reads and discovery are bounded.
 
 Independent reviewers reproduced and verified fixes for approval and accounting
-defects in the incoming handoff. Local Release build is clean. All 959 .NET,
-60 Claude and 45 DeepSeek tests and 16 producer timelines pass.
+defects in the incoming handoff and reviewed the subsequent live-attention fixes.
+Local Release build is clean. All 975 .NET tests pass, including 16 live-attention
+regressions/controls. Five of the first 14 cases failed before the fix. The unchanged
+producer suites passed 60 Claude and 45 DeepSeek tests and 16 producer timelines.
 Two earlier local Claude timing failures are retained. Preserved-spool review
-and the isolated full rerun passed. Hosted CI remains the merge gate.
+and the isolated full rerun passed. Both hosted Verify jobs and the branch package
+workflow passed on `9ab2ed2`; no tests were weakened or skipped.
+
+A delayed permission notification without sufficient correlation can conservatively
+retain attention until an explicit settling boundary. Failed incomplete-marker
+cleanup can overcount a loss episode. Neither limit silently drops loss evidence.
 
 ## Qualified baseline
+
+Private branch archive `1.0.0-alpha.3` was built from `9ab2ed2` by CI run
+`42964842458`. SHA-256:
+`5BEDEAA2C1F5A812485C0C667793315EC8322981B72B49BA267165B4BC1DA6CA`.
+That exact unsigned ZIP passed seven qualification groups on fresh standard-user
+Windows 11 build 26100 without developer prerequisites, including nine Kokoro
+clips and 42 composition checks. It predates the current live-attention fixes.
 
 `98ec4a5` passed hosted Verify with 944 .NET, 54 Claude and 45 DeepSeek tests,
 16 fixed producer timelines, 85 site checks and 13 publication controls.
@@ -53,8 +73,9 @@ evidence. These results apply to alpha.2, before the Claude 1.0.6 changes.
   observed. A dismissed card has no cancellation signal. After 15 minutes, older
   questions become unconfirmed while retaining identity for late replies.
 - Claude Code and DeepSeek Harness integrations are experimental and read-only.
-  Real lifecycle events were observed. The current hook version needs a fresh
-  live question and permission/reply qualification.
+  The real Claude 1.0.6 question stayed confirmed for several minutes through the
+  fixed adapter and cleared on answer. Visual HUD confirmation was interrupted by
+  a desktop app-approval timeout. A separate permission/resume check remains open.
 - The Claude Projects observer covers exposed loaded desktop overviews. It is
   bounded and nonactivating. Dedicated worker titles have ID fallbacks. Closed
   views and account-wide worker status remain unknown.
@@ -80,12 +101,13 @@ addresses and workstation paths even though current packaged fixtures are scrubb
 
 ## Remaining qualification
 
-- Review the final source, merge after hosted Verify, and build a new CI archive.
+- Winston authorized commit/push, hosted Verify, merge and a fresh private CI ZIP.
+  Complete the package workflow and clean-Windows qualification on merged main.
   Package evidence must identify that exact source revision and ZIP hash.
-- Keep the extraction used by installed Claude hooks at a stable path. Rebind using
-  the packaged installer, preserving unrelated settings and its backup.
-- Qualify Claude 1.0.6 question/input response and permission/resume on the actual
-  host. DSH Desktop input and approval remain separate live-host checks.
+- Keep the alpha.3 extraction used by the 15 rebound Claude hooks at a stable path.
+  The installer verified 1.0.6, preserved unrelated settings and was idempotent.
+- Finish actual HUD and Claude permission/resume qualification on the final build.
+  DSH Desktop input and approval remain separate live-host checks.
 - Repeat first launch and composition on the final package in clean Windows.
   Browser acquisition/SmartScreen and an independent machine remain open.
 - Physical mixed-DPI movement, monitor reconnect, sleep/wake, logon and device
