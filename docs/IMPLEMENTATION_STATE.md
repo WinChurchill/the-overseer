@@ -15,6 +15,8 @@ repository remains private; alpha.3 and the first alpha.4 build predate this fix
 - Temporary scans and recoverable I/O retain limited coverage without inventing
   drops. Bounded nonce proofs distinguish completed intents from slot reuse;
   failed admission declines metadata publication and capacity recovers after exits.
+  Cold intent lookup uses the parent acquisition allowance while reserving the
+  unchanged 60 ms accounting slice; the marker reserve is not an admission cap.
 - Pending attention confirmation belongs to each observed request. Loss withdraws
   confirmation, and an answer only settles its matching request.
 - A Claude approval without identity can bind to one known blocker only when the
@@ -36,7 +38,7 @@ Independent reviewers reproduced and verified fixes for approval and accounting
 defects in the incoming handoff and reviewed the subsequent live-attention fixes.
 Local Release build is clean. All 978 .NET tests pass, including 16 live-attention
 regressions/controls. Five of the first 14 cases failed before the fix. The unchanged
-producer suites passed 70 Claude and 45 DeepSeek tests and 16 producer timelines.
+producer suites passed 72 Claude and 45 DeepSeek tests and 16 producer timelines.
 Two earlier local Claude timing failures are retained. Preserved-spool review
 and the isolated full rerun passed. Both hosted Verify jobs and the branch package
 workflow passed on `9ab2ed2`; no tests were weakened or skipped.
