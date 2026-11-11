@@ -436,6 +436,32 @@ public sealed class CompositeMonitorTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Theory]
+    [InlineData(4096, 1)]
+    [InlineData(1, 2)]
+    public void ASpoolLockedAtEofReportsIoAndResumesWithoutReplay(int byteBudget, int pollsPerRecord)
+    {
+        using var home = new SyntheticCodexHome();
+        var reader = new BridgeSpoolReader(home.Root) { MaximumBytesPerPass = byteBudget };
+        File.WriteAllText(reader.EventsPath, "a\n");
+        Assert.Equal("a", Assert.Single(ReadRecord()));
+
+        using (new FileStream(reader.EventsPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Empty(reader.ReadNewLines(out var locked, out _));
+            Assert.Equal("bridge-io", locked);
+            Assert.Equal(0, reader.BytesReadThisPass);
+        }
+
+        Assert.Empty(reader.ReadNewLines(out var recovered, out _));
+        Assert.Equal("ok", recovered);
+        File.AppendAllText(reader.EventsPath, "b\n");
+        Assert.Equal("b", Assert.Single(ReadRecord()));
+
+        IEnumerable<string> ReadRecord() => Enumerable.Range(0, pollsPerRecord)
+            .SelectMany(poll => reader.ReadNewLines(out _, out _));
+    }
+
     [Fact]
     public void ASameSizeFileReplacementIsDetectedInsteadOfBeingSkipped()
     {

@@ -397,7 +397,7 @@ public sealed partial class HarnessBridgeSession
                     lane.AttentionCode,
                     lane.LastObservedAt,
                     stale,
-                    _epochHistoryFull || !lane.CurrentStateComplete,
+                    _epochHistoryFull || (!lane.CurrentStateComplete && !(lane.AttentionObserved && lane.NeedsHuman)),
                     lane.ProjectRoot,
                     lane.LastSequence,
                     lane.FirstObservedAt,
@@ -493,7 +493,46 @@ public sealed partial class HarnessBridgeSession
         public bool TurnEnded;
         public bool EpochSeen;
         public bool Retired;
-        public bool CurrentStateComplete;
+        private bool _currentStateComplete;
+
+        /// <summary>
+        /// Losing history also withdraws confirmation of a pending request: the
+        /// missing records may have answered it.
+        /// </summary>
+        public bool CurrentStateComplete
+        {
+            get => _currentStateComplete;
+            set
+            {
+                _currentStateComplete = value;
+                if (!value)
+                {
+                    WithdrawAttentionConfirmation();
+                    OpenCallsComplete = false;
+                    ApprovalBlocker = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The pending request itself was observed, with no loss since. That request
+        /// is current evidence even when the session's earlier history is incomplete.
+        /// </summary>
+        public bool AttentionObserved => Approvals.HasObserved || Inputs.HasObserved;
+
+        public void WithdrawAttentionConfirmation()
+        {
+            Approvals.WithdrawConfirmation();
+            Inputs.WithdrawConfirmation();
+        }
+
+        public bool OpenCallsComplete;
+
+        /// <summary>
+        /// What an identity-less approval was observed to block: the only open call
+        /// or the only pending question at that moment. Null when that is ambiguous.
+        /// </summary>
+        public string? ApprovalBlocker;
         public bool HistoryGap;
         public DateTimeOffset LastGapAt;
         public bool OutcomeUnknown;

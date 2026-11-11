@@ -403,7 +403,8 @@ public sealed class HudWindowTests
                 var lastRow = FindVisuals<System.Windows.Controls.Button>(projectList)
                     .Last(button => button.DataContext is TaskRowViewModel);
                 var bottom = lastRow.TransformToAncestor(scroller).Transform(new Point(0, lastRow.ActualHeight));
-                Assert.InRange(bottom.Y, 0, scroller.ActualHeight);
+                // Fractional display scaling leaves sub-pixel rounding in the transform.
+                Assert.InRange(bottom.Y, 0, scroller.ActualHeight + 0.5);
             }
             finally { window.Close(); }
         });

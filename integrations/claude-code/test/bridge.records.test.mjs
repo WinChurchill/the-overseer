@@ -57,6 +57,7 @@ const EXPECTED = {
   'post-tool-use.json': ['tool/end', 'working', 'ok', 'explicit'],
   'post-tool-use-failure.json': ['tool/end', 'error', 'failed', 'explicit'],
   'permission-request.json': ['approval/asked', 'waiting', null, 'inferred'],
+  'permission-request-question.json': ['heartbeat', 'waiting', null, 'inferred'],
   'permission-denied.json': ['approval/decided', 'working', 'aborted', 'explicit'],
   'notification-permission-prompt.json': ['approval/asked', 'waiting', null, 'inferred'],
   'notification-idle.json': ['heartbeat', 'idle', null, 'inferred'],

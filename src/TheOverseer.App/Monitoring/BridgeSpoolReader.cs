@@ -291,7 +291,10 @@ public sealed class BridgeSpoolReader
             var dropped = document is null ? 0 : CountProducerDrops(document.RootElement.GetProperty("counters"));
             var pending = Path.Combine(Directory, "health-pending");
             BridgeSpoolFiles.CheckDirectories(pending, 1);
-            if (File.Exists(Path.Combine(Directory, "health-incomplete")))
+            // The producer renames the marker while it commits that episode as one
+            // counted drop; either name means an outcome is not yet in the summary.
+            if (File.Exists(Path.Combine(Directory, "health-incomplete")) ||
+                File.Exists(Path.Combine(Directory, "health-incomplete.folding")))
             {
                 _healthReason = "bridge-health-accounting-incomplete";
             }
@@ -454,22 +457,12 @@ public sealed class BridgeSpoolReader
 
     private (ulong Hash, int Bytes) ReadHeadFingerprint(int byteCount)
     {
+        // Check access even at EOF and when the budget allows no fingerprint bytes.
+        using var stream = BridgeSpoolFiles.OpenRead(EventsPath);
         if (byteCount == 0) return default;
-        try
-        {
-            using var stream = BridgeSpoolFiles.OpenRead(EventsPath);
-            var buffer = new byte[byteCount];
-            var read = ReadBudgeted(stream, buffer, 0, buffer.Length);
-            return (Hash(buffer, read), read);
-        }
-        catch (IOException)
-        {
-            return default;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return default;
-        }
+        var buffer = new byte[byteCount];
+        var read = ReadBudgeted(stream, buffer, 0, buffer.Length);
+        return (Hash(buffer, read), read);
     }
 
     private static ulong Hash(byte[] buffer, int length)

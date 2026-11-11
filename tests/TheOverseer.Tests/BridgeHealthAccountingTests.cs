@@ -104,6 +104,33 @@ public sealed class BridgeHealthAccountingTests
         });
     }
 
+    [Fact]
+    public void AMarkerBeingCommittedIsStillIncompleteThenBecomesOneCountedDrop()
+    {
+        WithSpool(root =>
+        {
+            WriteSummary(root, 0, new());
+            var folding = Path.Combine(root, "health-incomplete.folding");
+            File.WriteAllText(folding, "");
+            var reader = new BridgeSpoolReader(root);
+            reader.ReadNewLines(out var reason, out var drops);
+            Assert.Equal("bridge-health-accounting-incomplete", reason);
+            Assert.Equal(0, drops);
+
+            // The producer commits the episode in its summary, then removes the marker.
+            File.WriteAllText(Path.Combine(root, "health.json"), JsonSerializer.Serialize(new
+            {
+                counters = new { droppedUnaccounted = 1 },
+                healthRevision = Guid.NewGuid().ToString(),
+                accountedReceipts = new Dictionary<string, string>(),
+            }));
+            File.Delete(folding);
+            reader.ReadNewLines(out reason, out drops);
+            Assert.Equal("ok", reason);
+            Assert.Equal(1, drops);
+        });
+    }
+
     [Theory]
     [InlineData("not-json")]
     [InlineData("{\"id\":1,\"counters\":[]}")]

@@ -67,3 +67,32 @@ manual requirement. No purchase or visibility change was made.
 report/upgrade controls and static website/publication controls. This is hosted
 source/test evidence; final CI-produced release bytes and H1–H16 remain pending.
 A later documentation-only commit records this result without changing the app.
+
+## Email privacy plan before publication
+
+On November 10, 2026 Winston requested a plan to remove personal addresses before
+public exposure. The reviewed private history contained two author/committer
+addresses outside GitHub's no-reply domain, across 233 commits. The count will
+change as private review fixes are committed. The addresses are kept out of this
+document and public evidence.
+
+1. Keep the existing repository private and preserve a local Git bundle containing
+   the selected refs. Record the original refs and source-to-archive mapping.
+2. Confirm Winston's verified GitHub no-reply address for future commits. Any
+   collaborator retains their own attribution and chooses their own public address.
+3. Prepare an isolated mirror with only intended public refs. Replace the exact
+   private author and committer addresses with the approved no-reply address.
+   Review workstation path redactions separately. Keep names, dates, tree content
+   and parent structure except for the explicitly reviewed privacy changes.
+4. Produce an old-to-new commit/ref mapping. Verify all source trees and parent
+   relationships, rerun the history/payload scans, and inspect the proposed public
+   refs for personal paths and addresses. Preserve upstream notices and attribution.
+5. Build and qualify a fresh candidate from the resulting source SHA. Rewriting
+   metadata changes descendant hashes, so earlier ZIPs retain their original source
+   identity and qualification records.
+6. Review the resulting refs, mappings and release packet with Winston before any
+   replacement remote, visibility change or publication. The original private
+   history remains available for audit.
+
+This plan authorizes preparation and review. Executing a history rewrite or
+publishing the sanitized result is a separate owner action.

@@ -103,6 +103,229 @@ public sealed class HarnessBridgeTests
         Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(7))).NeedsHuman);
     }
 
+    private static (HarnessBridgeSession Session, Func<long, string, string?, HarnessBridgeRecord> Record) ClaudeSession()
+    {
+        var source = new SourceInstance(HarnessIds.Claude, "claude-test", "Claude");
+        HarnessBridgeRecord Record(long sequence, string kind, string? callId) => Parse(Line(sequence, kind)) with
+        {
+            HarnessId = HarnessIds.Claude, SourceInstanceId = source.SourceInstanceId, CallId = callId,
+        };
+        return (new HarnessBridgeSession(source), Record);
+    }
+
+    [Fact]
+    public void AnApprovalBlockingTheOnlyOpenCallClearsWhenThatCallEnds()
+    {
+        // Claude Code: PreToolUse, PermissionRequest without a call ID, a delayed
+        // duplicate from older bridges, then PostToolUse once the user allows it.
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", "call-a"));
+        Assert.Equal(AttentionEventKind.PermissionRequired, session.Apply(record(4, "approval/asked", null)).Attention!.Kind);
+        session.Apply(record(5, "approval/asked", null));
+        Assert.Equal(AgentTaskState.NeedsApproval, Assert.Single(session.Tasks(Start.AddSeconds(5))).State);
+        session.Apply(record(6, "tool/end", "call-a"));
+        var resumed = Assert.Single(session.Tasks(Start.AddSeconds(6)));
+        Assert.False(resumed.NeedsHuman);
+        Assert.Equal(AgentTaskState.Working, resumed.State);
+        Assert.False(resumed.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void AnApprovalWithMoreThanOneOpenCallStaysUntilTheTurnEnds()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", "call-a"));
+        session.Apply(record(4, "tool/start", "call-b"));
+        session.Apply(record(5, "approval/asked", null));
+        session.Apply(record(6, "tool/end", "call-a"));
+        session.Apply(record(7, "tool/end", "call-b"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(7))).NeedsHuman);
+        session.Apply(record(8, "turn/end", null) with { Outcome = "completed" });
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(8))).NeedsHuman);
+    }
+
+    [Fact]
+    public void ASecondApprovalForADifferentCallIsAmbiguousAndStays()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", "call-a"));
+        session.Apply(record(4, "approval/asked", null));
+        session.Apply(record(5, "tool/start", "call-b"));
+        session.Apply(record(6, "approval/asked", null));
+        session.Apply(record(7, "tool/end", "call-a"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(7))).NeedsHuman);
+    }
+
+    [Fact]
+    public void AnExplicitDenialOfTheBlockedCallSettlesItsPrompt()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", "call-a"));
+        session.Apply(record(4, "approval/asked", null));
+        session.Apply(record(5, "approval/decided", "call-a") with { Outcome = "aborted" });
+        var settled = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.False(settled.NeedsHuman);
+        Assert.Equal(AgentTaskState.Working, settled.State);
+        // The refused call never ends, and must not block correlating the next prompt.
+        session.Apply(record(6, "tool/start", "call-b"));
+        session.Apply(record(7, "approval/asked", null));
+        session.Apply(record(8, "tool/end", "call-b"));
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(8))).NeedsHuman);
+    }
+
+    [Fact]
+    public void AQuestionDialogReportedAsAnApprovalSettlesWithItsAnswer()
+    {
+        // Bridges before 1.0.6 map the question's own permission flow to an approval.
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "input/asked", "question"));
+        session.Apply(record(4, "approval/asked", null));
+        session.Apply(record(5, "approval/asked", null));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(5))).NeedsHuman);
+        session.Apply(record(6, "input/answered", "question"));
+        var answered = Assert.Single(session.Tasks(Start.AddSeconds(6)));
+        Assert.False(answered.NeedsHuman);
+        Assert.Equal(AgentTaskState.Working, answered.State);
+    }
+
+    [Fact]
+    public void AQuestionObservedOnASessionJoinedMidTurnIsConfirmedUntilAnswered()
+    {
+        // OVERSEER started while this session was already working: its history is
+        // incomplete, but the question itself was seen and nothing was lost since.
+        var (session, record) = ClaudeSession();
+        session.Apply(record(40, "tool/start", "call-a"));
+        session.Apply(record(41, "tool/end", "call-a"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(41))).CoverageIncomplete);
+
+        Assert.Equal(AttentionEventKind.InputRequired, session.Apply(record(42, "input/asked", "question")).Attention!.Kind);
+        var asked = Assert.Single(session.Tasks(Start.AddSeconds(42)));
+        Assert.True(asked.NeedsHuman);
+        Assert.Equal(AgentTaskState.NeedsInput, asked.State);
+        Assert.False(asked.CoverageIncomplete);
+
+        session.Apply(record(43, "input/answered", "question"));
+        var answered = Assert.Single(session.Tasks(Start.AddSeconds(43)));
+        Assert.False(answered.NeedsHuman);
+        Assert.True(answered.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void LostRecordsAfterAnObservedQuestionWithdrawItsConfirmation()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(40, "tool/start", "call-a"));
+        session.Apply(record(41, "input/asked", "question"));
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(41))).CoverageIncomplete);
+        session.NoteProducerIncomplete("producer-dropped:1", Start.AddSeconds(42));
+        var uncertain = Assert.Single(session.Tasks(Start.AddSeconds(42)));
+        Assert.True(uncertain.NeedsHuman);
+        Assert.True(uncertain.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void AHydratedQuestionOnAnIncompleteSessionStaysUnconfirmed()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(40, "tool/start", "call-a"));
+        Assert.Null(session.Apply(record(41, "input/asked", "question") with { Hydration = true }).Attention);
+        var hydrated = Assert.Single(session.Tasks(Start.AddSeconds(41)));
+        Assert.True(hydrated.NeedsHuman);
+        Assert.True(hydrated.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void AnsweringAFreshQuestionDoesNotConfirmAnOlderUncertainQuestion()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(40, "tool/start", "call-a"));
+        session.Apply(record(41, "input/asked", "older"));
+        session.NoteProducerIncomplete("producer-dropped:1", Start.AddSeconds(41));
+        session.Apply(record(42, "input/asked", "fresh"));
+        Assert.False(Assert.Single(session.Tasks(Start.AddSeconds(42))).CoverageIncomplete);
+
+        session.Apply(record(43, "input/answered", "fresh"));
+        var pending = Assert.Single(session.Tasks(Start.AddSeconds(43)));
+        Assert.True(pending.NeedsHuman);
+        Assert.True(pending.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void AGapBeforeApprovalPreventsGuessingItsBlocker()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", "known"));
+        session.Apply(record(5, "approval/asked", null));
+        session.Apply(record(6, "tool/end", "known"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(6))).NeedsHuman);
+    }
+
+    [Fact]
+    public void CallCapacityLossCannotMakeTheLastTrackedCallTheOnlyBlocker()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        long sequence = 3;
+        for (var call = 0; call < 65; call++)
+            session.Apply(record(sequence++, "tool/start", "call-" + call));
+        for (var call = 0; call < 63; call++)
+            session.Apply(record(sequence++, "tool/end", "call-" + call));
+        session.Apply(record(sequence++, "approval/asked", null));
+        session.Apply(record(sequence++, "tool/end", "call-63"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(sequence))).NeedsHuman);
+    }
+
+    [Fact]
+    public void ACallWithoutIdentityPreventsGuessingAnApprovalBlocker()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", null));
+        session.Apply(record(4, "tool/start", "known"));
+        session.Apply(record(5, "approval/asked", null));
+        session.Apply(record(6, "tool/end", "known"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(6))).NeedsHuman);
+    }
+
+    [Fact]
+    public void ADshApprovalWithoutIdentityCannotBeSettledByOneToolEnding()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "session/start")));
+        session.Apply(Parse(Line(2, "turn/start")));
+        session.Apply(Parse(Line(3, "tool/start")) with { CallId = "known" });
+        session.Apply(Parse(Line(4, "approval/asked")));
+        session.Apply(Parse(Line(5, "tool/end")) with { CallId = "known" });
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(5))).NeedsHuman);
+    }
+
+    [Fact]
+    public void AResumedSessionCannotBindApprovalToAnEarlierOpenCall()
+    {
+        var (session, record) = ClaudeSession();
+        session.Apply(record(1, "session/start", null));
+        session.Apply(record(2, "turn/start", null));
+        session.Apply(record(3, "tool/start", "earlier"));
+        session.Apply(record(4, "session/start", null));
+        session.Apply(record(5, "approval/asked", null));
+        session.Apply(record(6, "tool/end", "earlier"));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(6))).NeedsHuman);
+    }
+
     [Fact]
     public void RequestCapacityLossCannotBecomeConfirmedZeroAfterKnownReplies()
     {

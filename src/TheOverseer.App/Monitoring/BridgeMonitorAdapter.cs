@@ -354,8 +354,8 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
     /// Evidence strength for the displayed state. An active task whose last real
     /// action is older than the action lease falls back to unknown coverage: a host
     /// heartbeat proves the source is alive, never that the same tool is still
-    /// running. Terminal and settled observations are historical facts and keep
-    /// their own evidence.
+    /// running. Confirmed pending requests persist until answered, coverage is lost,
+    /// or their source becomes stale; they are not continuing tool activity.
     /// </summary>
     private static EvidenceKind EvidenceFor(BridgeTaskState lane)
     {
@@ -365,7 +365,8 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         }
 
         var active = lane.State is AgentTaskState.Working or AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval;
-        if (active && !lane.ActionEvidenceFresh)
+        var confirmedRequest = lane.NeedsHuman && !lane.IsStale && !lane.CoverageIncomplete;
+        if (active && !lane.ActionEvidenceFresh && !confirmedRequest)
         {
             return EvidenceKind.None;
         }

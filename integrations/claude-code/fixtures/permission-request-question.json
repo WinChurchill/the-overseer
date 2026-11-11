@@ -1,0 +1,17 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/home/fixture-user/.claude/projects/example-project/fixture-transcript.jsonl",
+  "cwd": "/home/fixture-user/example-project",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "prompt_id": "fixture-prompt-0001",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "SANITIZED_QUESTION_TEXT",
+        "header": "Fixture"
+      }
+    ]
+  }
+}
