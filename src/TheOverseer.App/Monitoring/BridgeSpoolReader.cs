@@ -294,28 +294,39 @@ public sealed class BridgeSpoolReader
             // The producer renames the marker while it commits that episode as one
             // counted drop; either name means an outcome is not yet in the summary.
             if (File.Exists(Path.Combine(Directory, "health-incomplete")) ||
-                File.Exists(Path.Combine(Directory, "health-incomplete.folding")))
+                File.Exists(Path.Combine(Directory, "health-incomplete.folding")) ||
+                File.Exists(Path.Combine(Directory, "health-scan-incomplete")))
             {
                 _healthReason = "bridge-health-accounting-incomplete";
             }
             if (System.IO.Directory.Exists(pending))
             {
+                var coveredReceipts = new HashSet<string>(StringComparer.Ordinal);
+                var intents = new List<(string? Id, bool Covered, DateTime Stamp)>();
                 // Fixed slot names bound metadata work, even if unrelated files fill the directory.
                 for (var slot = 0; slot < MaximumHealthReceipts; slot++)
                 {
                     var key = slot.ToString("D2", CultureInfo.InvariantCulture);
                     var file = Path.Combine(pending, key + ".json");
+                    var slotKey = slot.ToString(CultureInfo.InvariantCulture);
+                    var summary = document?.RootElement;
+                    if (summary is { } prior && prior.TryGetProperty("accountedReceipts", out var receipts) &&
+                        receipts.TryGetProperty(slotKey, out var receiptId)) coveredReceipts.Add(receiptId.GetString()!);
                     var intent = new FileInfo(file + ".intent");
-                    if (_healthReason != "bridge-health-accounting-incomplete" && intent.Exists)
+                    if (intent.Exists)
                     {
                         if ((intent.Attributes & FileAttributes.ReparsePoint) != 0) throw new UnsafeSpoolPathException();
-                        _healthReason = DateTime.UtcNow - intent.LastWriteTimeUtc > TimeSpan.FromMilliseconds(250)
-                            ? "bridge-health-accounting-incomplete" : "bridge-health-updating";
+                        var identity = ReadIntentIdentity(intent.FullName, ref healthBudget);
+                        var covered = identity is not null && summary is { } committedSummary &&
+                            committedSummary.TryGetProperty("accountedIntents", out var committedIntents) &&
+                            committedIntents.TryGetProperty(slotKey, out var committedIntent) && committedIntent.GetString() == identity;
+                        intents.Add((identity, covered, intent.LastWriteTimeUtc));
                     }
                     using var receipt = ReadHealthDocument(file, MaximumHealthReceiptBytes, ref healthBudget, receipt: true);
                     if (receipt is null) continue;
                     var root = receipt.RootElement;
                     var id = root.GetProperty("id").GetString();
+                    coveredReceipts.Add(id!);
                     if (document is not null && document.RootElement.TryGetProperty("accountedReceipts", out var accounted) &&
                         accounted.ValueKind == JsonValueKind.Object &&
                         accounted.TryGetProperty(slot.ToString(CultureInfo.InvariantCulture), out var committed) &&
@@ -328,6 +339,13 @@ public sealed class BridgeSpoolReader
                         if (counter.GetString()!.StartsWith("dropped", StringComparison.Ordinal))
                             dropped = (int)Math.Min(int.MaxValue, (long)dropped + 1);
                     }
+                }
+                foreach (var intent in intents)
+                {
+                    if (intent.Covered || (intent.Id is not null && coveredReceipts.Contains(intent.Id))) continue;
+                    if (_healthReason == "bridge-health-accounting-incomplete") break;
+                    _healthReason = DateTime.UtcNow - intent.Stamp > TimeSpan.FromMilliseconds(250)
+                        ? "bridge-health-accounting-incomplete" : "bridge-health-updating";
                 }
                 // Folding commits a new summary before deleting/reusing receipts. Never
                 // combine a receipt snapshot with another summary's deduplication IDs.
@@ -368,6 +386,32 @@ public sealed class BridgeSpoolReader
 
     private JsonDocument? ReadHealthDocument(string file, int maximumBytes, ref int healthBudget, bool receipt = false)
     {
+        var buffer = ReadHealthBytes(file, maximumBytes, ref healthBudget, receipt);
+        if (buffer is null) return null;
+        var document = JsonDocument.Parse(buffer);
+        try
+        {
+            ValidateHealthDocument(document, receipt);
+            return document;
+        }
+        catch
+        {
+            document.Dispose();
+            throw;
+        }
+    }
+
+    private string? ReadIntentIdentity(string file, ref int healthBudget)
+    {
+        var buffer = ReadHealthBytes(file, 64, ref healthBudget);
+        if (buffer is null) return null;
+        var parts = Encoding.ASCII.GetString(buffer).Trim().Split(' ');
+        return parts.Length == 2 && int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var owner) &&
+            owner > 0 && Guid.TryParseExact(parts[1], "D", out _) ? parts[1] : null;
+    }
+
+    private byte[]? ReadHealthBytes(string file, int maximumBytes, ref int healthBudget, bool receipt = false)
+    {
         FileStream stream;
         try { stream = BridgeSpoolFiles.OpenRead(file, publishingReceipt: receipt); }
         catch (FileNotFoundException) { return null; }
@@ -388,17 +432,7 @@ public sealed class BridgeSpoolReader
                 read += count;
             }
             healthBudget -= read;
-            var document = JsonDocument.Parse(buffer);
-            try
-            {
-                ValidateHealthDocument(document, receipt);
-                return document;
-            }
-            catch
-            {
-                document.Dispose();
-                throw;
-            }
+            return buffer;
         }
     }
 
@@ -423,6 +457,11 @@ public sealed class BridgeSpoolReader
         if (valid && !receipt && root.TryGetProperty("accountedReceipts", out var accounted))
             valid = accounted.ValueKind == JsonValueKind.Object && accounted.EnumerateObject().All(item =>
                 item.Value.ValueKind == JsonValueKind.String && Guid.TryParseExact(item.Value.GetString(), "D", out _));
+        if (valid && !receipt && root.TryGetProperty("accountedIntents", out var intents))
+            valid = intents.ValueKind == JsonValueKind.Object && intents.EnumerateObject().Count() <= MaximumHealthReceipts &&
+                intents.EnumerateObject().All(item => int.TryParse(item.Name, NumberStyles.None, CultureInfo.InvariantCulture, out var slot) &&
+                    slot is >= 0 and < MaximumHealthReceipts && item.Value.ValueKind == JsonValueKind.String &&
+                    Guid.TryParseExact(item.Value.GetString(), "D", out _));
         if (!valid) throw new JsonException();
     }
 

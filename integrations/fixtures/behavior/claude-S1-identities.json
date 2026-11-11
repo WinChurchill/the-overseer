@@ -25,7 +25,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -61,7 +61,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -97,7 +97,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -135,7 +135,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -173,7 +173,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -211,7 +211,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -249,7 +249,7 @@
           "evidence": "explicit",
           "outcome": "ok",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -285,7 +285,7 @@
           "evidence": "explicit",
           "outcome": "ok",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -321,7 +321,7 @@
           "evidence": "explicit",
           "outcome": "ok",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -357,7 +357,7 @@
           "evidence": "explicit",
           "outcome": "ok",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.6"
+          "producerVersion": "overseer-claude-bridge/1.0.7"
         }
       ],
       "expected": {
@@ -392,7 +392,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -413,7 +413,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -434,7 +434,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -455,7 +455,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -476,7 +476,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -497,7 +497,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -518,7 +518,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -539,7 +539,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -560,7 +560,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -581,7 +581,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -602,7 +602,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     },
     {
       "schemaVersion": 1,
@@ -623,7 +623,7 @@
       "evidence": "explicit",
       "outcome": null,
       "hydration": false,
-      "producerVersion": "overseer-claude-bridge/1.0.6"
+      "producerVersion": "overseer-claude-bridge/1.0.7"
     }
   ]
 }

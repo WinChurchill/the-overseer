@@ -90,16 +90,54 @@ public sealed class BridgeHealthAccountingTests
         });
     }
 
-    [Fact]
-    public void AccountingOverflowIsPartialCoverageRatherThanHealthyZero()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CommittedAccountingCoversOnlyItsOwnIntentNonce(bool folded)
+    {
+        WithSpool(root =>
+        {
+            var identity = Guid.NewGuid().ToString();
+            var intent = ReceiptPath(root, 7) + ".intent";
+            File.WriteAllText(intent, "2147483646 " + identity);
+            File.SetLastWriteTimeUtc(intent, DateTime.UtcNow.AddMinutes(-1));
+            if (folded)
+                File.WriteAllText(Path.Combine(root, "health.json"), JsonSerializer.Serialize(new
+                {
+                    counters = new { recordsWritten = 1 }, healthRevision = Guid.NewGuid().ToString(),
+                    accountedIntents = new Dictionary<string, string> { ["7"] = identity },
+                }));
+            else
+                WriteReceipt(root, 2, identity, "recordsWritten"); // Independently allocated receipt slot.
+            var reader = new BridgeSpoolReader(root);
+            reader.ReadNewLines(out var reason, out var drops);
+            Assert.Equal("ok", reason);
+            Assert.Equal(0, drops);
+            File.WriteAllText(intent, "2147483646 " + Guid.NewGuid());
+            File.SetLastWriteTimeUtc(intent, DateTime.UtcNow.AddMinutes(-1));
+            reader.ReadNewLines(out reason, out drops);
+            Assert.Equal("bridge-health-accounting-incomplete", reason);
+            Assert.Equal(0, drops);
+        });
+    }
+
+    [Theory]
+    [InlineData("health-incomplete")]
+    [InlineData("health-scan-incomplete")]
+    public void IncompleteAccountingIsPartialCoverageWithoutInventingADrop(string marker)
     {
         WithSpool(root =>
         {
             WriteSummary(root, 0, new());
-            File.WriteAllText(Path.Combine(root, "health-incomplete"), "");
+            var markerPath = Path.Combine(root, marker);
+            File.WriteAllText(markerPath, "");
             var reader = new BridgeSpoolReader(root);
             reader.ReadNewLines(out var reason, out var drops);
             Assert.Equal("bridge-health-accounting-incomplete", reason);
+            Assert.Equal(0, drops);
+            File.Delete(markerPath);
+            reader.ReadNewLines(out reason, out drops);
+            Assert.Equal("ok", reason);
             Assert.Equal(0, drops);
         });
     }

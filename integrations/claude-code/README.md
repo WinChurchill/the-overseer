@@ -104,7 +104,7 @@ One JSON object per line with **exactly** these keys, in this order. No other ke
 | `evidence` | enum `explicit\|inferred\|unknown` | see the mapping table; forced to `unknown` when `session_id` is missing |
 | `outcome` | enum `completed\|aborted\|error\|ok\|failed` or null | see the mapping table |
 | `hydration` | boolean | always `false`: a live one-shot publication, never a replay/backfill |
-| `producerVersion` | string | `overseer-claude-bridge/1.0.6` |
+| `producerVersion` | string | `overseer-claude-bridge/1.0.7` |
 
 Deliberately **never** stored, even though the payloads contain them: prompt and message text,
 tool names, tool arguments, tool results and errors, transcript and scratchpad paths,
@@ -250,6 +250,7 @@ Layout:
 <spool>/claude/<sourceInstanceId>/health-pending/   fixed slots for deferred accounting receipts
 <spool>/claude/<sourceInstanceId>/health-incomplete empty marker if accounting capacity/write fails
 <spool>/claude/<sourceInstanceId>/health-incomplete.folding that marker while it is being counted
+<spool>/claude/<sourceInstanceId>/health-scan-incomplete temporary scan/read coverage limit, not a drop
 <spool>/claude/<sourceInstanceId>/sessions/<key>.seq per-session ingestion counter
 <spool>/claude/<sourceInstanceId>/sessions/<key>.seq.recovery independent recovery checkpoint
 ```
@@ -312,6 +313,19 @@ An uncontended hook commits its counters straight into `health.json` under the
 health lock; its intent is retired only after that atomic write, so an interrupted
 hook stays visible. A hook that finds the lock busy publishes a lock-free receipt
 instead, which the next fold commits.
+
+Each new intent carries a bounded owner/nonce token. Its receipt reuses that nonce;
+the summary keeps at most 64 intent proofs alongside the 64 receipt IDs. Both
+readers recognize completed accounting even when the deadline prevents removing
+the intent. A reused slot needs its new nonce, and legacy PID-only intents remain
+conservative. Partial folds retain receipts until their proof can be preserved.
+If accounting admission itself cannot be recorded, the hook declines metadata
+publication and keeps the existing loss marker, while Claude still proceeds.
+
+A scan that reaches its time/entry bound, or a temporary receipt read failure,
+sets `health-scan-incomplete`. Both readers keep coverage limited while it exists.
+A complete successful fold clears it without adding a drop: a delayed scan does
+not prove any event was lost. A failed cleanup keeps that limitation visible.
 
 The bridge reserves an intent before attempting the event write. The app treats
 an unfinished intent as incomplete coverage. A later writer can reclaim an
