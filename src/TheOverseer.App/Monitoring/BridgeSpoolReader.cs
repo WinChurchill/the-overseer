@@ -291,7 +291,10 @@ public sealed class BridgeSpoolReader
             var dropped = document is null ? 0 : CountProducerDrops(document.RootElement.GetProperty("counters"));
             var pending = Path.Combine(Directory, "health-pending");
             BridgeSpoolFiles.CheckDirectories(pending, 1);
-            if (File.Exists(Path.Combine(Directory, "health-incomplete")))
+            // The producer renames the marker while it commits that episode as one
+            // counted drop; either name means an outcome is not yet in the summary.
+            if (File.Exists(Path.Combine(Directory, "health-incomplete")) ||
+                File.Exists(Path.Combine(Directory, "health-incomplete.folding")))
             {
                 _healthReason = "bridge-health-accounting-incomplete";
             }

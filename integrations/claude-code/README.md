@@ -47,7 +47,9 @@ Not verified here (remains open):
   these arguments;
 * real payload variance across Claude Code versions (extra, renamed or removed fields);
 * live interaction with the documented hook `timeout` / matcher evaluation;
-* end-to-end latency of the hook inside a live session;
+* end-to-end latency of the hook inside a live session. The cooperative budget
+  covers the bridge's controlled work. Process startup, OS scheduling and a single
+  blocking filesystem operation can add wall-clock time;
 * the embedded engine version and any version-specific differences from the documented contract.
 
 ## Upstream documentation
@@ -102,7 +104,7 @@ One JSON object per line with **exactly** these keys, in this order. No other ke
 | `evidence` | enum `explicit\|inferred\|unknown` | see the mapping table; forced to `unknown` when `session_id` is missing |
 | `outcome` | enum `completed\|aborted\|error\|ok\|failed` or null | see the mapping table |
 | `hydration` | boolean | always `false`: a live one-shot publication, never a replay/backfill |
-| `producerVersion` | string | `overseer-claude-bridge/1.0.5` |
+| `producerVersion` | string | `overseer-claude-bridge/1.0.6` |
 
 Deliberately **never** stored, even though the payloads contain them: prompt and message text,
 tool names, tool arguments, tool results and errors, transcript and scratchpad paths,
@@ -129,6 +131,7 @@ where they contribute to `eventId` they contribute only as SHA-256 input.
 | `PostToolUseFailure` | always | `tool/end` | error | `failed` | explicit |
 | `PermissionRequest` | always | `approval/asked` | waiting | null | inferred |
 | `PermissionDenied` | always | `approval/decided` | working | `aborted` | explicit |
+| `PermissionRequest` | `tool_name` = `AskUserQuestion` | `heartbeat` | waiting | null | inferred |
 | `Notification` | `notification_type` = `permission_prompt` | `approval/asked` | waiting | null | inferred |
 | `Notification` | `notification_type` = `agent_needs_input` | `input/asked` | waiting | null | inferred |
 | `Notification` | `notification_type` = `elicitation_dialog` | `input/asked` | waiting | null | inferred |
@@ -175,6 +178,27 @@ is documented without a correlation id, so its `callId`/`requestId` stay `null` 
 The consumer also accepts `callId` as the request identity. Requests with no
 correlation identity remain pending through unrelated tools; a turn/session end
 clears them. An uncorrelated decision cannot safely select which request to clear.
+
+Claude Code never reports that a permission was granted. The consumer therefore
+ties an identity-less approval to what it was observed to block, and only when
+that is unambiguous: exactly one tool call was open (and no question pending) when
+the prompt arrived, with complete call tracking since the latest observed turn
+boundary. Lost records, missing call identities and capacity overflow disable
+this inference. That call's own `tool/end`, or an explicit `approval/decided`
+for it, clears the prompt. With several calls open, or a second prompt for a
+different call, nothing is inferred and the request stays until the turn ends.
+
+Observed on Claude Code 2.x for Windows (2026-11-10, this development machine):
+`PermissionRequest` fires within about 0.2 s of `PreToolUse`, and the
+`permission_prompt` notification follows about 6 s later for the same prompt. A
+question fires both as well. Since 1.0.6 a `PermissionRequest` whose tool is
+`AskUserQuestion` is a liveness-only `heartbeat` because the question is already
+recorded as `input/asked`. Standalone `permission_prompt` notifications remain
+approval signals: sandbox network prompts can emit them without `PermissionRequest`.
+When one known question is the only possible blocker, its answer settles the
+approval too. A delayed notification without enough context stays pending until
+an observed turn/session end. The consumer cannot prove it duplicates an already
+answered request. See the [PermissionRequest hook reference](https://code.claude.com/docs/en/hooks.md#permissionrequest).
 Two questions from the same agent use their own call IDs, not the agent ID.
 
 ## Semantics that must not be misread
@@ -225,6 +249,7 @@ Layout:
 <spool>/claude/<sourceInstanceId>/health.json       bounded counters, no payload data
 <spool>/claude/<sourceInstanceId>/health-pending/   fixed slots for deferred accounting receipts
 <spool>/claude/<sourceInstanceId>/health-incomplete empty marker if accounting capacity/write fails
+<spool>/claude/<sourceInstanceId>/health-incomplete.folding that marker while it is being counted
 <spool>/claude/<sourceInstanceId>/sessions/<key>.seq per-session ingestion counter
 <spool>/claude/<sourceInstanceId>/sessions/<key>.seq.recovery independent recovery checkpoint
 ```
@@ -283,10 +308,21 @@ or accounting storage fails, a bounded marker reports incomplete coverage when i
 be written within the remaining budget. Unwritable storage or an exhausted process
 budget cannot guarantee a durable diagnostic; hooks still fail open.
 
+An uncontended hook commits its counters straight into `health.json` under the
+health lock; its intent is retired only after that atomic write, so an interrupted
+hook stays visible. A hook that finds the lock busy publishes a lock-free receipt
+instead, which the next fold commits.
+
 The bridge reserves an intent before attempting the event write. The app treats
 an unfinished intent as incomplete coverage. A later writer can reclaim an
 abandoned intent after confirming its owner is gone and persisting the incomplete
-marker. Spool directories must be ordinary directories. Event append rejects
+marker. The marker is one episode, not a permanent state: once no other hook's
+intent is unresolved and no unreadable accounting file remains, the next fold
+renames it to `health-incomplete.folding`, adds one `droppedUnaccounted` to the
+summary in the same atomic write, and removes it. The app reports that as a
+producer drop and then recovers. A corrupt receipt is deleted and counted the same
+way. If the process stops between the summary write and the removal, the episode
+is counted again; a gap is over-reported, never hidden. Spool directories must be ordinary directories. Event append rejects
 linked files, and stale-looking locks are retained while their owners are alive.
 
 Build the app and bridge from the same revision for this fix. An older app reads

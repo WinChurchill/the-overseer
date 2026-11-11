@@ -26,6 +26,16 @@ export const HEALTH_COUNTERS = Object.freeze([
   'unknownEvents',
 ]);
 
+/**
+ * Summary-only total of accounting episodes whose outcome was lost (an abandoned
+ * intent, exhausted receipt capacity or a corrupt document). Never a receipt name.
+ */
+export const UNACCOUNTED_COUNTER = 'droppedUnaccounted';
+const SUMMARY_COUNTERS = Object.freeze([...HEALTH_COUNTERS, UNACCOUNTED_COUNTER]);
+const INCOMPLETE_MARKER = 'health-incomplete';
+/** The marker while its episode is being committed to the summary. */
+const FOLDING_MARKER = INCOMPLETE_MARKER + '.folding';
+
 const HEALTH_MAX_MS = 60;
 const HEALTH_MARKER_RESERVE_MS = 10;
 const ABANDONED_INTENT_MS = 5000;
@@ -52,11 +62,14 @@ function readReceipt(file) {
     fd = openRegularFile(file, 'r');
     const buffer = Buffer.alloc(MAX_HEALTH_RECEIPT_BYTES + 1);
     const length = fs.readSync(fd, buffer, 0, buffer.length, 0);
-    if (length > MAX_HEALTH_RECEIPT_BYTES) return { invalid: true };
-    const value = JSON.parse(buffer.subarray(0, length).toString('utf8'));
+    // `corrupt` means the content itself was read and is wrong, not an I/O failure.
+    if (length > MAX_HEALTH_RECEIPT_BYTES) return { invalid: true, corrupt: true };
+    let value;
+    try { value = JSON.parse(buffer.subarray(0, length).toString('utf8')); }
+    catch { return { invalid: true, corrupt: true }; }
     if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id) || !Array.isArray(value.counters) ||
         value.counters.length > HEALTH_COUNTERS.length ||
-        value.counters.some(name => !HEALTH_COUNTERS.includes(name))) return { invalid: true };
+        value.counters.some(name => !HEALTH_COUNTERS.includes(name))) return { invalid: true, corrupt: true };
     return { value };
   } catch (error) {
     return error?.code === 'ENOENT' ? {} : { invalid: true };
@@ -68,7 +81,7 @@ function readReceipt(file) {
 function markAccountingIncomplete(dir, deadline) {
   if (deadline?.expired()) return false;
   try {
-    fs.closeSync(fs.openSync(path.join(dir, 'health-incomplete'), 'wx'));
+    fs.closeSync(fs.openSync(path.join(dir, INCOMPLETE_MARKER), 'wx'));
     return true;
   } catch (error) {
     return error?.code === 'EEXIST';
@@ -149,27 +162,59 @@ function publishHealthReceipt(dir, counters, deadline) {
   return false;
 }
 
-function addCounters(target, names) {
+function addCounters(target, names, allowed = HEALTH_COUNTERS) {
   for (const name of names) {
-    if (!HEALTH_COUNTERS.includes(name)) continue;
+    if (!allowed.includes(name)) continue;
     target[name] = Math.min((target[name] ?? 0) + 1, Number.MAX_SAFE_INTEGER);
   }
 }
 
-function foldHealthReceipts(dir, deadline, wait) {
+/** Bound the listing to the receipt, intent and staging names the publisher can own. */
+function listPending(dir, deadline) {
+  const names = new Set();
+  let directory;
+  try {
+    directory = fs.opendirSync(path.join(dir, 'health-pending'));
+    for (let count = 0; count <= HEALTH_RECEIPT_SLOTS * 3; count++) {
+      // Leave time in this same slice to make a partial listing durable.
+      if (deadline.remaining() <= HEALTH_MARKER_RESERVE_MS) return { names, incomplete: true };
+      const entry = directory.readSync();
+      if (!entry) return { names, incomplete: false };
+      if (count === HEALTH_RECEIPT_SLOTS * 3) return { names, incomplete: true };
+      names.add(entry.name);
+    }
+  } catch {
+    return { names: null, incomplete: true };
+  } finally {
+    if (directory) try { directory.closeSync(); } catch { /* fail open */ }
+  }
+}
+
+/**
+ * Fold receipts, and optionally this hook's own counters, into the summary.
+ * Returns true only when a new summary that includes `direct` was committed.
+ *
+ * A lost outcome is one bounded `droppedUnaccounted` episode, not a permanent
+ * state: once no other hook's intent is unresolved and nothing unreadable remains,
+ * the incomplete marker is counted in the same atomic summary and then removed.
+ */
+function foldHealthReceipts(dir, deadline, wait, direct = [], ownIntent = null) {
   const lockPath = path.join(dir, 'health.lock');
   try {
-    if (!prepareHealthDirectory(dir, deadline)) return;
-    withLock(lockPath, deadline, () => {
+    if (!prepareHealthDirectory(dir, deadline)) return false;
+    const result = withLock(lockPath, deadline, () => {
       const file = path.join(dir, 'health.json');
       const existing = readJson(file);
-      if (!existing && fs.existsSync(file)) markAccountingIncomplete(dir, deadline);
+      let unreadable = false;
+      if (!existing && fs.existsSync(file)) { markAccountingIncomplete(dir, deadline); unreadable = true; }
       const previous = existing && typeof existing.counters === 'object' && existing.counters !== null ? existing.counters : {};
       const next = {};
-      for (const name of HEALTH_COUNTERS) {
+      for (const name of SUMMARY_COUNTERS) {
         const value = Number.isFinite(previous[name]) && previous[name] > 0 ? Math.floor(previous[name]) : 0;
         if (value > 0) next[name] = Math.min(value, Number.MAX_SAFE_INTEGER);
       }
+      const pending = listPending(dir, deadline);
+      if (pending.incomplete && !markAccountingIncomplete(dir, deadline)) return false;
       const accountedReceipts = {};
       const consumed = [];
       for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {
@@ -177,14 +222,45 @@ function foldHealthReceipts(dir, deadline, wait) {
         if (typeof prior === 'string') accountedReceipts[slot] = prior;
         if (deadline.expired()) continue;
         const file = receiptPath(dir, slot);
+        if (pending.names && !pending.names.has(path.basename(file))) continue;
         const receipt = readReceipt(file);
-        if (receipt.invalid) { markAccountingIncomplete(dir, deadline); continue; }
+        if (receipt.invalid) {
+          const marked = markAccountingIncomplete(dir, deadline);
+          // A published receipt is immutable, so a corrupt one never becomes
+          // valid. Remove it or it would hold the source incomplete forever.
+          let removed = false;
+          if (receipt.corrupt && marked) try { fs.unlinkSync(file); removed = true; } catch { /* retried by the next fold */ }
+          unreadable ||= !removed;
+          continue;
+        }
         if (!receipt.value) continue;
         if (accountedReceipts[slot] !== receipt.value.id) addCounters(next, receipt.value.counters);
         accountedReceipts[slot] = receipt.value.id;
         consumed.push(file);
       }
-      if (deadline.expired()) return;
+      if (deadline.expired()) return false;
+
+      // Resolve other hooks' intents. One that outlived its process is a lost
+      // outcome: persist the marker first, then retire the intent under this lock.
+      let unresolved = pending.incomplete;
+      const own = ownIntent ? path.basename(ownIntent) : null;
+      for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {
+        if (deadline.expired()) { unresolved = true; break; }
+        const name = path.basename(receiptPath(dir, slot)) + '.intent';
+        if (name === own || (pending.names && !pending.names.has(name))) continue;
+        const intent = path.join(dir, 'health-pending', name);
+        try {
+          if (isAbandonedIntent(intent) && markAccountingIncomplete(dir, deadline)) fs.unlinkSync(intent);
+          else unresolved = true;
+        } catch (error) { unresolved ||= error?.code !== 'ENOENT'; }
+      }
+      const marker = path.join(dir, INCOMPLETE_MARKER);
+      const folding = path.join(dir, FOLDING_MARKER);
+      if (!unresolved && !unreadable && fs.existsSync(marker)) fs.renameSync(marker, folding);
+      const episode = fs.existsSync(folding);
+      if (episode) addCounters(next, [UNACCOUNTED_COUNTER], SUMMARY_COUNTERS);
+      addCounters(next, direct);
+      if (deadline.expired()) return false;
       writeJsonAtomic(file, {
         schemaVersion: 1,
         harnessId: 'claude',
@@ -196,13 +272,18 @@ function foldHealthReceipts(dir, deadline, wait) {
       });
       // Commit the totals and receipt IDs together before cleanup. A crash or an
       // unlink failure leaves a receipt that readers and the next fold deduplicate.
+      // A surviving folding marker is counted again: over-reporting a gap is safe.
+      if (episode) try { fs.unlinkSync(folding); } catch { /* counted again by the next fold */ }
       for (const file of consumed) {
         if (deadline.expired()) break;
         try { fs.unlinkSync(file); } catch { /* the committed ID prevents replay */ }
       }
+      return true;
     }, wait);
+    return result.acquired && result.value === true;
   } catch {
     /* the already-published receipt remains visible; never fail the hook */
+    return false;
   }
 }
 
@@ -219,11 +300,17 @@ export function bumpHealth(dir, counters, deadline, intent) {
   if (budget.remaining() <= 0) return;
   let covered = false;
   try {
-    let published = publishHealthReceipt(dir, list, budget.child(Math.max(0, budget.remaining() - HEALTH_MARKER_RESERVE_MS)));
+    // Uncontended fast path: commit this hook's counters straight into the
+    // summary. The intent stays until that atomic write succeeds, so a crash is
+    // still visible. A busy lock falls back to a lock-free receipt.
+    const direct = foldHealthReceipts(dir,
+      budget.child(Math.max(0, budget.remaining() - 2 * HEALTH_MARKER_RESERVE_MS)), false, list, intent);
+    let published = direct ||
+      publishHealthReceipt(dir, list, budget.child(Math.max(0, budget.remaining() - HEALTH_MARKER_RESERVE_MS)));
     if (!published) {
       // A full buffer must not prevent future compaction. Reclaim space once,
       // keeping time in the same slice for a retry or the incomplete marker.
-      foldHealthReceipts(dir, budget.child(Math.max(0, budget.remaining() - 2 * HEALTH_MARKER_RESERVE_MS)), true);
+      foldHealthReceipts(dir, budget.child(Math.max(0, budget.remaining() - 2 * HEALTH_MARKER_RESERVE_MS)), true, [], intent);
       if (!budget.expired()) published = publishHealthReceipt(dir, list,
         budget.child(Math.max(0, budget.remaining() - HEALTH_MARKER_RESERVE_MS)));
     }
@@ -233,7 +320,7 @@ export function bumpHealth(dir, counters, deadline, intent) {
       fs.unlinkSync(intent);
       intent = null;
     }
-    if (published) foldHealthReceipts(dir, budget, false);
+    if (published && !direct) foldHealthReceipts(dir, budget, false);
   } catch {
     covered ||= markAccountingIncomplete(dir, budget);
   } finally {
@@ -249,7 +336,8 @@ export function readHealth(dir) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const summary = readJson(path.join(dir, 'health.json'));
     const counters = { ...summary?.counters };
-    let incomplete = fs.existsSync(path.join(dir, 'health-incomplete')) ||
+    let incomplete = fs.existsSync(path.join(dir, INCOMPLETE_MARKER)) ||
+      fs.existsSync(path.join(dir, FOLDING_MARKER)) ||
       (!summary && fs.existsSync(path.join(dir, 'health.json')));
     let found = false;
     for (let slot = 0; slot < HEALTH_RECEIPT_SLOTS; slot++) {

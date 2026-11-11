@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 
 export const SCHEMA_VERSION = 1;
 export const HARNESS_ID = 'claude';
-export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.5';
+export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.6';
 
 export const MAX_ID_CHARS = 128;
 export const MAX_PROJECT_ROOT_CHARS = 512;
@@ -69,6 +69,7 @@ export const DEFAULT_INSTALL_EVENTS = Object.freeze([
  * The bridge never stores the sub-type itself, only the resulting kind.
  */
 const NOTIFICATION_MAP = Object.freeze({
+  // Sandboxed network prompts can emit this without PermissionRequest.
   permission_prompt: ['approval/asked', 'waiting', null],
   agent_needs_input: ['input/asked', 'waiting', null],
   elicitation_dialog: ['input/asked', 'waiting', null],
@@ -189,6 +190,12 @@ export function classify(payload) {
       return { event, kind: 'plan/mode', category: 'planning', evidence: 'explicit', outcome: null, known: true };
     }
     return { event, kind: 'tool/start', category: 'working', evidence: 'explicit', outcome: null, known: true };
+  }
+
+  if (event === 'PermissionRequest' && isQuestionTool(safeToken(payload.tool_name, 64))) {
+    // The question dialog is presented through the permission flow. PreToolUse
+    // already recorded it as input/asked with its call ID; it is not an approval.
+    return { event, kind: 'heartbeat', category: 'waiting', evidence: 'inferred', outcome: null, known: true };
   }
 
   if (event === 'PostToolUse') {

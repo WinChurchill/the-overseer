@@ -9,9 +9,40 @@ public sealed partial class HarnessBridgeSession
         !string.IsNullOrWhiteSpace(record.RequestId) ? record.RequestId :
         !string.IsNullOrWhiteSpace(record.CallId) ? record.CallId : null;
 
+    /// <summary>
+    /// Calls whose end was never observed must not accumulate. At the bound no new
+    /// call is tracked, and uniqueness cannot be inferred until the next boundary.
+    /// </summary>
+    private const int MaximumOpenCalls = 64;
+
     private static void TrackRequest(SessionLane lane, PendingRequests requests, HarnessBridgeRecord record)
     {
-        if (!requests.Add(RequestIdentity(record))) lane.CurrentStateComplete = false;
+        if (!requests.Add(RequestIdentity(record), observed: !record.Hydration))
+            lane.CurrentStateComplete = false;
+    }
+
+    /// <summary>
+    /// Claude reports a permission prompt without the call it belongs to and never
+    /// reports that it was granted. When exactly one thing was waiting at that
+    /// moment, its own completion is the evidence that the prompt was resolved.
+    /// Anything ambiguous keeps the request until the turn or session ends.
+    /// </summary>
+    private void BindUncorrelatedApproval(SessionLane lane, bool alreadyPending)
+    {
+        var input = lane.Inputs.SingleIdentity;
+        var blocker = Source.HarnessId != HarnessIds.Claude || !lane.OpenCallsComplete ? null
+            : lane.OpenCalls.Count == 1 && lane.Inputs.Count == 0 ? lane.OpenCalls.First()
+            : lane.OpenCalls.Count == 0 && input is not null ? input
+            : null;
+        lane.ApprovalBlocker = alreadyPending && !string.Equals(lane.ApprovalBlocker, blocker, StringComparison.Ordinal)
+            ? null : blocker;
+    }
+
+    private static void ResolveBlockedApproval(SessionLane lane, string? finished)
+    {
+        if (finished is null || !string.Equals(lane.ApprovalBlocker, finished, StringComparison.Ordinal)) return;
+        lane.ApprovalBlocker = null;
+        lane.Approvals.ClearUncorrelated();
     }
 
     private BridgeAttentionEdge? Fold(SessionLane lane, HarnessBridgeRecord record, DateTimeOffset stamp, bool gapDetected)
@@ -39,18 +70,22 @@ public sealed partial class HarnessBridgeSession
                 // The session began under observation and no record was missed
                 // since, so its current state is known without a producer snapshot.
                 lane.CurrentStateComplete = !gapDetected;
+                lane.OpenCalls.Clear();
+                lane.OpenCallsComplete = !gapDetected;
                 lane.HistoryGap = lane.HistoryGap || gapDetected;
                 lane.Retired = false;
                 lane.State = AgentTaskState.Idle;
                 lane.TurnId = string.Empty;
                 lane.DetailCode = "session-start";
                 lane.NeedsHuman = false;
+                lane.WithdrawAttentionConfirmation();
                 lane.AttentionCode = null;
                 lane.TurnEnded = false;
                 lane.OutcomeUnknown = false;
                 lane.TurnOutcome = BridgeTurnOutcome.None;
                 lane.Approvals.Clear();
                 lane.Inputs.Clear();
+                lane.ApprovalBlocker = null;
                 return null;
 
             case "session/end":
@@ -58,10 +93,14 @@ public sealed partial class HarnessBridgeSession
                 lane.TurnId = string.Empty;
                 lane.DetailCode = "session-end";
                 lane.NeedsHuman = false;
+                lane.WithdrawAttentionConfirmation();
+                lane.OpenCalls.Clear();
+                lane.OpenCallsComplete = false;
                 lane.AttentionCode = null;
                 lane.TurnEnded = true;
                 lane.Approvals.Clear();
                 lane.Inputs.Clear();
+                lane.ApprovalBlocker = null;
                 return null;
 
             case "turn/start":
@@ -70,10 +109,15 @@ public sealed partial class HarnessBridgeSession
                 lane.DetailCode = "turn-active";
                 lane.Category = record.Category == "unknown" ? "thinking" : record.Category;
                 lane.NeedsHuman = false;
+                lane.WithdrawAttentionConfirmation();
                 lane.AttentionCode = null;
                 lane.TurnEnded = false;
                 lane.OutcomeUnknown = false;
                 lane.TurnOutcome = BridgeTurnOutcome.None;
+                // A call left open by an earlier turn is not what a new prompt blocks.
+                lane.OpenCalls.Clear();
+                lane.OpenCallsComplete = !gapDetected;
+                lane.ApprovalBlocker = null;
                 if (lane.Approvals.Count > 0 || lane.Inputs.Count > 0) Settle(lane);
                 return null;
 
@@ -82,7 +126,13 @@ public sealed partial class HarnessBridgeSession
 
             case "tool/start":
                 lane.TurnId = turn;
-                if (!string.IsNullOrWhiteSpace(record.CallId))
+                if (string.IsNullOrWhiteSpace(record.CallId) ||
+                    (lane.OpenCalls.Count >= MaximumOpenCalls && !lane.OpenCalls.Contains(record.CallId)))
+                {
+                    lane.OpenCallsComplete = false;
+                    lane.ApprovalBlocker = null;
+                }
+                else
                 {
                     lane.OpenCalls.Add(record.CallId!);
                 }
@@ -107,6 +157,17 @@ public sealed partial class HarnessBridgeSession
                 if (!string.IsNullOrWhiteSpace(record.CallId))
                 {
                     lane.OpenCalls.Remove(record.CallId!);
+                    if (lane.ApprovalBlocker is not null)
+                    {
+                        // The one call the prompt was blocking has now run.
+                        ResolveBlockedApproval(lane, record.CallId);
+                        if (lane.ApprovalBlocker is null) Settle(lane);
+                    }
+                }
+                else
+                {
+                    lane.OpenCallsComplete = false;
+                    lane.ApprovalBlocker = null;
                 }
 
                 // A failed tool is not a failed task.
@@ -134,7 +195,9 @@ public sealed partial class HarnessBridgeSession
                 lane.AttentionCode = "approval-pending";
                 lane.DetailCode = "waiting-for-approval";
                 lane.Category = "waiting";
+                var approvalPending = lane.Approvals.Uncorrelated;
                 TrackRequest(lane, lane.Approvals, record);
+                if (RequestIdentity(record) is null) BindUncorrelatedApproval(lane, approvalPending);
 
                 return quiet ? null : Edge(lane, record, AttentionEventKind.PermissionRequired, "approval-pending");
 
@@ -142,6 +205,10 @@ public sealed partial class HarnessBridgeSession
                 if (RequestIdentity(record) is { } approvalId)
                 {
                     lane.Approvals.Remove(approvalId);
+                    // An explicit decision for the blocked call settles its prompt,
+                    // and a refused call will never report an end.
+                    ResolveBlockedApproval(lane, approvalId);
+                    if (!string.IsNullOrWhiteSpace(record.CallId)) lane.OpenCalls.Remove(record.CallId!);
                 }
 
                 Settle(lane);
@@ -164,6 +231,8 @@ public sealed partial class HarnessBridgeSession
                 if (RequestIdentity(record) is { } inputId)
                 {
                     lane.Inputs.Remove(inputId);
+                    // Older bridges report a question's own dialog as an approval.
+                    ResolveBlockedApproval(lane, inputId);
                 }
 
                 Settle(lane);
@@ -214,6 +283,10 @@ public sealed partial class HarnessBridgeSession
 
         lane.TurnEnded = true;
         lane.NeedsHuman = false;
+        lane.WithdrawAttentionConfirmation();
+        lane.OpenCallsComplete = false;
+        lane.ApprovalBlocker = null;
+        lane.OpenCalls.Clear();
         lane.Approvals.Clear();
         var continuingInput = MonitorCapabilities.HasDshQuestionEvents(Source.HarnessId, _producerVersion) && lane.Inputs.Count > 0;
         if (!continuingInput) lane.Inputs.Clear();

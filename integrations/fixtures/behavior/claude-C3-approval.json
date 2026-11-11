@@ -25,7 +25,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -61,7 +61,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -97,7 +97,7 @@
           "evidence": "inferred",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -135,7 +135,7 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -173,7 +173,7 @@
           "evidence": "explicit",
           "outcome": "aborted",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -209,7 +209,7 @@
           "evidence": "explicit",
           "outcome": "aborted",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -245,7 +245,7 @@
           "evidence": "explicit",
           "outcome": "ok",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
@@ -281,7 +281,7 @@
           "evidence": "explicit",
           "outcome": "completed",
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.5"
+          "producerVersion": "overseer-claude-bridge/1.0.6"
         }
       ],
       "expected": {
