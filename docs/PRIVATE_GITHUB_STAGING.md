@@ -94,5 +94,22 @@ document and public evidence.
    replacement remote, visibility change or publication. The original private
    history remains available for audit.
 
-This plan authorizes preparation and review. Executing a history rewrite or
-publishing the sanitized result is a separate owner action.
+On November 11 Winston authorized privacy cleanup for a private release review.
+A separate, local, main-only copy now replaces the owner's private address with
+the account's ID-based GitHub no-reply address and redacts the exact workstation
+tokens from historical text. The audit distinguishes GitHub's official service
+committer from a personal address and preserves that service identity.
+
+The original private repository and its refs remain intact. The review packet
+contains the original bundle, sanitized bundle, commit mapping, and verification
+of every tree against the exact redactions, identity/date/message preservation,
+and mapped parent structure. Rewritten commits do not retain the originals' GitHub
+signature verification. The publication copy also excludes the two personal-website
+reference PNGs under `design/reference/` from every commit. All remaining current
+files, including the application and its sample HUD screenshots, are unchanged.
+
+Before public exposure, review the sanitized refs and use a clean publication
+repository or a separately approved replacement process. Merely force-pushing a
+rewritten branch cannot establish removal of old GitHub PR refs, cached commits,
+Actions logs or artifacts. No force-push, remote replacement or visibility change
+is authorized by preparing this packet. Keep the existing repository private.

@@ -161,7 +161,8 @@ Get-FileHash -LiteralPath $archive -Algorithm SHA256
 ```
 
 Compare the result with the supplied hash **before** extracting. If it differs, stop
-and report it. When it matches:
+and report it. See [download verification](RELEASE_VERIFICATION.md) for an automatic
+checksum comparison and optional GitHub build-provenance verification. When it matches:
 
 ```powershell
 $appFolder = Join-Path $env:LOCALAPPDATA 'OVERSEER-App\test-build'
