@@ -162,7 +162,19 @@ test('concurrent dropped writers remain accounted while the health lock is held'
   assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
   const dir = instanceDirectory(root);
   for (const name of ['events.lock', 'health.lock']) fs.writeFileSync(path.join(dir, name), 'owned lock\n');
-  const results = await Promise.all(Array.from({ length: 9 }, () => runBridge(fixture('pre-tool-use.json'), { env })));
+  // Nine processes starting at once can starve one another of CPU on a hosted
+  // runner, so a wall-clock health slice may legitimately expire and report
+  // incomplete accounting. Count budget in clock reads instead: the event-lock
+  // wait still exhausts, but receipt publication no longer depends on scheduling.
+  const worker = path.join(root, 'logical-clock.mjs');
+  fs.writeFileSync(worker, `
+const start = Date.now();
+let reads = 0;
+Date.now = () => start + reads++;
+await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
+`);
+  const input = JSON.stringify(fixture('pre-tool-use.json'));
+  const results = await Promise.all(Array.from({ length: 9 }, () => runNode(worker, [], { env, input })));
   for (const result of results) {
     assert.equal(result.status, 0);
     assert.equal(result.stdout, '');
