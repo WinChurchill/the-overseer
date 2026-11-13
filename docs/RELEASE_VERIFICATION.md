@@ -10,7 +10,7 @@ Download the app ZIP and its adjacent `.zip.sha256` file from the same official
 release. In PowerShell, replace the version below with the downloaded version:
 
 ```powershell
-$archive = 'OVERSEER-1.0.0-alpha.5-win-x64.zip'
+$archive = 'OVERSEER-1.0.0-alpha.6-win-x64.zip'
 $expected = ((Get-Content -LiteralPath "$archive.sha256" -Raw).Trim() -split '\s+')[0]
 $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
 if ($expected -notmatch '^[a-fA-F0-9]{64}$' -or $actual -ine $expected) {
@@ -29,7 +29,7 @@ revision and Actions workflow. Once available for a public release, install the
 [GitHub CLI](https://cli.github.com/) and run:
 
 ```powershell
-gh attestation verify .\OVERSEER-1.0.0-alpha.5-win-x64.zip --repo WinChurchill/the-overseer --signer-workflow WinChurchill/the-overseer/.github/workflows/package.yml
+gh attestation verify .\OVERSEER-1.0.0-alpha.6-win-x64.zip --repo WinChurchill/the-overseer --signer-workflow WinChurchill/the-overseer/.github/workflows/package.yml
 ```
 
 Require successful verification and compare the reported source revision with the
