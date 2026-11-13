@@ -1,5 +1,26 @@
 # OVERSEER release readiness
 
+## Current private review — November 11, 2026
+
+The unsigned `1.0.0-alpha.5` CI ZIP from `a9dd93b` passed clean Windows qualification
+and the real desktop HUD's Claude question/answer and plan-approval/resume checks.
+Winston also heard one Codex-to-Kokoro input cue from that exact build. The checksum
+and source identities are in [implementation state](IMPLEMENTATION_STATE.md).
+
+A main-only, sanitized history is prepared locally with an original-to-public
+mapping; only two personal website reference PNGs are excluded from the current
+tree. Application source and shipped assets are unchanged. The GitHub repository remains
+private with its original history. Do not make that repository public merely by
+toggling visibility: old PR refs, logs and artifacts are outside the local rewrite.
+See [privacy preparation](PRIVATE_GITHUB_STAGING.md) and review the local packet.
+
+The public-only attestation workflow and [download guide](RELEASE_VERIFICATION.md)
+are prepared as uncommitted changes. No attestation has been generated for alpha.5.
+The new workflow needs owner review and hosted execution before claiming attestations.
+Unsigned Windows warnings, DSH Desktop attention, browser acquisition and physical
+display/power checks remain separate limitations. The dated entries below retain
+their historical results and do not supersede this current state.
+
 The planned public alpha is an unsigned Windows x64 ZIP built from reviewed
 source. Qualify the CI archive on clean Windows and record its source commit
 and SHA-256 before publication. Earlier local results apply to their own archives.

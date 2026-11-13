@@ -16,20 +16,18 @@ bounded, metadata-only records appended to an OVERSEER-owned local spool.
 
 ## Qualification status (read this first)
 
-**Experimental; not live-qualified here.** The owner uses Claude Code in a desktop
-or editor app. On 2026-09-29 the installed Windows Claude desktop package was
-confirmed as 2.9939.2.0. That is the app package version, not a verified Claude
-Code engine version. No standalone `claude` command was found on PATH; this does
-not establish whether the app/editor's embedded engine is available.
-On 2026-10-08 the installed package is 2.19675.1.0; that newer app and its
-actual Code engine remain unqualified. No personal hook settings were changed.
+**Experimental, with a limited live Windows check.** On November 11, 2026 the
+exact unsigned OVERSEER `1.0.0-alpha.5` HUD observed a real Claude Desktop Code
+question and a separate `ExitPlanMode` approval in a disposable chat using Haiku.
+Each appeared under **Needs you** and cleared after the answer or owner approval.
+The question remained confirmed beyond the ten-second work-action lease.
 
-The [official hooks reference](https://code.claude.com/docs/en/hooks) documents
-hooks in terminal, IDE and desktop sessions. Desktop and VS Code share Code hook
-settings with the CLI for the corresponding execution environment. Our generated
-`command: "node"` plus `args` handler matches the documented exec form. These are
-documentation checks; no real app/editor session has invoked this bridge here.
-The original 2026-09-24 test pass covered sanitized fixtures and isolated files.
+The kept candidate's installer verified bridge `1.0.7`, rebound 15 owned hook paths,
+preserved unrelated settings/hooks, and produced a zero-change follow-up preview.
+The original settings backup remains local. Claude's installed desktop package was
+`5.1231.2.0`; its embedded Code engine version was not independently established.
+The selected model is not an engine version. These results do not qualify every
+desktop/editor/CLI version or every kind of permission prompt.
 
 Verified here:
 
@@ -43,8 +41,7 @@ Verified here:
 
 Not verified here (remains open):
 
-* that a real Claude Code build accepts the generated handler entries and launches them with
-  these arguments;
+* shell, file and network permission prompts beyond the observed plan approval;
 * real payload variance across Claude Code versions (extra, renamed or removed fields);
 * live interaction with the documented hook `timeout` / matcher evaluation;
 * end-to-end latency of the hook inside a live session. The cooperative budget

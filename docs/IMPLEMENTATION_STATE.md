@@ -2,11 +2,17 @@
 
 ## Current work
 
-The live-attention fixes merged in PR #2 at `163934c`. Main Verify then exposed a
-Claude accounting overcount. The follow-up on `fix/detection-logic-cleanup` separates
-temporary scan/read coverage from loss and preserves completed accounting proof.
-It needs hosted Verify, follow-up merge and a new exact-ZIP qualification. The
-repository remains private; alpha.3 and the first alpha.4 build predate this fix.
+The attention/accounting fixes merged through PR #4 at `a9dd93b`. Main Verify and
+the alpha.5 package workflow both passed on their first attempts at that revision.
+The exact unsigned alpha.5 ZIP passed eight qualification groups on clean Windows,
+including 42 composition and 17 production-path integration checks. Earlier failed
+runs and retries remain in the local evidence; they are not erased by these passes.
+The repository remains private while Winston reviews the publication packet.
+
+The November 11 preparation leaves source changes uncommitted: download verification
+instructions and a pinned public-only GitHub attestation step. Private builds skip
+attestation explicitly. A local main-only privacy copy preserves the current source
+tree and verifies the complete rewritten history; the existing remote is untouched.
 
 - Claude publishes health directly when uncontended and uses fixed receipts under
   contention. The 250 ms write budget, 60 ms accounting slice and 64 slots remain.
@@ -54,6 +60,12 @@ cleanup can overcount a loss episode. Neither limit silently drops loss evidence
 
 ## Qualified baseline
 
+Main CI archive `1.0.0-alpha.5` was built from `a9dd93b` by run `42981235766`.
+SHA-256: `202B8887D2451EF29658CF4A6E81826CEF6637020620E5470F3B89FB14FF702E`.
+Clean standard-user Windows 11 build 26100 passed eight groups without developer
+prerequisites. The audio pipeline checks were silent; Winston separately heard
+one actual Codex-to-Kokoro input cue from this exact alpha.5 HUD on November 11.
+
 Private branch archive `1.0.0-alpha.3` was built from `9ab2ed2` by CI run
 `42964842458`. SHA-256:
 `5BEDEAA2C1F5A812485C0C667793315EC8322981B72B49BA267165B4BC1DA6CA`.
@@ -84,9 +96,9 @@ evidence. These results apply to alpha.2, before the Claude 1.0.6 changes.
   observed. A dismissed card has no cancellation signal. After 15 minutes, older
   questions become unconfirmed while retaining identity for late replies.
 - Claude Code and DeepSeek Harness integrations are experimental and read-only.
-  The real Claude 1.0.6 question stayed confirmed for several minutes through the
-  fixed adapter and cleared on answer. Visual HUD confirmation was interrupted by
-  a desktop app-approval timeout. A separate permission/resume check remains open.
+  The exact alpha.5 HUD passed real Claude question/answer and ExitPlanMode
+  approval/resume checks on November 11 with Haiku. Both waiting rows cleared on
+  response; other permission kinds and DSH Desktop attention remain unverified.
 - The Claude Projects observer covers exposed loaded desktop overviews. It is
   bounded and nonactivating. Dedicated worker titles have ID fallbacks. Closed
   views and account-wide worker status remain unknown.
@@ -102,25 +114,25 @@ evidence. These results apply to alpha.2, before the Claude 1.0.6 changes.
 
 Original code, docs and owner-confirmed artwork use MIT. Upstream monitoring
 adaptations and redistributed runtime files retain their notices.
-No code-signing certificate is available. Private candidates are explicitly unsigned.
+Winston selected an unsigned public alpha. No code-signing identity is required for
+this candidate. Download instructions disclose the Windows warning and checksum check.
 Public release, repository visibility, website deployment and announcements need
 Winston's approval.
 
-Winston requested an email privacy plan before public exposure. The plan is in
-[private GitHub staging](PRIVATE_GITHUB_STAGING.md). Older history contains personal
-addresses and workstation paths even though current packaged fixtures are scrubbed.
+The [privacy preparation](PRIVATE_GITHUB_STAGING.md) covers the isolated sanitized
+history and original-to-public mapping, including removal of personal website
+reference images. Older private remote history still contains
+personal addresses and paths; do not expose that repository by changing visibility.
 
 ## Remaining qualification
 
-- Winston authorized commit/push, hosted Verify, merge and a fresh private CI ZIP.
-  Complete the package workflow and clean-Windows qualification on merged main.
-  Package evidence must identify that exact source revision and ZIP hash.
-- Keep the alpha.3 extraction used by the 15 rebound Claude hooks at a stable path.
-  The installer verified 1.0.6, preserved unrelated settings and was idempotent.
-- Finish actual HUD and Claude permission/resume qualification on the final build.
+- The merged-main alpha.5 CI ZIP and clean-Windows qualification are complete.
+  New source/workflow edits need their own review and hosted checks before use.
+- Keep the alpha.5 extraction used by the 15 rebound Claude hooks at a stable path.
+  The installer verified 1.0.7 and its follow-up preview has zero changes.
+- Actual alpha.5 HUD Claude question and plan-approval checks are complete.
   DSH Desktop input and approval remain separate live-host checks.
-- Repeat first launch and composition on the final package in clean Windows.
-  Browser acquisition/SmartScreen and an independent machine remain open.
+- Browser acquisition/SmartScreen and an independent machine remain open.
 - Physical mixed-DPI movement, monitor reconnect, sleep/wake, logon and device
   audio need an available owner session. Record deferrals and actual observations.
 - Resolve history/email exposure and verify public URLs and download hashes after

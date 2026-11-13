@@ -16,6 +16,10 @@ jobs:
   package:
     runs-on: windows-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         shell: pwsh
@@ -55,6 +59,32 @@ jobs:
           Pop-Location
       - name: Package unsigned candidate
         run: ./scripts/Publish-Release.ps1 -OutputDirectory artifacts/ci-package -Version $env:CANDIDATE_VERSION -ArchiveName "OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
+      # Free GitHub attestations require a public repository. Keeping the source
+      # private must never publish its build identity to a transparency service.
+      - name: Attest public candidate ZIP
+        id: provenance
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: artifacts/ci-package/OVERSEER-${{ env.CANDIDATE_VERSION }}-win-x64.zip
+      - name: Record provenance availability
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          ATTESTATION_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          $generated = $env:REPOSITORY_PRIVATE -eq 'false'
+          if ($generated) {
+            if (-not (Test-Path -LiteralPath $env:ATTESTATION_BUNDLE -PathType Leaf)) { throw 'Attestation bundle missing' }
+            Copy-Item -LiteralPath $env:ATTESTATION_BUNDLE -Destination artifacts/ci-package/provenance.sigstore.json
+          }
+          [ordered]@{
+            generated = $generated
+            reason = $(if ($generated) { 'github-build-provenance' } else { 'private-repository-free-plan' })
+            repository = $env:GITHUB_REPOSITORY
+            sourceCommit = $env:GITHUB_SHA
+            archive = "OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
+            windowsCodeSigned = $false
+          } | ConvertTo-Json | Set-Content artifacts/ci-package/attestation-status.json -Encoding utf8
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: overseer-candidate-${{ env.CANDIDATE_VERSION }}-${{ github.sha }}
@@ -62,6 +92,8 @@ jobs:
             artifacts/ci-package/*.zip
             artifacts/ci-package/*.sha256
             artifacts/ci-package/build-manifest.json
+            artifacts/ci-package/attestation-status.json
+            artifacts/ci-package/provenance.sigstore.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 0

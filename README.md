@@ -19,6 +19,9 @@ hash, extract the whole folder, and open **TheOverseer.App.exe**. The ZIP includ
 .NET runtime. [Releases](https://github.com/WinChurchill/the-overseer/releases) ·
 [Package instructions](docs/TESTER_HANDOFF.md#using-an-application-zip)
 
+[Verify a download](docs/RELEASE_VERIFICATION.md) explains checksums and optional
+GitHub build attestations. The alpha remains unsigned.
+
 ### Clone and run
 
 On Windows x64, use Git, PowerShell 7, and the x64 .NET 10 SDK.
