@@ -25,17 +25,23 @@ if (repo && (repo.hostname !== 'github.com' || !/^\/[\w.-]+\/[\w.-]+\/?$/.test(r
 if ([base, repo, download].some(Boolean) && ![base, repo, download].every(Boolean)) throw new Error('A publication build requires all three URLs');
 const draft = !base; const version = args.version ?? '1.0.0-alpha.1';
 if (!/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(version)) throw new Error('Invalid version');
-if (download && (!download.href.startsWith(repo.href.replace(/\/$/, '') + '/releases/download/') || !download.pathname.endsWith(`/OVERSEER-${version}-win-x64.zip`))) throw new Error('Download must be the versioned application ZIP in this repository');
+if (download && (!download.href.startsWith(repo.href.replace(/\/$/, '') + '/releases/download/') || !(download.pathname.endsWith(`/OVERSEER-${version}-win-x64.zip`) || download.pathname.endsWith(`/OVERSEER-${version}-setup.exe`)))) throw new Error('Download must be the versioned setup .exe or application ZIP in this repository');
 if (base && !base.pathname.endsWith('/')) base.pathname += '/';
 
 const e = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const repoUrl = repo?.href.replace(/\/$/, '');
 const zipName = `OVERSEER-${version}-win-x64.zip`;
+const setupName = `OVERSEER-${version}-setup.exe`;
+// A release with a setup .exe links it first and keeps the ZIP as the portable option.
+const hasSetup = !download || download.pathname.endsWith(setupName);
+const zipHref = download ? download.href.replace(/[^/]+$/, zipName) : null;
+const primaryName = hasSetup ? setupName : zipName;
 const arrow = '<span class="arrow" aria-hidden="true">↗</span>';
 const down = '<span class="arrow" aria-hidden="true">↓</span>';
 const downloadLink = download
   ? `<a class="button primary" href="${e(download.href)}"><span>Download for Windows</span><span class="meta">x64 · ${e(version)}</span>${down}</a>`
   : '<span class="button unavailable" aria-disabled="true">Download pending qualification</span>';
+const portableLink = download && hasSetup ? `<a class="button ghost" href="${e(zipHref)}"><span>Portable ZIP</span>${down}</a>` : '';
 const sourceButton = repoUrl ? `<a class="button ghost" href="${e(repoUrl)}"><span>Source on GitHub</span>${arrow}</a>` : '';
 const support = repoUrl
   ? `<a href="${e(repoUrl)}/issues/new/choose">Report a bug</a> · <a href="${e(repoUrl)}/security/advisories/new">Report a vulnerability privately</a>`
@@ -126,32 +132,39 @@ const index = `
 <section class="cta">
   <div class="wrap">
     <h2>Stop checking every terminal<span class="dot">.</span></h2>
-    <div><p>No installer. Extract, run, done. <a href="install.html">Install guide</a></p><div class="actions">${downloadLink}</div></div>
+    <div><p>${hasSetup ? 'One setup file, no admin rights needed.' : 'No installer. Extract, run, done.'} <a href="install.html">Install guide</a></p><div class="actions">${downloadLink}</div></div>
   </div>
 </section>`;
 
 const install = `
-<section class="doc-hero"><div class="wrap"><p class="label tick">Guide / Windows x64</p><h1>Install &amp; troubleshoot<span class="dot">.</span></h1><p class="lead">The app is a self-contained ZIP: no installer, no .NET or Node needed. The optional agent bridges need Node in the agent's own environment.</p></div></section>
+<section class="doc-hero"><div class="wrap"><p class="label tick">Guide / Windows x64</p><h1>Install &amp; troubleshoot<span class="dot">.</span></h1><p class="lead">${hasSetup ? 'Install for your Windows user with one setup file, or use the portable ZIP. No admin rights, .NET or Node needed.' : 'The app is a self-contained ZIP: no installer, no .NET or Node needed.'} The optional agent bridges need Node in the agent's own environment.</p></div></section>
 <div class="wrap doc">
   <nav class="toc" aria-label="On this page"><p class="label">On this page</p><ol><li><a href="#download">Download &amp; check</a></li><li><a href="#run">First run</a></li><li><a href="#sources">Connect sources</a></li><li><a href="#troubleshooting">Troubleshooting</a></li><li><a href="#update">Update &amp; remove</a></li><li><a href="#help">Get help</a></li></ol></nav>
   <div>
     <section id="download"><h2>Download &amp; check</h2>
       <ol class="numbered">
-        <li><span>Download <code>${e(zipName)}</code> and <code>${e(zipName)}.sha256</code>. ${draft ? 'Use the private test handoff until a public release exists.' : 'Use the release assets, not GitHub\'s source-code ZIP.'}</span></li>
+        <li><span>Download <code>${e(primaryName)}</code> and <code>${e(primaryName)}.sha256</code>${hasSetup ? `, or <code>${e(zipName)}</code> for the portable version` : ''}. ${draft ? 'Use the private test handoff until a public release exists.' : 'Use the release assets, not GitHub\'s source-code ZIP.'}</span></li>
         <li><span>In PowerShell, in the download folder, print the hash and compare it with the <code>.sha256</code> file:</span></li>
       </ol>
-      <pre><code>Get-FileHash .\\${e(zipName)} -Algorithm SHA256</code></pre>
+      <pre><code>Get-FileHash .\\${e(primaryName)} -Algorithm SHA256</code></pre>
       <p>With the GitHub CLI you can also check where it was built:</p>
-      <pre><code>gh attestation verify ${e(zipName)} --repo ${e(repoUrl ? repoUrl.replace('https://github.com/', '') : 'OWNER/REPO')}</code></pre>
+      <pre><code>gh attestation verify ${e(primaryName)} --repo ${e(repoUrl ? repoUrl.replace('https://github.com/', '') : 'OWNER/REPO')}</code></pre>
       <p class="note"><strong>Unsigned</strong>This alpha is not code-signed, so Windows may show an unknown-publisher or SmartScreen warning. Keep Windows protections on; if it is blocked, report it.</p>
-      <div class="actions">${downloadLink}</div>
+      <div class="actions">${downloadLink}${portableLink}</div>
     </section>
     <section id="run"><h2>First run</h2>
+      ${hasSetup ? `<ol class="numbered">
+        <li><span>Run <code>${e(setupName)}</code>. It installs for your Windows user only, into <code>%LOCALAPPDATA%\\Programs\\OVERSEER</code>, with no admin prompt, and adds OVERSEER to the Start menu.</span></li>
+        <li><span>Leave <strong>Launch OVERSEER</strong> ticked on the last page, or start it from the Start menu.</span></li>
+        <li><span>Open <strong>⋯ → Projects &amp; sources…</strong> to choose what to watch. The coverage indicator shows what it can see.</span></li>
+        <li><span>Voice starts muted. Open <strong>⋯ → Light &amp; voice…</strong>, preview the included Kokoro voice, then unmute.</span></li>
+      </ol>
+      <h3>Portable ZIP</h3>` : ''}
       <ol class="numbered">
         <li><span>Extract the whole ZIP into a new, empty folder you own, for example under <code>%LOCALAPPDATA%\\Programs</code>. Don't extract it loose into Downloads: Windows can load a stray DLL sitting next to the app.</span></li>
         <li><span>Run <code>TheOverseer.App.exe</code> as a normal user.</span></li>
-        <li><span>Open <strong>⋯ → Projects &amp; sources…</strong> to choose what to watch. The coverage indicator shows what it can see.</span></li>
-        <li><span>Voice starts muted. Open <strong>⋯ → Light &amp; voice…</strong>, preview the included Kokoro voice, then unmute.</span></li>
+        ${hasSetup ? '' : `<li><span>Open <strong>⋯ → Projects &amp; sources…</strong> to choose what to watch. The coverage indicator shows what it can see.</span></li>
+        <li><span>Voice starts muted. Open <strong>⋯ → Light &amp; voice…</strong>, preview the included Kokoro voice, then unmute.</span></li>`}
       </ol>
       <p>Tested target: Windows x64. ARM64, x86, macOS and Linux are not supported yet.</p>
     </section>
@@ -174,6 +187,9 @@ const install = `
       <details><summary>Windows blocks the app</summary><p>Note the exact warning or policy and report it. Don't turn off Windows protections to get past it.</p></details>
     </section>
     <section id="update"><h2>Update &amp; remove</h2>
+      ${hasSetup ? `<p><strong>Update (setup):</strong> run the new setup file. It closes OVERSEER, replaces the files in the same folder and keeps your settings, history, startup entry and Claude Code hooks working.</p>
+      <p><strong>Remove (setup):</strong> uninstall OVERSEER from Windows Settings → Apps. It offers to remove its Claude Code hooks and turns off its startup entry. Your saved data in <code>%LOCALAPPDATA%\\OVERSEER</code> is kept; delete it yourself if you want it gone.</p>
+      <h3>Portable ZIP</h3>` : ''}
       <p><strong>Update:</strong> Exit, back up <code>%LOCALAPPDATA%\\OVERSEER</code>, extract the new version into a new folder, then fix startup and bridge paths. Keep the old folder and backup until you're happy.</p>
       <p><strong>Roll back:</strong> Exit, restore the backup and start the old copy.</p>
       <p><strong>Remove:</strong> turn off startup, uninstall any hooks or plugins, Exit, and delete the app folder. Deleting saved data is optional; your other host settings stay untouched.</p>

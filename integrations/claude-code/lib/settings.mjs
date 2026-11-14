@@ -206,7 +206,14 @@ export function planInstall(settings, { bridgePath, events }) {
  * Plan an uninstall. Removes only handlers carrying the OVERSEER marker.
  * Returns { data, removed, unremovable }.
  */
-export function planUninstall(settings) {
+export function planUninstall(settings, { bridgePath = null } = {}) {
+  if (bridgePath !== null && (typeof bridgePath !== 'string' || !bridgePath.trim() || !path.isAbsolute(bridgePath))) {
+    return { error: { code: 'invalid-bridge-path', message: 'a scoped uninstall requires an absolute bridge path' } };
+  }
+  const normalize = value => process.platform === 'win32' ? path.normalize(value).toLowerCase() : path.normalize(value);
+  const selected = handler => isOwnedHandler(handler) && (bridgePath === null ||
+    (Array.isArray(handler.args) && typeof handler.args[0] === 'string' && path.isAbsolute(handler.args[0]) &&
+      normalize(handler.args[0]) === normalize(bridgePath)));
   const section = hooksSection(settings.data);
   if (!section.ok) return { error: { code: 'hooks-not-an-object', message: section.message } };
 
@@ -230,19 +237,20 @@ export function planUninstall(settings) {
       const handlers = handlersOfGroup(group);
       if (!handlers) {
         // A bare handler written directly into the event array.
-        if (isOwnedHandler(group)) {
+        if (selected(group)) {
           removed.push(`hooks.${event}[${g}]: OVERSEER handler`);
           continue;
         }
-        if (JSON.stringify(group).includes(MARKER)) {
+        if (!isOwnedHandler(group) && JSON.stringify(group).includes(MARKER)) {
           unremovable.push(`hooks.${event}[${g}]: unrecognized OVERSEER entry, left untouched`);
         }
         keptGroups.push(group);
         continue;
       }
-      const keptHandlers = handlers.filter((handler) => !isOwnedHandler(handler));
+      const keptHandlers = handlers.filter((handler) => !selected(handler));
       const removedHere = handlers.length - keptHandlers.length;
       for (let i = 0; i < removedHere; i++) removed.push(`hooks.${event}[${g}].hooks: OVERSEER handler`);
+      if (removedHere === 0) { keptGroups.push(group); continue; }
       if (keptHandlers.length === 0) continue; // drop the now-empty group
       if (removedHere > 0) group.hooks = keptHandlers;
       keptGroups.push(group);

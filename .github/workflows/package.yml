@@ -59,14 +59,38 @@ jobs:
           Pop-Location
       - name: Package unsigned candidate
         run: ./scripts/Publish-Release.ps1 -OutputDirectory artifacts/ci-package -Version $env:CANDIDATE_VERSION -ArchiveName "OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
+      # Inno Setup is pinned by version and SHA-256 and must carry a valid
+      # Authenticode signature from its publisher before it runs.
+      - name: Install Inno Setup 6.7.4
+        env:
+          INNO_URL: https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe
+          INNO_SHA256: A549929319F9120716677C685535CA4671E4B937B5FDC87E2585F32D8EB30E8C
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.4.exe'
+          Invoke-WebRequest -Uri $env:INNO_URL -OutFile $setup
+          if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash -ne $env:INNO_SHA256) { throw 'Inno Setup hash mismatch' }
+          $signature = Get-AuthenticodeSignature -LiteralPath $setup
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Pyrsys B\.V\.') { throw 'Inno Setup signature check failed' }
+          $dir = Join-Path $env:RUNNER_TEMP 'innosetup'
+          $p = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/PORTABLE=1',"/DIR=`"$dir`"" -Wait -PassThru
+          if ($p.ExitCode) { throw "Inno Setup install failed: $($p.ExitCode)" }
+          "OVERSEER_ISCC=$(Join-Path $dir 'ISCC.exe')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build per-user installer from the ZIP
+        run: ./scripts/Build-Installer.ps1 -ArchivePath "artifacts/ci-package/OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
+      # The runner has no display session, so the running-app close check is
+      # left to the local package qualification.
+      - name: Test installer
+        run: ./scripts/Test-Installer.ps1 -InstallerPath "artifacts/ci-package/OVERSEER-$env:CANDIDATE_VERSION-setup.exe" -ArchivePath "artifacts/ci-package/OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip" -EvidenceDirectory artifacts/ci-package/installer-test -SkipRunningAppCheck
       # Free GitHub attestations require a public repository. Keeping the source
       # private must never publish its build identity to a transparency service.
-      - name: Attest public candidate ZIP
+      - name: Attest public candidate ZIP and installer
         id: provenance
         if: ${{ !github.event.repository.private }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
-          subject-path: artifacts/ci-package/OVERSEER-${{ env.CANDIDATE_VERSION }}-win-x64.zip
+          subject-path: |
+            artifacts/ci-package/OVERSEER-${{ env.CANDIDATE_VERSION }}-win-x64.zip
+            artifacts/ci-package/OVERSEER-${{ env.CANDIDATE_VERSION }}-setup.exe
       - name: Record provenance availability
         env:
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
@@ -83,6 +107,7 @@ jobs:
             repository = $env:GITHUB_REPOSITORY
             sourceCommit = $env:GITHUB_SHA
             archive = "OVERSEER-$env:CANDIDATE_VERSION-win-x64.zip"
+            installer = "OVERSEER-$env:CANDIDATE_VERSION-setup.exe"
             windowsCodeSigned = $false
           } | ConvertTo-Json | Set-Content artifacts/ci-package/attestation-status.json -Encoding utf8
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -90,8 +115,11 @@ jobs:
           name: overseer-candidate-${{ env.CANDIDATE_VERSION }}-${{ github.sha }}
           path: |
             artifacts/ci-package/*.zip
+            artifacts/ci-package/*-setup.exe
             artifacts/ci-package/*.sha256
             artifacts/ci-package/build-manifest.json
+            artifacts/ci-package/installer-manifest.json
+            artifacts/ci-package/installer-test/installer-results.json
             artifacts/ci-package/attestation-status.json
             artifacts/ci-package/provenance.sigstore.json
           if-no-files-found: error
