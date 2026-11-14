@@ -17,3 +17,4 @@ Do not include private titles, paths, prompts, logs or credentials.
 - [ ] Required checks pass, or failures/deferrals are explicitly described.
 - [ ] Documentation and upstream notices match the final behavior.
 - [ ] Commits use the contributing human's own verified identity.
+- [ ] No AI tool is listed as a commit co-author.

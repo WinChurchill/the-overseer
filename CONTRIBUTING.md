@@ -68,11 +68,32 @@ Do not commit artifacts, logs, credentials or private session data. Run the requ
 build/tests and leave the branch ready for review; main requires review before merge.
 
 Agents leave changes uncommitted: Winston handles commits and pushes. Human
-contributors commit with their own verified GitHub identity. Codex, Claude,
-DeepSeek and other AI tools are assistance, not separate commit authors or
-co-authors. Do not guess who contributed from their choice of AI tool. Winston's
-work uses WinChurchill; another person must use their own identity. Preserve
-third-party notices and genuine human attribution.
+contributors commit with their own verified GitHub identity. Winston's work uses
+WinChurchill; another person must use their own identity. Preserve third-party
+notices and genuine human attribution.
+
+### AI-assisted changes
+
+Use whatever tools help you, AI included; you do not need to say which. The person
+who commits is the author and is responsible for the change. Codex, Claude,
+DeepSeek and other AI tools are never commit authors or co-authors, so that each
+contribution stays credited to the person who made it. Do not guess who
+contributed from their choice of tool.
+
+- Do not add `Co-authored-by:` lines for an AI tool. Many tools add one by
+  default, and GitHub then lists the tool as a contributor on your work and on
+  everyone else's. The **Commit metadata** check fails a pull request that has
+  one. `Co-authored-by:` stays available for people who co-wrote a change.
+- This repository's `.claude/settings.json` turns off Claude Code's co-author line.
+  If your own settings bring it back, set `attribution.commit` to `""`. Turn off
+  the equivalent option in other tools.
+- An `Assisted-by: <tool>` trailer is optional and never required.
+
+To fix a flagged commit on your branch, reword it (for example `git commit --amend`
+or an interactive rebase), delete the line, and force-push your own branch.
+
+OVERSEER was built with help from Claude Code; that is acknowledged once in the
+README and on the website rather than in every commit.
 
 ## Code map and fixtures
 
