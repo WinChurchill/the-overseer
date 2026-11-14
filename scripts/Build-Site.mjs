@@ -45,7 +45,7 @@ const support = repoUrl
 const markers = [[34, 9.5], [62, 14], [30.5, 30.6], [29.5, 47.5], [98.75, 72]];
 const pins = markers.map(([x, y], i) => `<span class="marker" style="left:${x}%;top:${y}%" aria-hidden="true">${i + 1}</span>`).join('');
 
-const hudShot = (alt, eager) => `<img class="img-dark" src="assets/hud-window-dark.png" width="1440" height="1100" alt="${alt}"${eager ? ' fetchpriority="high"' : ' loading="lazy"'}><img class="img-light" src="assets/hud-window-light.png" width="1440" height="1100" alt="${alt}" loading="lazy">`;
+const hudShot = (alt, eager) => `<img class="img-dark" src="assets/hud-window-dark.png" width="1440" height="1100" alt="${alt}"${eager ? ' fetchpriority="high"' : ' loading="lazy"'}><img class="img-light" src="assets/hud-window-light.png" width="1440" height="1100" alt="${alt}"${eager ? '' : ' loading="lazy"'}>`;
 
 const index = `
 <section class="hero">
@@ -116,8 +116,8 @@ const index = `
     <p class="bar-note">Thanks to the testers whose feedback shaped every alpha.</p>
     <div class="people">
       <a class="person lead-person notch" href="https://github.com/WinChurchill"><span class="initials" aria-hidden="true">WL</span><span><h3>Winston Lin</h3><span class="label">Creator · maintainer</span></span>${arrow}</a>
-      <a class="person" href="https://github.com/lanbodikai"><span class="initials" aria-hidden="true">LB</span><span><h3>lanbodikai</h3><span class="label">Tester · feedback</span></span>${arrow}</a>
-      <a class="person" href="https://github.com/qinyif001"><span class="initials" aria-hidden="true">QY</span><span><h3>qinyif001</h3><span class="label">Tester · feedback</span></span>${arrow}</a>
+      <a class="person" href="https://github.com/lanbodikai"><span class="initials" aria-hidden="true">LB</span><span><h3>lanbodikai</h3><span class="label">Contributor · tester</span></span>${arrow}</a>
+      <a class="person" href="https://github.com/qinyif001"><span class="initials" aria-hidden="true">QY</span><span><h3>qinyif001</h3><span class="label">Contributor · tester</span></span>${arrow}</a>
     </div>
     <p class="credits-line">Built on <a href="https://github.com/LH-03/codex-monitor-hud">codex-monitor-hud</a> by LH-03 (MIT) · voice cues recorded with <a href="https://huggingface.co/hexgrad/Kokoro-82M">Kokoro</a>${repoUrl ? ` · <a href="${e(repoUrl)}/blob/main/CONTRIBUTING.md">Contribute</a>` : ''}</p>
   </div>
