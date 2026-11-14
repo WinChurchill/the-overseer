@@ -14,10 +14,12 @@ tasks need input, and what happened recently. Optional voice cues announce chang
 
 ## Run the app
 
-For a published build, download the Windows x64 app ZIP and its checksum, verify the
-hash, extract the whole ZIP into a new folder of its own (not loose into Downloads),
-and open **TheOverseer.App.exe**. The ZIP includes its
-.NET runtime. [Releases](https://github.com/WinChurchill/the-overseer/releases) ·
+For a published build, download **OVERSEER-<version>-setup.exe** and its checksum,
+verify the hash, and run it. It installs for your Windows user only (no admin prompt)
+into `%LOCALAPPDATA%\Programs\OVERSEER` and adds a Start-menu entry; running a newer
+setup upgrades in place. Prefer no installer? Use the portable ZIP: extract the whole
+ZIP into a new folder of its own (not loose into Downloads) and open
+**TheOverseer.App.exe**. Both include the .NET runtime. [Releases](https://github.com/WinChurchill/the-overseer/releases) ·
 [Package instructions](docs/TESTER_HANDOFF.md#using-an-application-zip)
 
 [Verify a download](docs/RELEASE_VERIFICATION.md) explains checksums and optional

@@ -2,6 +2,12 @@
 
 ## Unreleased — publication alpha candidate
 
+- Add a per-user setup .exe built from the release ZIP's exact files. It installs
+  into `%LOCALAPPDATA%\Programs\OVERSEER` without admin rights, adds a Start-menu
+  entry and an uninstaller, and upgrades in place so startup and Claude Code hook
+  paths stay valid. The ZIP remains the portable option.
+- Strip control, zero-width and text-direction characters from displayed titles
+  and project names; add a threat model to SECURITY.md.
 - Show dedicated Claude Projects worker titles with stable IDs and a bounded
   fallback; title changes do not change task state, timers or notifications.
 - Prepare alpha-version packaging for manual publication qualification.

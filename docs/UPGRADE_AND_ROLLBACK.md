@@ -4,7 +4,21 @@ The automated upgrade evidence comes from `scripts/Test-ReleaseUpgrade.ps1` and
 applies to the archive pair it tested. Manual update/removal steps are below;
 the check's limits are listed under "Not verified".
 
-## Supported upgrade path
+## Upgrading an installed copy (setup .exe)
+
+Run the newer `OVERSEER-<version>-setup.exe`. It closes a running OVERSEER that was
+started from the install folder, replaces the files in that same folder (removing files
+the old version shipped but the new one does not), and leaves the data directory alone.
+Because the folder does not change, the startup entry and Claude Code hook paths keep
+working; there is nothing to re-point. Back up the data directory first if you want a
+rollback point. To roll back, run the older setup file over it (an in-place
+downgrade is not tested) or uninstall and install the older version.
+
+`scripts/Test-Installer.ps1` checks install, in-place upgrade, upgrade over a running
+copy and uninstall against the exact release ZIP. It refuses to run when OVERSEER is
+already installed for the current user.
+
+## Supported upgrade path (portable ZIP)
 
 1. Stop OVERSEER.
 2. Back up the data directory: copy `%LOCALAPPDATA%\OVERSEER` (or the directory passed to
@@ -111,6 +125,13 @@ no uninstaller and no in-place downgrade, so keep the old folder until the new v
 accepted.
 
 ## Uninstall
+
+**Setup .exe:** uninstall OVERSEER from Windows Settings → Apps. If Claude Code still
+has hooks pointing at the install folder, the uninstaller offers to remove them with the
+bridge's own uninstaller (only OVERSEER's entries, with a settings backup). It removes
+the startup entry only when it points at that folder. The data directory is kept.
+
+**Portable ZIP:**
 
 1. If enabled, turn off **Start with Windows** in **Light & voice…**; settings save automatically.
 2. Remove installed bridge hooks/plugins using the [integration guides](../integrations/README.md)
