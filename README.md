@@ -15,7 +15,8 @@ tasks need input, and what happened recently. Optional voice cues announce chang
 ## Run the app
 
 For a published build, download the Windows x64 app ZIP and its checksum, verify the
-hash, extract the whole folder, and open **TheOverseer.App.exe**. The ZIP includes its
+hash, extract the whole ZIP into a new folder of its own (not loose into Downloads),
+and open **TheOverseer.App.exe**. The ZIP includes its
 .NET runtime. [Releases](https://github.com/WinChurchill/the-overseer/releases) ·
 [Package instructions](docs/TESTER_HANDOFF.md#using-an-application-zip)
 

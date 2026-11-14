@@ -61,6 +61,14 @@ public sealed record ProjectDescriptor(
     ProjectResolution Resolution,
     string? CheckoutLabel = null)
 {
+    /// <summary>Folder-derived name, cleaned of invisible characters before display.</summary>
+    private readonly string _displayName = DisplayText.Clean(DisplayName);
+    private readonly string? _checkoutLabel = CheckoutLabel is null ? null : DisplayText.Clean(CheckoutLabel);
+
+    public string DisplayName { get => _displayName; init => _displayName = DisplayText.Clean(value); }
+
+    public string? CheckoutLabel { get => _checkoutLabel; init => _checkoutLabel = value is null ? null : DisplayText.Clean(value); }
+
     public static ProjectDescriptor UnassignedProject { get; } = new(
         ProjectId.Unassigned,
         "Unassigned",

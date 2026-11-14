@@ -148,7 +148,7 @@ const install = `
     </section>
     <section id="run"><h2>First run</h2>
       <ol class="numbered">
-        <li><span>Extract the whole ZIP into a folder you own, for example under <code>%LOCALAPPDATA%\\Programs</code>.</span></li>
+        <li><span>Extract the whole ZIP into a new, empty folder you own, for example under <code>%LOCALAPPDATA%\\Programs</code>. Don't extract it loose into Downloads: Windows can load a stray DLL sitting next to the app.</span></li>
         <li><span>Run <code>TheOverseer.App.exe</code> as a normal user.</span></li>
         <li><span>Open <strong>⋯ → Projects &amp; sources…</strong> to choose what to watch. The coverage indicator shows what it can see.</span></li>
         <li><span>Voice starts muted. Open <strong>⋯ → Light &amp; voice…</strong>, preview the included Kokoro voice, then unmute.</span></li>

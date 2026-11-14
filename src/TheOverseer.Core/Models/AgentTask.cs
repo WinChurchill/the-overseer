@@ -121,5 +121,5 @@ public sealed record AgentTask(
     public bool IsWaitingOnHuman => State is AgentTaskState.NeedsInput or AgentTaskState.NeedsApproval;
 
     /// <summary>Safe short display label; never conversation text.</summary>
-    public string DisplayLabel => string.IsNullOrWhiteSpace(Label) ? string.Empty : Label;
+    public string DisplayLabel => string.IsNullOrWhiteSpace(Label) ? string.Empty : DisplayText.Clean(Label);
 }
