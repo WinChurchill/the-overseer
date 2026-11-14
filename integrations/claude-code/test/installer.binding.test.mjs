@@ -8,6 +8,7 @@ import {
   BRIDGE_PATH,
   INSTALL_PATH,
   INTEGRATION_ROOT,
+  LOGICAL_CLOCK_URL,
   fixture,
   listBackups,
   readRecords,
@@ -107,7 +108,13 @@ function invokeRecordedHandler(handler, spoolRoot) {
     encoding: 'utf8',
     timeout: 20000,
     windowsHide: true,
-    env: { ...process.env, OVERSEER_SPOOL_ROOT: spoolRoot },
+    // The recorded command line runs unchanged; only its deadlines use the
+    // logical clock so a loaded runner cannot expire a hook's budget.
+    env: {
+      ...process.env,
+      OVERSEER_SPOOL_ROOT: spoolRoot,
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${LOGICAL_CLOCK_URL}`].filter(Boolean).join(' '),
+    },
   });
 
   const instanceFile = path.join(spoolRoot, 'claude', 'instance.json');

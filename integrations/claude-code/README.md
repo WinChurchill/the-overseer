@@ -73,6 +73,7 @@ this bridge degrades to `evidence: "unknown"` rather than guessing.
 | `install.mjs` | preview-by-default opt-in installer |
 | `uninstall.mjs` | preview-by-default remover, scoped to OVERSEER-owned entries |
 | `lib/testkit.mjs` | test-only helpers; never imported by the hook path |
+| `lib/logical-clock.mjs` | test-only `--import` preload: bridge deadlines count clock reads, not wall time, so accounting tests do not depend on CPU scheduling |
 | `test/` | `node --test` suite (real child processes, temp directories) |
 | `fixtures/` | sanitized synthetic payloads, one per supported event |
 | `README.md`, `NOTICE.md` | this document and attribution |
