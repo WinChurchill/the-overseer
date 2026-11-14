@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readHealth } from './spool.mjs';
 
 export const INTEGRATION_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,6 +18,7 @@ export const BRIDGE_PATH = path.join(INTEGRATION_ROOT, 'bridge.mjs');
 export const INSTALL_PATH = path.join(INTEGRATION_ROOT, 'install.mjs');
 export const UNINSTALL_PATH = path.join(INTEGRATION_ROOT, 'uninstall.mjs');
 export const FIXTURES_DIR = path.join(INTEGRATION_ROOT, 'fixtures');
+export const LOGICAL_CLOCK_URL = pathToFileURL(path.join(INTEGRATION_ROOT, 'lib', 'logical-clock.mjs')).href;
 
 export function tempDir(prefix = 'overseer-cc-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -44,6 +45,7 @@ export function fixtureNames() {
  *   input        string or Buffer written immediately
  *   endStdin     true (default) closes stdin after the write
  *   keepStdinOpen keeps the pipe open until the process ends (deadline test)
+ *   nodeArgs     extra Node options placed before the script
  */
 export function runNode(scriptPath, args = [], options = {}) {
   const {
@@ -52,11 +54,12 @@ export function runNode(scriptPath, args = [], options = {}) {
     endStdin = true,
     timeoutMs = 20000,
     cwd = INTEGRATION_ROOT,
+    nodeArgs = [],
   } = options;
 
   return new Promise((resolve) => {
     const started = Date.now();
-    const child = spawn(process.execPath, [scriptPath, ...args], {
+    const child = spawn(process.execPath, [...nodeArgs, scriptPath, ...args], {
       cwd,
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -95,9 +98,16 @@ export function runNode(scriptPath, args = [], options = {}) {
   });
 }
 
+/**
+ * Run the bridge once. By default its deadlines use the logical clock in
+ * lib/logical-clock.mjs so accounting outcomes do not depend on CPU scheduling.
+ * Pass `clock: 'wall'` when the test asserts real elapsed time.
+ */
 export function runBridge(payload, options = {}) {
   const input = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  return runNode(BRIDGE_PATH, [], { ...options, input });
+  const { clock = 'logical', nodeArgs = [], ...rest } = options;
+  const clockArgs = clock === 'wall' ? [] : ['--import', LOGICAL_CLOCK_URL];
+  return runNode(BRIDGE_PATH, [], { ...rest, nodeArgs: [...clockArgs, ...nodeArgs], input });
 }
 
 export function instanceDirectory(spoolRoot, env = {}) {

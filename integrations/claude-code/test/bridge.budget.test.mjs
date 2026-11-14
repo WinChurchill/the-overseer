@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { BRIDGE_PATH, fixture, instanceDirectory, readHealthJson, readLines, removeDir, runBridge, runNode, tempDir } from '../lib/testkit.mjs';
+import { BRIDGE_PATH, INTEGRATION_ROOT, fixture, instanceDirectory, readHealthJson, readLines, removeDir, runBridge, runNode, tempDir } from '../lib/testkit.mjs';
 import { beginHealthAccounting, bumpHealth, Deadline, HEALTH_RECEIPT_SLOTS, readHealth } from '../lib/spool.mjs';
 import { randomUUID } from 'node:crypto';
 
@@ -162,19 +162,7 @@ test('concurrent dropped writers remain accounted while the health lock is held'
   assert.equal((await runBridge(fixture('stop.json'), { env })).status, 0);
   const dir = instanceDirectory(root);
   for (const name of ['events.lock', 'health.lock']) fs.writeFileSync(path.join(dir, name), 'owned lock\n');
-  // Nine processes starting at once can starve one another of CPU on a hosted
-  // runner, so a wall-clock health slice may legitimately expire and report
-  // incomplete accounting. Count budget in clock reads instead: the event-lock
-  // wait still exhausts, but receipt publication no longer depends on scheduling.
-  const worker = path.join(root, 'logical-clock.mjs');
-  fs.writeFileSync(worker, `
-const start = Date.now();
-let reads = 0;
-Date.now = () => start + reads++;
-await import(${JSON.stringify(pathToFileURL(BRIDGE_PATH).href)});
-`);
-  const input = JSON.stringify(fixture('pre-tool-use.json'));
-  const results = await Promise.all(Array.from({ length: 9 }, () => runNode(worker, [], { env, input })));
+  const results = await Promise.all(Array.from({ length: 9 }, () => runBridge(fixture('pre-tool-use.json'), { env })));
   for (const result of results) {
     assert.equal(result.status, 0);
     assert.equal(result.stdout, '');
@@ -685,11 +673,32 @@ test('a drop remains accounted when both the event and health locks are held', a
     fs.writeFileSync(path.join(dir, name), 'held by this regression\n', { flag: 'wx' });
   }
 
+  // Real elapsed time is checked in a separate wall-clock spool, where a loaded
+  // runner may legitimately exhaust the accounting slice. The drop must still be
+  // counted or reported as incomplete; exact accounting is asserted below.
+  const timedRoot = tempDir();
+  t.after(() => removeDir(timedRoot));
+  const timedEnv = { OVERSEER_SPOOL_ROOT: timedRoot };
+  assert.equal((await runBridge(fixture('stop.json'), { env: timedEnv })).status, 0);
+  const timedDir = instanceDirectory(timedRoot);
+  for (const name of ['events.lock', 'health.lock']) {
+    fs.writeFileSync(path.join(timedDir, name), 'held by this regression\n', { flag: 'wx' });
+  }
+  const timed = await runBridge(fixture('pre-tool-use.json'), { env: timedEnv, clock: 'wall' });
+  assert.equal(timed.status, 0, 'lock contention must fail open');
+  assert.equal(timed.stdout, '');
+  assert.equal(timed.timedOut, false);
+  assert.ok(timed.durationMs < 2000, 'must not wait for the held locks to become stale');
+  assert.equal(readLines(timedDir).length, 1, 'the blocked event must not be appended');
+  const timedHealth = readHealth(timedDir);
+  assert.ok(timedHealth.counters.droppedLockTimeout === 1 || timedHealth.accountingIncomplete === true,
+    'a wall-clock drop is counted or reported as incomplete, never silent');
+
+  // Exact accounting runs on the default logical clock.
   const blocked = await runBridge(fixture('pre-tool-use.json'), { env });
   assert.equal(blocked.status, 0, 'lock contention must fail open');
   assert.equal(blocked.stdout, '');
   assert.equal(blocked.timedOut, false);
-  assert.ok(blocked.durationMs < 2000, 'must not wait for the held locks to become stale');
   assert.equal(readLines(dir).length, 1, 'the blocked event must not be appended');
   assert.equal(readHealth(dir).counters.droppedLockTimeout, 1,
     'the drop must remain visible while health.lock is still held');
@@ -713,14 +722,17 @@ test('slow identity acquisition reserves time to account for a contended writer 
   const dir = instanceDirectory(root);
   fs.writeFileSync(path.join(dir, 'events.lock'), 'synthetic held lock');
   const worker = path.join(root, 'slow-acquisition.mjs');
+  // Charge the 110 ms stall to the logical clock: a real sleep plus CPU
+  // starvation on a loaded runner could consume the reserved accounting slice.
   fs.writeFileSync(worker, `
 import fs from 'node:fs';
+import { advanceLogicalClock } from ${JSON.stringify(pathToFileURL(path.join(INTEGRATION_ROOT, 'lib', 'logical-clock.mjs')).href)};
 const original = fs.mkdirSync;
 let delayed = false;
 fs.mkdirSync = (...args) => {
   if (!delayed && String(args[0]).replaceAll('\\\\', '/').endsWith('/claude')) {
     delayed = true;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 110);
+    advanceLogicalClock(110);
   }
   return original(...args);
 };

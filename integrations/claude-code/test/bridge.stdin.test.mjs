@@ -28,7 +28,7 @@ test('stalled stdin hits the 2 s deadline: exit 0, empty stdout, no record', asy
   t.after(() => removeDir(spool));
 
   const partial = '{"session_id":"fixture-stall","hook_event_name":"Stop"';
-  const result = await runBridge(partial, { env: spoolEnv(spool), endStdin: false, timeoutMs: 20000 });
+  const result = await runBridge(partial, { env: spoolEnv(spool), endStdin: false, timeoutMs: 20000, clock: 'wall' });
 
   assert.equal(result.status, 0);
   assert.equal(result.stdout, '');

@@ -126,11 +126,29 @@ test('a held writer lock is abandoned inside the 250 ms write budget', async (t)
   const lockPath = path.join(dir, 'events.lock');
   fs.writeFileSync(lockPath, 'held by the test\n', 'utf8');
 
+  // Real elapsed time is checked in a separate wall-clock spool, where a loaded
+  // runner may legitimately exhaust the accounting slice. That run must still
+  // drop the record and either count it or report incomplete accounting.
+  const timedSpool = tempDir();
+  t.after(() => removeDir(timedSpool));
+  const timedEnv = spoolEnv(timedSpool);
+  assert.equal((await runBridge(fixture('stop.json'), { env: timedEnv })).status, 0);
+  const timedDir = instanceDirectory(timedSpool);
+  fs.writeFileSync(path.join(timedDir, 'events.lock'), 'held by the test\n', 'utf8');
+  const timed = await runBridge(fixture('pre-tool-use.json'), { env: timedEnv, clock: 'wall' });
+  assert.equal(timed.status, 0, 'a contended spool still fails open');
+  assert.equal(timed.stdout, '');
+  assert.ok(timed.durationMs >= 150, 'expected the bridge to wait for the lock, took ' + timed.durationMs + ' ms');
+  assert.ok(timed.durationMs < 2000, 'the write budget must bound the wait, took ' + timed.durationMs + ' ms');
+  assert.equal(readLines(timedDir).length, 1, 'the record is dropped rather than queued');
+  const timedHealth = readHealthJson(timedDir);
+  assert.ok(timedHealth.counters.droppedLockTimeout === 1 || timedHealth.accountingIncomplete === true,
+    'a wall-clock drop is counted or reported as incomplete, never silent');
+
+  // Exact accounting runs on the default logical clock.
   const blocked = await runBridge(fixture('pre-tool-use.json'), { env });
   assert.equal(blocked.status, 0, 'a contended spool still fails open');
   assert.equal(blocked.stdout, '');
-  assert.ok(blocked.durationMs >= 150, 'expected the bridge to wait for the lock, took ' + blocked.durationMs + ' ms');
-  assert.ok(blocked.durationMs < 2000, 'the write budget must bound the wait, took ' + blocked.durationMs + ' ms');
   assert.equal(readLines(dir).length, 1, 'the record is dropped rather than queued');
   assert.equal(readHealthJson(dir).counters.droppedLockTimeout, 1, 'the drop is counted');
 
