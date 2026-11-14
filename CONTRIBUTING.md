@@ -59,7 +59,9 @@ reads/storage, truthful source failure, privacy, voice deduplication and shared 
 layout. Codex approvals remain Unsupported. Do not copy the upstream HUD presentation.
 The V1 specification is frozen; discuss a feature's scope before implementing it.
 
-Use one branch per change. Describe the trigger, behavior change, meaningful tests
+Follow the [code of conduct](CODE_OF_CONDUCT.md). Fork the repository, or use a
+branch if you have write access; `main` accepts changes through pull requests and
+the Verify check must pass. Use one branch per change. Describe the trigger, behavior change, meaningful tests
 and remaining limits in your pull request. Use synthetic fixtures. Retain upstream
 notices and license new original contributions under this repository's MIT license.
 Do not commit artifacts, logs, credentials or private session data. Run the required

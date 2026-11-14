@@ -1,8 +1,8 @@
 # Security reporting
 
-Use [GitHub private vulnerability reporting](https://github.com/WinChurchill/the-overseer/security/advisories/new)
-when it is available. If you received a private test build, use the channel
-that supplied it. Keep sensitive findings out of public issues.
+Use [GitHub private vulnerability reporting](https://github.com/WinChurchill/the-overseer/security/advisories/new).
+If you received a private test build, you can also use the channel that supplied
+it. Keep sensitive findings out of public issues.
 
 Describe the affected version/hash, impact, minimal reproduction and relevant reason
 codes. Use synthetic data and redact credentials and personal information.

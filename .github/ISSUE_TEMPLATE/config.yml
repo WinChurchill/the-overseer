@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/WinChurchill/the-overseer/security/advisories/new
+    about: Report security issues privately. Do not open a public issue.
+  - name: Install and troubleshooting guide
+    url: https://winchurchill.github.io/the-overseer/install.html
+    about: Setup steps and fixes for common problems such as limited coverage or no sound.

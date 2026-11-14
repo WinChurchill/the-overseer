@@ -4,7 +4,7 @@ title: "[Bug]: "
 body:
   - type: markdown
     attributes:
-      value: "For security issues use Security → Report a vulnerability after that private route is enabled. Never attach raw sessions, credentials or full settings."
+      value: "For security issues use Security → Report a vulnerability, not a public issue. Never attach raw sessions, credentials or full settings."
   - type: input
     id: identity
     attributes:

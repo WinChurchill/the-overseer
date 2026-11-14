@@ -105,7 +105,7 @@ const index = `
       <article class="row"><span class="num">01</span><div><h3>Codex</h3><p>Found automatically. Approval prompts not detected.</p></div><span class="tag on">Automatic</span></article>
       <article class="row"><span class="num">02</span><div><h3>Claude Code</h3><p>Included hooks. Questions and plan approvals; other permission prompts unverified.</p></div><span class="tag">Experimental</span></article>
       <article class="row"><span class="num">03</span><div><h3>Claude Projects</h3><p>Opt-in. Reads the Threads / Overview views open in the desktop app.</p></div><span class="tag">Experimental</span></article>
-      <article class="row"><span class="num">04</span><div><h3>DeepSeek Harness</h3><p>Included observer plugin for DSH Desktop.</p></div><span class="tag">Experimental</span></article>
+      <article class="row"><span class="num">04</span><div><h3>DeepSeek Harness</h3><p>Included plugin. Observer 1.1.0 targets Desktop 0.2.0-rc.2 question metadata.</p></div><span class="tag">Experimental</span></article>
     </div>
   </div>
 </section>
@@ -162,7 +162,7 @@ const install = `
       <h3>Claude Projects (desktop app)</h3>
       <p>Turn on <strong>Observe loaded Claude Projects desktop views</strong> in Projects &amp; sources and restart OVERSEER. Open <strong>Threads / Overview</strong> in Claude. Views that are closed or unloaded show as unknown, not as zero.</p>
       <h3>DeepSeek Harness Desktop</h3>
-      <p>Follow <code>integrations/deepseek-harness/README.md</code>. Install from Desktop's Plugins page (or its bundled CLI with Desktop fully closed) into the <code>desktop</code> profile. Needs Node 20+.</p>
+      <p>Follow <code>integrations/deepseek-harness/README.md</code>. Install from Desktop's Plugins page (or its bundled CLI with Desktop fully closed) into the <code>desktop</code> profile. Needs Node 20+. Observer 1.1.0 reports approval and question waits using Desktop 0.2.0-rc.2 metadata. Missing metadata reduces coverage instead of guessing.</p>
     </section>
     <section id="troubleshooting"><h2>Troubleshooting</h2>
       <details><summary>Coverage says limited or offline</summary><p>Open the coverage indicator and read the reason and suggested fix. Check the chosen folders or bridge, then restart after setup changes. A missing source never counts as zero work.</p></details>

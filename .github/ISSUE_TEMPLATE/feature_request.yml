@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement to how OVERSEER shows agent work or attention.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "OVERSEER stays read-only: it observes agents and never answers prompts or controls them. Requests that need it to act on an agent are out of scope. Never attach raw sessions, credentials or full settings."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation and what is missing or getting in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+      description: The behavior you would like. Mockups or sanitized screenshots are welcome.
+    validations:
+      required: true
+  - type: input
+    id: sources
+    attributes:
+      label: Agents and hosts involved
+      description: For example Codex on Windows, Claude Code desktop, Claude Projects or DeepSeek Harness Desktop, with versions if known.
