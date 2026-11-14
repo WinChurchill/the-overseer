@@ -2,6 +2,10 @@
 
 ## Unreleased — publication alpha candidate
 
+- Installer upgrades preserve unmanaged files and custom data folders, removing only
+  unchanged retired files in the previous package inventory. Uninstall scopes Claude
+  hook removal to its bridge path and matches the startup executable exactly.
+
 - Add a per-user setup .exe built from the release ZIP's exact files. It installs
   into `%LOCALAPPDATA%\Programs\OVERSEER` without admin rights, adds a Start-menu
   entry and an uninstaller, and upgrades in place so startup and Claude Code hook

@@ -2,17 +2,20 @@
 
 ## Current work
 
-The attention/accounting fixes merged through PR #4 at `a9dd93b`. Main Verify and
-the alpha.5 package workflow both passed on their first attempts at that revision.
-The exact unsigned alpha.5 ZIP passed eight qualification groups on clean Windows,
-including 42 composition and 17 production-path integration checks. Earlier failed
-runs and retries remain in the local evidence; they are not erased by these passes.
-The repository remains private while Winston reviews the publication packet.
+The sanitized repository is public. November 14 work addresses the installer review
+on PR #2 (`installer-alpha10`), stacked on PR #1's display-text hardening. Winston
+authorized fixes, commits/pushes and merging both after verification. The preserved
+private archive is separate and must remain private.
 
-The November 11 preparation leaves source changes uncommitted: download verification
-instructions and a pinned public-only GitHub attestation step. Private builds skip
-attestation explicitly. A local main-only privacy copy preserves the current source
-tree and verifies the complete rewritten history; the existing remote is untouched.
+Installer upgrades use a bounded inventory of package-relative paths and SHA-256
+hashes. Only unchanged retired package files are removed; unmanaged/custom data,
+edited leftovers, traversal and reparse targets are preserved. Missing old inventory
+leaves old files alone. Uninstall compares the startup executable exactly and scopes
+Claude hook removal to its absolute bridge path; the bridge's default global removal
+remains available explicitly. No producer budget, spool or monitoring limit changes.
+New native installer preservation/ownership regressions run in the package workflow.
+Source/CI and installer artifacts need their own exact-revision results; prior alpha
+qualification below does not certify a newly built installer.
 
 - Claude publishes health directly when uncontended and uses fixed receipts under
   contention. The 250 ms write budget, 60 ms accounting slice and 64 slots remain.

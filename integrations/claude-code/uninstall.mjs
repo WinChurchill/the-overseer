@@ -7,7 +7,7 @@
  * semantically.
  *
  * Usage:
- *   node uninstall.mjs [settingsPath] [--apply] [--json]
+ *   node uninstall.mjs [settingsPath] [--bridge=path] [--apply] [--json]
  */
 
 import path from 'node:path';
@@ -34,8 +34,10 @@ function fail(message, code = 2) {
 function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.unknown.length > 0) {
-    fail(`unrecognized argument(s): ${options.unknown.join(' ')}\nusage: node uninstall.mjs [settingsPath] [--apply] [--json]`, 1);
+    fail(`unrecognized argument(s): ${options.unknown.join(' ')}\nusage: node uninstall.mjs [settingsPath] [--bridge=path] [--apply] [--json]`, 1);
   }
+  if (options.bridgePath !== null && !options.bridgePath.trim()) fail('--bridge requires a non-empty path', 1);
+  const bridgePath = options.bridgePath === null ? null : path.resolve(expandHome(options.bridgePath));
 
   const settingsPath = path.resolve(expandHome(options.settingsPath ?? DEFAULT_SETTINGS_PATH));
   const loaded = loadSettings(settingsPath);
@@ -52,7 +54,7 @@ function main() {
     return 0;
   }
 
-  const plan = planUninstall(loaded);
+  const plan = planUninstall(loaded, { bridgePath });
   if (plan.error) {
     fail(`refusing to touch ${loaded.path}: ${plan.error.message}`, 2);
   }
@@ -67,6 +69,7 @@ function main() {
       settingsPath: loaded.path,
       settingsExisted: true,
       marker: MARKER,
+      bridgePath,
       removed: plan.removed,
       unremovable: plan.unremovable,
       diff,

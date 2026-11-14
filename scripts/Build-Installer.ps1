@@ -66,6 +66,14 @@ try {
     if ($version -notmatch '^\d+\.\d+\.\d+(-(alpha|beta|rc)\.\d+)?$') { throw "Unexpected release version '$version'" }
     if (-not (Test-Path -LiteralPath (Join-Path $payload 'TheOverseer.App.exe'))) { throw 'TheOverseer.App.exe is missing from the archive' }
     $payloadFiles = @(Get-ChildItem -LiteralPath $payload -Recurse -File).Count
+    # Kept outside the ZIP payload: the installer owns this inventory, while the
+    # portable ZIP remains byte-for-byte unchanged. Hashes protect edited leftovers.
+    $ownershipManifest = Join-Path $staging 'overseer-installed-files.txt'
+    $ownedLines = Get-ChildItem -LiteralPath $payload -Recurse -File | Sort-Object FullName | ForEach-Object {
+        $relative = [System.IO.Path]::GetRelativePath($payload, $_.FullName)
+        (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + "`t" + $relative
+    }
+    $ownedLines | Set-Content -LiteralPath $ownershipManifest -Encoding utf8BOM
 
     if (-not $InstallerName) { $InstallerName = "OVERSEER-$version-setup.exe" }
     if ($InstallerName -notmatch '^[A-Za-z0-9._-]+\.exe$') { throw "Invalid installer name '$InstallerName'" }
@@ -75,7 +83,7 @@ try {
 
     Write-Host "==> compiling $InstallerName with $iscc"
     $script = Join-Path $repoRoot 'installer/OVERSEER.iss'
-    & $iscc /Q "/DAppVersion=$version" "/DPayloadDir=$payload" "/DOutputDir=$outputRoot" "/DOutputName=$outputName" $script
+    & $iscc /Q "/DAppVersion=$version" "/DPayloadDir=$payload" "/DOwnershipManifest=$ownershipManifest" "/DOutputDir=$outputRoot" "/DOutputName=$outputName" $script
     if ($LASTEXITCODE) { throw "ISCC failed with exit code $LASTEXITCODE" }
     if (-not (Test-Path -LiteralPath $installer)) { throw "ISCC did not produce $installer" }
 
@@ -102,5 +110,8 @@ try {
     Write-Host ('bytes     : ' + $installerBytes)
 }
 finally {
-    if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+    $resolvedStaging = [IO.Path]::GetFullPath($staging)
+    $resolvedOutput = [IO.Path]::GetFullPath($outputRoot).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedStaging.StartsWith($resolvedOutput, [StringComparison]::OrdinalIgnoreCase)) { throw 'Staging cleanup escaped its output directory' }
+    if (Test-Path -LiteralPath $resolvedStaging) { Remove-Item -LiteralPath $resolvedStaging -Recurse -Force }
 }

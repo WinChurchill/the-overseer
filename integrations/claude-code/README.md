@@ -477,6 +477,12 @@ The installed hook sets a 10-second host timeout. The bridge schedules its own
 
 ## Uninstall and rollback
 
+To remove hooks for one installation while preserving another installed or portable
+copy, pass its exact `bridge.mjs` path with `--bridge="<kept folder>/bridge.mjs"`.
+The Windows app uninstaller uses this scope automatically. Without `--bridge`, the
+commands below remove all OVERSEER-marked hooks. Preview first; unrelated hooks and
+settings are preserved in both modes.
+
 ```text
 node integrations/claude-code/uninstall.mjs "C:\Users\you\.claude\settings.json"          # preview
 node integrations/claude-code/uninstall.mjs "C:\Users\you\.claude\settings.json" --apply  # remove

@@ -19,6 +19,9 @@
 #ifndef PayloadDir
   #error PayloadDir is required; use scripts/Build-Installer.ps1
 #endif
+#ifndef OwnershipManifest
+  #error OwnershipManifest is required; use scripts/Build-Installer.ps1
+#endif
 
 #define AppId "{4BD1C443-6251-4072-907B-DE45F918FB28}"
 #define AppExe "TheOverseer.App.exe"
@@ -64,13 +67,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
-[InstallDelete]
-; An upgrade starts from a clean folder so files dropped by the new version don't
-; linger. Only runs when this folder is a previous OVERSEER install of this AppId.
-Type: filesandordirs; Name: "{app}\*"; Check: IsPreviousInstallFolder
-
 [Files]
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#OwnershipManifest}"; DestDir: "{app}"; DestName: "overseer-installed-files.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\OVERSEER"; Filename: "{app}\{#AppExe}"; Comment: "See what your AI coding agents are doing"
@@ -84,6 +83,8 @@ const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#AppId}_is1';
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
   RunValue = 'OVERSEER';
+
+#include "InstallOwnership.iss"
 
 function IsPreviousInstallFolder: Boolean;
 var
@@ -102,7 +103,7 @@ var
   Command: String;
 begin
   if RegQueryStringValue(HKCU, RunKey, RunValue, Command) then
-    if Pos(Lowercase(AddBackslash(ExpandConstant('{app}'))), Lowercase(Command)) > 0 then
+    if IsOwnStartupCommand(Command, ExpandConstant('{app}\{#AppExe}')) then
       RegDeleteValue(HKCU, RunKey, RunValue);
 end;
 
@@ -134,9 +135,19 @@ begin
   if MsgBox('Claude Code has OVERSEER hooks pointing at this folder. Remove them now?' + #13#10#13#10 +
     'Only OVERSEER''s own hook entries are removed, and a backup of settings.json is kept.', mbConfirmation, MB_YESNO) = IDYES then
   begin
-    if not Exec(Node, '"' + Uninstaller + '" --apply', ExpandConstant('{app}\integrations\claude-code'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    if not Exec(Node, '"' + Uninstaller + '" --bridge="' + ExpandConstant('{app}\integrations\claude-code\bridge.mjs') + '" --apply', ExpandConstant('{app}\integrations\claude-code'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
       MsgBox('Removing the hooks did not finish (exit code ' + IntToStr(ResultCode) + '). Check ' + Settings + ' for OVERSEER entries.', mbError, MB_OK);
   end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+  begin
+    if IsPreviousInstallFolder then
+      LoadOwnershipManifest(ExpandConstant('{app}\overseer-installed-files.txt'), PreviousOwnedFiles);
+  end;
+  if CurStep = ssPostInstall then RemoveObsoleteOwnedFiles;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

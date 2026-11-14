@@ -7,8 +7,11 @@ the check's limits are listed under "Not verified".
 ## Upgrading an installed copy (setup .exe)
 
 Run the newer `OVERSEER-<version>-setup.exe`. It closes a running OVERSEER that was
-started from the install folder, replaces the files in that same folder (removing files
-the old version shipped but the new one does not), and leaves the data directory alone.
+started from the install folder and replaces the package files in that same folder.
+An installer-owned SHA-256 inventory identifies retired files: only unchanged files
+listed by the previous package and absent from the new package are removed. Edited
+leftovers, unmanaged files and custom data folders are preserved. Without a valid
+old inventory, cleanup preserves the old files. The data directory is left alone.
 Because the folder does not change, the startup entry and Claude Code hook paths keep
 working; there is nothing to re-point. Back up the data directory first if you want a
 rollback point. To roll back, run the older setup file over it (an in-place
@@ -16,7 +19,9 @@ downgrade is not tested) or uninstall and install the older version.
 
 `scripts/Test-Installer.ps1` checks install, in-place upgrade, upgrade over a running
 copy and uninstall against the exact release ZIP. It refuses to run when OVERSEER is
-already installed for the current user.
+already installed or has a startup entry for the current user. Run it in a disposable
+Windows user profile. It also checks user files inside the install folder, edited
+obsolete files, parent traversal/junctions, and both startup ownership cases.
 
 ## Supported upgrade path (portable ZIP)
 
