@@ -3,34 +3,255 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const args=Object.fromEntries(process.argv.slice(2).map(arg=>{const i=arg.indexOf('=');if(i<0||!arg.startsWith('--'))throw new Error('Use --name=value');return [arg.slice(2,i),arg.slice(i+1)];}));
-for(const key of Object.keys(args))if(!['output','base-url','repository-url','download-url','version'].includes(key))throw new Error(`Unknown option ${key}`);
-const out=path.resolve(root,args.output??'artifacts/site');
-const artifacts=path.join(root,'artifacts')+path.sep;
-if(!out.startsWith(artifacts))throw new Error('Output must stay beneath repository artifacts/');
-function https(value){if(!value)return null;const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash)throw new Error('Publication URLs must be HTTPS without credentials/query/fragment');return u;}
-const base=https(args['base-url']);const repo=https(args['repository-url']);const download=https(args['download-url']);
-if(repo&&(repo.hostname!=='github.com'||!/^\/[\w.-]+\/[\w.-]+\/?$/.test(repo.pathname)))throw new Error('Repository URL must name a GitHub owner/repository');
-if([base,repo,download].some(Boolean)&&![base,repo,download].every(Boolean))throw new Error('A publication build requires all three URLs');
-const draft=!base;const version=args.version??'1.0.0-alpha.1';
-if(!/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(version))throw new Error('Invalid version');
-if(download&&(!download.href.startsWith(repo.href.replace(/\/$/,'')+'/releases/download/')||!download.pathname.endsWith(`/OVERSEER-${version}-win-x64.zip`)))throw new Error('Download must be the versioned application ZIP in this repository');
-if(base&&!base.pathname.endsWith('/'))base.pathname+='/';
-const e=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-const repoUrl=repo?.href.replace(/\/$/,'');
-const source=repoUrl?`<a href="${e(repoUrl)}">Source on GitHub</a>`:'<span>Source URL pending</span>';
-const downloadLink=download?`<a class="button" href="${e(download.href)}">Download for Windows x64 · ${e(version)}</a>`:'<span class="button unavailable" aria-disabled="true">Download pending qualification</span>';
-const support=repoUrl?`<a href="${e(repoUrl)}/issues/new/choose">Report a bug</a> · <a href="${e(repoUrl)}/security/advisories/new">Report a vulnerability privately</a>`:'Report private qualification results to Winston through the supplied handoff. Public support and private security reporting open at publication.';
-const pages=[
-{file:'index.html',title:'OVERSEER — Windows HUD for AI coding agents',description:'See your AI coding agents working and when they need you. A local Windows HUD for Codex, with experimental DSH Desktop and Claude Code bridges.',body:`<section class="hero"><p class="eyebrow">LOCAL WINDOWS HUD · MIT OPEN SOURCE</p><h1>Know when your agents need you.</h1><p class="lead">OVERSEER keeps observed work and attention in one small window, grouped by project. Stay with your work; check the HUD when an agent needs you.</p><div class="actions">${downloadLink}<a href="install.html">Install &amp; troubleshoot</a></div><p class="fine">${draft?'Local alpha preparation preview. No public release verified.':'Windows x64 preview · unsigned. Keep normal Windows protections enabled.'}</p><div class="screens"><figure><img src="assets/hud-dark.png" width="664" height="192" alt="Dark compact HUD with staged work counts and limited coverage"><figcaption>Dark theme · synthetic fixture</figcaption></figure><figure><img src="assets/hud-light.png" width="664" height="192" alt="Light compact HUD with staged work counts and limited coverage"><figcaption>Light theme · synthetic fixture</figcaption></figure></div></section><section><h2>A window into work, with visible limits.</h2><div class="cards"><article><h3>Work and attention</h3><p>Current tasks, project groups and local history help you see the work you have actually observed.</p></article><article><h3>Honest coverage</h3><p>Stale, partial and unavailable sources stay visible. Missing observations are never called healthy idle time.</p></article><article><h3>Your focus stays yours</h3><p>Pin, resize, collapse and mute the HUD. Normal status updates do not intentionally activate its window.</p></article></div></section><section><h2>What is qualified?</h2><div class="table-wrap"><table><caption>Capabilities and remaining host qualification</caption><thead><tr><th scope="col">Source</th><th scope="col">Observation</th><th scope="col">Current limits</th></tr></thead><tbody><tr><th scope="row">Codex</th><td>Local work, asynchronous questions and correlated answers</td><td>Automated contracts pass; live checks pending. <strong>Approval detection Unsupported.</strong></td></tr><tr><th scope="row">DSH Desktop</th><td>Experimental turn/tool, approval, question and plan-mode observer</td><td>Observer 1.1.0 targets Desktop 0.2.0-rc.2 question metadata. Missing metadata reduces coverage; live question retest pending.</td></tr><tr><th scope="row">Claude Code</th><td>Experimental desktop Code tab / editor hooks</td><td>Windows-local session qualification pending. WSL, SSH and cloud routing unqualified.</td></tr></tbody></table></div></section><section><h2>Local by default.</h2><p>No added analytics. Monitoring and offline speech stay local. A configured optional TTS provider receives generic notification text, an event code and task alias. <a href="privacy.html">Read the privacy details</a>.</p></section>`},
-{file:'install.html',title:'Install & troubleshoot — OVERSEER',description:'Install the self-contained OVERSEER Windows x64 ZIP, set up experimental desktop bridges, update safely and troubleshoot source coverage.',body:`<h1>Install &amp; troubleshoot</h1><p class="lead">The app includes its .NET runtime. Optional bridge producers need Node in their host's execution environment.</p><section><h2>Start in a folder you own.</h2><ol><li>Get the versioned Windows x64 app ZIP and the matching SHA-256. ${draft?'Use the private test handoff until a public release exists.':'Use the release assets, not the source ZIP.'}</li><li>Compare the downloaded file's hash with the matching .zip.sha256 checksum file, then extract the whole folder.</li><li>Run <code>TheOverseer.App.exe</code> as a standard user. No SDK, system .NET, Node or repository is needed for the app.</li><li>Open <strong>Projects &amp; sources…</strong> for setup and the health control for source coverage. Voice starts muted.</li></ol><p>Target: Windows x64. Clean-machine/OS build signoff is pending; ARM64, x86, macOS and Linux are unqualified. This beta candidate is unsigned. Record warnings or policy blocks with normal Windows protections enabled.</p><pre><code>Get-FileHash .\\OVERSEER-${e(version)}-win-x64.zip -Algorithm SHA256</code></pre>${downloadLink}</section><section><h2>Connect an optional bridge.</h2><p>Both bridges are experimental. Keep their extracted directories at a permanent path, preview/back up configuration and restart OVERSEER after installation, removal or rebinding.</p><h3>DSH Desktop</h3><p>Follow the shipped <code>integrations/deepseek-harness/README.md</code>. Use Desktop's Plugins page, or its bundled CLI after fully quitting Desktop, against the dedicated <code>desktop</code> profile. A terminal DSH profile is separate. Observer 1.1.0 reports approval and question waits using Desktop 0.2.0-rc.2 metadata. Missing metadata reduces coverage; live question/timed/restart qualification remains pending. It requires Node 20+ in the host.</p><h3>Claude Code desktop or editor</h3><p>Follow <code>integrations/claude-code/README.md</code>. Preview the installer before <code>--apply</code>. Hooks use the Code settings and Node 18+ in the session's execution environment. A standalone Claude command is not required. Desktop chat MCP settings do not configure Code hooks. WSL/SSH/cloud routing remains unqualified.</p><h3>Claude Projects desktop preview</h3><p>Enable the experimental loaded-desktop-views option in Projects &amp; sources, then restart OVERSEER. Open Threads/Overview in Claude to expose worker groups. Missing or background-unmounted views keep coverage partial; the Projects directory is not status evidence.</p></section><section><h2>If something looks wrong</h2><dl><dt>Offline or partial coverage</dt><dd>Read the source-health reason and its suggested action. Check the selected roots/bridge spool and restart after setup changes. A missing source is not zero work.</dd><dt>Question card was closed</dt><dd>Closing a Codex async question card has no observed cancellation record. Older questions become Input status unconfirmed after the existing 15-minute lease; unrelated chat text does not count as an answer.</dd><dt>Claude Projects is absent</dt><dd>The opt-in desktop observer reads loaded Threads/Overview status groups without activating Claude. A Projects directory has no worker status. Closed/unmounted views stay unknown; account-wide and background-worker qualification remain open. No browser relay is used.</dd><dt>Codex approval is absent</dt><dd>Approval detection is explicitly Unsupported. An ordinary tool call is not proof of a pending approval.</dd><dt>No sound</dt><dd>Voice starts muted. New profiles select the included Kokoro voice. Choose Use included Kokoro voice, Preview, then check the device/provider status. Saved choices are preserved. Windows speech is optional and unqualified for this beta.</dd><dt>App or bridge folder moved</dt><dd>Repair shortcuts and startup. Rebind bridge paths using the shipped guide, preserve unrelated settings and restart both host and OVERSEER.</dd><dt>Windows blocks the unsigned app</dt><dd>Record the warning/policy and report it. Do not disable normal protections to make qualification pass.</dd></dl></section><section><h2>Update, roll back or remove.</h2><p>Exit, back up <code>%LOCALAPPDATA%\\OVERSEER</code>, extract the new version into a new folder and repair startup/bridge paths. Keep the old folder and backup until accepted. To roll back, stop the app, restore the backup, then start the old copy.</p><p>To uninstall, disable startup, remove installed hooks/plugins, Exit and delete the app folder. Saved data is optional to delete after producers stop; unrelated host settings must remain intact.</p></section><section><h2>Get help</h2><p>${support}</p><p>Include version/hash, Windows build, display scale, host/engine versions and a sanitized reproduction. Never upload raw sessions, credentials or full settings.</p></section>`},
-{file:'privacy.html',title:'Privacy & licensing — OVERSEER',description:'What OVERSEER observes and stores locally, what optional network TTS sends, and the MIT and upstream runtime licenses.',body:`<h1>Privacy &amp; licensing</h1><section><h2>Observe local metadata.</h2><p>OVERSEER does not answer approvals, submit prompts or control harness execution. It parses local Codex rollout files; optional bridges receive host events/hooks and select bounded metadata. Sensitive fields may be present in that input, but are not copied into normalized records, history, voice notifications or diagnostics.</p><p>Local views may show task titles, identifiers and project paths. Bridge spools hold bounded identifiers, timestamps, state/outcome and project metadata. Settings and spools are not anonymous data.</p></section><section><h2>Keep data under your control.</h2><p>Settings, placement, bounded history/logs, recordings and spools live under <code>%LOCALAPPDATA%\\OVERSEER</code> or the selected data directory. The application folder is separate. Exit and stop producers before deleting data.</p><p>The app makes no telemetry/analytics request. This static site adds no analytics, external fonts or trackers. Its eventual hosting provider may retain ordinary HTTP access logs.</p></section><section><h2>Voice is muted at first.</h2><p>New profiles select nine included prerecorded Kokoro cues. Playback is local and needs no model or network service. Windows speech remains optional; local packs and recordings play locally.</p><p>If you configure and select the optional <strong>TTS endpoint</strong>, the app sends generic notification text, event code and a <code>Task N</code>/aggregate alias to that endpoint. The provider sees your request and network address and has its own retention policy. Raw task titles, prompts, answers and tool output are not included. Keep endpoint credentials in local configuration.</p><p>Provider failure and mute stay visible; no silent cross-provider fallback hides a failure. A configured network TTS provider is not offline.</p></section><section><h2>MIT, with retained upstream terms.</h2><p>Original OVERSEER code, docs and generated artwork use the MIT license, copyright Winston Lin. Adapted Codex monitoring logic retains codex-monitor-hud's MIT notice. Redistributed .NET runtime terms are included separately in each app ZIP.</p><p>${repoUrl?`<a href="${e(repoUrl)}/blob/main/LICENSE">Project license</a> · <a href="${e(repoUrl)}/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a>`:'LICENSE and THIRD_PARTY_NOTICES.md are included in the candidate and source repository.'}</p></section><section><h2>Report responsibly.</h2><p>${support}</p><p>Sanitize paths, names and identifiers before sharing evidence. Never post credentials or raw session data in public issues.</p></section>`}
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const args = Object.fromEntries(process.argv.slice(2).map(arg => {
+  const i = arg.indexOf('=');
+  if (i < 0 || !arg.startsWith('--')) throw new Error('Use --name=value');
+  return [arg.slice(2, i), arg.slice(i + 1)];
+}));
+for (const key of Object.keys(args)) if (!['output', 'base-url', 'repository-url', 'download-url', 'version'].includes(key)) throw new Error(`Unknown option ${key}`);
+const out = path.resolve(root, args.output ?? 'artifacts/site');
+const artifacts = path.join(root, 'artifacts') + path.sep;
+if (!out.startsWith(artifacts)) throw new Error('Output must stay beneath repository artifacts/');
+function https(value) {
+  if (!value) return null;
+  const u = new URL(value);
+  if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash) throw new Error('Publication URLs must be HTTPS without credentials/query/fragment');
+  return u;
+}
+const base = https(args['base-url']); const repo = https(args['repository-url']); const download = https(args['download-url']);
+if (repo && (repo.hostname !== 'github.com' || !/^\/[\w.-]+\/[\w.-]+\/?$/.test(repo.pathname))) throw new Error('Repository URL must name a GitHub owner/repository');
+if ([base, repo, download].some(Boolean) && ![base, repo, download].every(Boolean)) throw new Error('A publication build requires all three URLs');
+const draft = !base; const version = args.version ?? '1.0.0-alpha.1';
+if (!/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(version)) throw new Error('Invalid version');
+if (download && (!download.href.startsWith(repo.href.replace(/\/$/, '') + '/releases/download/') || !download.pathname.endsWith(`/OVERSEER-${version}-win-x64.zip`))) throw new Error('Download must be the versioned application ZIP in this repository');
+if (base && !base.pathname.endsWith('/')) base.pathname += '/';
+
+const e = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+const repoUrl = repo?.href.replace(/\/$/, '');
+const zipName = `OVERSEER-${version}-win-x64.zip`;
+const arrow = '<span class="arrow" aria-hidden="true">↗</span>';
+const down = '<span class="arrow" aria-hidden="true">↓</span>';
+const downloadLink = download
+  ? `<a class="button primary" href="${e(download.href)}"><span>Download for Windows</span><span class="meta">x64 · ${e(version)}</span>${down}</a>`
+  : '<span class="button unavailable" aria-disabled="true">Download pending qualification</span>';
+const sourceButton = repoUrl ? `<a class="button ghost" href="${e(repoUrl)}"><span>Source on GitHub</span>${arrow}</a>` : '';
+const support = repoUrl
+  ? `<a href="${e(repoUrl)}/issues/new/choose">Report a bug</a> · <a href="${e(repoUrl)}/security/advisories/new">Report a vulnerability privately</a>`
+  : 'Public support and private security reporting open at publication.';
+
+// Positions are percentages of the 1440 × 1100 window screenshot.
+const markers = [[34, 9.5], [62, 14], [30.5, 30.6], [29.5, 47.5], [98.75, 72]];
+const pins = markers.map(([x, y], i) => `<span class="marker" style="left:${x}%;top:${y}%" aria-hidden="true">${i + 1}</span>`).join('');
+
+const hudShot = (alt, eager) => `<img class="img-dark" src="assets/hud-window-dark.png" width="1440" height="1100" alt="${alt}"${eager ? ' fetchpriority="high"' : ' loading="lazy"'}><img class="img-light" src="assets/hud-window-light.png" width="1440" height="1100" alt="${alt}" loading="lazy">`;
+
+const index = `
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <p class="label tick">Windows HUD for AI coding agents</p>
+      <h1>Know when your agents need you<span class="dot">.</span></h1>
+      <p class="lead">A small window that sits on your Windows desktop, shows what your coding agents are doing, and puts the ones <strong>waiting on you</strong> at the top.</p>
+      <ul class="specs"><li>Codex · Claude Code · Claude Projects · DeepSeek Harness</li></ul>
+      <div class="actions">${downloadLink}${sourceButton}</div>
+      <p class="fine">${draft ? 'Local alpha preparation preview. No public release verified.' : `Free, MIT, runs locally. Unsigned alpha: <a href="install.html#download">check the download</a> first.`}</p>
+    </div>
+    <figure class="frame notch">
+      <div class="frame-bar"><span class="label"><b>Live view</b> · follows this page's theme</span><span class="label">Sample tasks</span></div>
+      <div class="shot">${hudShot('The OVERSEER window: 3 tasks need you and 4 are working, listed under the projects Aurora, Webots harness and TCS pipeline.', true)}<span class="glow" aria-hidden="true"></span></div>
+    </figure>
+  </div>
+</section>
+
+<section class="section" id="tour">
+  <div class="wrap">
+    <div class="bar"><span class="bar-title">What you're looking at</span><span class="label">Tour / 05</span></div>
+    <p class="bar-note">Sample tasks. Every part shown is in the current alpha. Try the theme switch up top.</p>
+    <div class="tour">
+      <figure class="frame notch">
+        <div class="frame-bar"><span class="label"><b>OVERSEER</b> · window mode</span><span class="label">Light &amp; dark</span></div>
+        <div class="shot"><div class="pins">${hudShot('OVERSEER window with numbered markers on the counts, coverage, views, a task and the status light.', false)}${pins}</div></div>
+      </figure>
+      <ol class="legend">
+        <li><div><h3>Counts</h3><p>Tasks that need you, and tasks still working, across every project.</p></div></li>
+        <li><div><h3>Coverage</h3><p>If a source goes quiet it says <span class="chip amber">Limited coverage</span>, never a fake "nothing running".</p></div></li>
+        <li><div><h3>Views</h3><p><strong>Now</strong>, <strong>Recent</strong> and <strong>This session</strong>, filtered to <em>Needs you</em> or <em>Working</em>.</p></div></li>
+        <li><div><h3>Projects &amp; tasks</h3><p>Grouped by project, with what each agent is doing: <span class="chip green">Running tests</span> or <span class="chip red">Needs input</span>.</p></div></li>
+        <li><div><h3>Status light</h3><p>The edge strip follows the overall state, readable from the corner of your eye.</p></div></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="day">
+  <div class="wrap">
+    <div class="section-head"><div><p class="label amber">In practice</p><h2>A day with three agents<span class="dot">.</span></h2></div><p>Three agents in three repos, and you working in a fourth window.</p></div>
+    <ol class="day">
+      <li><span class="label">Start</span><time>09:12</time><p>Kick off Codex, Claude Code and a DSH sweep. Collapse OVERSEER into a corner.</p><p class="hud">0 Needs you · 3 Working</p></li>
+      <li class="hot"><span class="label">Interrupt</span><time>10:40</time><p>Codex asks a question. It jumps to the top, the light changes, a voice cue plays if unmuted.</p><p class="hud">1 Needs you · Needs input</p></li>
+      <li><span class="label">Gap</span><time>14:05</time><p>A source stops reporting. The HUD says so instead of quietly dropping its tasks.</p><p class="hud">● Limited coverage</p></li>
+      <li><span class="label">Wrap up</span><time>17:30</time><p>Check <strong>This session</strong> for what finished. Close it; it keeps watching from the tray.</p><p class="hud">Recent · History</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="section" id="sources">
+  <div class="wrap">
+    <div class="bar"><span class="bar-title">Works with</span><span class="label">Sources / 04</span></div>
+    <p class="bar-note">Read-only: OVERSEER never answers prompts or controls an agent.</p>
+    <div class="rows">
+      <article class="row"><span class="num">01</span><div><h3>Codex</h3><p>Found automatically. Approval prompts not detected.</p></div><span class="tag on">Automatic</span></article>
+      <article class="row"><span class="num">02</span><div><h3>Claude Code</h3><p>Included hooks. Questions and plan approvals; other permission prompts unverified.</p></div><span class="tag">Experimental</span></article>
+      <article class="row"><span class="num">03</span><div><h3>Claude Projects</h3><p>Opt-in. Reads the Threads / Overview views open in the desktop app.</p></div><span class="tag">Experimental</span></article>
+      <article class="row"><span class="num">04</span><div><h3>DeepSeek Harness</h3><p>Included observer plugin for DSH Desktop.</p></div><span class="tag">Experimental</span></article>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="people">
+  <div class="wrap">
+    <div class="bar"><span class="bar-title">People &amp; credits</span><span class="label">Contributors / 03</span></div>
+    <p class="bar-note">Thanks to the testers whose feedback shaped every alpha.</p>
+    <div class="people">
+      <a class="person lead-person notch" href="https://github.com/WinChurchill"><span class="initials" aria-hidden="true">WL</span><span><h3>Winston Lin</h3><span class="label">Creator · maintainer</span></span>${arrow}</a>
+      <a class="person" href="https://github.com/lanbodikai"><span class="initials" aria-hidden="true">LB</span><span><h3>lanbodikai</h3><span class="label">Tester · feedback</span></span>${arrow}</a>
+      <a class="person" href="https://github.com/qinyif001"><span class="initials" aria-hidden="true">QY</span><span><h3>qinyif001</h3><span class="label">Tester · feedback</span></span>${arrow}</a>
+    </div>
+    <p class="credits-line">Built on <a href="https://github.com/LH-03/codex-monitor-hud">codex-monitor-hud</a> by LH-03 (MIT) · voice cues recorded with <a href="https://huggingface.co/hexgrad/Kokoro-82M">Kokoro</a>${repoUrl ? ` · <a href="${e(repoUrl)}/blob/main/CONTRIBUTING.md">Contribute</a>` : ''}</p>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <h2>Stop checking every terminal<span class="dot">.</span></h2>
+    <div><p>No installer. Extract, run, done. <a href="install.html">Install guide</a></p><div class="actions">${downloadLink}</div></div>
+  </div>
+</section>`;
+
+const install = `
+<section class="doc-hero"><div class="wrap"><p class="label tick">Guide / Windows x64</p><h1>Install &amp; troubleshoot<span class="dot">.</span></h1><p class="lead">The app is a self-contained ZIP: no installer, no .NET or Node needed. The optional agent bridges need Node in the agent's own environment.</p></div></section>
+<div class="wrap doc">
+  <nav class="toc" aria-label="On this page"><p class="label">On this page</p><ol><li><a href="#download">Download &amp; check</a></li><li><a href="#run">First run</a></li><li><a href="#sources">Connect sources</a></li><li><a href="#troubleshooting">Troubleshooting</a></li><li><a href="#update">Update &amp; remove</a></li><li><a href="#help">Get help</a></li></ol></nav>
+  <div>
+    <section id="download"><h2>Download &amp; check</h2>
+      <ol class="numbered">
+        <li><span>Download <code>${e(zipName)}</code> and <code>${e(zipName)}.sha256</code>. ${draft ? 'Use the private test handoff until a public release exists.' : 'Use the release assets, not GitHub\'s source-code ZIP.'}</span></li>
+        <li><span>In PowerShell, in the download folder, print the hash and compare it with the <code>.sha256</code> file:</span></li>
+      </ol>
+      <pre><code>Get-FileHash .\\${e(zipName)} -Algorithm SHA256</code></pre>
+      <p>With the GitHub CLI you can also check where it was built:</p>
+      <pre><code>gh attestation verify ${e(zipName)} --repo ${e(repoUrl ? repoUrl.replace('https://github.com/', '') : 'OWNER/REPO')}</code></pre>
+      <p class="note"><strong>Unsigned</strong>This alpha is not code-signed, so Windows may show an unknown-publisher or SmartScreen warning. Keep Windows protections on; if it is blocked, report it.</p>
+      <div class="actions">${downloadLink}</div>
+    </section>
+    <section id="run"><h2>First run</h2>
+      <ol class="numbered">
+        <li><span>Extract the whole ZIP into a folder you own, for example under <code>%LOCALAPPDATA%\\Programs</code>.</span></li>
+        <li><span>Run <code>TheOverseer.App.exe</code> as a normal user.</span></li>
+        <li><span>Open <strong>⋯ → Projects &amp; sources…</strong> to choose what to watch. The coverage indicator shows what it can see.</span></li>
+        <li><span>Voice starts muted. Open <strong>⋯ → Light &amp; voice…</strong>, preview the included Kokoro voice, then unmute.</span></li>
+      </ol>
+      <p>Tested target: Windows x64. ARM64, x86, macOS and Linux are not supported yet.</p>
+    </section>
+    <section id="sources"><h2>Connect sources</h2>
+      <p>Codex sessions on Windows are found automatically. The others are optional and <strong>experimental</strong>. Keep a bridge's folder at a permanent path, preview its changes before applying, and restart OVERSEER after installing, removing or moving one.</p>
+      <h3>Claude Code (desktop Code tab or editor)</h3>
+      <p>Follow <code>integrations/claude-code/README.md</code> in the ZIP. Run the installer without <code>--apply</code> first to preview. The hooks need Node 18+ where the Claude session runs. Desktop chat MCP settings do not configure Code hooks. WSL, SSH and cloud sessions are not supported yet.</p>
+      <h3>Claude Projects (desktop app)</h3>
+      <p>Turn on <strong>Observe loaded Claude Projects desktop views</strong> in Projects &amp; sources and restart OVERSEER. Open <strong>Threads / Overview</strong> in Claude. Views that are closed or unloaded show as unknown, not as zero.</p>
+      <h3>DeepSeek Harness Desktop</h3>
+      <p>Follow <code>integrations/deepseek-harness/README.md</code>. Install from Desktop's Plugins page (or its bundled CLI with Desktop fully closed) into the <code>desktop</code> profile. Needs Node 20+.</p>
+    </section>
+    <section id="troubleshooting"><h2>Troubleshooting</h2>
+      <details><summary>Coverage says limited or offline</summary><p>Open the coverage indicator and read the reason and suggested fix. Check the chosen folders or bridge, then restart after setup changes. A missing source never counts as zero work.</p></details>
+      <details><summary>A Codex approval doesn't show up</summary><p>Codex approval detection is not supported. A normal tool call is not treated as a pending approval.</p></details>
+      <details><summary>I closed a Codex question card</summary><p>Closing the card leaves no record that the question was cancelled. After 15 minutes it shows as <em>Input status unconfirmed</em>. Unrelated chat text never counts as an answer.</p></details>
+      <details><summary>Claude Projects is missing</summary><p>The observer only reads Threads / Overview views that are loaded in the Claude desktop app, without bringing Claude to the front. The Projects folder alone has no task status. No browser relay is used.</p></details>
+      <details><summary>No sound</summary><p>Voice starts muted. Choose <em>Use included Kokoro voice</em>, press Preview, then check the device and provider status in Light &amp; voice. Windows speech is optional.</p></details>
+      <details><summary>I moved the app or a bridge folder</summary><p>Fix shortcuts and startup, rebind bridge paths using the bridge's guide, then restart both the agent host and OVERSEER.</p></details>
+      <details><summary>Windows blocks the app</summary><p>Note the exact warning or policy and report it. Don't turn off Windows protections to get past it.</p></details>
+    </section>
+    <section id="update"><h2>Update &amp; remove</h2>
+      <p><strong>Update:</strong> Exit, back up <code>%LOCALAPPDATA%\\OVERSEER</code>, extract the new version into a new folder, then fix startup and bridge paths. Keep the old folder and backup until you're happy.</p>
+      <p><strong>Roll back:</strong> Exit, restore the backup and start the old copy.</p>
+      <p><strong>Remove:</strong> turn off startup, uninstall any hooks or plugins, Exit, and delete the app folder. Deleting saved data is optional; your other host settings stay untouched.</p>
+    </section>
+    <section id="help"><h2>Get help</h2>
+      <p>${support}</p>
+      <p>Include the version and ZIP hash, Windows build, display scale, agent versions and steps to reproduce. Never upload raw sessions, credentials or full settings files.</p>
+    </section>
+  </div>
+</div>`;
+
+const privacy = `
+<section class="doc-hero"><div class="wrap"><p class="label tick">Policy / plain language</p><h1>Privacy &amp; licensing<span class="dot">.</span></h1><p class="lead">OVERSEER watches metadata on your own machine. It has no account, no server and no analytics.</p></div></section>
+<div class="wrap doc">
+  <nav class="toc" aria-label="On this page"><p class="label">On this page</p><ol><li><a href="#observe">What it reads</a></li><li><a href="#storage">Where data lives</a></li><li><a href="#voice">Voice</a></li><li><a href="#license">Licensing</a></li><li><a href="#report">Reporting</a></li></ol></nav>
+  <div>
+    <section id="observe"><h2>What it reads</h2>
+      <p>OVERSEER never answers approvals, sends prompts or controls an agent. It reads local Codex session files; the optional bridges receive host events or hooks and keep only bounded metadata. Prompts, answers, tool output and other sensitive fields can be present in that input, but they are not copied into its records, history, voice lines or diagnostics.</p>
+      <p>The window can show task titles, IDs and project paths. Bridge spools hold IDs, timestamps, states and project metadata. Treat settings and spools as personal data, not anonymous data.</p>
+    </section>
+    <section id="storage"><h2>Where data lives</h2>
+      <p>Settings, window placement, bounded history and logs, recordings and spools live under <code>%LOCALAPPDATA%\\OVERSEER</code>, or the data folder you choose. The app folder is separate. Exit the app and stop bridges before deleting data.</p>
+      <p>The app makes no telemetry or analytics requests. This website has no analytics, scripts, external fonts or trackers; its host may keep ordinary access logs.</p>
+    </section>
+    <section id="voice"><h2>Voice</h2>
+      <p>Voice is muted for new profiles. The included voice is nine prerecorded Kokoro lines that play locally with no model or network. Windows speech, local voice packs and your own recordings also play locally.</p>
+      <p class="note"><strong>Network</strong>Only if you configure and select the optional TTS endpoint: the app sends that endpoint generic notification text, an event code and a <code>Task N</code> alias. The provider sees the request and your network address. Task titles, prompts, answers and tool output are never included.</p>
+      <p>If a provider fails or voice is muted, the app says so. It never silently switches to another provider.</p>
+    </section>
+    <section id="license"><h2>Licensing</h2>
+      <p>OVERSEER's own code, docs and generated artwork are MIT licensed, © 2026 Winston Lin. Adapted Codex monitoring logic keeps the MIT notice of codex-monitor-hud. The bundled .NET runtime's terms ship inside each app ZIP.</p>
+      <p>${repoUrl ? `<a href="${e(repoUrl)}/blob/main/LICENSE">Project license</a> · <a href="${e(repoUrl)}/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a>` : 'LICENSE and THIRD_PARTY_NOTICES.md are included in the candidate and source repository.'}</p>
+    </section>
+    <section id="report"><h2>Reporting</h2>
+      <p>${support}</p>
+      <p>Remove paths, names and IDs before sharing evidence. Never post credentials or raw session data in a public issue.</p>
+    </section>
+  </div>
+</div>`;
+
+const pages = [
+  { file: 'index.html', title: 'OVERSEER — Windows HUD for AI coding agents', description: 'A small Windows window that shows which Codex, Claude Code and other AI coding agent tasks are working, and which are waiting on you. Local, free and open source.', body: index },
+  { file: 'install.html', title: 'Install & troubleshoot — OVERSEER', description: 'Download and verify the self-contained OVERSEER Windows x64 ZIP, connect Codex, Claude Code, Claude Projects and DeepSeek Harness, and fix common problems.', body: install },
+  { file: 'privacy.html', title: 'Privacy & licensing — OVERSEER', description: 'What OVERSEER reads and stores on your machine, what the optional network voice sends, and the MIT and upstream licenses.', body: privacy },
 ];
-fs.mkdirSync(out,{recursive:true});fs.cpSync(path.join(root,'site/assets'),path.join(out,'assets'),{recursive:true});
-for(const p of pages){const canonical=base?new URL(p.file==='index.html'?'':p.file,base).href:null;const image=base?new URL('assets/hud-dark.png',base).href:null;const metadata=canonical?`<link rel="canonical" href="${e(canonical)}"><meta property="og:url" content="${e(canonical)}"><meta property="og:image" content="${e(image)}"><meta property="og:image:alt" content="OVERSEER dark HUD, synthetic fixture"><meta name="twitter:card" content="summary_large_image">`:'<meta name="robots" content="noindex,nofollow">';
-fs.writeFileSync(path.join(out,p.file),`<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(p.title)}</title><meta name="description" content="${e(p.description)}"><meta property="og:title" content="${e(p.title)}"><meta property="og:description" content="${e(p.description)}"><meta property="og:type" content="website">${metadata}<link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/style.css"></head><body><a class="skip" href="#main">Skip to content</a><header><a class="wordmark" href="index.html" aria-label="OVERSEER home">OVERSEER<span class="dot" aria-hidden="true"></span></a><nav aria-label="Main"><a href="index.html"${p.file==='index.html'?' aria-current="page"':''}>Overview</a><a href="install.html"${p.file==='install.html'?' aria-current="page"':''}>Install</a><a href="privacy.html"${p.file==='privacy.html'?' aria-current="page"':''}>Privacy</a></nav></header>${draft?'<aside class="draft" aria-label="Publication status">LOCAL PREVIEW · qualification pending · not a public release</aside>':''}<main id="main">${p.body}</main><footer><p>OVERSEER · ${e(version)} · ${source}</p><p>MIT · © 2026 Winston Lin · Read-only agent observation</p></footer></body></html>\n`);}
-const sitemap=path.join(out,'sitemap.xml');
-if(base)fs.writeFileSync(sitemap,`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(p=>`<url><loc>${e(new URL(p.file==='index.html'?'':p.file,base).href)}</loc></url>`).join('')}</urlset>\n`);else if(fs.existsSync(sitemap))fs.unlinkSync(sitemap);
-fs.writeFileSync(path.join(out,'site-build.json'),JSON.stringify({draft,version,baseUrl:base?.href??null,repositoryUrl:repoUrl??null,downloadUrl:download?.href??null,pages:pages.map(p=>p.file)},null,2)+'\n');
-console.log(`Built ${pages.length} static pages (${draft?'local noindex draft':'publication configuration'}) into ${out}`);
+
+const nav = file => [['index.html', 'Overview'], ['install.html', 'Install'], ['privacy.html', 'Privacy']]
+  .map(([href, label]) => `<a href="${href}"${href === file ? ' aria-current="page"' : ''}>${label}</a>`).join('')
+  + (repoUrl ? `<a class="ext" href="${e(repoUrl)}">GitHub ${arrow}</a>` : '');
+
+const footer = `<footer class="site-footer"><div class="wrap">
+  <div><a class="brand" href="index.html">OVERSEER<span class="dot">.</span></a><p>A local Windows HUD that shows what your AI coding agents are doing and when they need you.</p></div>
+  <div><h2>Product</h2><ul><li><a href="install.html">Install</a></li><li><a href="install.html#troubleshooting">Troubleshooting</a></li><li><a href="privacy.html">Privacy</a></li>${repoUrl ? `<li><a href="${e(repoUrl)}/releases">Releases</a></li>` : ''}</ul></div>
+  <div><h2>Project</h2><ul>${repoUrl ? `<li><a href="${e(repoUrl)}">Source</a></li><li><a href="${e(repoUrl)}/issues">Issues</a></li><li><a href="${e(repoUrl)}/blob/main/LICENSE">MIT license</a></li>` : '<li><span>Source URL pending</span></li>'}</ul></div>
+</div><div class="legal"><div class="wrap"><span class="label">OVERSEER · ${e(version)}</span><span class="label">MIT · © 2026 Winston Lin · Read-only agent observation</span></div></div></footer>`;
+
+fs.mkdirSync(out, { recursive: true });
+fs.rmSync(path.join(out, 'assets'), { recursive: true, force: true });
+fs.cpSync(path.join(root, 'site/assets'), path.join(out, 'assets'), { recursive: true });
+for (const p of pages) {
+  const canonical = base ? new URL(p.file === 'index.html' ? '' : p.file, base).href : null;
+  const image = base ? new URL('assets/og-card.png', base).href : null;
+  const metadata = canonical
+    ? `<link rel="canonical" href="${e(canonical)}"><meta property="og:url" content="${e(canonical)}"><meta property="og:image" content="${e(image)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="OVERSEER: know when your agents need you. The HUD window with sample tasks."><meta name="twitter:card" content="summary_large_image">`
+    : '<meta name="robots" content="noindex,nofollow">';
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(p.title)}</title><meta name="description" content="${e(p.description)}"><meta name="theme-color" content="#111613" media="(prefers-color-scheme: dark)"><meta name="theme-color" content="#f0eee7" media="(prefers-color-scheme: light)"><meta property="og:title" content="${e(p.title)}"><meta property="og:description" content="${e(p.description)}"><meta property="og:type" content="website">${metadata}<link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/style.css"></head>
+<body><a class="skip" href="#main">Skip to content</a>
+<input type="checkbox" id="theme-flip" class="theme-flip" aria-label="Switch between light and dark theme">
+<header class="site-header"><div class="wrap"><a class="brand" href="index.html" aria-label="OVERSEER home">OVERSEER<span class="dot">.</span></a><nav aria-label="Main">${nav(p.file)}<label class="theme-toggle" for="theme-flip" title="Switch theme"><span class="half" aria-hidden="true"></span><span class="to-light">Light</span><span class="to-dark">Dark</span></label></nav></div></header>
+<div class="sub-bar"><div class="wrap"><span class="label amber">See the work. Answer when it matters.</span><span class="label">OVERSEER / ${e(version)}</span></div></div>
+${draft ? '<aside class="draft" aria-label="Publication status">LOCAL PREVIEW · qualification pending · not a public release</aside>' : ''}<main id="main">${p.body}</main>
+${footer}</body></html>
+`;
+  fs.writeFileSync(path.join(out, p.file), html);
+}
+const sitemap = path.join(out, 'sitemap.xml');
+if (base) fs.writeFileSync(sitemap, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(p => `<url><loc>${e(new URL(p.file === 'index.html' ? '' : p.file, base).href)}</loc></url>`).join('')}</urlset>\n`);
+else if (fs.existsSync(sitemap)) fs.unlinkSync(sitemap);
+fs.writeFileSync(path.join(out, 'site-build.json'), JSON.stringify({ draft, version, baseUrl: base?.href ?? null, repositoryUrl: repoUrl ?? null, downloadUrl: download?.href ?? null, pages: pages.map(p => p.file) }, null, 2) + '\n');
+console.log(`Built ${pages.length} static pages (${draft ? 'local noindex draft' : 'publication configuration'}) into ${out}`);
