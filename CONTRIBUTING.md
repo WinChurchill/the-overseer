@@ -92,8 +92,8 @@ contributed from their choice of tool.
 To fix a flagged commit on your branch, reword it (for example `git commit --amend`
 or an interactive rebase), delete the line, and force-push your own branch.
 
-OVERSEER was built with help from Claude Code; that is acknowledged once in the
-README and on the website rather than in every commit.
+OVERSEER was built with help from Claude Code, Codex and DeepSeek; that is
+acknowledged once in the README and on the website rather than in every commit.
 
 ## Code map and fixtures
 

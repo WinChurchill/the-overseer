@@ -67,4 +67,5 @@ development, see the [tester handoff](docs/TESTER_HANDOFF.md), [support](SUPPORT
 [Security](SECURITY.md) · [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Built by Winston Lin with testers lanbodikai and qinyif001, and with help from
-[Claude Code](https://claude.com/claude-code).
+the AI coding agents [Claude Code](https://claude.com/claude-code),
+[Codex](https://openai.com/codex/) and [DeepSeek](https://www.deepseek.com/).
