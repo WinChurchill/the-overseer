@@ -113,11 +113,11 @@ const index = `
 <section class="section alt" id="people">
   <div class="wrap">
     <div class="bar"><span class="bar-title">People &amp; credits</span><span class="label">Contributors / 03</span></div>
-    <p class="bar-note">Thanks to the testers whose feedback shaped every alpha.</p>
+    <p class="bar-note">Thanks to the contributors whose testing and feedback shaped every alpha.</p>
     <div class="people">
-      <a class="person lead-person notch" href="https://github.com/WinChurchill"><span class="initials" aria-hidden="true">WL</span><span><h3>Winston Lin</h3><span class="label">Creator · maintainer</span></span>${arrow}</a>
-      <a class="person" href="https://github.com/lanbodikai"><span class="initials" aria-hidden="true">LB</span><span><h3>lanbodikai</h3><span class="label">Contributor · tester</span></span>${arrow}</a>
-      <a class="person" href="https://github.com/qinyif001"><span class="initials" aria-hidden="true">QY</span><span><h3>qinyif001</h3><span class="label">Contributor · tester</span></span>${arrow}</a>
+      <a class="person lead-person notch" href="https://github.com/WinChurchill"><img class="avatar" src="assets/people/winchurchill.png" width="104" height="104" alt="GitHub avatar of Winston Lin" loading="lazy"><span><h3>Winston Lin</h3><span class="label">Creator · maintainer</span></span>${arrow}</a>
+      <a class="person" href="https://github.com/lanbodikai"><img class="avatar" src="assets/people/lanbodikai.png" width="104" height="104" alt="GitHub avatar of lanbodikai" loading="lazy"><span><h3>lanbodikai</h3><span class="label">Contributor · tester</span></span>${arrow}</a>
+      <a class="person" href="https://github.com/qinyif001"><img class="avatar" src="assets/people/qinyif001.png" width="104" height="104" alt="GitHub avatar of qinyif001" loading="lazy"><span><h3>qinyif001</h3><span class="label">Contributor · tester</span></span>${arrow}</a>
     </div>
     <p class="credits-line">Built on <a href="https://github.com/LH-03/codex-monitor-hud">codex-monitor-hud</a> by LH-03 (MIT) · voice cues recorded with <a href="https://huggingface.co/hexgrad/Kokoro-82M">Kokoro</a>${repoUrl ? ` · <a href="${e(repoUrl)}/blob/main/CONTRIBUTING.md">Contribute</a>` : ''}</p>
   </div>
