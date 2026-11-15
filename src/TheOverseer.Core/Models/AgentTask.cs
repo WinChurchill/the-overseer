@@ -95,6 +95,9 @@ public sealed record AgentTask(
     /// </summary>
     public bool IsStateUncertain { get; init; }
 
+    /// <summary>The Claude desktop app's id for this session, when it runs there.</summary>
+    public string? DesktopSessionId { get; init; }
+
     /// <summary>Shared eligibility for current counts, history and live alerts.</summary>
     public bool HasCurrentState => !IsStale && !IsProvisional && !IsStateUncertain;
 

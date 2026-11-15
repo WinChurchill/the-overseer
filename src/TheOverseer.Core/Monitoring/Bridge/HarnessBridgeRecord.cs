@@ -43,7 +43,8 @@ public sealed record HarnessBridgeRecord(
     string Evidence,
     string? Outcome,
     bool Hydration,
-    string ProducerVersion)
+    string ProducerVersion,
+    string? HostSessionId = null)
 {
     public TaskKey Key => TaskKey.For(HarnessId, SourceInstanceId, SessionId);
 }
@@ -139,7 +140,9 @@ public static class HarnessBridgeParser
                 Evidence(root),
                 IdentifierOrNull(root, "outcome"),
                 Bool(root, "hydration"),
-                Identifier(root, "producerVersion"));
+                Identifier(root, "producerVersion"),
+                root.TryGetProperty("hostSessionId", out var host) && host.ValueKind == JsonValueKind.String &&
+                    ClaudeDesktopSession.IsValidId(host.GetString()) ? host.GetString() : null);
 
             return new BridgeParseResult(BridgeParseOutcome.Accepted, record, "ok");
         }

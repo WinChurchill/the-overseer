@@ -35,12 +35,17 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         // Select first (Now/Recent/This session), then group, then order the projects
         // attention -> active -> recent. Rows of one project stay contiguous so the
         // project order is the group order and cannot jitter between ticks.
-        var entries = GroupRows(SelectTasks(snapshot.Tasks, now), snapshot.Tasks);
-        SortRows(entries, IsRecentView);
+        var selected = SelectTasks(snapshot.Tasks, now);
+        // Checklist rows can outlive the snapshot; group them with the live tasks.
+        var context = IsFilterReview ? snapshot.Tasks.Concat(selected.Where(row => !snapshot.Tasks.Contains(row))).ToArray() : snapshot.Tasks;
+        var entries = GroupRows(selected, context);
+        SortRows(entries, IsRecentView || IsFilterReview);
         TaskCountLine = entries.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + " shown · " +
             snapshot.Tasks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " tracked";
         if (snapshot.Tasks.Count > 0 && snapshot.Health.Level != MonitoringHealthLevel.Unavailable)
-            EmptyStateText = HasActiveFilter
+            EmptyStateText = IsFilterReview
+                ? "Nothing to review. Finished tasks wait here until you tick or open them."
+                : HasActiveFilter
                 ? "No observed tasks match the " + (IsFilterAttention ? "Needs you" : "Working") + " filter. Try All."
                 : TaskView switch
             {
@@ -60,6 +65,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         for (var index = 0; index < entries.Length; index++)
         {
             Tasks[index].Update(entries[index].Task);
+            Tasks[index].IsReviewItem = IsReviewItem(entries[index].Task.Key);
             _lastActivity[index] = entries[index].Task.LastActivityAt;
         }
 
@@ -103,6 +109,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
                 group.ProjectId, !IsProjectCollapsed(group.ProjectId));
             row.HistoryToggled += OnTaskHistoryToggled;
             row.RestoreHistoryOpen(_openTaskHistory.Contains(task.Key));
+            row.IsReviewItem = IsReviewItem(task.Key);
             Tasks.Add(row);
             _lastActivity.Add(task.LastActivityAt);
         }

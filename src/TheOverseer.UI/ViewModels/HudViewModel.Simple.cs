@@ -20,7 +20,7 @@ public sealed partial class HudViewModel
     // ---- view filter ----------------------------------------------------------
 
     /// <summary>
-    /// "all", "attention" or "working". The filter only selects which rows are
+    /// "all", "attention", "working" or "review". The filter only selects which rows are
     /// shown: the summary counts still describe all monitored work.
     /// </summary>
     public string TaskFilter
@@ -37,6 +37,8 @@ public sealed partial class HudViewModel
             Raise(nameof(IsFilterAll));
             Raise(nameof(IsFilterAttention));
             Raise(nameof(IsFilterWorking));
+            Raise(nameof(IsFilterReview));
+            Raise(nameof(ShowTickAll));
             Raise(nameof(HasActiveFilter));
             Raise(nameof(FilterLine));
             RefreshTaskView();
@@ -56,6 +58,7 @@ public sealed partial class HudViewModel
     {
         "attention" => "Filter: needs you only",
         "working" => "Filter: working only",
+        "review" => "Filter: finished tasks to review",
         _ => "Filter: all monitored work",
     };
 
@@ -96,6 +99,7 @@ public sealed partial class HudViewModel
     {
         "attention" or "needs-you" or "needsyou" => "attention",
         "working" => "working",
+        "review" or "to-review" => "review",
         _ => "all",
     };
 

@@ -790,6 +790,54 @@ public sealed class HarnessBridgeTests
     }
 
     [Fact]
+    public void ANewPromptReconfirmsAWatchedSessionAfterAProducerDrop()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "session/start", category: "idle")));
+        session.Apply(Parse(Line(2, "turn/start", turnId: "turn-1")));
+        session.Apply(Parse(Line(3, "turn/end", turnId: "turn-1", outcome: "completed")));
+        session.NoteProducerIncomplete("producer-dropped:3", Start.AddSeconds(4));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(4))).CoverageIncomplete);
+
+        session.Apply(Parse(Line(4, "turn/start", turnId: "turn-2")));
+        var working = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.Equal(AgentTaskState.Working, working.State);
+        Assert.False(working.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void ASessionClosingRightAfterAFinishedTurnKeepsTheFinish()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "session/start", category: "idle")));
+        session.Apply(Parse(Line(2, "turn/start", turnId: "turn-1")));
+        session.Apply(Parse(Line(3, "turn/end", turnId: "turn-1", outcome: "completed")));
+        session.Apply(Parse(Line(4, "session/end")));
+        var task = Assert.Single(session.Tasks(Start.AddSeconds(5)));
+        Assert.Equal(AgentTaskState.Done, task.State);
+        Assert.NotNull(task.CompletedAt);
+        Assert.False(task.CoverageIncomplete);
+    }
+
+    [Fact]
+    public void ASessionClosingMidTurnStillGoesIdle()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(1, "session/start", category: "idle")));
+        session.Apply(Parse(Line(2, "turn/start", turnId: "turn-1")));
+        session.Apply(Parse(Line(3, "session/end")));
+        Assert.Equal(AgentTaskState.Idle, Assert.Single(session.Tasks(Start.AddSeconds(4))).State);
+    }
+
+    [Fact]
+    public void ANewPromptDoesNotReconfirmASessionThatWasOnlyJoinedMidway()
+    {
+        var session = new HarnessBridgeSession(Dsh);
+        session.Apply(Parse(Line(7, "turn/start", turnId: "turn-1")));
+        Assert.True(Assert.Single(session.Tasks(Start.AddSeconds(1))).CoverageIncomplete);
+    }
+
+    [Fact]
     public void AuthoritativeSnapshotSupersedesOlderRecordsAndRestoresCoverage()
     {
         var session = new HarnessBridgeSession(Dsh);

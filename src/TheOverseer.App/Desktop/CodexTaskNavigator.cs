@@ -117,6 +117,16 @@ public sealed class CodexTaskNavigator
     /// <summary>Validates and builds the route, or explains why it is unsupported.</summary>
     public static TaskNavigationResult BuildUri(AgentTask task, string profileId)
     {
+        if (task.Key.HarnessId == HarnessIds.Claude)
+        {
+            // Only the validated desktop session id reaches the link.
+            var link = ClaudeDesktopSession.LinkFor(task.DesktopSessionId);
+            return link is null
+                ? new TaskNavigationResult(TaskNavigationOutcome.UnsupportedSurface,
+                    "Open this task in Claude manually — it was not started in the Claude desktop app.", null)
+                : new TaskNavigationResult(TaskNavigationOutcome.Requested, "Opening chat in Claude…", link);
+        }
+
         if (task.Key.HarnessId != HarnessIds.Codex)
             return new TaskNavigationResult(TaskNavigationOutcome.UnsupportedSurface,
                 "Open this task in its coding application — this harness has no supported route.", null);
@@ -190,13 +200,14 @@ public sealed class CodexTaskNavigator
             var outcome = string.Equals(errorCode, "no-handler", StringComparison.Ordinal)
                 ? TaskNavigationOutcome.NoHandler
                 : TaskNavigationOutcome.LaunchFailed;
+            var app = task.Key.HarnessId == HarnessIds.Claude ? "Claude" : "Codex";
             var message = outcome == TaskNavigationOutcome.NoHandler
-                ? "Codex does not handle task links on this machine — open the task manually."
-                : "Could not open the task in Codex — open it manually.";
+                ? app + " does not handle task links on this machine — open the task manually."
+                : "Could not open the task in " + app + " — open it manually.";
             return new TaskNavigationResult(outcome, message, built.Uri);
         }
 
         // A successful shell request is not proof that the exact thread focused.
-        return built with { UserMessage = "Open requested in Codex." };
+        return built with { UserMessage = task.Key.HarnessId == HarnessIds.Claude ? "Open requested in Claude." : "Open requested in Codex." };
     }
 }

@@ -66,6 +66,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         ExpandAllProjectsCommand = new RelayCommand(() => SetAllProjectsExpanded(true));
         CollapseAllProjectsCommand = new RelayCommand(() => SetAllProjectsExpanded(false));
         InitializeSimpleCommands();
+        InitializeReview(normalized.Review);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -222,7 +223,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         ? StatusMessage
         : HasTasks
             ? HasNavigableRows
-                ? "Click a Codex task to open it · right-click to copy a task id"
+                ? "Click a task to open it · right-click to copy a task id"
                 : "Right-click a task to copy its id · no supported open route for these tasks"
             : EmptyStateText;
 
@@ -454,6 +455,7 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
         var now = snapshot.GeneratedAt;
         _latestSnapshot = snapshot;
         _viewNow = now;
+        ApplyReview(snapshot.Tasks, now);
         if (_statusExpiresAt is { } expiry && now >= expiry) ClearStatus();
 
         WorkingCountText = HudText.CountValue(snapshot.Counts.Working);
@@ -567,10 +569,13 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
 
     /// <summary>
     /// Navigation availability uses normalized identity and harness capability.
-    /// Only Codex desktop tasks have a supported codex:// route.
+    /// Codex desktop tasks open through codex://; Claude Code tasks running in the
+    /// Claude desktop app open through its own session link.
     /// </summary>
     public static bool CanNavigate(AgentTask task) =>
-        HarnessIds.Normalize(task.Key.HarnessId) == HarnessIds.Codex &&
+        HarnessIds.Normalize(task.Key.HarnessId) == HarnessIds.Claude
+            ? ClaudeDesktopSession.IsValidId(task.DesktopSessionId)
+            : HarnessIds.Normalize(task.Key.HarnessId) == HarnessIds.Codex &&
         task.Surface == ClientSurface.Desktop &&
         !task.IsProvisional &&
         task.State != AgentTaskState.Idle &&
@@ -585,6 +590,13 @@ public sealed partial class HudViewModel : INotifyPropertyChanged
             return CanNavigate(task)
                 ? "Open this task in Codex"
                 : "No supported Codex route for this task — click to copy its id";
+        }
+
+        if (harness == HarnessIds.Claude)
+        {
+            return CanNavigate(task)
+                ? "Open this chat in Claude"
+                : "Only Claude Code chats in the Claude desktop app can be opened — click to copy this task's id";
         }
 
         return "No supported open route for " + ShortHarness(harness) + " tasks — click to copy this task's id";

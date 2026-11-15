@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 
 export const SCHEMA_VERSION = 1;
 export const HARNESS_ID = 'claude';
-export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.7';
+export const PRODUCER_VERSION = 'overseer-claude-bridge/1.0.8';
 
 export const MAX_ID_CHARS = 128;
 export const MAX_PROJECT_ROOT_CHARS = 512;
@@ -43,7 +43,7 @@ export const RECORD_KEYS = Object.freeze([
   'schemaVersion', 'harnessId', 'sourceInstanceId', 'sourceEpoch', 'sessionId',
   'sequence', 'eventId', 'observedAtUtc', 'eventAtUtc', 'kind', 'turnId', 'callId',
   'requestId', 'projectRoot', 'category', 'evidence', 'outcome', 'hydration',
-  'producerVersion',
+  'producerVersion', 'hostSessionId',
 ]);
 
 /** Documented Claude Code hook events the bridge maps to a normalized kind. */
@@ -246,7 +246,7 @@ export function deriveEventId(payload, { sourceInstanceId, sessionId, kind }) {
 
 /**
  * Build the normalized record for one documented hook payload.
- * ctx: { sourceInstanceId, sourceEpoch, observedAtUtc, producerVersion }
+ * ctx: { sourceInstanceId, sourceEpoch, observedAtUtc, producerVersion, hostSessionId }
  * sequence is a placeholder that the spool replaces with the atomically
  * allocated per-session ingestion order.
  */
@@ -290,7 +290,24 @@ export function buildRecord(payload, ctx) {
     // Always false: a live one-shot hook publication, never a replay.
     hydration: false,
     producerVersion: ctx.producerVersion ?? PRODUCER_VERSION,
+    // The Claude desktop app's own id for this session, so OVERSEER can open it.
+    hostSessionId: safeHostSessionId(ctx.hostSessionId),
   };
+}
+
+/** Desktop session ids look like local_<uuid>; anything else is dropped. */
+const HOST_SESSION_ID = /^local_[A-Za-z0-9-]{1,64}$/;
+export function safeHostSessionId(value) {
+  return typeof value === 'string' && HOST_SESSION_ID.test(value) ? value : null;
+}
+
+/**
+ * The desktop session id for this hook, read from exactly two variables Claude
+ * Code sets for its hooks. Nothing else in the environment is read.
+ */
+export function hostSessionIdFromEnv(env) {
+  if (!env || env.CLAUDE_CODE_ENTRYPOINT !== 'claude-desktop') return null;
+  return safeHostSessionId(env.CLAUDE_CODE_HOST_SESSION_ID);
 }
 
 /** Contract check used by the bridge before publishing and by the tests. */
@@ -325,6 +342,7 @@ export function validateRecord(record, { requireSequence = true } = {}) {
     problems.push('projectRoot exceeds 512 characters');
   }
   if (typeof record.hydration !== 'boolean') problems.push('hydration must be a boolean');
+  if (record.hostSessionId !== null && safeHostSessionId(record.hostSessionId) === null) problems.push('hostSessionId must be null or a desktop local_ id');
   const line = JSON.stringify(record);
   if (Buffer.byteLength(line, 'utf8') > MAX_RECORD_BYTES) problems.push('record exceeds 64 KiB');
   return problems;

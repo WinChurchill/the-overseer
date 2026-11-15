@@ -85,6 +85,8 @@ public sealed partial class HudViewModel
     /// Counts are never recomputed here: the summary keeps describing all monitored work.
     /// </summary>
     private IReadOnlyList<AgentTask> SelectTasks(IReadOnlyList<AgentTask> tasks, DateTimeOffset now) =>
+        // The checklist is its own list: finished tasks stay until ticked, whatever the view.
+        _taskFilter == "review" ? ReviewTasks(tasks) :
         tasks.Where(task => MatchesFilter(task) && (MatchesView(task, now) || _taskFilter == "attention")).ToArray();
 
     private bool MatchesView(AgentTask task, DateTimeOffset now) => TaskView switch
@@ -102,9 +104,22 @@ public sealed partial class HudViewModel
     };
 
     private static bool IsCurrent(AgentTask task, DateTimeOffset now) =>
-        task.HasAttention || task.HasUnconfirmedAttention || task.HasCurrentState &&
+        task.HasAttention || task.HasUnconfirmedAttention || IsVisiblyWorking(task, now) || task.HasCurrentState &&
         (task.State is AgentTaskState.Working or AgentTaskState.NeedsApproval or AgentTaskState.NeedsInput ||
          (task.IsTerminal && (task.CompletedAt ?? task.LastActivityAt) >= now.AddMinutes(-10)));
+
+    /// <summary>How long recent activity keeps an unconfirmed working task in Now.</summary>
+    public static readonly TimeSpan UnconfirmedWorkWindow = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// A session OVERSEER joined midway (it started before OVERSEER, or records were
+    /// lost) cannot have its state confirmed until its next prompt. If it is visibly
+    /// doing work right now it still belongs in Now; its row carries the
+    /// "state unconfirmed" mark, and counts and alerts keep using confirmed state only.
+    /// </summary>
+    private static bool IsVisiblyWorking(AgentTask task, DateTimeOffset now) =>
+        task.State == AgentTaskState.Working && !task.HasCurrentState && !task.IsStale && !task.IsProvisional &&
+        task.LastActivityAt >= now - UnconfirmedWorkWindow;
 
     private void UpdateVisualStatus(MonitoringSnapshot snapshot, DateTimeOffset now)
     {

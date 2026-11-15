@@ -486,6 +486,16 @@
                           Margin="0,3,0,0" />
           </StackPanel>
           <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+            <!-- A checklist tick, not a navigation button: ticking clears the row. -->
+            <CheckBox Content="Done" HorizontalAlignment="Right" Margin="0,0,0,2" IsChecked="False"
+                      FontFamily="{DynamicResource MetadataFontFamily}"
+                      FontSize="{DynamicResource FontSizeMeta}"
+                      Foreground="{DynamicResource MutedBrush}"
+                      Command="{Binding DataContext.MarkReviewedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                      CommandParameter="{Binding}"
+                      Visibility="{Binding IsReviewItem, Converter={StaticResource BoolToVisibility}}"
+                      ToolTip="Tick: I have looked at this finished task"
+                      automation:AutomationProperties.Name="Mark this finished task as reviewed" />
             <TextBlock Text="{Binding AgeText}" ToolTip="{Binding AgeHint}" HorizontalAlignment="Right"
                        FontFamily="{DynamicResource MetadataFontFamily}"
                        FontSize="{DynamicResource FontSizeMeta}"
@@ -711,6 +721,34 @@
                          Foreground="{DynamicResource MutedBrush}" />
             </StackPanel>
           </Button>
+          <TextBlock Text="·" Margin="6,0,6,1" VerticalAlignment="Center"
+                     FontFamily="{DynamicResource MetadataFontFamily}"
+                     FontSize="{DynamicResource FontSizeBody}"
+                     Foreground="{DynamicResource BorderBrush}" />
+          <Button x:Name="ReviewSummaryButton" Style="{StaticResource SummarySectionButton}" Command="{Binding ShowReviewCommand}"
+                  automation:AutomationProperties.Name="To review - show finished tasks you have not looked at"
+                  ToolTip="Finished tasks stay here until you tick them or open them.">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding ReviewCountText}" VerticalAlignment="Center"
+                         FontFamily="{DynamicResource PrimaryFontFamily}"
+                         FontSize="{DynamicResource FontSizeCount}" FontWeight="Bold">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasReviewItems}" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource HealthyBrush}" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+              <TextBlock Text="To review" Margin="5,0,0,2" VerticalAlignment="Bottom"
+                         FontFamily="{DynamicResource MetadataFontFamily}"
+                         FontSize="{DynamicResource FontSizeMeta}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource MutedBrush}" />
+            </StackPanel>
+          </Button>
         </WrapPanel>
 
         <!-- One clickable health control, in the pinned area. It opens per-source
@@ -787,7 +825,7 @@
           </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="14,2,14,4">
+        <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="14,2,14,4">
           <RadioButton x:Name="FilterAll" Content="All" GroupName="TaskFilter" Style="{StaticResource FilterChip}"
                        IsChecked="{Binding IsFilterAll}" Command="{Binding SetTaskFilterCommand}" CommandParameter="all"
                        ToolTip="Show every row in this view" automation:AutomationProperties.Name="Show all rows" />
@@ -797,7 +835,14 @@
           <RadioButton x:Name="FilterWorking" Content="Working" GroupName="TaskFilter" Style="{StaticResource FilterChip}"
                        IsChecked="{Binding IsFilterWorking}" Command="{Binding SetTaskFilterCommand}" CommandParameter="working"
                        ToolTip="Show only rows that are working" automation:AutomationProperties.Name="Show working rows" />
-        </StackPanel>
+          <RadioButton x:Name="FilterReview" Content="To review" GroupName="TaskFilter" Style="{StaticResource FilterChip}"
+                       IsChecked="{Binding IsFilterReview}" Command="{Binding SetTaskFilterCommand}" CommandParameter="review"
+                       ToolTip="Finished tasks you have not ticked or opened yet" automation:AutomationProperties.Name="Show finished tasks to review" />
+          <Button x:Name="TickAllButton" Content="Tick all" Style="{StaticResource HudIconButton}" Margin="6,0,0,0" Padding="6,1"
+                  Command="{Binding MarkAllReviewedCommand}"
+                  Visibility="{Binding ShowTickAll, Converter={StaticResource BoolToVisibility}}"
+                  ToolTip="Mark every finished task as reviewed" automation:AutomationProperties.Name="Mark every finished task as reviewed" />
+        </WrapPanel>
 
         <!-- The hour axis and legend belong to the history area and only appear with
              an open history disclosure. -->

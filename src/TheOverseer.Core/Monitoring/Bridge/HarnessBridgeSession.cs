@@ -74,7 +74,8 @@ public sealed record BridgeTaskState(
     bool ActionEvidenceFresh = false,
     bool HistoryGap = false,
     BridgeTurnOutcome TurnOutcome = BridgeTurnOutcome.None,
-    string ProducerVersion = "");
+    string ProducerVersion = "",
+    string? HostSessionId = null);
 
 /// <summary>
 /// Folds one bridge source's metadata records into task state. It never reads
@@ -339,6 +340,7 @@ public sealed partial class HarnessBridgeSession
             {
                 lane.ProjectRoot = record.ProjectRoot!;
             }
+            if (record.HostSessionId is not null) lane.HostSessionId = record.HostSessionId;
 
             var stamp = Stamp(lane, record.ObservedAtUtc, receiptAtUtc);
             // New evidence makes a previously retired session live again.
@@ -358,6 +360,7 @@ public sealed partial class HarnessBridgeSession
             var previousState = lane.State;
             var previousTurn = lane.TurnId;
             var edge = Fold(lane, record, stamp, gapDetected);
+            lane.RecordsFolded++;
             if (lane.StateSince == default || previousState != lane.State) lane.StateSince = stamp;
             if (record.Kind == "turn/start" && (lane.TurnStartedAt is null || previousTurn != lane.TurnId))
             {
@@ -409,7 +412,8 @@ public sealed partial class HarnessBridgeSession
                     actionFresh,
                     lane.HistoryGap,
                     lane.OutcomeUnknown ? BridgeTurnOutcome.Unknown : lane.TurnOutcome,
-                    _producerVersion));
+                    _producerVersion,
+                    lane.HostSessionId));
             }
 
             return tasks;
@@ -538,6 +542,8 @@ public sealed partial class HarnessBridgeSession
         public bool OutcomeUnknown;
         public BridgeTurnOutcome TurnOutcome = BridgeTurnOutcome.None;
         public string ProjectRoot = string.Empty;
+        public string? HostSessionId;
+        public long RecordsFolded;
         public DateTimeOffset LastObservedAt;
         public DateTimeOffset LastHeartbeatAt;
         public DateTimeOffset LastActionAt;

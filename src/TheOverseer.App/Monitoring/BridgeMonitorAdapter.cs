@@ -302,7 +302,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             NumberFor(lane.SessionId),
             lane.SessionId,
             Source.SourceInstanceId,
-            ClientSurface.Unknown,
+            lane.HostSessionId is null ? ClientSurface.Unknown : ClientSurface.Desktop,
             label,
             lane.TurnId,
             lane.State,
@@ -324,6 +324,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             assignment.Project)
         {
             IsStateUncertain = lane.CoverageIncomplete || EvidenceFor(lane) == EvidenceKind.None,
+            DesktopSessionId = lane.HostSessionId,
         };
     }
 
@@ -368,7 +369,13 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         var confirmedRequest = lane.NeedsHuman && !lane.IsStale && !lane.CoverageIncomplete;
         if (active && !lane.ActionEvidenceFresh && !confirmedRequest)
         {
-            return EvidenceKind.None;
+            // Agents think or write for minutes between tool calls without emitting
+            // anything. A turn that started under observation and has not ended is
+            // still evidence of work until the source goes stale; it is weaker than
+            // a fresh action, so it is reported as inferred rather than structured.
+            var openTurn = lane.State == AgentTaskState.Working && lane.TurnStartedAt is not null &&
+                !lane.IsStale && !lane.CoverageIncomplete;
+            return openTurn ? EvidenceKind.Inferred : EvidenceKind.None;
         }
 
         return EvidenceKind.Structured;
