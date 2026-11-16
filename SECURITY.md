@@ -26,6 +26,7 @@ through OVERSEER.
 | Agent session files and spools | Reads are bounded (window, line, record and JSON-depth caps, a per-pass byte budget, a capped number of sources). Identifiers are allowlisted. Symbolic links, junctions and hard-linked spool files are refused. Titles and folder names are stripped of control, zero-width and text-direction characters before display. |
 | Claude Code hooks | The hook runs `node` with an argument list, not a shell string. It reads at most 1 MiB with a 2 second deadline and always exits 0 without printing. It never returns a permission decision. The installer only touches its own marked handlers. |
 | DeepSeek Harness observer | Writes metadata to the spool. No network access, child processes or dynamic code. |
+| Claude chat titles | Opens only `local_<id>.json` files named by a validated desktop id under the Claude app's session folder, refuses links and files over 1 MiB, and uses only the `title` string, cleaned and clipped. |
 | Claude Projects reader | Reads the accessibility tree of `Claude.exe` windows only. It never clicks, types or changes them. |
 | Opening a task | Builds `codex://threads/<id>` only when the id is letters, digits and dashes. No other text reaches the shell. |
 | Startup | One quoted value under the current user's `Run` key. |

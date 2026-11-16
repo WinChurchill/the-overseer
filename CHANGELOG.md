@@ -11,6 +11,9 @@
   *state unconfirmed*; counts and alerts keep using confirmed state.
 - A Claude session that closes right after a finished turn keeps its Done or failed
   result instead of resetting to idle, so the finish shows and reaches **To review**.
+- Claude chats are named after their Claude desktop sidebar title, read-only from the
+  app's per-session file (only the `title` field, size-capped). Other Claude chats read
+  "Claude chat <id>" instead of a bare id.
 - Add a **To review** checklist: finished and failed tasks stay listed, with a
   Done tick, until you tick them, open them or they start working again. The list
   survives restarts and is bounded to 30 items.

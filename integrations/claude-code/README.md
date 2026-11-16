@@ -545,6 +545,10 @@ The tests use `fs.mkdtemp` directories and real child processes; they never read
   `CLAUDE_CODE_HOST_SESSION_ID` variable it passes to hooks and its
   `claude://claude.ai/epitaxy/<id>` session link. A Claude update can change either; the
   click then falls back to copying the id.
+* Chat names come from the Claude desktop app's own per-session file
+  (`%LOCALAPPDATA%\Claude-Data\claude_*\claude-code-sessions\…\local_<id>.json`); OVERSEER
+  reads only its `title`. The format is undocumented, and chats outside the desktop app (or
+  from before bridge 1.0.8) show as "Claude chat <id>".
 * Hooks store an absolute path to `bridge.mjs`. Moving, replacing or deleting that folder
   (for example extracting a new ZIP somewhere else) leaves the hooks pointing at nothing
   until you re-run the installer from the new folder. The setup .exe keeps one folder across
