@@ -205,6 +205,20 @@ public sealed class TaskRowViewModel : INotifyPropertyChanged
 
     public bool CanNavigate { get; }
 
+    private bool _isReviewItem;
+
+    /// <summary>The row is on the "To review" checklist and shows a tick button.</summary>
+    public bool IsReviewItem
+    {
+        get => _isReviewItem;
+        set
+        {
+            if (_isReviewItem == value) return;
+            _isReviewItem = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsReviewItem)));
+        }
+    }
+
     /// <summary>Honest route wording for this task's harness.</summary>
     public string NavigationHint { get; }
 

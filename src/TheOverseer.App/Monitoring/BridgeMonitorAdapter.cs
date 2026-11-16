@@ -21,6 +21,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _staleLease;
     private readonly TimeSpan _actionLease;
+    private readonly ClaudeDesktopTitles? _titles;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -45,9 +46,11 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         TimeSpan? pollInterval = null,
         TimeSpan? staleLease = null,
         TimeProvider? timeProvider = null,
-        TimeSpan? actionLease = null)
+        TimeSpan? actionLease = null,
+        ClaudeDesktopTitles? titles = null)
     {
         Source = source;
+        _titles = source.HarnessId == HarnessIds.Claude ? titles ?? new ClaudeDesktopTitles() : null;
         _dataDirectory = dataDirectory;
         _projects = projects;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(2);
@@ -296,13 +299,16 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
     private AgentTask ToTask(BridgeTaskState lane)
     {
         var assignment = _projects?.Resolve(lane.ProjectRoot) ?? ProjectAssignment.None;
-        var label = lane.SessionId.Length <= 8 ? lane.SessionId : lane.SessionId[..8];
+        var shortId = lane.SessionId.Length <= 8 ? lane.SessionId : lane.SessionId[..8];
+        // Claude Code sends no title: use the Claude desktop app's sidebar title when
+        // the chat runs there, else a readable fallback that still tells chats apart.
+        var label = _titles is null ? shortId : _titles.TitleFor(lane.HostSessionId) ?? "Claude chat " + shortId;
         return new AgentTask(
             lane.Key,
             NumberFor(lane.SessionId),
             lane.SessionId,
             Source.SourceInstanceId,
-            ClientSurface.Unknown,
+            lane.HostSessionId is null ? ClientSurface.Unknown : ClientSurface.Desktop,
             label,
             lane.TurnId,
             lane.State,
@@ -324,6 +330,7 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
             assignment.Project)
         {
             IsStateUncertain = lane.CoverageIncomplete || EvidenceFor(lane) == EvidenceKind.None,
+            DesktopSessionId = lane.HostSessionId,
         };
     }
 
@@ -368,7 +375,13 @@ public sealed class BridgeMonitorAdapter : IAgentMonitorAdapter, IBudgetedMonito
         var confirmedRequest = lane.NeedsHuman && !lane.IsStale && !lane.CoverageIncomplete;
         if (active && !lane.ActionEvidenceFresh && !confirmedRequest)
         {
-            return EvidenceKind.None;
+            // Agents think or write for minutes between tool calls without emitting
+            // anything. A turn that started under observation and has not ended is
+            // still evidence of work until the source goes stale; it is weaker than
+            // a fresh action, so it is reported as inferred rather than structured.
+            var openTurn = lane.State == AgentTaskState.Working && lane.TurnStartedAt is not null &&
+                !lane.IsStale && !lane.CoverageIncomplete;
+            return openTurn ? EvidenceKind.Inferred : EvidenceKind.None;
         }
 
         return EvidenceKind.Structured;

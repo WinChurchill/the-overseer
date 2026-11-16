@@ -150,6 +150,38 @@ public sealed class TaskNavigationTests
         Assert.Null(CodexTaskNavigator.BuildUri(task, "codex").Uri);
     }
 
+    [Fact]
+    public void ClaudeDesktopChatOpensItsOwnSessionLink()
+    {
+        var task = Task() with
+        {
+            Key = TaskKey.For(HarnessIds.Claude, "cc-test", "11111111-2222-3333-4444-555555555555"),
+            DesktopSessionId = "local_0818420e-ff5b-4789-a3be-05bc084bc1c6",
+        };
+        var result = CodexTaskNavigator.BuildUri(task, "codex");
+        Assert.Equal(TaskNavigationOutcome.Requested, result.Outcome);
+        Assert.Equal("claude://claude.ai/epitaxy/local_0818420e-ff5b-4789-a3be-05bc084bc1c6", result.Uri);
+        Assert.True(TheOverseer.UI.ViewModels.HudViewModel.CanNavigate(task));
+
+        var launcher = new FakeTaskLaunchBoundary();
+        Assert.Equal(TaskNavigationOutcome.Requested, new CodexTaskNavigator(launcher).Navigate(task, "codex").Outcome);
+        Assert.Equal(1, launcher.LaunchCount);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("local_")]
+    [InlineData("local_a/b")]
+    [InlineData("local_abc?x=1")]
+    [InlineData("claude://evil")]
+    [InlineData("11111111-2222-3333-4444-555555555555")]
+    public void ClaudeChatsWithoutAValidDesktopIdCannotBeOpened(string? id)
+    {
+        var task = Task() with { Key = TaskKey.For(HarnessIds.Claude, "cc-test", "11111111-2222-3333-4444-555555555555"), DesktopSessionId = id };
+        Assert.Null(CodexTaskNavigator.BuildUri(task, "codex").Uri);
+        Assert.False(TheOverseer.UI.ViewModels.HudViewModel.CanNavigate(task));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

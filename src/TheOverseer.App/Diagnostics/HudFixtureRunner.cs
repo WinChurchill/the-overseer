@@ -173,6 +173,17 @@ internal static class HudFixtureRunner
             Render(filtered, theme, filteredPath);
             rendered.Add(filteredPath);
 
+            // The finished-task checklist with its tick buttons.
+            var review = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
+            review.UseActivitySource(fixtureActivity.Source);
+            review.ApplySnapshot(scenarios[0]);
+            review.ApplyVoiceStatus(VoiceStatus.Initial);
+            review.IsExpanded = true;
+            review.TaskFilter = "review";
+            var reviewPath = Path.Combine(outputDirectory, theme.ToString().ToLowerInvariant() + "-filter-review.png");
+            Render(review, theme, reviewPath);
+            rendered.Add(reviewPath);
+
             var history = new HudViewModel(HudSettings.Default with { Opacity = 1.0 });
             history.UseActivitySource(hourActivity.Source);
             history.ApplySnapshot(hour[^1]);

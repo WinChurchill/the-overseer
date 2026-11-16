@@ -57,6 +57,9 @@ observer covers loaded desktop overviews.
 
 - Select **Needs you** or **Working** to filter tasks. Use **Recent** and **History**
   to inspect past activity.
+- Finished tasks wait in **To review** until you tick **Done** or open them.
+- Click a task to open it: Codex desktop tasks open in Codex, and Claude Code chats
+  running in the Claude desktop app open in Claude.
 - Drag the header to move the HUD. Drag the divider to resize the status light.
 - Voice starts muted. Open **⋯ → Light & voice…** to preview the included offline
   Kokoro cues, then unmute when ready.

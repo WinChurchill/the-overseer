@@ -5,7 +5,9 @@
  * Contract (see README.md):
  *   - reads at most 1 MiB of hook JSON from stdin with a hard 2 second deadline;
  *   - maps only allowlisted documented fields; never reads or logs prompts,
- *     tool arguments, tool results, transcripts, environment values or credentials;
+ *     tool arguments, tool results, transcripts or credentials. The only
+ *     environment values read are CLAUDE_CODE_ENTRYPOINT and
+ *     CLAUDE_CODE_HOST_SESSION_ID, to record the desktop session id;
  *   - appends one bounded (<= 64 KiB) JSON line to the OVERSEER spool;
  *   - never returns a permission decision, never prints to stdout, always exits 0;
  *   - all acquisition/write work is bounded by a 250 ms budget, after which the
@@ -17,7 +19,7 @@
 
 import process from 'node:process';
 
-import { PRODUCER_VERSION, buildRecord, classify, validateRecord } from './lib/mapping.mjs';
+import { PRODUCER_VERSION, buildRecord, classify, hostSessionIdFromEnv, validateRecord } from './lib/mapping.mjs';
 import {
   Deadline,
   beginHealthAccounting,
@@ -184,6 +186,7 @@ async function run() {
     sourceEpoch: epoch.sourceEpoch,
     observedAtUtc: new Date().toISOString(),
     producerVersion: PRODUCER_VERSION,
+    hostSessionId: hostSessionIdFromEnv(process.env),
   });
   if (!record) {
     account('droppedUnsupportedPayload');

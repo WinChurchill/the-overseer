@@ -92,6 +92,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
                 LightPosition = ViewModel.LightPosition,
                 LightSize = ViewModel.LightSize,
                 FocusPins = ViewModel.FocusPins,
+                Review = ViewModel.Review,
             },
             Voice = voice,
             // Additive: source enablement is written with every other setting

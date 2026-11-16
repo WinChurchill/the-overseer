@@ -2,6 +2,25 @@
 
 ## Unreleased — publication alpha candidate
 
+- Claude Code tasks show in **Now** while they work. A turn that started under
+  observation counts as working between tool calls (inferred evidence) until the
+  source goes stale, instead of dropping out 10 seconds after the last tool call.
+  A new prompt also re-confirms a watched session after a producer drop, unless
+  that session's own sequence had a gap.
+- Sessions OVERSEER joined midway still show in **Now** while they visibly work, marked
+  *state unconfirmed*; counts and alerts keep using confirmed state.
+- A Claude session that closes right after a finished turn keeps its Done or failed
+  result instead of resetting to idle, so the finish shows and reaches **To review**.
+- Claude chats are named after their Claude desktop sidebar title, read-only from the
+  app's per-session file (only the `title` field, size-capped). Other Claude chats read
+  "Claude chat <id>" instead of a bare id.
+- Add a **To review** checklist: finished and failed tasks stay listed, with a
+  Done tick, until you tick them, open them or they start working again. The list
+  survives restarts and is bounded to 30 items.
+- Clicking a Claude Code chat that runs in the Claude desktop app opens it there.
+  Bridge 1.0.8 records the desktop's `local_` session id, read only from
+  `CLAUDE_CODE_HOST_SESSION_ID` when `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`.
+
 - Installer upgrades preserve unmanaged files and custom data folders, removing only
   unchanged retired files in the previous package inventory. Uninstall scopes Claude
   hook removal to its bridge path and matches the startup executable exactly.

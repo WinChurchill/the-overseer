@@ -158,7 +158,7 @@ public sealed partial class HudApplicationController : IAsyncDisposable
 
     private void OnActivateTask(TaskRowViewModel row)
     {
-        var task = _lastTasks.Find(candidate => candidate.Key.Equals(row.Key));
+        var task = _lastTasks.Find(candidate => candidate.Key.Equals(row.Key)) ?? ViewModel.ReviewTaskFor(row.Key);
         if (task is null)
         {
             ViewModel.NotifyStatus("Task is no longer in view.");
@@ -181,6 +181,8 @@ public sealed partial class HudApplicationController : IAsyncDisposable
             return;
         }
 
+        // Opening a finished task counts as looking at it.
+        if (result.Outcome == TaskNavigationOutcome.Requested && ViewModel.IsReviewItem(row.Key)) ViewModel.MarkReviewed(row.Key);
         ViewModel.NotifyStatus(result.UserMessage, transient: result.Outcome == TaskNavigationOutcome.Requested);
         Log(MonitorLogLevel.Info, "hud-navigate-" + result.Outcome.ToString().ToLowerInvariant());
     }

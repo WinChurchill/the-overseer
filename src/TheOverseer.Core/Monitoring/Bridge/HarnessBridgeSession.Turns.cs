@@ -89,6 +89,22 @@ public sealed partial class HarnessBridgeSession
                 return null;
 
             case "session/end":
+                // Claude closes a desktop session seconds after its last turn ends.
+                // A turn that finished keeps its result (Done or failed) so the finish
+                // is still visible and reviewable; only an unfinished session goes idle.
+                if (lane.TurnEnded && lane.State is AgentTaskState.Done or AgentTaskState.Error)
+                {
+                    lane.NeedsHuman = false;
+                    lane.WithdrawAttentionConfirmation();
+                    lane.OpenCalls.Clear();
+                    lane.OpenCallsComplete = false;
+                    lane.AttentionCode = null;
+                    lane.Approvals.Clear();
+                    lane.Inputs.Clear();
+                    lane.ApprovalBlocker = null;
+                    return null;
+                }
+
                 lane.State = AgentTaskState.Idle;
                 lane.TurnId = string.Empty;
                 lane.DetailCode = "session-end";
@@ -117,6 +133,15 @@ public sealed partial class HarnessBridgeSession
                 // A call left open by an earlier turn is not what a new prompt blocks.
                 lane.OpenCalls.Clear();
                 lane.OpenCallsComplete = !gapDetected;
+                // A new prompt in a session already under observation means every
+                // earlier request was answered, so records the producer lost before
+                // it cannot change what this task is doing now. With no gap in this
+                // session's own sequence, the current state is known again, as after
+                // a session start; otherwise one producer drop would leave every
+                // long-lived session unconfirmed until OVERSEER restarts. A prompt
+                // that is the first record seen (attached mid-session) proves nothing,
+                // and a session whose own sequence had a gap waits for a snapshot.
+                if (!gapDetected && !lane.HistoryGap && !quiet && lane.RecordsFolded > 0) lane.CurrentStateComplete = true;
                 lane.ApprovalBlocker = null;
                 if (lane.Approvals.Count > 0 || lane.Inputs.Count > 0) Settle(lane);
                 return null;

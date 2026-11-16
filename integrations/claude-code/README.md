@@ -102,7 +102,8 @@ One JSON object per line with **exactly** these keys, in this order. No other ke
 | `evidence` | enum `explicit\|inferred\|unknown` | see the mapping table; forced to `unknown` when `session_id` is missing |
 | `outcome` | enum `completed\|aborted\|error\|ok\|failed` or null | see the mapping table |
 | `hydration` | boolean | always `false`: a live one-shot publication, never a replay/backfill |
-| `producerVersion` | string | `overseer-claude-bridge/1.0.7` |
+| `producerVersion` | string | `overseer-claude-bridge/1.0.8` |
+| `hostSessionId` | string or null | the Claude desktop app's `local_…` id for the session, so a click in OVERSEER can open it; `null` outside the desktop app. Read only from `CLAUDE_CODE_HOST_SESSION_ID` when `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`; no other environment value is read |
 
 Deliberately **never** stored, even though the payloads contain them: prompt and message text,
 tool names, tool arguments, tool results and errors, transcript and scratchpad paths,
@@ -531,7 +532,27 @@ The tests use `fs.mkdtemp` directories and real child processes; they never read
 * Not live-qualified (see the top of this document).
 * `eventAtUtc` is not an upstream event time: no hook payload documents one.
 * Tool names, notification sub-types and permission-decision details are not persisted; the
-  record schema is fixed at the 19 keys above, by contract.
+  record schema is fixed at the 20 keys above, by contract.
+* Sessions that were already running when OVERSEER started (or that lost records) show as
+  **state unconfirmed** until their next prompt. While they visibly work they still appear
+  in **Now** with that mark, but they do not count toward the Working and Needs you totals
+  or trigger alerts until confirmed.
+* Between tool calls a working turn is shown from the open turn alone (inferred evidence).
+  If a turn's end is lost, the task can show as working until it goes stale (15 minutes).
+* Click-to-open works only for chats running in the **Claude desktop app**. Chats run in a
+  terminal, VS Code or another editor cannot be opened from OVERSEER; clicking copies the id.
+* Click-to-open relies on two things the Claude desktop app does not document: the
+  `CLAUDE_CODE_HOST_SESSION_ID` variable it passes to hooks and its
+  `claude://claude.ai/epitaxy/<id>` session link. A Claude update can change either; the
+  click then falls back to copying the id.
+* Chat names come from the Claude desktop app's own per-session file
+  (`%LOCALAPPDATA%\Claude-Data\claude_*\claude-code-sessions\…\local_<id>.json`); OVERSEER
+  reads only its `title`. The format is undocumented, and chats outside the desktop app (or
+  from before bridge 1.0.8) show as "Claude chat <id>".
+* Hooks store an absolute path to `bridge.mjs`. Moving, replacing or deleting that folder
+  (for example extracting a new ZIP somewhere else) leaves the hooks pointing at nothing
+  until you re-run the installer from the new folder. The setup .exe keeps one folder across
+  upgrades to avoid this.
 * `MessageDisplay` is mapped but not installed by default because it fires per streamed batch.
 * `SubagentStart`/`SubagentStop` are liveness records on the parent session. They
   never restart/complete its turn, answer its requests or refresh its action lease.

@@ -49,15 +49,27 @@ public sealed class BridgeLiveAttentionTests
     [Theory]
     [InlineData("claude")]
     [InlineData("dsh")]
-    public async Task WorkStillLosesActionEvidenceAfterTheExistingTenSecondLease(string harness)
+    public async Task AnOpenTurnStaysCurrentBetweenActionsUntilTheSourceGoesStale(string harness)
     {
         await using var flow = await LiveFlow.Create(harness);
-        Assert.True(Assert.Single(flow.Adapter.Poll().Tasks).HasCurrentState);
+        var fresh = Assert.Single(flow.Adapter.Poll().Tasks);
+        Assert.True(fresh.HasCurrentState);
+        Assert.Equal(EvidenceKind.Structured, fresh.Evidence);
+
+        // Thinking between tool calls emits nothing: the open turn is weaker,
+        // inferred evidence, but the task is still current work.
         flow.Clock.AdvanceSeconds(11);
+        var thinking = Assert.Single(flow.Adapter.Poll().Tasks);
+        Assert.Equal(AgentTaskState.Working, thinking.State);
+        Assert.True(thinking.HasCurrentState);
+        Assert.Equal(EvidenceKind.Inferred, thinking.Evidence);
+
+        // A lost turn end cannot keep it working forever.
+        flow.Clock.AdvanceSeconds(16 * 60);
         var aged = Assert.Single(flow.Adapter.Poll().Tasks);
         Assert.False(aged.HasCurrentState);
-        Assert.Equal(EvidenceKind.None, aged.Evidence);
     }
+
 
     [Fact]
     public async Task ClaudeQuestionAndItsIdentitylessPermissionNotificationStayOneInputEpisode()

@@ -238,7 +238,7 @@ public sealed class HudViewModelTests
         Assert.Equal("▾", viewModel.ExpandGlyph);
         viewModel.IsExpanded = true;
         Assert.Equal("▴", viewModel.ExpandGlyph);
-        Assert.Contains("Click a Codex task", viewModel.FooterHint, StringComparison.Ordinal);
+        Assert.Contains("Click a task to open it", viewModel.FooterHint, StringComparison.Ordinal);
     }
 
     [Fact]

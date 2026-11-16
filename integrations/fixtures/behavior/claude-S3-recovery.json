@@ -25,7 +25,8 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.7"
+          "producerVersion": "overseer-claude-bridge/1.0.8",
+          "hostSessionId": null
         }
       ],
       "expected": {
@@ -61,7 +62,8 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.7"
+          "producerVersion": "overseer-claude-bridge/1.0.8",
+          "hostSessionId": null
         }
       ],
       "expected": {
@@ -97,7 +99,8 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.7"
+          "producerVersion": "overseer-claude-bridge/1.0.8",
+          "hostSessionId": null
         }
       ],
       "expected": {
@@ -149,7 +152,8 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.7"
+          "producerVersion": "overseer-claude-bridge/1.0.8",
+          "hostSessionId": null
         }
       ],
       "expected": {
@@ -181,7 +185,7 @@
         "harnessId": "claude",
         "sourceInstanceId": "behavior",
         "sourceEpoch": "E1",
-        "producerVersion": "overseer-claude-bridge/1.0.7",
+        "producerVersion": "overseer-claude-bridge/1.0.8",
         "updatedAtUtc": "2026-01-01T00:00:02.000Z",
         "evictedSessions": 0,
         "sessions": [
@@ -235,7 +239,8 @@
           "evidence": "explicit",
           "outcome": null,
           "hydration": false,
-          "producerVersion": "overseer-claude-bridge/1.0.7"
+          "producerVersion": "overseer-claude-bridge/1.0.8",
+          "hostSessionId": null
         }
       ],
       "expected": {
@@ -267,7 +272,7 @@
         "harnessId": "claude",
         "sourceInstanceId": "behavior",
         "sourceEpoch": "E1",
-        "producerVersion": "overseer-claude-bridge/1.0.7",
+        "producerVersion": "overseer-claude-bridge/1.0.8",
         "updatedAtUtc": "2026-01-01T00:15:07.000Z",
         "evictedSessions": 0,
         "sessions": [
@@ -302,7 +307,7 @@
         "harnessId": "claude",
         "sourceInstanceId": "behavior",
         "sourceEpoch": "E1",
-        "producerVersion": "overseer-claude-bridge/1.0.7",
+        "producerVersion": "overseer-claude-bridge/1.0.8",
         "updatedAtUtc": "2026-01-01T00:15:07.000Z",
         "evictedSessions": 0,
         "sessions": [
